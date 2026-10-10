@@ -108,6 +108,26 @@ test.describe('what it looks like', () => {
         expect(problems).toEqual([]);
       });
 
+  // the fishing from the shore: the bobber dipped at a bite, a fish played with the line warm and the rod bent, and a
+  // fish landed, hanging from the rod with its card shown; the first two in open water and see-through, the fight by
+  // day and at dusk
+  for (const [name, water, time, moment] of [
+    ['open-bite', 'open', 'day', 'bite'],
+    ['clear-bite', 'clear', 'day', 'bite'],
+    ['open-fight', 'open', 'day', 'fight'],
+    ['clear-fight-dusk', 'clear', 'dusk', 'fight'],
+    ['clear-landed', 'clear', 'day', 'landed'],
+  ] as const)
+    test(`fishing-${name}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { water, dirt: 0.2, time, view: 'shore' }, 30);
+      await page.evaluate((m) => window.game!.fishTo(m), moment);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`fishing-${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
   test('the water moves by the game clock alone', async ({ page }) => {
     // two pictures at the same game time are the same to the byte, splash and all, and a second later the water has moved
     await start(page, { seed: 11, paused: true });
@@ -164,6 +184,21 @@ test.describe('on a phone', () => {
       (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
     });
     await expect(page).toHaveScreenshot('phone.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('a fish on the line, with the gauge and the Reel button in reach of a thumb', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, water: 'clear', view: 'phone' }, 30);
+    await page.evaluate(() => {
+      window.game!.fishTo('fight');
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page.locator('#reelButton')).toBeInViewport();
+    await expect(page.locator('#gauge')).toBeInViewport();
+    await expect(page).toHaveScreenshot('phone-fight.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
 });

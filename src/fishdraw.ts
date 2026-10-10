@@ -35,21 +35,24 @@ export class FishDraw {
     return { mesh: ball(0.5, 4, 7), matrices: this.matrices, count: 0, albedo: PALETTE.glow, roughness: 0.6, patterns };
   }
 
-  /** Every fish where it is now; says how many are placed. */
-  write(fish: School): number {
+  /** Every fish where it is now, but fish `hung`, hanging nose up at `at`, landed and shown off; says how many are placed. */
+  write(fish: School, hung = -1, at: ArrayLike<number> = [0, 0, 0]): number {
     const n = Math.min(fish.count, FISH_CAPACITY);
     for (let i = 0; i < n; i++)
-      place(
-        this.matrices,
-        i,
-        fish.x[i],
-        fish.y[i],
-        -fish.depth[i],
-        fish.heading[i],
-        FISH_BODY.length,
-        FISH_BODY.width,
-        FISH_BODY.height,
-      );
+      if (i === hung)
+        place(this.matrices, i, at[0], at[1], at[2], 0, FISH_BODY.height, FISH_BODY.width, FISH_BODY.length);
+      else
+        place(
+          this.matrices,
+          i,
+          fish.x[i],
+          fish.y[i],
+          -fish.depth[i],
+          fish.heading[i],
+          FISH_BODY.length,
+          FISH_BODY.width,
+          FISH_BODY.height,
+        );
     return n;
   }
 }

@@ -2,7 +2,7 @@
 import { FLOW_GLOW } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
 import { FISH_CAPACITY } from '../src/lake';
-import { FishDraw } from '../src/fishdraw';
+import { FISH_BODY, FishDraw } from '../src/fishdraw';
 import { newGame, settle } from './helpers';
 
 describe('the fish, drawn', () => {
@@ -28,5 +28,18 @@ describe('the fish, drawn', () => {
       // the mesh's own x, its nose, along the heading
       expect(Math.atan2(m[1], m[0])).toBeCloseTo(game.fish.heading[i], 5);
     }
+  });
+
+  it('hangs the fish it is told to where it is told, nose up, and the rest where the school is', () => {
+    const { game } = newGame(2);
+    settle(game, 60);
+    const draw = new FishDraw();
+    expect(draw.write(game.fish, 1, [3, -20, 4])).toBe(game.fish.count);
+    const m = draw.matrices.subarray(16, 32);
+    expect([m[12], m[13], m[14]]).toEqual([3, -20, 4]);
+    // its length stands up the world's z
+    expect(Math.hypot(m[8], m[9], m[10])).toBeCloseTo(FISH_BODY.length, 5);
+    expect(m[10]).toBeCloseTo(FISH_BODY.length, 5);
+    expect(draw.matrices[12]).toBeCloseTo(game.fish.x[0], 5);
   });
 });

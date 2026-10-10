@@ -234,6 +234,53 @@ test('casts from the shore by a drag back, to where its preview said, and from n
   expect(problems).toEqual([]);
 });
 
+test('strikes by a tap and reels by a hold from the shore, and by the button from any view', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  await page.evaluate(() => window.game!.view('shore'));
+  const box = (await page.locator('#view').boundingBox())!;
+  const on = { x: box.x + box.width / 2, y: box.y + box.height * 0.45 };
+  const fishing = () => page.evaluate(() => window.game!.fishing());
+  const toBite = () =>
+    page.evaluate(() => {
+      const g = window.game!;
+      g.cast(Math.PI / 2, 0.62);
+      for (let f = 0; f < 3600 && g.fishing().phase !== 'biting'; f++) g.step(1);
+    });
+
+  // with the lure in the water, a tap strikes, and drops no pebble: on a bite, it hooks the fish
+  await toBite();
+  expect((await fishing()).phase).toBe('biting');
+  const splashes = (await page.evaluate(() => window.game!.splashes())).length;
+  await page.mouse.click(on.x, on.y);
+  expect((await fishing()).phase, 'a tap struck').toBe('hooked');
+  expect((await page.evaluate(() => window.game!.splashes())).length, 'and dropped no pebble').toBe(splashes);
+  // held on the water, it reels; let go, it does not
+  await page.mouse.move(on.x, on.y);
+  await page.mouse.down();
+  expect((await fishing()).reeling, 'a hold reels').toBe(true);
+  await page.mouse.up();
+  expect((await fishing()).reeling).toBe(false);
+
+  // from overhead, the button: held, it reels, and let go, it does not
+  await page.evaluate(() => window.game!.view('overhead'));
+  const button = page.locator('#reelButton');
+  await expect(button).toHaveText('Reel');
+  const b = (await button.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  expect((await fishing()).reeling, 'the button held reels').toBe(true);
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await page.mouse.up();
+  expect((await fishing()).reeling).toBe(false);
+  // a fish on: a cast is refused, and the panel's reel-in leaves it on the line
+  expect(await page.evaluate(() => window.game!.cast(Math.PI / 2, 0.5))).toBe(false);
+  await page.getByRole('button', { name: 'Reel in' }).click();
+  expect((await fishing()).phase).toBe('hooked');
+  expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
 test('puts the camera where each view says', async ({ page }) => {
   await start(page, { seed: 1, paused: true });
   for (const [view, near] of [

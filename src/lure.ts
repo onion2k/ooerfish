@@ -1,12 +1,12 @@
 /**
  * The lure: ready on the rod, flying a cast's arc, then sinking under its bobber on the water or lying on the bank,
- * until it is reeled in. Its flight is the cast's sums (`cast.ts`), so where it is in the air is a time since the
+ * until it is reeled in; or in a hooked fish's mouth, where the game puts it. Its flight is the cast's sums (`cast.ts`), so where it is in the air is a time since the
  * cast and nothing kept; on the water it sinks by the step until the line or the bed stops it.
  */
 import { flightAt, landingTime } from './cast';
 import { CAST, bedDepth, inside } from './lake';
 
-export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying';
+export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying' | 'hooked';
 
 export class Lure {
   phase: LurePhase = 'ready';
@@ -64,10 +64,21 @@ export class Lure {
     return null;
   }
 
+  /** A fish that slipped off lets it go at (x, y), as deep as it was: it sinks on from there under its bobber. */
+  freed(x: number, y: number, depth: number) {
+    this.phase = 'sinking';
+    this.bobber[0] = x;
+    this.bobber[1] = y;
+    this.depth = Math.max(0, depth);
+    this.sink(0);
+  }
+
   /** Sunk on by `dt`, until the line or the bed stops it. */
   private sink(dt: number) {
     const stop = Math.max(0, Math.min(CAST.lineDepth, bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed));
     this.depth = Math.min(stop, this.depth + CAST.sink * dt);
+    this.at[0] = this.bobber[0];
+    this.at[1] = this.bobber[1];
     this.sunk += dt;
     this.at[2] = -this.depth;
   }

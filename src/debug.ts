@@ -54,6 +54,17 @@ export interface LureState {
 }
 
 /** A fish, where it is. */
+export interface FishingState {
+  phase: string;
+  fish: number;
+  tension: number;
+  out: number;
+  pulling: boolean;
+  reeling: boolean;
+  bucket: number;
+  weight: number;
+}
+
 export interface Fish {
   x: number;
   y: number;
@@ -95,6 +106,20 @@ export interface GameApi {
   aim(to: { angle: number; power: number } | null): void;
   reelIn(): void;
   lure(): LureState;
+  /** The player strikes, as a tap does: says whether it hooked a fish biting, spooked one nibbling, twitched the lure, or did nothing. */
+  strike(): string;
+  /** The reel held or let go, as holding the screen, the Reel button or space does. */
+  reel(on: boolean): void;
+  /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
+  stow(): boolean;
+  /** The fishing: the bite's phase and its fish, the line's tension and length, whether the fish pulls, and the bucket. */
+  fishing(): FishingState;
+  /**
+   * The lake played to a moment of the fishing, as a careful angler would: a cast to the middle and the bite; a fight
+   * under way with the line tight; or a fish landed and waiting by the rod. For the pictures, which want each moment
+   * the same every run; says whether it got there.
+   */
+  fishTo(moment: 'bite' | 'fight' | 'landed'): boolean;
   /** Where the cast being aimed will land, and whether on the water; null when none is aimed. */
   preview(): { x: number; y: number; z: number; onWater: boolean } | null;
   /** A pebble dropped on the water at (x, y); says whether it landed, which off the water it does not. */
@@ -210,6 +235,42 @@ export function createApi(host: DebugHost): GameApi {
     cast: (angle, power) => game.cast(angle, power),
     aim: (to) => host.setAim(to),
     reelIn: () => game.reelIn(),
+    strike: () => game.strike(),
+    reel: (on) => game.reel(on),
+    stow: () => game.stow(),
+    fishing: () => ({
+      phase: game.bite.phase,
+      fish: game.bite.fish,
+      tension: game.line.tension,
+      out: game.line.out,
+      pulling: game.line.pulling,
+      reeling: game.reeling,
+      bucket: game.bucket,
+      weight: game.catchWeight,
+    }),
+    fishTo(moment) {
+      // each frame as the page's own step does it, the lake on and drawn, so what follows in the picture is the same
+      const frame = () => {
+        host.simulate(1 / 60);
+        host.draw(1 / 60);
+      };
+      game.cast(Math.PI / 2 + 0.15, 0.55);
+      for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
+      if (moment === 'bite') return game.bite.phase === 'biting';
+      game.strike();
+      let reeling = false;
+      for (let f = 0; f < 7200 && game.bite.phase === 'hooked'; f++) {
+        const t = game.line.tension;
+        // a fight is pictured a few seconds in, the line between tight and too tight
+        if (moment === 'fight' && f > 300 && t > 0.6 && t < 0.75) break;
+        if (t < 0.45) reeling = true;
+        if (t > 0.75) reeling = false;
+        game.reel(reeling);
+        frame();
+      }
+      game.reel(false);
+      return moment === 'fight' ? game.bite.phase === 'hooked' : game.bite.phase === 'landed';
+    },
     lure() {
       const { lure } = game;
       return {

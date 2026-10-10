@@ -66,4 +66,10 @@ describe("a fish's glow", () => {
     const out = new Float32Array(4 * EFFECT_STRIDE);
     expect(glowQuads(out, school, camera(), 1)).toBeLessThanOrEqual(4);
   });
+
+  it('leaves out the fish it is told to, as the landed one hanging from the rod', () => {
+    const out = new Float32Array(EFFECT_STRIDE * 4);
+    expect(glowQuads(out, oneFish(0, 0, 1), camera(), 1, 0)).toBe(0);
+    expect(glowQuads(out, oneFish(0, 0, 1), camera(), 1, -1)).toBe(1);
+  });
 });

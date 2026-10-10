@@ -79,8 +79,24 @@ export function hashGame(game: Game): string {
     eat(splashes.size[i]);
   }
   const { lure } = game;
-  eat(['ready', 'flying', 'sinking', 'lying'].indexOf(lure.phase));
+  eat(['ready', 'flying', 'sinking', 'lying', 'hooked'].indexOf(lure.phase));
   for (const n of [lure.angle, lure.power, lure.castAt, lure.depth, lure.sunk, ...lure.at, ...lure.bobber]) eat(n);
+  // the bite and the fight, every number of each, so a fish's coming, nibbling and fighting are held to the seed
+  const { bite, line } = game;
+  eat(['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'].indexOf(bite.phase));
+  for (const n of [bite.fish, bite.timer, bite.nibblesLeft, bite.twitchUntil, game.fish.held]) eat(n);
+  for (let i = 0; i < game.fish.count; i++) eat(bite.wary[i]);
+  for (const n of [
+    line.out,
+    line.tension,
+    line.timer,
+    line.over,
+    +line.pulling,
+    +game.reeling,
+    game.bucket,
+    game.catchWeight,
+  ])
+    eat(n);
   eat(game.contamination);
   eat(game.timeOfDay);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
@@ -99,6 +115,10 @@ export function playTwice({ seed, frames, every = 300, meddle }: TwiceOptions): 
       if (f % DROP_EVERY === 0) game.dropNear(0, 0);
       // and a cast by chance as often, so the lure is played and held to the seed
       if (f % DROP_EVERY === DROP_EVERY / 2) game.cast(game.random() * Math.PI * 2, game.random());
+      // and fished as an angler would, struck on the dip and played by the line's tension, so a fight is held too
+      if (game.bite.phase === 'biting') game.strike();
+      if (game.bite.phase === 'hooked') game.reel(game.line.tension < 0.6);
+      if (game.bite.phase === 'landed') game.stow();
       meddle?.(game, pass);
       if (f % every === 0) hashes.push(hashGame(game));
     }

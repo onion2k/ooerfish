@@ -25,12 +25,14 @@ const HALF_DEPTH = 1.5;
  * Writes the glow over every fish the camera can see into `out`, `EFFECT_STRIDE` floats each, and says how many.
  * `gain` is how bright the time of day makes them.
  */
-export function glowQuads(out: Float32Array, fish: School, camera: Camera, gain: number): number {
+export function glowQuads(out: Float32Array, fish: School, camera: Camera, gain: number, skip = -1): number {
   const m = camera.viewProjection;
   const focal = 1 / Math.tan((camera.fov * Math.PI) / 360);
   const room = Math.floor(out.length / EFFECT_STRIDE);
   let n = 0;
   for (let i = 0; i < fish.count && n < room; i++) {
+    // the landed fish hangs from the rod, out of the water, and glows on no surface
+    if (i === skip) continue;
     const x = fish.x[i],
       y = fish.y[i];
     // the surface over the fish, in the camera's clip space

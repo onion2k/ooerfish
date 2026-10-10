@@ -110,6 +110,27 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: 'a fish fought and landed',
+    // a cast to the middle, struck on the bite, played by its tension, landed, stowed and cast again, over and over
+    frames: 20000,
+    busy: [0.6, 1],
+    setup: () => {
+      const game = settled(1);
+      return {
+        game,
+        frame: () => {
+          const { phase } = game.bite;
+          if (game.lure.phase === 'ready') game.cast(Math.PI / 2, 0.62);
+          if (phase === 'biting') game.strike();
+          game.reel(phase === 'hooked' && game.line.tension < 0.6);
+          if (phase === 'landed') game.stow();
+          game.step(DT);
+        },
+        busy: () => game.bite.phase !== 'none',
+      };
+    },
+  },
+  {
     name: 'a lake as full of fish as it can hold',
     frames: 10000,
     busy: [1, 1],

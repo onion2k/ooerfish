@@ -154,6 +154,61 @@ export function groundUnder(x: number, y: number): number {
   return BANK_TOP * out * out * (3 - 2 * out);
 }
 
+/**
+ * How a fish comes to the lure and bites, first guesses to be tuned by playing (and held by the pace gate once it is
+ * back): how far off, in plan, a fish may notice a sunk lure, and how far from its own depth; the chance a second it
+ * does, and how much a twitch adds to that and for how long; how fast it comes; how near the lure its mouth is when it
+ * nibbles; how many nibbles, and the gaps between them; how long the strike's window is; and how long a fish that let
+ * go keeps away.
+ */
+export const FISHING = {
+  // measured on 40 seeds of a cast to the middle: a bite in 11.7 s at the median and 23 s at the most; at a reach of
+  // 12, a band of 3 and a chance of 0.3, a lake's six fish were too seldom near enough, and one seed in seven waited
+  // over a minute
+  reach: 18,
+  band: 5,
+  notice: 0.4,
+  twitchBoost: 3,
+  twitchLasts: 3,
+  comeSpeed: 1.8,
+  mouth: 0.6,
+  nibbles: [1, 3] as const,
+  nibbleGap: [0.7, 1.6] as const,
+  window: 0.9,
+  wary: 8,
+} as const;
+
+/**
+ * The fight, first guesses to be tuned by playing and held by the pace gate: how fast the reel winds line in, and
+ * what share of that it manages against a pulling fish; how fast the reel draws the line tighter, and how much more a
+ * pull adds; how fast letting go eases it, resting and pulling; how fast a pulling fish takes line off a reel let go;
+ * how long a pull and a rest last, and what share of its rest a sick lake's fish keeps (so it pulls more often); how
+ * tight the line is when the fish is hooked; how long it may be as tight as it goes before the fish slips; the spool's
+ * length; and where in the shallows below the angler a fish is landed, and how near it the line must be wound.
+ */
+export const FIGHT = {
+  // at a reel of 3, a reel's tension of 0.22, an easing of 0.45 and a run of 2, a careful hand took over two minutes
+  // to wind in a fish hooked in the middle of the lake, the fish taking back most of what the reel won
+  reel: 4,
+  reelPulling: 0.25,
+  reelTension: 0.15,
+  pullTension: 0.7,
+  ease: 0.6,
+  easePulling: 0.15,
+  run: 1.2,
+  pull: [0.8, 2.2] as const,
+  rest: [1.5, 3.5] as const,
+  sickRest: 0.5,
+  startTension: 0.2,
+  slip: 0.3,
+  spool: 60,
+  landAt: [0, -shoreRadius(-Math.PI / 2) + 2] as const,
+  landWithin: 1.5,
+} as const;
+
+/** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */
+export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
+
 /** How many fish swim in the lab's lake, and the most a lake may ever hold, which fixes the pools. */
 export const FISH_COUNT = 6;
 export const FISH_CAPACITY = 32;

@@ -44,32 +44,43 @@ export class School {
   /** The depth each is easing toward, as a share of the water under it, so a fish keeps to a depth of its own. */
   readonly keeps = new Float64Array(FISH_CAPACITY);
   count = 0;
+  /** The fish the bite is steering, which the wander leaves alone; minus one for none. */
+  held = -1;
 
   /** The lake stocked with `n` fish at places in the water chosen by chance, as many as fit. */
   fill(n: number, random: Random) {
     this.count = Math.min(n, FISH_CAPACITY);
-    for (let i = 0; i < this.count; i++) {
-      let x = 0,
-        y = 0;
-      // a point well in from the shore; a hundred tries is far more than the pond's shape needs
-      for (let tries = 0; tries < 100; tries++) {
-        x = (random() * 2 - 1) * 40;
-        y = (random() * 2 - 1) * 30;
-        if (inside(x, y, FISH_SHORE + 2)) break;
-        x = y = 0;
-      }
-      this.x[i] = x;
-      this.y[i] = y;
-      this.heading[i] = random() * Math.PI * 2;
-      this.speed[i] = SPEED[0] + random() * (SPEED[1] - SPEED[0]);
-      this.keeps[i] = 0.2 + random() * 0.5;
-      this.depth[i] = depthRange(x, y)[1] * this.keeps[i];
+    for (let i = 0; i < this.count; i++) this.place(i, random);
+  }
+
+  /** Fish `i` let into the lake afresh, somewhere in it by chance: a landed fish's place taken by another. */
+  respawn(i: number, random: Random) {
+    if (this.held === i) this.held = -1;
+    this.place(i, random);
+  }
+
+  private place(i: number, random: Random) {
+    let x = 0,
+      y = 0;
+    // a point well in from the shore; a hundred tries is far more than the pond's shape needs
+    for (let tries = 0; tries < 100; tries++) {
+      x = (random() * 2 - 1) * 40;
+      y = (random() * 2 - 1) * 30;
+      if (inside(x, y, FISH_SHORE + 2)) break;
+      x = y = 0;
     }
+    this.x[i] = x;
+    this.y[i] = y;
+    this.heading[i] = random() * Math.PI * 2;
+    this.speed[i] = SPEED[0] + random() * (SPEED[1] - SPEED[0]);
+    this.keeps[i] = 0.2 + random() * 0.5;
+    this.depth[i] = depthRange(x, y)[1] * this.keeps[i];
   }
 
   /** Every fish on by `dt` seconds. */
   step(dt: number, random: Random) {
     for (let i = 0; i < this.count; i++) {
+      if (i === this.held) continue;
       let heading = this.heading[i] + (random() * 2 - 1) * WANDER * dt;
       const x = this.x[i],
         y = this.y[i];
@@ -103,6 +114,44 @@ export class School {
       this.depth[i] = Math.min(hi, Math.max(lo, depth));
     }
   }
+}
+
+/** How fast a fish turns toward where it is steered, in radians a second. */
+const TURN_TO = 4;
+
+/**
+ * Fish `i` of the school swum toward (`tx`, `ty`) and eased toward `depth`, at `speed`, by the same rules that keep
+ * every fish in the water and off the boulders: a step that would beach it is not taken, and it turns about. Says how
+ * far it is from the point, in plan, after the step.
+ */
+export function steerTo(
+  school: School,
+  i: number,
+  tx: number,
+  ty: number,
+  depth: number,
+  speed: number,
+  dt: number,
+): number {
+  const x = school.x[i],
+    y = school.y[i];
+  const want = Math.atan2(ty - y, tx - x);
+  let heading = school.heading[i];
+  const off = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
+  heading += Math.sign(off) * Math.min(Math.abs(off), TURN_TO * dt);
+  // no further than the point, so it stops there and does not swim round it
+  const step = Math.min(speed * dt, Math.hypot(tx - x, ty - y));
+  const nx = x + Math.cos(heading) * step,
+    ny = y + Math.sin(heading) * step;
+  if (inside(nx, ny, 0.5) || awayFromLand(x, y, nx, ny)) {
+    school.x[i] = nx;
+    school.y[i] = ny;
+  } else heading += Math.PI;
+  school.heading[i] = Math.atan2(Math.sin(heading), Math.cos(heading));
+  const [lo, hi] = depthRange(school.x[i], school.y[i]);
+  const eased = school.depth[i] + (depth - school.depth[i]) * Math.min(1, SINK * 4 * dt);
+  school.depth[i] = Math.min(hi, Math.max(lo, eased));
+  return Math.hypot(tx - school.x[i], ty - school.y[i]);
 }
 
 /**

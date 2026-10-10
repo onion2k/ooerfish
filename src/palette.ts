@@ -47,6 +47,10 @@ export const PALETTE = {
   /** The rod and its line. */
   rod: [0.42, 0.26, 0.14] as Colour,
   line: [0.9, 0.9, 0.85] as Colour,
+  /** The line as it tightens on a fish, from its own white through warm and orange to red, in four steps. */
+  lineWarm: [1, 0.85, 0.55] as Colour,
+  lineHot: [1, 0.55, 0.2] as Colour,
+  lineRed: [0.95, 0.15, 0.1] as Colour,
   /** The lure, the bobber, and the preview's dots and ring, over the water and over the bank. */
   lure: [1, 0.45, 0.2] as Colour,
   bobber: [0.92, 0.15, 0.12] as Colour,

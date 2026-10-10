@@ -46,11 +46,26 @@ export function fuzz(seed: number, frames: number): FuzzResult {
   const random = seeded(seed * 7 + 1);
   const done: Record<string, number> = {};
   // every event the monkey can make happen, from nought, so one it never made shows as nought and not as missing
-  const happened: Record<string, number> = { splashed: 0 };
+  const happened: Record<string, number> = {
+    splashed: 0,
+    nibbled: 0,
+    bitten: 0,
+    hooked: 0,
+    missed: 0,
+    slipped: 0,
+    landed: 0,
+  };
+  const count = (what: string) => () => {
+    happened[what]++;
+  };
   const events: GameEvents = {
-    splashed: () => {
-      happened.splashed++;
-    },
+    splashed: count('splashed'),
+    nibbled: count('nibbled'),
+    bitten: count('bitten'),
+    hooked: count('hooked'),
+    missed: count('missed'),
+    slipped: count('slipped'),
+    landed: count('landed'),
   };
   const log: string[] = [];
   let frame = 0;
@@ -66,7 +81,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     let store = memoryStore();
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // in an object, since the actions change it from inside closures the type checker cannot follow
-    const page = { paused: false };
+    const page = { paused: false, watching: 0 };
     let busy = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     const did = (what: string) => {
@@ -136,6 +151,38 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         },
       ],
       [
+        2,
+        () => {
+          // a tap at any moment: on a bite, a nibble, nothing at all, or the lure not even in the water
+          game.strike();
+          did('strike');
+        },
+      ],
+      [
+        2,
+        () => {
+          // the reel held or let go, at random, whatever is on the line
+          game.reel(random() < 0.5);
+          did('reel');
+        },
+      ],
+      [
+        1,
+        () => {
+          game.stow();
+          did('stow');
+        },
+      ],
+      [
+        3,
+        () => {
+          // an angler who watches for a while, a few seconds to half a minute: every frame of it, strikes on the dip
+          // and plays a fish on the line by its tension, as someone fishing does, and stows what is landed
+          page.watching = Math.floor(between(300, 1800));
+          did('angle');
+        },
+      ],
+      [
         1,
         () => {
           // the panel's button, near wherever the camera looks
@@ -167,7 +214,14 @@ export function fuzz(seed: number, frames: number): FuzzResult {
 
     for (frame = 1; frame <= frames; frame++) {
       let acted = false;
-      if (busy > 0) busy--;
+      if (page.watching > 0) {
+        page.watching--;
+        if (game.bite.phase === 'biting') game.strike();
+        if (game.bite.phase === 'hooked') game.reel(game.line.tension < 0.6);
+        if (game.bite.phase === 'landed') game.stow();
+        if (game.lure.phase === 'ready' || game.lure.phase === 'lying')
+          game.cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+      } else if (busy > 0) busy--;
       else {
         act();
         acted = true;

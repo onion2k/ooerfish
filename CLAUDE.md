@@ -10,8 +10,9 @@ The README says what the game is; this file says how it is made. The house
 rules in `~/.claude/CLAUDE.md` apply too. For now the page is the **lake
 lab**: one pond, drawn several ways side by side so the water can be chosen
 by looking, with fish swimming under it and a panel for the water, the
-contamination, the time of day and the view. Nothing is played or saved yet;
-the first stage of `DESIGN.md`'s order of work grows out of the lab.
+contamination, the time of day and the view. In it a fish can be cast for,
+hooked, played and landed (stages 1 and 2 of `DESIGN.md`'s order of work);
+nothing is saved yet, and the bucket is the session's until the cure comes.
 
 ## The factory
 
@@ -49,12 +50,13 @@ Numbers, held by gates, on this machine at 1280×800:
 | A frame drawn, the least of 24 at the standard scene     | 8 ms                           | `perf`  |
 | A frame of every way of drawing the water, day and night | 8 ms                           | `perf`  |
 | A step of the lake, against the reference arithmetic     | baseline ± 15%                 | `bench` |
+| Game minutes for the angler to land three fish           | baseline ± 20%, both ways      | `pace`  |
 | Anything kept: fish, save bytes, heap                    | ceilings in `scripts/leaks.ts` | `leaks` |
 
 The standard scene is `STANDARD` in `smoke/game.ts`: open water half
-cleaned, by day, from the shore. There is no pace gate while nothing is
-played: it was the stub's, and comes back with the fishing as the minutes
-to land a fish.
+cleaned, by day, from the shore. The pace gate's angler (`src/angler.ts`)
+casts toward the middle, strikes on the dip and plays the line by its gauge;
+`scripts/pace.ts` says how its tolerance was measured.
 
 A budget is what the game may cost at all; a baseline is what it cost at
 the last commit, held both ways, so a step toward a budget is noticed as
@@ -68,12 +70,13 @@ should not have is looked into.
 
     npm run dev            the game at http://localhost:5204
     npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook; ~10 s)
-    npm run check          all of it: check:quick, fuzz, determinism, leaks, bench, smoke with perf and look (~1 min)
+    npm run check          all of it: check:quick, fuzz, determinism, leaks, bench, pace, smoke with perf and look (~1.5 min)
     npm test               unit tests (Vitest, test/)
     npm run fuzz           the game played at random, rules checked; -- --seed N plays one failure again
     npm run determinism    the same seed played twice, hashed, to catch chance not from the seed
     npm run leaks          an hour of play, watching what must stay bounded (10 min of it in check)
     npm run bench          a step of the lake held to scripts/bench-baseline.json, both ways
+    npm run pace:check     the angler's minutes to land three fish, held to scripts/pace-baseline.json
     npm run perf           boot, frame and download held to smoke/perf-baseline.json and the budget
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
@@ -129,6 +132,18 @@ it.
   bobber, lure and preview. Its figures are first guesses in `CAST` and
   `ANGLER` (`lake.ts`). The player is the angler and is not drawn; a drag
   casts only in the Shore view, where the orbit is off.
+- **The fishing:** `src/bite.ts` is a fish and the lure (none, coming,
+  nibbling, biting, hooked, landed): one fish at a time, which the school's
+  wander leaves alone (`School.held`) while `steerTo` swims it, the strike's
+  window, the twitch and the wary fish. `src/line.ts` is the fight's sums
+  (the line out and its tension under the reel and the fish's pulls, the
+  slip, the landing). `Game` wires them (`strike`, `reel`, `stow`, the fish
+  steered along the line, `GameEvents` nibbled to landed); the figures are
+  `FISHING`, `FIGHT` and `PERCH` in `lake.ts`, tuned on measured seeds.
+  `castdraw.ts` bends the rod, colours the line by the tension and hangs a
+  landed fish; `src/fightview.ts` is the gauge, the Strike/Reel button, the
+  card and the bucket. A tap strikes and a hold reels in the Shore view;
+  space and the button do in any view.
 - **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
   filled by `Game.drop` and `Game.dropNear`, which refuse what is off the
   water and tell of a splash through `GameEvents.splashed`. Their picture is

@@ -144,7 +144,96 @@
     color: var(--dim);
     font-size: 11px;
   }
+  /* the fight: the line's tension as an arc over the cast line, white to red, its words beside it so colour is not all
+     it says; the button that strikes and, held, reels; the catch shown off; and the bucket's count */
+  #gauge {
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: 13px;
+    padding: 8px 14px 6px;
+  }
+  #gauge svg {
+    display: block;
+    width: 120px;
+    height: 62px;
+    margin: 0 auto;
+  }
+  #gauge .track {
+    stroke: rgba(255, 255, 255, 0.18);
+  }
+  #reelButton {
+    position: fixed;
+    right: 24px;
+    bottom: 96px;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    font: inherit;
+    font-weight: 700;
+    font-size: 16px;
+    color: #10202e;
+    background: #e8f4ff;
+    border: 2px solid #10202e;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+  }
+  #reelButton[aria-pressed='true'] {
+    background: #ffd27a;
+  }
+  #catch {
+    /* low, where the gauge was, so the fish hanging from the rod and the lake stay in view */
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: auto;
+    cursor: pointer;
+    text-align: center;
+    font: inherit;
+    color: var(--ink);
+    padding: 16px 22px;
+    min-width: 220px;
+  }
+  #catch b {
+    display: block;
+    font-size: 20px;
+    text-transform: capitalize;
+  }
+  #catch small {
+    display: block;
+    color: var(--dim);
+    margin-top: 8px;
+  }
+  #reelButton:focus-visible,
+  #catch:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
+  }
+  #bucket {
+    top: 72px;
+    right: 16px;
+    font-size: 14px;
+  }
   @media (max-width: 600px) {
+    #reelButton {
+      bottom: 180px;
+      right: 16px;
+    }
+    #gauge,
+    #catch {
+      bottom: 160px;
+    }
+    /* above the folded lab panel, which takes the foot of a phone's screen */
+    #castLine {
+      bottom: 76px;
+      max-width: calc(100% - 32px);
+    }
+    #bucket {
+      top: 16px;
+    }
     #labPanel {
       top: auto;
       bottom: 16px;
@@ -165,6 +254,33 @@
 </details>
 <div class="panel" id="stats" hidden></div>
 <div class="panel" id="castLine" hidden></div>
+<div class="panel" id="gauge" hidden>
+  <svg viewBox="0 0 120 62" aria-hidden="true">
+    <path
+      class="track"
+      d="M10 56 A50 50 0 0 1 110 56"
+      fill="none"
+      stroke-width="10"
+      stroke-linecap="round"
+      pathLength="100"
+    />
+    <path
+      id="gaugeFill"
+      d="M10 56 A50 50 0 0 1 110 56"
+      fill="none"
+      stroke-width="10"
+      stroke-linecap="round"
+      pathLength="100"
+      stroke-dasharray="0 100"
+    />
+  </svg>
+  <span id="gaugeWords">slack</span>
+</div>
+<button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
+<button class="panel" id="catch" type="button" hidden>
+  <b id="catchName"></b><span id="catchWeight"></span><small>tap to put it in the bucket</small>
+</button>
+<div class="panel" id="bucket" hidden></div>
 <div class="panel" id="help" hidden>drag to look round, wheel to zoom</div>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>

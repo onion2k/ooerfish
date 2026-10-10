@@ -65,3 +65,57 @@ test('the fish swim the lake, and stay in it', async ({ page }) => {
     expect(Math.hypot(after[i].x - before[i].x, after[i].y - before[i].y), `fish ${i} swam`).toBeGreaterThan(1);
   expect(problems).toEqual([]);
 });
+
+test('a fish bites, is struck by space, played on the Reel button, landed, and put in the bucket by its card', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  // cast to the middle of the lake through the API, and step until a fish bites
+  await page.evaluate(() => {
+    const g = window.game!;
+    g.cast(Math.PI / 2, 0.62);
+    for (let f = 0; f < 3600 && g.fishing().phase !== 'biting'; f++) g.step(1);
+  });
+  expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('biting');
+  await expect(page.locator('#castLine')).toHaveText('a bite! strike');
+  await expect(page.locator('#reelButton')).toHaveText('Strike');
+  await page.keyboard.press('Space');
+  expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('hooked');
+  await play(page, 1, 'hooked');
+  await expect(page.locator('#gauge')).toBeVisible();
+  await expect(page.locator('#reelButton')).toHaveText('Reel');
+  // played on the button by the mouse: held while the line is slack, let go when it is tight, a frame at a time
+  const button = await page.locator('#reelButton').boundingBox();
+  const [bx, by] = [button!.x + button!.width / 2, button!.y + button!.height / 2];
+  await page.mouse.move(bx, by);
+  let held = false;
+  for (let f = 0; f < 120 * 60; f += 6) {
+    const { phase, tension } = await page.evaluate(() => window.game!.fishing());
+    if (phase !== 'hooked') break;
+    if (!held && tension < 0.45) {
+      await page.mouse.down();
+      held = true;
+    } else if (held && tension > 0.75) {
+      await page.mouse.up();
+      held = false;
+    }
+    expect((await page.evaluate(() => window.game!.fishing())).reeling).toBe(held);
+    await page.evaluate(() => window.game!.step(6));
+  }
+  if (held) await page.mouse.up();
+  await play(page, 1, 'the fight');
+  expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('landed');
+  const landed = (await page.evaluate(() => window.game!.events())).filter((l) => l.startsWith('landed'));
+  expect(landed).toHaveLength(1);
+  // shown off on its card, and a tap on the card puts it in the bucket
+  await expect(page.locator('#catch')).toBeVisible();
+  await expect(page.locator('#catchName')).toHaveText('glowing perch');
+  await expect(page.locator('#catchWeight')).toHaveText(/^\d\.\d\d kg$/);
+  await page.locator('#catch').click();
+  await play(page, 1, 'stowed');
+  await expect(page.locator('#catch')).toBeHidden();
+  await expect(page.locator('#bucket')).toHaveText('in the bucket: 1');
+  expect((await page.evaluate(() => window.game!.fishing())).bucket).toBe(1);
+  expect(problems).toEqual([]);
+});

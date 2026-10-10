@@ -12,7 +12,7 @@ import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
 import { splashBurst } from './bursts';
 import { aimFrom } from './aim';
-import { CastDraw, type Aim } from './castdraw';
+import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
@@ -29,6 +29,7 @@ import { changed, readSettings, writeSettings, type Settings } from './settings'
 import { STYLES, styleNamed } from './water/styles';
 import { shoreField } from './shorefield';
 import { surfaceOf } from './water/swell';
+import { FightView } from './fightview';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
@@ -49,6 +50,7 @@ const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
 const lab = document.getElementById('lab')!;
 const castLine = document.getElementById('castLine')!;
+const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 main().catch((err: unknown) => {
   bootMsg.textContent = err instanceof Error ? err.message : String(err);
@@ -83,6 +85,12 @@ async function main() {
       // the droplets thrown up, once, in the lake's colour as it is now
       renderer.emit(splashBurst(x, y, size, game.contamination));
     },
+    nibbled: () => log('nibbled'),
+    bitten: () => log('bitten'),
+    hooked: () => log('hooked'),
+    missed: () => log('missed'),
+    slipped: () => log('slipped'),
+    landed: (kind, weight) => log(`landed ${kind} ${weight.toFixed(2)}`),
   };
   const game = new Game(new Progress(), { ...(seed !== null ? { random: seeded(+seed) } : {}), events });
 
@@ -184,16 +192,22 @@ async function main() {
     reelIn: () => game.reelIn(),
   });
 
-  /** The line on the screen that says what the lure is doing: its sinking counted, or that it lies on the bank. */
+  /** The line on the screen that says what the lure is doing: its sinking counted, a nibble, a bite, a fish on, or that it lies on the bank. */
   let castText = '';
   function showCast() {
-    const { lure } = game;
+    const { lure, bite } = game;
     const text =
-      lure.phase === 'sinking'
-        ? `sinking… ${Math.floor(lure.sunk)}`
-        : lure.phase === 'lying'
-          ? 'on the bank: reel it in'
-          : '';
+      bite.phase === 'hooked'
+        ? 'a fish on! hold to reel, let go to give it line'
+        : bite.phase === 'biting'
+          ? 'a bite! strike'
+          : bite.phase === 'nibbling'
+            ? 'a nibble…'
+            : lure.phase === 'sinking'
+              ? `sinking… ${Math.floor(lure.sunk)}`
+              : lure.phase === 'lying'
+                ? 'on the bank: reel it in'
+                : '';
     if (text === castText) return;
     castText = text;
     castLine.textContent = text;
@@ -210,7 +224,15 @@ async function main() {
     const heading = Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]);
     return aimFrom(e.clientX - from.x, e.clientY - from.y, Math.min(box.width, box.height), heading);
   };
+  // with a fish on, a hold on the water from the shore reels, for as long as it is held
+  let reelingByHold = false;
   canvas.addEventListener('pointerdown', (e) => {
+    if (casts() && game.bite.phase === 'hooked') {
+      canvas.setPointerCapture(e.pointerId);
+      reelingByHold = true;
+      game.reel(true);
+      return;
+    }
     down = { x: e.clientX, y: e.clientY, at: e.timeStamp };
     if (casts()) canvas.setPointerCapture(e.pointerId);
   });
@@ -220,8 +242,15 @@ async function main() {
   canvas.addEventListener('pointercancel', () => {
     down = null;
     aim = null;
+    if (reelingByHold) game.reel(false);
+    reelingByHold = false;
   });
   canvas.addEventListener('pointerup', (e) => {
+    if (reelingByHold) {
+      reelingByHold = false;
+      game.reel(false);
+      return;
+    }
     const was = down;
     down = null;
     if (was && casts()) {
@@ -234,6 +263,11 @@ async function main() {
       }
     }
     if (!was || Math.hypot(e.clientX - was.x, e.clientY - was.y) > TAP_PX || e.timeStamp - was.at > TAP_MS) return;
+    // from the shore with the lure in the water, a tap strikes; anywhere else it drops a pebble where it was tapped
+    if (casts() && game.lure.phase === 'sinking') {
+      game.strike();
+      return;
+    }
     cam.update();
     if (!invertInto(tapInverse, cam.viewProjection)) return;
     const box = canvas.getBoundingClientRect();
@@ -244,6 +278,35 @@ async function main() {
     );
     if (at) game.drop(at[0], at[1]);
   });
+  // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. Not over the lab's own
+  // controls, where space presses what has the focus
+  const onControl = (e: KeyboardEvent) =>
+    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch') !== null;
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || onControl(e)) return;
+    e.preventDefault();
+    if (game.bite.phase === 'hooked') game.reel(true);
+    else if (!e.repeat) game.strike();
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') game.reel(false);
+  });
+  // a reel held when the page loses the focus is let go, or the line would tighten unseen until the fish slipped
+  window.addEventListener('blur', () => game.reel(false));
+  const fightView = new FightView(
+    {
+      gauge: byId('gauge'),
+      fill: byId<SVGPathElement>('gaugeFill'),
+      words: byId('gaugeWords'),
+      button: byId<HTMLButtonElement>('reelButton'),
+      card: byId<HTMLButtonElement>('catch'),
+      name: byId('catchName'),
+      weight: byId('catchWeight'),
+      bucket: byId('bucket'),
+    },
+    () => game,
+  );
+
   async function change(next: Partial<Settings>) {
     const was = settings;
     settings = changed(settings, next);
@@ -258,20 +321,26 @@ async function main() {
   const glow = new Float32Array(FISH_CAPACITY * EFFECT_STRIDE);
   /** Each frame: the fish where they are, and their glow on the surface for water that cannot be seen through. */
   const writeGlow = () => {
-    renderer.move(fishSlot, fish.matrices, fish.write(game.fish));
-    renderer.move(fishSlot + 1, ripples.matrices, ripples.write(game.splashes, game.t));
-    // the cast's groups after the ripples', the rod as it stands, the rest as many as are live
+    // the cast first, which says where a landed fish hangs; then the fish, that one hanging there
     const drawn = casting.write(game, aim);
+    const hung = drawn.hung ? game.bite.fish : -1;
+    renderer.move(fishSlot, fish.matrices, fish.write(game.fish, hung, casting.hang));
+    renderer.move(fishSlot + 1, ripples.matrices, ripples.write(game.splashes, game.t));
+    // the cast's groups after the ripples', each as many as are live
     const c = fishSlot + 2;
-    renderer.move(c + 1, casting.line, drawn.line);
-    renderer.move(c + 2, casting.lure, drawn.lure);
-    renderer.move(c + 3, casting.bobber, drawn.bobber);
-    renderer.move(c + 4, casting.dots, drawn.dots);
-    renderer.move(c + 5, casting.ringWater, drawn.ringWater);
-    renderer.move(c + 6, casting.ringBank, drawn.ringBank);
+    // the rod, then the line in each of its colours (all of it in one), then the rest, in the order of `groups`
+    let g = c;
+    renderer.move(g++, casting.rod, drawn.rod);
+    for (let k = 0; k < LINE_COLOURS; k++) renderer.move(g++, casting.lines[k], drawn.lines[k]);
+    renderer.move(g++, casting.lure, drawn.lure);
+    renderer.move(g++, casting.bobber, drawn.bobber);
+    renderer.move(g++, casting.dots, drawn.dots);
+    renderer.move(g++, casting.ringWater, drawn.ringWater);
+    renderer.move(g, casting.ringBank, drawn.ringBank);
     showCast();
+    fightView.show();
     const shown = styleNamed(settings.water).surfaceGlow
-      ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow)
+      ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow, hung)
       : 0;
     renderer.setEffects(glow, shown);
   };
