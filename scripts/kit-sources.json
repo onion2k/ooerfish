@@ -1,0 +1,236 @@
+{
+  "note": "The Quaternius Stylized Nature MegaKit models the game uses (CC0, via poly.pizza). Hand-written content: npm run kit refuses any file whose sha256 differs. The kind says what the game does with it.",
+  "models": [
+    {
+      "file": "Bush_EoTERLq3z2.glb",
+      "name": "Bush_EoTERLq3z2",
+      "polyPizzaId": "EoTERLq3z2",
+      "sha256": "1e73125867d602884365e891158c4ed80772ea1a1ed764a5ae267f3687568d28",
+      "kind": "bush"
+    },
+    {
+      "file": "Bush_with_Flowers_U1ymDy8tbY.glb",
+      "name": "Bush_with_Flowers_U1ymDy8tbY",
+      "polyPizzaId": "U1ymDy8tbY",
+      "sha256": "a7f0e022aa77a70a4681d4d435ddada1992b36f32c762cf6c3d0cab794dcf13a",
+      "kind": "bush"
+    },
+    {
+      "file": "Clover_IQ9NVyVpUw.glb",
+      "name": "Clover_IQ9NVyVpUw",
+      "polyPizzaId": "IQ9NVyVpUw",
+      "sha256": "d3790041b2f1fb383fdccc840a1a4c4462d86ccafbf43b471992be8c68f496ff",
+      "kind": "clover"
+    },
+    {
+      "file": "Clover_u5SOgBFiut.glb",
+      "name": "Clover_u5SOgBFiut",
+      "polyPizzaId": "u5SOgBFiut",
+      "sha256": "991b946f32648e6e4fdd1a6bb1d3dbbe533a43c59336b146a6374c8fc281ed33",
+      "kind": "clover"
+    },
+    {
+      "file": "Fern_jqcanvH7D6.glb",
+      "name": "Fern_jqcanvH7D6",
+      "polyPizzaId": "jqcanvH7D6",
+      "sha256": "800c02671b865fd3f524a58fa72b498185a8f43dfe627ef546092027ee73d468",
+      "kind": "fern"
+    },
+    {
+      "file": "Flower_Group_LqTljN6Wg2.glb",
+      "name": "Flower_Group_LqTljN6Wg2",
+      "polyPizzaId": "LqTljN6Wg2",
+      "sha256": "f15532740ff5d60bcab5ce6b53a18829a23131cbfcafb19b6e9feb2c622c9962",
+      "kind": "flowers"
+    },
+    {
+      "file": "Flower_Group_hfPzQAedOe.glb",
+      "name": "Flower_Group_hfPzQAedOe",
+      "polyPizzaId": "hfPzQAedOe",
+      "sha256": "4b944bea371dda0c133dc46a0aea7d41dc78c1fc656e3facd337a372aa6a0154",
+      "kind": "flowers"
+    },
+    {
+      "file": "Grass_Wispy_6EzB7VA6vb.glb",
+      "name": "Grass_Wispy_6EzB7VA6vb",
+      "polyPizzaId": "6EzB7VA6vb",
+      "sha256": "0d9df3e3cd280ed45aa5b62760ff58100508834d434bf4d2e98e1853d53d05b8",
+      "kind": "grass"
+    },
+    {
+      "file": "Grass_Wispy_Msr9zx66VU.glb",
+      "name": "Grass_Wispy_Msr9zx66VU",
+      "polyPizzaId": "Msr9zx66VU",
+      "sha256": "5b52b380be4faeaf0d6e7a0efdc85dd74310935ed410c82968b4e2a82479e6a0",
+      "kind": "grass"
+    },
+    {
+      "file": "Grass_vUJjrRsFp4.glb",
+      "name": "Grass_vUJjrRsFp4",
+      "polyPizzaId": "vUJjrRsFp4",
+      "sha256": "aaeb71f0d56dcd7b952ea9341d222ea3cd76525b6fc0afddf0a6321502ccaab5",
+      "kind": "grass"
+    },
+    {
+      "file": "Mushroom_aOW08oSrd4.glb",
+      "name": "Mushroom_aOW08oSrd4",
+      "polyPizzaId": "aOW08oSrd4",
+      "sha256": "1fb94fcb913b9971e441c30799d8a60ff8277f1c0e2488bfcb7dcc9a25e4c4af",
+      "kind": "mushroom"
+    },
+    {
+      "file": "Pebble_Round_KYtJ6JNXh2.glb",
+      "name": "Pebble_Round_KYtJ6JNXh2",
+      "polyPizzaId": "KYtJ6JNXh2",
+      "sha256": "3357ec6032ae864da662ce8318a8416d2d7f481563a6005a1b3ce95d5d7d1f36",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Round_icVsN3lmVy.glb",
+      "name": "Pebble_Round_icVsN3lmVy",
+      "polyPizzaId": "icVsN3lmVy",
+      "sha256": "6c00a0b1495d0a625d71093a4f13ab3a3a788ce57c4b4b6293d3f037225c7d6f",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Round_jecVTh3aQV.glb",
+      "name": "Pebble_Round_jecVTh3aQV",
+      "polyPizzaId": "jecVTh3aQV",
+      "sha256": "ceb6d97cca6aa8477b67e7b5cb72384b4caced0038573de9bb3ad7822b6dd075",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Round_kAMfq1uJUY.glb",
+      "name": "Pebble_Round_kAMfq1uJUY",
+      "polyPizzaId": "kAMfq1uJUY",
+      "sha256": "3f2aa2db3da1fbc0423a068108665bb9b55047be039e99bd0fcf17896189f28e",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Round_nMf8LHOsbM.glb",
+      "name": "Pebble_Round_nMf8LHOsbM",
+      "polyPizzaId": "nMf8LHOsbM",
+      "sha256": "0a351fa5a782a2f2030cc222ca0a9fe9d1a95e0f51e548e904ddbe1fb2538deb",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_2YtLzwgsWp.glb",
+      "name": "Pebble_Square_2YtLzwgsWp",
+      "polyPizzaId": "2YtLzwgsWp",
+      "sha256": "a22dcb68e335ab89c874f56cbc6d4ea0a390d282247ea9604d83babb23d47b8c",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_6juX57sLHe.glb",
+      "name": "Pebble_Square_6juX57sLHe",
+      "polyPizzaId": "6juX57sLHe",
+      "sha256": "cd0fc31ec5b6574669f05a09118089d567392ac7480d8996b4b359b81578fea7",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_Mm4RMgwNO8.glb",
+      "name": "Pebble_Square_Mm4RMgwNO8",
+      "polyPizzaId": "Mm4RMgwNO8",
+      "sha256": "72c91712bac8e9692f4fa331ac490bb01319ebbcc045db8f005c8728d4ba6d73",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_iwxxjMtXRF.glb",
+      "name": "Pebble_Square_iwxxjMtXRF",
+      "polyPizzaId": "iwxxjMtXRF",
+      "sha256": "4e3fc7e403bbafe46e67026261a22423de96f55e3393677f1da400fe4929c66f",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_l5XiYQj1oD.glb",
+      "name": "Pebble_Square_l5XiYQj1oD",
+      "polyPizzaId": "l5XiYQj1oD",
+      "sha256": "51e75994b0de43295ef8b5e6b4f3aa9aecea879f78e3c2e244829e5716f4df01",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pebble_Square_s71L3q1nXN.glb",
+      "name": "Pebble_Square_s71L3q1nXN",
+      "polyPizzaId": "s71L3q1nXN",
+      "sha256": "326eada56aac4d075b67309e2a60c90edf9ba7e51983cf6a652f1e4cc424746a",
+      "kind": "pebble"
+    },
+    {
+      "file": "Pine_699sFuLCN2.glb",
+      "name": "Pine_699sFuLCN2",
+      "polyPizzaId": "699sFuLCN2",
+      "sha256": "3a5db923999bd47281f1f38cf8451c1544acfad33d953892fa95ca74765be361",
+      "kind": "pine"
+    },
+    {
+      "file": "Pine_79gmlLnweB.glb",
+      "name": "Pine_79gmlLnweB",
+      "polyPizzaId": "79gmlLnweB",
+      "sha256": "240e6f60c5b106a892c80490d7c710f20ef902b328b5e173c0a567334e4df972",
+      "kind": "pine"
+    },
+    {
+      "file": "Pine_Zt62gceKXZ.glb",
+      "name": "Pine_Zt62gceKXZ",
+      "polyPizzaId": "Zt62gceKXZ",
+      "sha256": "d5d7714406e11c7f6578adda7f4f1ec6f6fe1c514b1e97fda923d83845b028b2",
+      "kind": "pine"
+    },
+    {
+      "file": "Pine_igSu0cPoBz.glb",
+      "name": "Pine_igSu0cPoBz",
+      "polyPizzaId": "igSu0cPoBz",
+      "sha256": "b2cc7f2e672f94a41925ba831af8b3db9cbe6621172fb6f2717881c81c074e18",
+      "kind": "pine"
+    },
+    {
+      "file": "Pine_rfnxJv0Rqa.glb",
+      "name": "Pine_rfnxJv0Rqa",
+      "polyPizzaId": "rfnxJv0Rqa",
+      "sha256": "4902bbecd22a9503871f48e5815f33dd7d51f4077299c16e0dd968217e46d435",
+      "kind": "pine"
+    },
+    {
+      "file": "Tall_Grass_JSIYtscPmP.glb",
+      "name": "Tall_Grass_JSIYtscPmP",
+      "polyPizzaId": "JSIYtscPmP",
+      "sha256": "497f6303b662b2f65eea4f158d9f02d18a672d4f1422c7ba1df36be3be9caaa3",
+      "kind": "grass"
+    },
+    {
+      "file": "Tree_QVOop92WmG.glb",
+      "name": "Tree_QVOop92WmG",
+      "polyPizzaId": "QVOop92WmG",
+      "sha256": "f38d3e28803609be98fc0fe2d3315f505ae2cd338168f12fec1f93299b4d39b6",
+      "kind": "tree"
+    },
+    {
+      "file": "Tree_YWjGDJ9F7g.glb",
+      "name": "Tree_YWjGDJ9F7g",
+      "polyPizzaId": "YWjGDJ9F7g",
+      "sha256": "2bbb3d68b88f9d05cddcc1d6d9cd1ec83c8652eda62bc26e973dee2b870415a9",
+      "kind": "tree"
+    },
+    {
+      "file": "Tree_aVOxaHRPWe.glb",
+      "name": "Tree_aVOxaHRPWe",
+      "polyPizzaId": "aVOxaHRPWe",
+      "sha256": "b591827c6aad32ec9fd964d878f3925c302d2a144597f1d5e84068df99b880ba",
+      "kind": "tree"
+    },
+    {
+      "file": "Tree_qZtx0AHhcy.glb",
+      "name": "Tree_qZtx0AHhcy",
+      "polyPizzaId": "qZtx0AHhcy",
+      "sha256": "cac32bae011effbb327cf650b5a3cb82ab7d4c4334151955d30814b2faaaaf98",
+      "kind": "tree"
+    },
+    {
+      "file": "Tree_t9KbsfYdXz.glb",
+      "name": "Tree_t9KbsfYdXz",
+      "polyPizzaId": "t9KbsfYdXz",
+      "sha256": "6ddb7b1d81a325cfbe3053f43c96ce8b6a871dc866702ef3993dbecc79430b70",
+      "kind": "tree"
+    }
+  ]
+}
