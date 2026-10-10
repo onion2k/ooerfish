@@ -51,6 +51,7 @@ Numbers, held by gates, on this machine at 1280×800:
 | A frame of every way of drawing the water, day and night | 8 ms                           | `perf`  |
 | A step of the lake, against the reference arithmetic     | baseline ± 15%                 | `bench` |
 | Game minutes for the angler to land three fish           | baseline ± 20%, both ways      | `pace`  |
+| The scenery download, `public/scenery` gzipped           | 900 kB; baseline to the byte   | `perf`  |
 | Anything kept: fish, save bytes, heap                    | ceilings in `scripts/leaks.ts` | `leaks` |
 
 The standard scene is `STANDARD` in `smoke/game.ts`: open water half
@@ -62,9 +63,10 @@ A budget is what the game may cost at all; a baseline is what it cost at
 the last commit, held both ways, so a step toward a budget is noticed as
 much as a step over it. The perf tolerances are the measured wobble of a
 headless boot and a GPU frame, and say so in `smoke/judging.ts`. The
-download does not wobble, so it is held to the byte: a change that adds to
-it writes the perf baseline again and says by how much, and one that
-should not have is looked into.
+downloads do not wobble (`sceneryBytes` is every file in `dist/scenery`,
+gzipped), so they are held to the byte: a change that adds to one writes the
+perf baseline again and says by how much, and one that should not have is
+looked into.
 
 ## Commands
 
@@ -80,6 +82,7 @@ should not have is looked into.
     npm run perf           boot, frame and download held to smoke/perf-baseline.json and the budget
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
+    npm run kit -- <dir>   a folder of .glb into public/scenery (see below)
 
 A unit test is allowed thirty seconds, and `vitest.config.ts` says why: the
 limit is there to catch a test that never ends, and how fast the game steps
@@ -91,6 +94,13 @@ change meant to move it, and the commit says why. Look at every picture.
 The bench writes its baseline from two readings, and only where they agree:
 a baseline written while the machine is at other work fails every run after
 it.
+
+The banks' scenery is Quaternius's Stylized Nature MegaKit (CC0), from
+poly.pizza. Its GLBs are not committed: `npm run kit` reads a folder of them,
+checks each against the sha256 in `scripts/kit-sources.json`, and writes
+`public/scenery/` (generated, never edited, and in `.prettierignore`). Cards
+take face normals by default (`--card-normals=face|kit|turned`), positions
+and normals are float16 and indices uint16. Run it again to change the kit.
 
 ## How the code is laid out
 
@@ -111,6 +121,16 @@ it.
   keep off it through the paths they already use; `groundUnder` is the ground
   without them, which the bed's sheet is drawn from. Colours live in
   `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
+- **The banks:** `src/scenery.ts` reads `public/scenery` (`readManifest`,
+  `readKit`, `loadScenery`, refusing what it does not know by name) before
+  `ready`, and hands the card masks to `renderer.setCardImages`.
+  `Scene.static(kit)` in `src/scene.ts` places the kit's trees, pebbles and
+  clumps from a dressing seed of its own, so the game's seed does not move
+  them; the bed, weed and boulders are as they were, and with no kit the old
+  hand-made banks are built. Placement keeps off the water and the near south
+  bank, and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
+  (counts, scales, layers); the roles map to the palette in `scenery.ts`.
+  `game.scenery()` counts what was handed over.
 - **The ways of drawing the water** are in `src/water/`, one file each and a
   line in `STYLES` (`styles.ts`): open water, lit ripple, and see-through
   (`clear.ts`, the renderer's clear water from v0.29.0, whose `look.clear`
@@ -182,6 +202,10 @@ What to copy the shape of, when building something new:
   (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
   `apply` (`main.ts`), a method on the test API, and a click in the controls
   test in `smoke/game.spec.ts`.
+- **A thing on the bank:** a model in `scripts/kit-sources.json` and its
+  counts and scales in `SCENERY` (`lake.ts`), converted by `kit.ts`, read by
+  `scenery.ts`, placed by `scene.ts`, held by `test/scene.test.ts`, counted by
+  `game.scenery()`, weighed by `sceneryBytes`, and seen in the look pictures.
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the bench
   (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`). Each has
   unit tests of its own working parts. The bench passed a frame made thirty
@@ -267,7 +291,8 @@ Use headless Playwright (`start()` in `smoke/game.ts`) for anything seen or
 measured; the in-app browser pane pauses when hidden. Control time through
 the API: `pause()`, `seed(n)`, then `step(frames)`, never a timeout. Never
 write over the player's save; a test save goes in through `start(page, {
-save })`.
+save })`. The smoke serves on `SMOKE_PORT` (default 5205), so a worktree
+runs it on a port of its own beside the main checkout.
 
 ## Commits
 

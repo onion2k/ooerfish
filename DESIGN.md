@@ -21,7 +21,7 @@ It is never tense. Nothing is lost for good, nothing fails, and no meter runs ou
 
 The 1950s atomic age as a children's picture book: a friendly town, a smiling atom for a mascot, soft colours,
 round shapes, and the glow as something pretty rather than something frightening. The look is the toon daylight
-ooergolf has (`LOOK.md` there), lighter and more whimsical: pastel water, soft edges, puffball trees.
+ooergolf has (`LOOK.md` there), lighter and more whimsical: pastel water, soft edges, and banks that wear a kit's trees, plants and stones in the game's palette.
 
 ## The loop
 
