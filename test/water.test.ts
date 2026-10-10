@@ -1,13 +1,14 @@
 /** The ways of drawing the water, as data: each one's groups, and the contamination's colour through them. */
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
-import { FLOW_RIPPLE, FLOW_WATER } from 'artshape-render/game/flow';
+import { FLOW_CLEAR, FLOW_RIPPLE, FLOW_WATER } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
+import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
 import { STYLES, styleNamed, waterColour } from '../src/water/styles';
 
 describe('the ways of drawing the water', () => {
   it('are named, labelled, and each found by its name', () => {
-    expect(STYLES.map((s) => s.name)).toEqual(['open', 'ripple']);
+    expect(STYLES.map((s) => s.name)).toEqual(['open', 'ripple', 'clear']);
     for (const s of STYLES) {
       expect(s.label.length).toBeGreaterThan(0);
       expect(styleNamed(s.name)).toBe(s);
@@ -20,7 +21,7 @@ describe('the ways of drawing the water', () => {
   });
 
   it('each give one water group, flowing in its own way, at any contamination', () => {
-    const kinds: Record<string, number> = { open: FLOW_WATER, ripple: FLOW_RIPPLE };
+    const kinds: Record<string, number> = { open: FLOW_WATER, ripple: FLOW_RIPPLE, clear: FLOW_CLEAR };
     for (const s of STYLES)
       for (const dirt of [0, 0.5, 1]) {
         const groups = s.groups(dirt);
@@ -63,5 +64,52 @@ describe("the contamination's colour", () => {
     }
     expect(waterColour(2)).toEqual(waterColour(1));
     expect(waterColour(-1)).toEqual(waterColour(0));
+  });
+});
+
+describe('the see-through water', () => {
+  const clear = styleNamed('clear');
+
+  it('is seen through: it draws no glow on its surface, since the fish glow under it, and says how clear it is', () => {
+    expect(clear.label).toBe('See-through');
+    expect(clear.surfaceGlow).toBe(false);
+    expect(styleNamed('open').surfaceGlow).toBe(true);
+    expect(styleNamed('ripple').surfaceGlow).toBe(true);
+    expect(clear.clear).toBeDefined();
+    expect(styleNamed('open').clear).toBeUndefined();
+  });
+
+  it('is murkier the sicker the lake, and as clear as was chosen when clean', () => {
+    const at = (dirt: number) => clear.clear!(dirt, true, timeNamed('day')).clarity!;
+    expect(at(0)).toBeCloseTo(1.6, 10);
+    let was = at(0);
+    for (let k = 1; k <= 10; k++) {
+      const now = at(k / 10);
+      expect(now, `clarity at ${k / 10}`).toBeLessThan(was);
+      was = now;
+    }
+    expect(at(1)).toBeGreaterThan(0);
+  });
+
+  it('has caustics when they are asked for, and none when they are not', () => {
+    expect(clear.clear!(0.5, true, timeNamed('day')).caustics).toBeGreaterThan(0);
+    expect(clear.clear!(0.5, false, timeNamed('day')).caustics).toBe(0);
+  });
+
+  it('glitters by the time of day: in the sun the most, and hardly at all by the moon', () => {
+    const at = (t: string) => clear.clear!(0, true, timeNamed(t)).glitter!;
+    expect(at('day')).toBeGreaterThan(at('dawn'));
+    expect(at('dusk')).toBeGreaterThan(at('night'));
+    expect(at('night')).toBeLessThan(0.25);
+  });
+
+  it('is deep green when sick and deep blue-teal when clean', () => {
+    const deep = (dirt: number) => Array.from(clear.groups(dirt)[0].patterns!.subarray(4, 7));
+    const [r0, g0, b0] = deep(0);
+    expect(b0, 'clean, blue the most').toBeGreaterThan(g0);
+    expect(b0).toBeGreaterThan(r0);
+    const [r1, g1, b1] = deep(1);
+    expect(g1, 'sick, green the most').toBeGreaterThan(b1);
+    expect(g1).toBeGreaterThan(r1);
   });
 });

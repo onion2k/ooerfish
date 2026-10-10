@@ -63,6 +63,7 @@ export interface Scene {
   dirt: number;
   time: string;
   view: string;
+  caustics?: 'on' | 'off';
 }
 
 /**
@@ -80,6 +81,7 @@ export async function set(page: Page, scene: Scene, frames = 120) {
       await g.dirt(s.dirt);
       await g.time(s.time);
       await g.view(s.view);
+      await g.caustics(s.caustics ?? 'on');
       g.step(n);
     },
     [scene, frames] as const,

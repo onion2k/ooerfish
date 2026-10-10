@@ -104,9 +104,15 @@ it.
   fish count and capacity, and the named views. Colours live in
   `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
 - **The ways of drawing the water** are in `src/water/`, one file each and a
-  line in `STYLES` (`styles.ts`); `waterColour` is the contamination's colour
-  for all of them. `src/glow.ts` draws a fish's glow on the surface over it.
-- `src/settings.ts` reads the lab's settings from the address and refuses
+  line in `STYLES` (`styles.ts`): open water, lit ripple, and see-through
+  (`clear.ts`, the renderer's clear water from v0.29.0, whose `look.clear`
+  follows the contamination, the caustics setting and the time of day).
+  `waterColour` is the opaque styles' contamination colour. `src/glow.ts`
+  draws a fish's glow on the surface over it, for the styles that cannot be
+  seen through (`surfaceGlow`); `src/fishdraw.ts` draws each fish as a mesh
+  glowing under the water (`FLOW_GLOW`), which see-through water shows.
+- `src/settings.ts` reads the lab's settings (the water, the dirt, the time,
+  the view, and see-through water's caustics) from the address and refuses
   what it does not know; `src/lab.ts` is the panel. The save lives in
   `progress.ts` and has no fields yet. Chance comes from `random.ts`, handed
   in.

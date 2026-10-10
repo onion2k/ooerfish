@@ -27,7 +27,7 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
   root.replaceChildren();
   const buttons = new Map<string, HTMLButtonElement>();
 
-  const group = (key: 'water' | 'time' | 'view', title: string, choices: [string, string][]) => {
+  const group = (key: 'water' | 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {
     const field = document.createElement('fieldset');
     const legend = document.createElement('legend');
     legend.textContent = title;
@@ -78,6 +78,11 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
     'View',
     (Object.keys(VIEWS) as (keyof typeof VIEWS)[]).map((v) => [v, VIEW_LABELS[v]]),
   );
+  // the see-through water's own: what the opaque ways of drawing it have none of
+  group('caustics', 'Caustics', [
+    ['on', 'On'],
+    ['off', 'Off'],
+  ]);
 
   return {
     show(settings) {

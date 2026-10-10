@@ -17,6 +17,7 @@ export const OPEN = { scale: 0.35, speed: 0.55, steepness: 0.25, roughness: 0.08
 export const open: WaterStyle = {
   name: 'open',
   label: 'Open water',
+  surfaceGlow: true,
   groups(contamination) {
     const patterns = packFlow(new Float32Array(PATTERN_STRIDE), 0, {
       kind: FLOW_WATER,

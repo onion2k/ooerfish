@@ -1,6 +1,7 @@
 /**
- * The lake as it is drawn: its bed and banks, the stones along its shore and
- * the puffball trees on its banks, which do not move; and the water, drawn
+ * The lake as it is drawn: its bed and banks, the stones along its shore, the
+ * rocks and waterweed on its bed (which see-through water shows), and the
+ * puffball trees on its banks, which do not move; and the water, drawn
  * whichever way the lab says. It is handed what it draws from, and never the
  * renderer: the page hands the groups on.
  *
@@ -8,7 +9,7 @@
  * the game's, so the lake is the same lake every run and on every seed.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { BANK_RISE, SHORE_RADIUS, STRETCH, ground, shoreRadius } from './lake';
+import { BANK_RISE, SHORE_RADIUS, STRETCH, bedDepth, ground, shoreRadius } from './lake';
 import { place } from './matrix';
 import { ball, box, sheet } from './meshes';
 import { PALETTE } from './palette';
@@ -19,6 +20,10 @@ const BANKS_TO = 12;
 /** How many stones line the shore, and how many trees stand on the banks. */
 const STONES = 70;
 const TREES = 26;
+/** How many rocks lie on the bed, and how many clumps of weed grow from it, of how many blades each. */
+const ROCKS = 36;
+const CLUMPS = 14;
+const BLADES = 5;
 /** The seed the stones and trees are placed from: the lake's own, so they stand still whatever the game's seed. */
 const SCENERY_SEED = 1971;
 
@@ -60,8 +65,33 @@ export class Scene {
       place(puffs, i, x, y, z + tall + 2.2, random() * Math.PI, 1, 1, 0.9);
     }
 
+    // rocks on the bed, half sunk in it, anywhere from the shallows to the deep
+    const rocks = new Float32Array(ROCKS * 16);
+    for (let i = 0; i < ROCKS; i++) {
+      const angle = random() * Math.PI * 2;
+      const [x, y] = ring(0.12 + random() * 0.8, angle);
+      const size = 0.7 + random() * 1.6;
+      place(rocks, i, x, y, ground(x, y) - size * 0.3, random() * Math.PI, size * 1.2, size, size * 0.7);
+    }
+
+    // clumps of weed in the shallows, every blade under the water, the tallest reaching to just below it
+    const blades = new Float32Array(CLUMPS * BLADES * 16);
+    for (let c = 0; c < CLUMPS; c++) {
+      const angle = random() * Math.PI * 2;
+      const [cx, cy] = ring(0.25 + random() * 0.45, angle);
+      for (let b = 0; b < BLADES; b++) {
+        const x = cx + (random() - 0.5) * 1.6,
+          y = cy + (random() - 0.5) * 1.6;
+        const room = bedDepth(x, y) - 0.25;
+        const tall = Math.max(0, room * (0.5 + random() * 0.5));
+        place(blades, c * BLADES + b, x, y, ground(x, y), random() * Math.PI, 0.18, 0.5, tall);
+      }
+    }
+
     return [
       { mesh: bed, matrices: one, albedo: PALETTE.bed, roughness: 0.95 },
+      { mesh: ball(1, 3, 6), matrices: rocks, albedo: PALETTE.bedRock, roughness: 0.85 },
+      { mesh: box(1, 1, 1), matrices: blades, albedo: PALETTE.weed, roughness: 0.8 },
       { mesh: banks, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
       { mesh: ball(1, 4, 7), matrices: stones, albedo: PALETTE.stone, roughness: 0.8 },
       { mesh: box(0.7, 0.7, 1), matrices: trunks, albedo: PALETTE.trunk, roughness: 0.9 },

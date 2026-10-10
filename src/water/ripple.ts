@@ -27,6 +27,7 @@ export const RIPPLE = {
 export const ripple: WaterStyle = {
   name: 'ripple',
   label: 'Lit ripple',
+  surfaceGlow: true,
   groups(contamination) {
     const k = Math.min(1, Math.max(0, contamination));
     const patterns = packFlow(new Float32Array(PATTERN_STRIDE), 0, {

@@ -18,8 +18,10 @@ the line's tension. The catch goes home to the cabin's curing machine and
 into the aquarium, and the lake's water turns from green to blue.
 
 **Not yet.** None of that is built. For now the page is the **lake lab**:
-one pond, drawn several ways side by side, so the water, which is what a
-player looks at most, is chosen by looking. Its panel switches between the
+one pond, drawn three ways side by side (open water, lit ripple, and water
+that is seen through to its bed, its rocks and weed and the fish glowing
+among them), so the water, which is what a player looks at most, is chosen
+by looking. Its panel switches between the
 ways of drawing the water, how dirty the lake is, the time of day and where
 the camera stands, and every setting is in the address, so a link brings the
 same lake back: `npm run dev`, then for instance
@@ -56,9 +58,10 @@ template's gates (all but its pace gate, which comes back with the fishing):
     src/fish.ts        the school, swimming
     src/water/         the ways of drawing the water, one a file
     src/look.ts        the toon look and the times of day
-    src/glow.ts        a fish's glow on the surface over it
+    src/glow.ts        a fish's glow on the surface over it, for water not seen through
+    src/fishdraw.ts    the fish as glowing meshes under the water
     src/lab.ts         the lab's panel; settings.ts reads and writes the address
-    src/scene.ts       the bed, the banks, the stones and the trees
+    src/scene.ts       the bed and its rocks and weed, the banks, the stones and the trees
     src/progress.ts    the save, and where it is kept
     scripts/           the gates, each with its baseline beside it
     test/              unit tests, and a corpus of every save shape

@@ -9,6 +9,7 @@ import { Orbit } from 'artshape-render/gpu/camera';
 import { LightPool } from 'artshape-render/game/lights';
 import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
+import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game } from './game';
 import { glowQuads } from './glow';
@@ -95,6 +96,9 @@ async function main() {
   // ---- the lab's settings, and what each one changes ----
 
   let settings: Settings = readSettings(query);
+  /** The fish as they are drawn, and which of the dynamic groups they are. */
+  const fish = new FishDraw();
+  let fishSlot = 1;
   const look = (x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }) => {
     cam.target = [x, y, 0];
     orbit.setSpherical(view);
@@ -103,14 +107,23 @@ async function main() {
   /** The water, the light and the camera made what the settings say, where they differ from `was`. */
   async function apply(was: Settings | null) {
     game.setContamination(settings.dirt);
-    if (!was || was.water !== settings.water || was.dirt !== settings.dirt)
-      // the water's groups handed over again: once a change, never once a frame
-      renderer.setDynamic(styleNamed(settings.water).groups(game.contamination));
+    const style = styleNamed(settings.water);
+    if (!was || was.water !== settings.water || was.dirt !== settings.dirt) {
+      // the water's groups and the fish's handed over again: once a change, never once a frame
+      const water = style.groups(game.contamination);
+      fishSlot = water.length;
+      renderer.setDynamic([...water, fish.group()]);
+    }
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
       game.setTimeOfDay(time.at);
       await light(renderer, ctx, time);
     }
+    // how see-through water is, which only it reads: a uniform, so written on every change for nothing
+    renderer.look = {
+      ...renderer.look,
+      clear: style.clear?.(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
+    };
     if (!was || was.view !== settings.view) {
       const v = VIEWS[settings.view];
       look(v.x, v.y, v);
@@ -130,7 +143,14 @@ async function main() {
 
   /** The glow over each fish, written each frame into a pool sized once. */
   const glow = new Float32Array(FISH_CAPACITY * EFFECT_STRIDE);
-  const writeGlow = () => renderer.setEffects(glow, glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow));
+  /** Each frame: the fish where they are, and their glow on the surface for water that cannot be seen through. */
+  const writeGlow = () => {
+    renderer.move(fishSlot, fish.matrices, fish.write(game.fish));
+    const shown = styleNamed(settings.water).surfaceGlow
+      ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow)
+      : 0;
+    renderer.setEffects(glow, shown);
+  };
 
   /** Whether a frame is being measured: the frame loop stands still while one is. */
   let measuring = false;

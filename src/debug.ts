@@ -74,6 +74,8 @@ export interface GameApi {
   time(name: string): Promise<void>;
   /** The camera put at the view of that name: shore, boat, overhead or phone. */
   view(name: string): Promise<void>;
+  /** See-through water's caustics, on or off. */
+  caustics(on: 'on' | 'off'): Promise<void>;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -150,6 +152,7 @@ export function createApi(host: DebugHost): GameApi {
     dirt: (contamination) => host.change({ dirt: contamination }),
     time: (name) => host.change({ time: name as Settings['time'] }),
     view: (name) => host.change({ view: name as Settings['view'] }),
+    caustics: (on) => host.change({ caustics: on }),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),

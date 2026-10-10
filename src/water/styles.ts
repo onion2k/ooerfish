@@ -8,8 +8,11 @@
  * The contamination's colour is one sum for all of them, `waterColour`, so a
  * lake half cleaned is the same green-blue whichever way it is drawn.
  */
+import type { ClearWater } from 'artshape-render/game/clear';
 import type { GameGroup } from 'artshape-render/game/renderer';
+import type { TimeOfDay } from '../look';
 import { PALETTE, mix, type Colour } from '../palette';
+import { clear } from './clear';
 import { open } from './open';
 import { ripple } from './ripple';
 
@@ -20,9 +23,16 @@ export interface WaterStyle {
   label: string;
   /** The groups the water is drawn with, at a contamination from clear (0) to sick (1). */
   groups(contamination: number): GameGroup[];
+  /**
+   * Whether a fish's glow is drawn on the surface over it: for water that cannot be seen through. Water that can be
+   * has the fish themselves glowing under it, and a glow on the surface too would be two.
+   */
+  surfaceGlow: boolean;
+  /** For water that is seen through, the renderer's `look.clear` at a contamination and a time of day, with caustics or without. */
+  clear?: (contamination: number, caustics: boolean, time: TimeOfDay) => Partial<ClearWater>;
 }
 
-export const STYLES: readonly WaterStyle[] = [open, ripple];
+export const STYLES: readonly WaterStyle[] = [open, ripple, clear];
 
 /** The style of that name; one not known is refused, and the first is drawn in its place. */
 export function styleNamed(name: string): WaterStyle {

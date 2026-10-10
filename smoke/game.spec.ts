@@ -7,7 +7,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { PNG } from 'pngjs';
-import { ready, start, watch } from './game';
+import { ready, set, start, watch } from './game';
 
 /** How many frames the page draws in a second. */
 function framesInASecond(page: Page) {
@@ -81,6 +81,17 @@ test("works each of the lab's controls by mouse, and keeps them in the address",
   await expect.poll(settings).toMatchObject({ time: 'dusk' });
   expect((await page.evaluate(() => window.game!.state())).timeOfDay).toBe(0.75);
 
+  // the see-through water, and its caustics turned off and on again
+  await pressed('See-through').click();
+  await expect.poll(settings).toMatchObject({ water: 'clear' });
+  await pressed('Off').click();
+  await expect.poll(settings).toMatchObject({ caustics: 'off' });
+  await expect(pressed('Off')).toHaveAttribute('aria-pressed', 'true');
+  expect(new URL(page.url()).searchParams.get('caustics')).toBe('off');
+  await pressed('On').click();
+  await expect.poll(settings).toMatchObject({ caustics: 'on' });
+  await pressed('Lit ripple').click();
+
   await pressed('Overhead').click();
   await expect.poll(settings).toMatchObject({ view: 'overhead' });
   const high = await page.evaluate(() => window.game!.camera());
@@ -109,7 +120,33 @@ test('refuses what the address says that it does not know, and draws the default
     dirt: 1,
     time: 'day',
     view: 'shore',
+    caustics: 'on',
   });
+  expect(problems).toEqual([]);
+});
+
+test("turns see-through water's caustics on and off in what is drawn", async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  await set(page, { water: 'clear', dirt: 0, time: 'day', view: 'boat' }, 30);
+  // the panel and the corners out of the picture: the panel's own buttons, drawn over the canvas, are not the water
+  await page.evaluate(() => {
+    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+  });
+  // turned on or off, and drawn again by the paused page's own frames, which are of no time, so only the caustics can
+  // differ: a step would draw a frame of a sixtieth, and move the renderer's post clock on with it
+  const shot = async (caustics: 'on' | 'off') => {
+    await page.evaluate(async (c) => {
+      await window.game!.caustics(c);
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    }, caustics);
+    return page.locator('#view').screenshot({ animations: 'disabled' });
+  };
+  const on = await shot('on');
+  const off = await shot('off');
+  const again = await shot('on');
+  expect(on.equals(off), 'caustics on and off drew the same').toBe(false);
+  expect(on.equals(again), 'caustics on, twice at the same time, drew differently').toBe(true);
   expect(problems).toEqual([]);
 });
 

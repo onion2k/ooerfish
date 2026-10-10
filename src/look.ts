@@ -47,6 +47,8 @@ export interface TimeOfDay {
   exposure: number;
   /** How bright a fish's glow is drawn. */
   glow: number;
+  /** How much see-through water glitters: the renderer's glitter is the sun's hue at its full, the moon's too. */
+  glitter: number;
 }
 
 export const TIMES: readonly TimeOfDay[] = [
@@ -60,6 +62,7 @@ export const TIMES: readonly TimeOfDay[] = [
     sunColour: PALETTE.moonlight,
     ambient: 0.25,
     glow: 2.2,
+    glitter: 0.12,
   },
   {
     name: 'dawn',
@@ -71,6 +74,7 @@ export const TIMES: readonly TimeOfDay[] = [
     sunColour: PALETTE.dawnlight,
     ambient: 0.75,
     glow: 1.0,
+    glitter: 0.6,
   },
   {
     name: 'day',
@@ -82,6 +86,7 @@ export const TIMES: readonly TimeOfDay[] = [
     sunColour: PALETTE.daylight,
     ambient: 1,
     glow: 0.6,
+    glitter: 1,
   },
   {
     name: 'dusk',
@@ -93,6 +98,7 @@ export const TIMES: readonly TimeOfDay[] = [
     sunColour: PALETTE.dusklight,
     ambient: 0.65,
     glow: 1.4,
+    glitter: 0.5,
   },
 ];
 
