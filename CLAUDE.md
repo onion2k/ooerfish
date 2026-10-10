@@ -111,6 +111,15 @@ it.
   draws a fish's glow on the surface over it, for the styles that cannot be
   seen through (`surfaceGlow`); `src/fishdraw.ts` draws each fish as a mesh
   glowing under the water (`FLOW_GLOW`), which see-through water shows.
+- **The cast:** `src/cast.ts` is its flight as sums (an arc from the rod's tip
+  that lands where it first meets the water or the bank), shared by the
+  preview, so the preview is the flight to the bit; `src/lure.ts` is the lure
+  (ready, flying, sinking under its bobber, lying on the bank), stepped by
+  `Game.step` and cast by `Game.cast` and `Game.reelIn`; `src/aim.ts` is
+  ooergolf's drag back as a cast; `src/castdraw.ts` draws the rod, line,
+  bobber, lure and preview. Its figures are first guesses in `CAST` and
+  `ANGLER` (`lake.ts`). The player is the angler and is not drawn; a drag
+  casts only in the Shore view, where the orbit is off.
 - **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
   filled by `Game.drop` and `Game.dropNear`, which refuse what is off the
   water and tell of a splash through `GameEvents.splashed`. Their picture is
@@ -206,8 +215,10 @@ For anything new, check what it does, from `DESIGN.md`:
   pebble dropped on it, by a tap or the button, at the shore and off it
 - **the water:** above, on and under the surface; at the shore's edge; at
   the deepest and the shallowest; a lure or a fish never out of the lake
-- **the line:** cast, sinking, bitten, reeled in, drawn too tight (the fish
-  slips off, nothing is lost), propped on the rail and left
+- **the line:** cast (onto the water, onto the bank, at the shore's edge),
+  sinking to the line's depth or the bed, reeled in, cast again while out;
+  and, when the fish come, bitten, drawn too tight (the fish slips off,
+  nothing is lost), propped on the rail and left
 - **the fish:** wandering, at its own depth, drawn to the lure, fleeing,
   hooked; two fish at one lure; a fish hidden behind a snag
 - **snags:** reeds, rocks and rooftops caught on, and freed from

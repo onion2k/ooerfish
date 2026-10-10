@@ -17,7 +17,10 @@ go, let the lure sink, strike when the bobber dips, and reel with an eye on
 the line's tension. The catch goes home to the cabin's curing machine and
 into the aquarium, and the lake's water turns from green to blue.
 
-**Not yet.** None of that is built. For now the page is the **lake lab**:
+**Not yet.** Only the cast is built: from the Shore view, drag back to aim
+(a dotted arc shows where the lure will land), let go to cast, and the lure
+splashes in and sinks under its bobber; "Reel in" brings it back. Otherwise
+the page is the **lake lab**:
 one pond, drawn three ways side by side (open water, lit ripple, and water
 that is seen through to its bed, its rocks and weed and the fish glowing
 among them), so the water, which is what a player looks at most, is chosen
@@ -62,6 +65,8 @@ template's gates (all but its pace gate, which comes back with the fishing):
     src/look.ts        the toon look and the times of day
     src/glow.ts        a fish's glow on the surface over it, for water not seen through
     src/fishdraw.ts    the fish as glowing meshes under the water
+    src/cast.ts        a cast's flight, as sums; lure.ts the lure; aim.ts a drag as a cast
+    src/castdraw.ts    the rod, the line, the bobber, the lure and the preview
     src/splash.ts      the splashes on the water; ripples.ts and ripplesdraw.ts their rings
     src/pick.ts        a tap on the screen, to the point on the water
     src/lab.ts         the lab's panel; settings.ts reads and writes the address

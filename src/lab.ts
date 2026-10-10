@@ -23,18 +23,29 @@ export interface Panel {
   show(settings: Settings): void;
 }
 
-/** The panel built into `root`, telling `change` of every setting changed by the viewer, and `drop` of the pebble's button. */
-export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) => void, drop: () => void): Panel {
+/** What the panel's buttons for things done, and not settings, do. */
+export interface Actions {
+  drop(): void;
+  reelIn(): void;
+}
+
+/** The panel built into `root`, telling `change` of every setting changed by the viewer, and `actions` of its other buttons. */
+export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) => void, actions: Actions): Panel {
   root.replaceChildren();
   const pebble = document.createElement('button');
   pebble.type = 'button';
   pebble.id = 'pebble';
   pebble.textContent = 'Drop a pebble';
-  pebble.addEventListener('click', drop);
+  pebble.addEventListener('click', () => actions.drop());
+  const reel = document.createElement('button');
+  reel.type = 'button';
+  reel.id = 'reel';
+  reel.textContent = 'Reel in';
+  reel.addEventListener('click', () => actions.reelIn());
   const act = document.createElement('fieldset');
   const actLegend = document.createElement('legend');
   actLegend.textContent = 'On the water';
-  act.append(actLegend, pebble);
+  act.append(actLegend, pebble, reel);
   const buttons = new Map<string, HTMLButtonElement>();
 
   const group = (key: 'water' | 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {

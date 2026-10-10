@@ -95,10 +95,14 @@ test('draws every way of the water, at every time of day, splashing, within the 
   for (const water of styles)
     for (const time of ['day', 'night']) {
       await set(page, { ...STANDARD, water, time, dirt: 1 }, 60);
-      // twelve splashes live, the most a lake holds, their rings spreading and their droplets in the air
+      // twelve splashes live, the most a lake holds, their rings spreading and their droplets in the air; and a cast
+      // in the air with its line, and another being aimed, its preview drawn
       await page.evaluate(() => {
-        for (let k = 0; k < 12; k++) window.game!.dropNear();
-        window.game!.step(15);
+        const g = window.game!;
+        for (let k = 0; k < 12; k++) g.dropNear();
+        g.cast(Math.PI / 2 + 0.2, 0.8);
+        g.aim({ angle: Math.PI / 2 - 0.2, power: 0.6 });
+        g.step(15);
       });
       // the first measured keeps the GPU drawing a quarter of a second; the rest follow on from it
       const ms = await page.evaluate((warm) => window.game!.measureFrame(warm), first ? undefined : 60);

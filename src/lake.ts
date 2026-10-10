@@ -110,3 +110,17 @@ export type ViewName = keyof typeof VIEWS;
 export const SPLASH_CAPACITY = 12;
 export const SPLASH_LASTS = 2.2;
 export const DROP_NEAR = 8;
+
+/**
+ * Where the angler stands, in the middle of the south bank: the player is the angler, and is not drawn, so the cast
+ * comes from the middle of the Shore view; how high the rod's tip is held over the ground there, and how far out in
+ * front of them, toward the water.
+ */
+export const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
+
+/**
+ * A cast: how far it reaches at full power, over the water, in world units; how steeply it is thrown; how fast the
+ * lure sinks, in units a second; how far below the bobber the line lets it go; and how far over the bed it stops.
+ * First guesses, to be tuned by playing.
+ */
+export const CAST = { reach: 45, launch: (28 * Math.PI) / 180, sink: 1.2, lineDepth: 5, aboveBed: 0.3 } as const;

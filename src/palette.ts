@@ -38,6 +38,15 @@ export const PALETTE = {
   ripple: [0.82, 0.94, 1] as Colour,
   clearSplash: [0.93, 0.98, 1] as Colour,
   sickSplash: [0.86, 1, 0.68] as Colour,
+  /** The rod and its line. */
+  rod: [0.42, 0.26, 0.14] as Colour,
+  line: [0.9, 0.9, 0.85] as Colour,
+  /** The lure, the bobber, and the preview's dots and ring, over the water and over the bank. */
+  lure: [1, 0.45, 0.2] as Colour,
+  bobber: [0.92, 0.15, 0.12] as Colour,
+  aim: [1, 0.97, 0.88] as Colour,
+  aimWater: [1, 0.86, 0.25] as Colour,
+  aimBank: [0.92, 0.22, 0.15] as Colour,
   /** The glow of a fish that has eaten the waste. */
   glow: [0.55, 1, 0.3] as Colour,
 

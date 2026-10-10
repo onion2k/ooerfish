@@ -1,6 +1,6 @@
 {
   "the lab's fish swimming": {
-    "relative": 0.00008680871764279576,
+    "relative": 8.680871764279576e-5,
     "ms": 0.00139,
     "ref": 16
   },
@@ -8,5 +8,10 @@
     "relative": 0.0004702342934722321,
     "ms": 0.00765,
     "ref": 16.3
+  },
+  "casting and sinking": {
+    "relative": 9.275e-5,
+    "ms": 0.0015,
+    "ref": 16
   }
 }

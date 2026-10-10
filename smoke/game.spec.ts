@@ -7,7 +7,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { PNG } from 'pngjs';
-import { ready, set, start, watch } from './game';
+import { ready, set, start, touchDrag, watch } from './game';
 
 /** How many frames the page draws in a second. */
 function framesInASecond(page: Page) {
@@ -163,7 +163,8 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   expect(Math.hypot(tapped[0].x - 4, tapped[0].y + 6), 'where it was tapped').toBeLessThan(0.5);
   expect(await page.evaluate(() => window.game!.events())).toContain('splashed 4.0,-6.0');
 
-  // a drag across the water turns the camera, and drops nothing
+  // a drag across the water, from overhead, turns the camera, and drops nothing
+  await page.evaluate(() => window.game!.view('overhead'));
   await page.mouse.move(at.x, at.y);
   await page.mouse.down();
   await page.mouse.move(at.x + 80, at.y + 10, { steps: 6 });
@@ -173,6 +174,62 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   // the panel's button drops one near what the camera looks at
   await page.getByRole('button', { name: 'Drop a pebble' }).click();
   expect((await splashes()).length, 'the button drops one').toBe(2);
+  expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('casts from the shore by a drag back, to where its preview said, and from nowhere else', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  await page.evaluate(() => window.game!.view('shore'));
+  const box = (await page.locator('#view').boundingBox())!;
+  const from = { x: box.x + box.width / 2, y: box.y + box.height * 0.6 };
+  const lure = () => page.evaluate(() => window.game!.lure());
+
+  // a drag back and a little to the left: while it is held, the preview shows where it will land, on the water
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x - 40, from.y + 160, { steps: 8 });
+  const preview = (await page.evaluate(() => window.game!.preview()))!;
+  expect(preview, 'the preview while aiming').not.toBe(null);
+  expect(preview.onWater).toBe(true);
+  expect(preview.x, 'a drag to the left casts to the right').toBeGreaterThan(0);
+  expect((await lure()).phase, 'nothing cast until let go').toBe('ready');
+  await page.mouse.up();
+  expect(await page.evaluate(() => window.game!.preview()), 'no preview once let go').toBe(null);
+  expect((await lure()).phase).toBe('flying');
+  // flown out, it lands where the preview said, splashes, and sinks under its bobber
+  await page.evaluate(() => window.game!.step(180));
+  const landed = await lure();
+  expect(landed.phase).toBe('sinking');
+  expect(Math.hypot(landed.bobber[0] - preview.x, landed.bobber[1] - preview.y), 'where the preview said').toBeLessThan(
+    1e-6,
+  );
+  expect((await page.evaluate(() => window.game!.events())).length, 'a splash').toBe(1);
+  await expect(page.locator('#castLine')).toContainText('sinking');
+
+  // reeled in, it is ready to cast again
+  await page.getByRole('button', { name: 'Reel in' }).click();
+  expect((await lure()).phase).toBe('ready');
+
+  // a drag let go near where it began casts nothing, and drops nothing either
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, from.y + 14, { steps: 3 });
+  await page.mouse.up();
+  expect((await lure()).phase, 'taken back').toBe('ready');
+  expect(await page.evaluate(() => window.game!.splashes()), 'no pebble').toHaveLength(1);
+
+  // from overhead a drag turns the camera, and casts nothing
+  await page.evaluate(() => window.game!.view('overhead'));
+  const before = await page.evaluate(() => window.game!.camera().position);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x - 120, from.y + 30, { steps: 8 });
+  await page.mouse.up();
+  await page.evaluate(() => window.game!.step(1));
+  expect((await lure()).phase, 'no cast from overhead').toBe('ready');
+  expect(await page.evaluate(() => window.game!.camera().position), 'the camera turned').not.toEqual(before);
   expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -215,6 +272,10 @@ test.describe('on a phone', () => {
     const tapped = await page.evaluate(() => window.game!.splashes());
     expect(tapped.length, 'a tap on a phone drops one').toBe(1);
     expect(Math.hypot(tapped[0].x, tapped[0].y + 2)).toBeLessThan(0.5);
+    // and one finger dragged back from the shore casts, as the mouse does
+    await page.evaluate(() => window.game!.view('shore'));
+    await touchDrag(page, { x: 200, y: 500 }, { x: 200, y: 640 });
+    expect((await page.evaluate(() => window.game!.lure())).phase, 'a finger casts').toBe('flying');
     expect(problems).toEqual([]);
   });
 });

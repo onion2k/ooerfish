@@ -2,7 +2,7 @@
  * The lake played by a monkey: the real lake, without the picture, made to
  * do at random everything a player can make happen in it (for now, letting
  * time pass, pausing, the lab's two levers, dropping pebbles on the water and
- * off it, and saving and loading) and checked after every few
+ * off it, casting and reeling in, and saving and loading) and checked after every few
  * frames for anything that must always hold and does not (`invariants.ts`),
  * and for anything thrown.
  *
@@ -116,6 +116,23 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           const odd = random() < 0.08;
           game.drop(odd ? NaN : between(-60, 60), between(-45, 45), odd ? 1 : between(0.5, 2));
           did('drop');
+        },
+      ],
+      [
+        3,
+        () => {
+          // a cast any way round at any power, a drag let go anywhere, or now and then a value that is no number
+          const odd = random() < 0.05;
+          game.cast(odd ? NaN : between(-Math.PI, Math.PI), odd ? 0.5 : between(0, 1.2));
+          busy = Math.floor(between(30, 300));
+          did('cast');
+        },
+      ],
+      [
+        1,
+        () => {
+          game.reelIn();
+          did('reel in');
         },
       ],
       [

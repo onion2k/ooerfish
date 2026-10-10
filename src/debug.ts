@@ -15,6 +15,7 @@
  * that is not here does not compile.
  */
 import type { Game } from './game';
+import { flight } from './cast';
 import { checkInvariants } from './invariants';
 import { seeded } from './random';
 import type { Settings } from './settings';
@@ -39,6 +40,17 @@ export interface Splash {
   x: number;
   y: number;
   age: number;
+}
+
+/** The lure: what it is doing, where it is, how deep it has sunk, and where its bobber floats. */
+export interface LureState {
+  phase: string;
+  x: number;
+  y: number;
+  z: number;
+  depth: number;
+  sunk: number;
+  bobber: [number, number];
 }
 
 /** A fish, where it is. */
@@ -77,6 +89,14 @@ export interface GameApi {
   /** The save written now, and what it is. */
   save(): string;
 
+  /** A cast thrown at `angle` round the compass (nought east, a quarter turn north) and `power` from nought to one. */
+  cast(angle: number, power: number): boolean;
+  /** A cast aimed but not yet thrown, its preview drawn, as a drag does; null for none. */
+  aim(to: { angle: number; power: number } | null): void;
+  reelIn(): void;
+  lure(): LureState;
+  /** Where the cast being aimed will land, and whether on the water; null when none is aimed. */
+  preview(): { x: number; y: number; z: number; onWater: boolean } | null;
   /** A pebble dropped on the water at (x, y); says whether it landed, which off the water it does not. */
   drop(x: number, y: number): boolean;
   /** A pebble dropped somewhere near what the camera looks at, as the panel's button does. */
@@ -121,6 +141,9 @@ export interface DebugHost {
   look(x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }): void;
   camera(): { position: number[]; target: number[] };
   project(x: number, y: number, z: number): { x: number; y: number } | null;
+  /** The cast being aimed, and setting it. */
+  aiming(): { angle: number; power: number } | null;
+  setAim(to: { angle: number; power: number } | null): void;
   /** The point the camera looks at, where the panel's button drops near. */
   target(): [number, number];
   events: string[];
@@ -184,6 +207,27 @@ export function createApi(host: DebugHost): GameApi {
       return JSON.stringify(game.progress.save);
     },
 
+    cast: (angle, power) => game.cast(angle, power),
+    aim: (to) => host.setAim(to),
+    reelIn: () => game.reelIn(),
+    lure() {
+      const { lure } = game;
+      return {
+        phase: lure.phase,
+        x: lure.at[0],
+        y: lure.at[1],
+        z: lure.at[2],
+        depth: lure.depth,
+        sunk: lure.sunk,
+        bobber: [lure.bobber[0], lure.bobber[1]],
+      };
+    },
+    preview() {
+      const to = host.aiming();
+      if (!to) return null;
+      const f = flight(to.angle, to.power);
+      return { x: f.landing[0], y: f.landing[1], z: f.landing[2], onWater: f.onWater };
+    },
     drop: (x, y) => game.drop(x, y),
     dropNear: () => game.dropNear(...host.target()),
     water: (name) => host.change({ water: name }),

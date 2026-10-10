@@ -44,7 +44,7 @@ export interface TwiceResult {
 
 /**
  * Everything the lake is at this moment, as one number in hex: its time,
- * every fish, every splash, the levers and the save. Two lakes with the same hash are the same lake, down to the last
+ * every fish, every splash, the lure, the levers and the save. Two lakes with the same hash are the same lake, down to the last
  * bit of every float.
  */
 export function hashGame(game: Game): string {
@@ -78,6 +78,9 @@ export function hashGame(game: Game): string {
     eat(splashes.at[i]);
     eat(splashes.size[i]);
   }
+  const { lure } = game;
+  eat(['ready', 'flying', 'sinking', 'lying'].indexOf(lure.phase));
+  for (const n of [lure.angle, lure.power, lure.castAt, lure.depth, lure.sunk, ...lure.at, ...lure.bobber]) eat(n);
   eat(game.contamination);
   eat(game.timeOfDay);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
@@ -94,6 +97,8 @@ export function playTwice({ seed, frames, every = 300, meddle }: TwiceOptions): 
       game.step(DT);
       // a pebble dropped by chance now and then, the same frames in both runs, so a splash's chance is held to the seed too
       if (f % DROP_EVERY === 0) game.dropNear(0, 0);
+      // and a cast by chance as often, so the lure is played and held to the seed
+      if (f % DROP_EVERY === DROP_EVERY / 2) game.cast(game.random() * Math.PI * 2, game.random());
       meddle?.(game, pass);
       if (f % every === 0) hashes.push(hashGame(game));
     }

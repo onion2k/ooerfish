@@ -11,6 +11,8 @@ import { invertInto } from 'artshape-render/geom/transform';
 import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
 import { splashBurst } from './bursts';
+import { aimFrom } from './aim';
+import { CastDraw, type Aim } from './castdraw';
 import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
@@ -44,6 +46,7 @@ const bootMsg = document.getElementById('bootMsg')!;
 const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
 const lab = document.getElementById('lab')!;
+const castLine = document.getElementById('castLine')!;
 
 main().catch((err: unknown) => {
   bootMsg.textContent = err instanceof Error ? err.message : String(err);
@@ -122,12 +125,19 @@ async function main() {
   /** The fish as they are drawn, and which of the dynamic groups they are. */
   const fish = new FishDraw();
   let fishSlot = 1;
-  /** The ripples' rings, drawn as the group after the fish's. */
+  /** The ripples' rings, drawn as the group after the fish's; then the cast's, the angler to the preview. */
   const ripples = new RippleDraw();
+  const casting = new CastDraw();
+  /** What a cast is being aimed at, while one is: the preview is drawn from it. */
+  let aim: Aim | null = null;
   const look = (x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }) => {
+    // the orbit moves the camera only while it is on, so it is on while the camera is put there, and as it was after
+    const was = orbit.enabled;
+    orbit.enabled = true;
     cam.target = [x, y, 0];
     orbit.setSpherical(view);
     for (let i = 0; i < 400; i++) orbit.update();
+    orbit.enabled = was;
   };
   /** The water, the light and the camera made what the settings say, where they differ from `was`. */
   async function apply(was: Settings | null) {
@@ -137,7 +147,7 @@ async function main() {
       // the water's groups and the fish's handed over again: once a change, never once a frame
       const water = style.groups(game.contamination);
       fishSlot = water.length;
-      renderer.setDynamic([...water, fish.group(), ripples.group()]);
+      renderer.setDynamic([...water, fish.group(), ripples.group(), ...casting.groups()]);
     }
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
@@ -152,24 +162,66 @@ async function main() {
     if (!was || was.view !== settings.view) {
       const v = VIEWS[settings.view];
       look(v.x, v.y, v);
+      // from the shore a drag casts, and the camera holds still behind the angler; from anywhere else it turns the camera
+      orbit.enabled = settings.view !== 'shore';
+      aim = null;
     }
     await renderer.prepare();
   }
-  const panel = buildPanel(
-    lab,
-    (next) => void change(next),
-    () => game.dropNear(cam.target[0], cam.target[1]),
-  );
+  const panel = buildPanel(lab, (next) => void change(next), {
+    drop: () => game.dropNear(cam.target[0], cam.target[1]),
+    reelIn: () => game.reelIn(),
+  });
+
+  /** The line on the screen that says what the lure is doing: its sinking counted, or that it lies on the bank. */
+  let castText = '';
+  function showCast() {
+    const { lure } = game;
+    const text =
+      lure.phase === 'sinking'
+        ? `sinking… ${Math.floor(lure.sunk)}`
+        : lure.phase === 'lying'
+          ? 'on the bank: reel it in'
+          : '';
+    if (text === castText) return;
+    castText = text;
+    castLine.textContent = text;
+    castLine.hidden = !text;
+  }
 
   // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
   const tapInverse = new Float32Array(16);
   let down: { x: number; y: number; at: number } | null = null;
+  // and from the shore a drag back aims a cast, its preview drawn as it goes, and letting go casts it
+  const casts = () => settings.view === 'shore';
+  const aimOf = (e: PointerEvent, from: { x: number; y: number }) => {
+    const box = canvas.getBoundingClientRect();
+    const heading = Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]);
+    return aimFrom(e.clientX - from.x, e.clientY - from.y, Math.min(box.width, box.height), heading);
+  };
   canvas.addEventListener('pointerdown', (e) => {
     down = { x: e.clientX, y: e.clientY, at: e.timeStamp };
+    if (casts()) canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (down && casts()) aim = aimOf(e, down);
+  });
+  canvas.addEventListener('pointercancel', () => {
+    down = null;
+    aim = null;
   });
   canvas.addEventListener('pointerup', (e) => {
     const was = down;
     down = null;
+    if (was && casts()) {
+      // let go inside the dead zone, the drag is taken back and nothing is cast
+      const to = aimOf(e, was);
+      aim = null;
+      if (to) {
+        game.cast(to.angle, to.power);
+        return;
+      }
+    }
     if (!was || Math.hypot(e.clientX - was.x, e.clientY - was.y) > TAP_PX || e.timeStamp - was.at > TAP_MS) return;
     cam.update();
     if (!invertInto(tapInverse, cam.viewProjection)) return;
@@ -197,6 +249,16 @@ async function main() {
   const writeGlow = () => {
     renderer.move(fishSlot, fish.matrices, fish.write(game.fish));
     renderer.move(fishSlot + 1, ripples.matrices, ripples.write(game.splashes, game.t));
+    // the cast's groups after the ripples', the rod as it stands, the rest as many as are live
+    const drawn = casting.write(game, aim);
+    const c = fishSlot + 2;
+    renderer.move(c + 1, casting.line, drawn.line);
+    renderer.move(c + 2, casting.lure, drawn.lure);
+    renderer.move(c + 3, casting.bobber, drawn.bobber);
+    renderer.move(c + 4, casting.dots, drawn.dots);
+    renderer.move(c + 5, casting.ringWater, drawn.ringWater);
+    renderer.move(c + 6, casting.ringBank, drawn.ringBank);
+    showCast();
     const shown = styleNamed(settings.water).surfaceGlow
       ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow)
       : 0;
@@ -296,6 +358,10 @@ async function main() {
       return { x: box.left + ((nx + 1) / 2) * box.width, y: box.top + ((1 - ny) / 2) * box.height };
     },
     target: () => [cam.target[0], cam.target[1]],
+    aiming: () => aim,
+    setAim: (to) => {
+      aim = to;
+    },
     events: eventLog,
     measureFrame,
     settings: () => ({ ...settings }),

@@ -74,6 +74,11 @@ function swimming(game: Game): () => boolean {
   };
 }
 
+/** Whether a step had the lure in the air or in the water: a lake where nothing is cast is timed for nothing here. */
+function fishing(game: Game): () => boolean {
+  return () => game.lure.phase === 'flying' || game.lure.phase === 'sinking';
+}
+
 const SCENARIOS: Scenario[] = [
   {
     name: "the lab's fish swimming",
@@ -84,6 +89,24 @@ const SCENARIOS: Scenario[] = [
     setup: () => {
       const game = settled(1);
       return { game, frame: () => game.step(DT), busy: swimming(game) };
+    },
+  },
+  {
+    name: 'casting and sinking',
+    // a cast every four seconds across the pond, flown, landed with a splash and sunk to the line
+    frames: 20000,
+    busy: [0.9, 1],
+    setup: () => {
+      const game = settled(1);
+      let f = 0;
+      return {
+        game,
+        frame: () => {
+          if (f++ % 240 === 0) game.cast(Math.PI / 2 + ((f % 7) - 3) * 0.08, 0.4 + (f % 5) * 0.1);
+          game.step(DT);
+        },
+        busy: fishing(game),
+      };
     },
   },
   {

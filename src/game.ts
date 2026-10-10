@@ -13,6 +13,7 @@ import { School } from './fish';
 import { DROP_NEAR, FISH_COUNT, inside } from './lake';
 import { Progress } from './progress';
 import type { Random } from './random';
+import { Lure } from './lure';
 import { Splashes } from './splash';
 
 /** What happens, for whoever shows it. Every one may be left out. */
@@ -20,6 +21,9 @@ export interface GameEvents {
   /** Something landed on the water at (x, y), of this size. */
   splashed?(x: number, y: number, size: number): void;
 }
+
+/** How big a lure's splash is, against a pebble's one. */
+const LURE_SPLASH = 0.6;
 
 export interface GameOptions {
   /** Chance; Math.random unless told otherwise, and the tests always tell. */
@@ -35,6 +39,7 @@ export class Game {
   random: Random;
   readonly fish = new School();
   readonly splashes = new Splashes();
+  readonly lure = new Lure();
   private readonly events: GameEvents;
   /** How dirty the lake is, from clear (0) to as sick as it gets (1). */
   contamination = 1;
@@ -54,6 +59,9 @@ export class Game {
   step(dt: number) {
     this.t += dt;
     this.fish.step(dt, this.random);
+    // a lure landing on the water splashes, smaller than a pebble
+    const landed = this.lure.step(this.t, dt);
+    if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
   }
 
   /** How dirty the lake is, held to nought and one; what is not a number is refused, and changes nothing. */
@@ -88,6 +96,19 @@ export class Game {
     }
     // nowhere near is on the water: the middle of the lake always is
     return this.drop(0, 0);
+  }
+
+  /** A cast thrown at `angle` round the compass and `power` from nought to one; one out already is reeled in first. Refused, and nothing changed, for what is not a finite number. */
+  cast(angle: number, power: number): boolean {
+    if (!Number.isFinite(angle) || !Number.isFinite(power)) return false;
+    this.lure.reelIn();
+    this.lure.cast(angle, power, this.t);
+    return true;
+  }
+
+  /** The lure brought back to the rod, ready to cast again. */
+  reelIn() {
+    this.lure.reelIn();
   }
 
   /** The save written now. */

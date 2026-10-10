@@ -47,6 +47,21 @@ export async function start(page: Page, options: { save?: Partial<Save>; seed?: 
   await ready(page);
 }
 
+/**
+ * A one-finger drag on a touch screen, from one point of the page to another, by the browser's own touch events, as a
+ * finger on a phone makes them: Playwright's touchscreen only taps.
+ */
+export async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 6) {
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  await touch('touchStart', from.x, from.y);
+  for (let k = 1; k <= steps; k++)
+    await touch('touchMove', from.x + ((to.x - from.x) * k) / steps, from.y + ((to.y - from.y) * k) / steps);
+  await touch('touchEnd', to.x, to.y);
+  await cdp.detach();
+}
+
 /** Wait until the game is booted and its frame loop running, or say what the boot screen was stuck on. */
 export async function ready(page: Page) {
   try {

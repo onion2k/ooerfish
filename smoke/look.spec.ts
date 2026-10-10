@@ -82,6 +82,32 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
+  // the cast from the shore, by day, on open water and see-through: aimed at the water and at the bank, in the air,
+  // and landed and sinking under its bobber
+  for (const water of ['open', 'clear'])
+    for (const [name, act] of [
+      ['aim-water', 'aim water'],
+      ['aim-bank', 'aim bank'],
+      ['flight', 'flight'],
+      ['sinking', 'sinking'],
+    ] as const)
+      test(`${water}-cast-${name}`, async ({ page }) => {
+        const problems = watch(page);
+        await start(page, { seed: 11, paused: true });
+        // a cast landing on a bank lands off to the side, out of the Shore view's frame: it is pictured from overhead
+        await set(page, { water, dirt: 0.2, time: 'day', view: name === 'aim-bank' ? 'overhead' : 'shore' }, 60);
+        await page.evaluate((what) => {
+          const g = window.game!;
+          if (what === 'aim water') g.aim({ angle: Math.PI / 2 + 0.2, power: 0.7 });
+          if (what === 'aim bank') g.aim({ angle: 0.3, power: 0.85 });
+          if (what === 'flight' || what === 'sinking') g.cast(Math.PI / 2 + 0.2, 0.7);
+          g.step(what === 'sinking' ? 175 : what === 'flight' ? 25 : 1);
+        }, act);
+        await hideOverlays(page);
+        await expect(page.locator('#view')).toHaveScreenshot(`${water}-cast-${name}.png`, TOLERANCE);
+        expect(problems).toEqual([]);
+      });
+
   test('the water moves by the game clock alone', async ({ page }) => {
     // two pictures at the same game time are the same to the byte, splash and all, and a second later the water has moved
     await start(page, { seed: 11, paused: true });
