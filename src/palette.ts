@@ -34,6 +34,10 @@ export const PALETTE = {
   clearDeep: [0.02, 0.2, 0.32] as Colour,
   sickShallow: [0.55, 0.82, 0.3] as Colour,
   sickDeep: [0.07, 0.22, 0.03] as Colour,
+  /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
+  ripple: [0.82, 0.94, 1] as Colour,
+  clearSplash: [0.93, 0.98, 1] as Colour,
+  sickSplash: [0.86, 1, 0.68] as Colour,
   /** The glow of a fish that has eaten the waste. */
   glow: [0.55, 1, 0.3] as Colour,
 

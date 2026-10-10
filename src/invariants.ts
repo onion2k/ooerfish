@@ -4,13 +4,15 @@
  *
  * The time is a number and not before the start. Every fish is a number,
  * in the water, below the surface and above the bed, and there are no more
- * than a lake holds. The levers are within nought and one.
+ * than a lake holds. The levers are within nought and one. There
+ * are no more splashes than the pool holds, each on the water, none landed
+ * after now, every number a number.
  *
  * Checked by the fuzzer after everything it does, by the test API on asking,
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
 import type { Game } from './game';
-import { FISH_CAPACITY, bedDepth, inside } from './lake';
+import { FISH_CAPACITY, SPLASH_CAPACITY, bedDepth, inside } from './lake';
 
 /** How many broken rules of one sort are reported before the rest are only counted. */
 const EACH = 3;
@@ -38,6 +40,21 @@ export function checkInvariants(game: Game): string[] {
     else if (depth >= bedDepth(x, y)) wrong.push(`${at}: fish ${i} is under the bed`);
   }
   report(wrong);
+
+  const { splashes } = game;
+  if (!Number.isInteger(splashes.count) || splashes.count < 0 || splashes.count > SPLASH_CAPACITY)
+    out.push(`the lake has ${splashes.count} splashes, where it holds ${SPLASH_CAPACITY}`);
+  const splashed: string[] = [];
+  for (let i = 0; i < Math.min(splashes.count, SPLASH_CAPACITY); i++) {
+    const x = splashes.x[i],
+      y = splashes.y[i],
+      at = splashes.at[i];
+    if (![x, y, at, splashes.size[i]].every(Number.isFinite)) splashed.push(`splash ${i} is not a number`);
+    else if (!inside(x, y)) splashed.push(`splash ${i} is off the water at ${x.toFixed(1)},${y.toFixed(1)}`);
+    else if (at > game.t)
+      splashed.push(`splash ${i} landed after now, at ${at.toFixed(2)} with the time ${game.t.toFixed(2)}`);
+  }
+  report(splashed);
 
   if (!(game.contamination >= 0 && game.contamination <= 1)) out.push(`the contamination is ${game.contamination}`);
   if (!(game.timeOfDay >= 0 && game.timeOfDay <= 1)) out.push(`the time of day is ${game.timeOfDay}`);

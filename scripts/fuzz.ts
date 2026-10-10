@@ -47,9 +47,9 @@ async function main() {
     }),
   );
   results.sort((a, b) => a.seed - b.seed);
-  const sum = () => {
+  const sum = (key: 'done' | 'happened') => {
     const out: Record<string, number> = {};
-    for (const r of results) for (const [k, n] of Object.entries(r.done)) out[k] = (out[k] ?? 0) + n;
+    for (const r of results) for (const [k, n] of Object.entries(r[key])) out[k] = (out[k] ?? 0) + n;
     return Object.entries(out)
       .sort((a, b) => b[1] - a[1])
       .map(([k, n]) => `${k} ${n}`)
@@ -59,7 +59,8 @@ async function main() {
   console.log(
     `${seeds.length} seed${seeds.length === 1 ? '' : 's'}, ${frames} frames each (${((performance.now() - started) / 1000).toFixed(1)} s)`,
   );
-  console.log(`  done: ${sum()}`);
+  console.log(`  done: ${sum('done')}`);
+  console.log(`  happened: ${sum('happened')}`);
   for (const r of failed) {
     const f = r.failure!;
     console.error(`\nseed ${f.seed} failed at frame ${f.frame}:`);

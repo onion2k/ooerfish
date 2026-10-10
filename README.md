@@ -23,7 +23,9 @@ that is seen through to its bed, its rocks and weed and the fish glowing
 among them), so the water, which is what a player looks at most, is chosen
 by looking. Its panel switches between the
 ways of drawing the water, how dirty the lake is, the time of day and where
-the camera stands, and every setting is in the address, so a link brings the
+the camera stands; a tap on the water, or the "Drop a pebble" button,
+drops a pebble that splashes and sends rings across it; and every setting is
+in the address, so a link brings the
 same lake back: `npm run dev`, then for instance
 `http://localhost:5204/?water=ripple&dirt=1&time=dusk&view=shore`.
 
@@ -60,6 +62,8 @@ template's gates (all but its pace gate, which comes back with the fishing):
     src/look.ts        the toon look and the times of day
     src/glow.ts        a fish's glow on the surface over it, for water not seen through
     src/fishdraw.ts    the fish as glowing meshes under the water
+    src/splash.ts      the splashes on the water; ripples.ts and ripplesdraw.ts their rings
+    src/pick.ts        a tap on the screen, to the point on the water
     src/lab.ts         the lab's panel; settings.ts reads and writes the address
     src/scene.ts       the bed and its rocks and weed, the banks, the stones and the trees
     src/progress.ts    the save, and where it is kept

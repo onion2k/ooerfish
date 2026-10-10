@@ -34,6 +34,13 @@ export interface GameState {
   timeOfDay: number;
 }
 
+/** A splash on the water, where it landed and how long ago. */
+export interface Splash {
+  x: number;
+  y: number;
+  age: number;
+}
+
 /** A fish, where it is. */
 export interface Fish {
   x: number;
@@ -50,13 +57,17 @@ export interface GameApi {
 
   pause(): void;
   resume(): void;
-  /** Play `frames` frames of 1/60 s exactly, and draw the last. */
+  /** Play `frames` frames of 1/60 s exactly, each drawn. */
   step(frames?: number): void;
   /** Chance from a seed from now on. */
   seed(n: number): void;
 
   state(): GameState;
   fish(): Fish[];
+  /** Every splash in the pool, live or over. */
+  splashes(): Splash[];
+  /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
+  events(): string[];
   /** The lab's settings as they stand, as the address has them. */
   settings(): Settings;
   /** The names of the ways the water can be drawn. */
@@ -65,6 +76,11 @@ export interface GameApi {
   invariants(): string[];
   /** The save written now, and what it is. */
   save(): string;
+
+  /** A pebble dropped on the water at (x, y); says whether it landed, which off the water it does not. */
+  drop(x: number, y: number): boolean;
+  /** A pebble dropped somewhere near what the camera looks at, as the panel's button does. */
+  dropNear(): boolean;
 
   /** The water drawn the way of that name, as its button on the panel does. */
   water(name: string): Promise<void>;
@@ -81,6 +97,8 @@ export interface GameApi {
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
   /** Where the camera is, and what it is looking at. */
   camera(): { position: number[]; target: number[] };
+  /** Where a point of the world is on the page, in CSS pixels from its top left; null behind the camera. */
+  project(x: number, y: number, z: number): { x: number; y: number } | null;
   /**
    * What drawing a frame of the scene as it stands costs, in milliseconds, once the GPU has been kept drawing for
    * `warm` of them: a quarter of a second unless told otherwise, which is what one that sat idle while the page
@@ -102,6 +120,10 @@ export interface DebugHost {
   frame(): number;
   look(x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }): void;
   camera(): { position: number[]; target: number[] };
+  project(x: number, y: number, z: number): { x: number; y: number } | null;
+  /** The point the camera looks at, where the panel's button drops near. */
+  target(): [number, number];
+  events: string[];
   measureFrame(warm?: number): Promise<number>;
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
@@ -122,8 +144,13 @@ export function createApi(host: DebugHost): GameApi {
     pause: () => host.setPaused(true),
     resume: () => host.setPaused(false),
     step(frames = 1) {
-      for (let f = 0; f < frames; f++) host.simulate(1 / 60);
-      host.draw(1 / 60);
+      // every frame drawn, not only the last: the renderer moves its particles by each drawn frame's time, and a
+      // splash stepped by drawing only the last frame threw its droplets for a sixtieth of a second whatever the steps
+      for (let f = 0; f < frames; f++) {
+        host.simulate(1 / 60);
+        host.draw(1 / 60);
+      }
+      if (frames <= 0) host.draw(1 / 60);
     },
     seed(n) {
       game.random = seeded(n);
@@ -140,6 +167,15 @@ export function createApi(host: DebugHost): GameApi {
       const { fish } = game;
       return Array.from({ length: fish.count }, (_, i) => ({ x: fish.x[i], y: fish.y[i], depth: fish.depth[i] }));
     },
+    splashes() {
+      const { splashes } = game;
+      return Array.from({ length: splashes.count }, (_, i) => ({
+        x: splashes.x[i],
+        y: splashes.y[i],
+        age: splashes.age(i, game.t),
+      }));
+    },
+    events: () => host.events.splice(0),
     settings: () => host.settings(),
     styles: () => host.styles(),
     invariants: () => checkInvariants(game),
@@ -148,6 +184,8 @@ export function createApi(host: DebugHost): GameApi {
       return JSON.stringify(game.progress.save);
     },
 
+    drop: (x, y) => game.drop(x, y),
+    dropNear: () => game.dropNear(...host.target()),
     water: (name) => host.change({ water: name }),
     dirt: (contamination) => host.change({ dirt: contamination }),
     time: (name) => host.change({ time: name as Settings['time'] }),
@@ -156,6 +194,7 @@ export function createApi(host: DebugHost): GameApi {
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),
+    project: (x, y, z) => host.project(x, y, z),
     measureFrame: (warm) => host.measureFrame(warm),
   };
 }

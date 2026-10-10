@@ -33,6 +33,9 @@ describe('the same seed gives the same game', () => {
     one.fish.x[3] -= 0.001;
     one.setContamination(0.5);
     expect(hashGame(one)).not.toBe(hash);
+    const was = hashGame(one);
+    one.drop(1, 1);
+    expect(hashGame(one), 'a splash').not.toBe(was);
   });
 
   it('says where two runs first parted, when they do', () => {

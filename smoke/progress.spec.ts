@@ -39,6 +39,20 @@ test("the lake's time runs while it is played, and stands still while it is paus
   expect(problems).toEqual([]);
 });
 
+test("a pebble splashes, its rings spread and are gone by the splash's end", async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  expect(await page.evaluate(() => window.game!.drop(2, 3))).toBe(true);
+  await play(page, 30, 'half a second of a splash');
+  const live = await page.evaluate(() => window.game!.splashes());
+  expect(live.length).toBe(1);
+  expect(live[0].age).toBeCloseTo(0.5, 5);
+  await play(page, 150, 'the splash over');
+  expect((await page.evaluate(() => window.game!.splashes()))[0].age).toBeGreaterThan(2.2);
+  expect(await page.evaluate(() => window.game!.events())).toEqual(['splashed 2.0,3.0']);
+  expect(problems).toEqual([]);
+});
+
 test('the fish swim the lake, and stay in it', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });

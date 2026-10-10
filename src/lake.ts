@@ -102,3 +102,11 @@ export const VIEWS: Record<'shore' | 'boat' | 'overhead' | 'phone', View> = {
 };
 
 export type ViewName = keyof typeof VIEWS;
+
+/**
+ * How many splashes may be live on a lake at once, which fixes the pool and what is drawn of it; how long one
+ * lasts, in seconds; and how far from the point asked a pebble dropped somewhere may land.
+ */
+export const SPLASH_CAPACITY = 12;
+export const SPLASH_LASTS = 2.2;
+export const DROP_NEAR = 8;

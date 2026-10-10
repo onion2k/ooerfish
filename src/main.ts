@@ -7,17 +7,21 @@
 import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
 import { LightPool } from 'artshape-render/game/lights';
+import { invertInto } from 'artshape-render/geom/transform';
 import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
+import { splashBurst } from './bursts';
 import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
-import { Game } from './game';
+import { Game, type GameEvents } from './game';
 import { glowQuads } from './glow';
 import { buildPanel } from './lab';
 import { FISH_CAPACITY, VIEWS } from './lake';
 import { light, nearestTime, timeNamed } from './look';
+import { waterPoint } from './pick';
 import { Progress } from './progress';
 import { seeded } from './random';
+import { RippleDraw } from './ripplesdraw';
 import { SHADOW_BOX, Scene } from './scene';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
 import { STYLES, styleNamed } from './water/styles';
@@ -26,7 +30,13 @@ import { STYLES, styleNamed } from './water/styles';
 const MM_PER_UNIT = 100;
 const LIGHT_CAPACITY = 16,
   EFFECT_CAPACITY = FISH_CAPACITY,
-  PARTICLE_CAPACITY = 1024;
+  // twelve splashes live at once, a hundred droplets each, with room to spare
+  PARTICLE_CAPACITY = 2048;
+/** How far a pointer may move, in CSS pixels, and how long it may be down, in milliseconds, and still be a tap and not a drag. */
+const TAP_PX = 6,
+  TAP_MS = 400;
+/** How many of the game's events the test API keeps, before the oldest go. */
+const EVENTS_KEPT = 500;
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const boot = document.getElementById('boot')!;
@@ -56,7 +66,20 @@ async function main() {
   const query = new URLSearchParams(location.search);
   // ?seed=N makes chance the same from before anything is built, for a test that wants the same lake every run
   const seed = query.get('seed');
-  const game = new Game(new Progress(), seed !== null ? { random: seeded(+seed) } : {});
+  /** What has happened, a line each, for the test API: kept to the last few hundred. */
+  const eventLog: string[] = [];
+  const log = (line: string) => {
+    eventLog.push(line);
+    if (eventLog.length > EVENTS_KEPT) eventLog.splice(0, eventLog.length - EVENTS_KEPT);
+  };
+  const events: GameEvents = {
+    splashed(x, y, size) {
+      log(`splashed ${x.toFixed(1)},${y.toFixed(1)}`);
+      // the droplets thrown up, once, in the lake's colour as it is now
+      renderer.emit(splashBurst(x, y, size, game.contamination));
+    },
+  };
+  const game = new Game(new Progress(), { ...(seed !== null ? { random: seeded(+seed) } : {}), events });
 
   // ---- the scene ----
 
@@ -99,6 +122,8 @@ async function main() {
   /** The fish as they are drawn, and which of the dynamic groups they are. */
   const fish = new FishDraw();
   let fishSlot = 1;
+  /** The ripples' rings, drawn as the group after the fish's. */
+  const ripples = new RippleDraw();
   const look = (x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }) => {
     cam.target = [x, y, 0];
     orbit.setSpherical(view);
@@ -112,7 +137,7 @@ async function main() {
       // the water's groups and the fish's handed over again: once a change, never once a frame
       const water = style.groups(game.contamination);
       fishSlot = water.length;
-      renderer.setDynamic([...water, fish.group()]);
+      renderer.setDynamic([...water, fish.group(), ripples.group()]);
     }
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
@@ -130,7 +155,32 @@ async function main() {
     }
     await renderer.prepare();
   }
-  const panel = buildPanel(lab, (next) => void change(next));
+  const panel = buildPanel(
+    lab,
+    (next) => void change(next),
+    () => game.dropNear(cam.target[0], cam.target[1]),
+  );
+
+  // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
+  const tapInverse = new Float32Array(16);
+  let down: { x: number; y: number; at: number } | null = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    down = { x: e.clientX, y: e.clientY, at: e.timeStamp };
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const was = down;
+    down = null;
+    if (!was || Math.hypot(e.clientX - was.x, e.clientY - was.y) > TAP_PX || e.timeStamp - was.at > TAP_MS) return;
+    cam.update();
+    if (!invertInto(tapInverse, cam.viewProjection)) return;
+    const box = canvas.getBoundingClientRect();
+    const at = waterPoint(
+      tapInverse,
+      ((e.clientX - box.left) / box.width) * 2 - 1,
+      1 - ((e.clientY - box.top) / box.height) * 2,
+    );
+    if (at) game.drop(at[0], at[1]);
+  });
   async function change(next: Partial<Settings>) {
     const was = settings;
     settings = changed(settings, next);
@@ -146,6 +196,7 @@ async function main() {
   /** Each frame: the fish where they are, and their glow on the surface for water that cannot be seen through. */
   const writeGlow = () => {
     renderer.move(fishSlot, fish.matrices, fish.write(game.fish));
+    renderer.move(fishSlot + 1, ripples.matrices, ripples.write(game.splashes, game.t));
     const shown = styleNamed(settings.water).surfaceGlow
       ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow)
       : 0;
@@ -234,6 +285,18 @@ async function main() {
       cam.update();
       return { position: [...cam.position], target: [...cam.target] };
     },
+    project(x, y, z) {
+      cam.update();
+      const m = cam.viewProjection;
+      const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+      if (w <= 0) return null;
+      const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w,
+        ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+      const box = canvas.getBoundingClientRect();
+      return { x: box.left + ((nx + 1) / 2) * box.width, y: box.top + ((1 - ny) / 2) * box.height };
+    },
+    target: () => [cam.target[0], cam.target[1]],
+    events: eventLog,
     measureFrame,
     settings: () => ({ ...settings }),
     change,

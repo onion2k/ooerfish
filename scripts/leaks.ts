@@ -1,6 +1,6 @@
 /**
  * A long game played through, watching the things that must not keep
- * growing: the fish, the save, and the heap.
+ * growing: the fish, the splashes, the save, and the heap.
  *
  * A map that is added to and never emptied does not throw, break a rule, or
  * move any gate's figure. It shows up an hour into a game as a machine that
@@ -15,7 +15,7 @@
  * `WATCH` and a reading in `sizes`.
  */
 import { Game } from '../src/game';
-import { FISH_CAPACITY } from '../src/lake';
+import { FISH_CAPACITY, SPLASH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -28,6 +28,7 @@ const DT = 1 / 60;
  */
 export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }>> = {
   fish: { ceiling: FISH_CAPACITY },
+  splashes: { ceiling: SPLASH_CAPACITY },
   'save bytes': { ceiling: 2_000 },
   // the catch-all for what is leaking and has no name here; noisy, so it is given a lot of room
   'heap MB': { ceiling: 300, steady: true },
@@ -37,6 +38,7 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
 export function sizes(game: Game): Record<string, number> {
   return {
     fish: game.fish.count,
+    splashes: game.splashes.count,
     'save bytes': JSON.stringify(game.progress.save).length,
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };

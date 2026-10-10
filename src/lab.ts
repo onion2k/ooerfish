@@ -1,7 +1,8 @@
 /**
  * The lab's panel: a row of buttons for each choice and a slider for the
  * contamination, which turn a click into a change of the settings, and show
- * the settings as they are. It holds nothing of its own beyond what it is
+ * the settings as they are; and a button that drops a pebble on the water,
+ * which is a thing done and not a setting. It holds nothing of its own beyond what it is
  * handed and what it hands back; the page decides what a change does.
  */
 import { VIEWS } from './lake';
@@ -22,9 +23,18 @@ export interface Panel {
   show(settings: Settings): void;
 }
 
-/** The panel built into `root`, telling `change` of every setting changed by the viewer. */
-export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) => void): Panel {
+/** The panel built into `root`, telling `change` of every setting changed by the viewer, and `drop` of the pebble's button. */
+export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) => void, drop: () => void): Panel {
   root.replaceChildren();
+  const pebble = document.createElement('button');
+  pebble.type = 'button';
+  pebble.id = 'pebble';
+  pebble.textContent = 'Drop a pebble';
+  pebble.addEventListener('click', drop);
+  const act = document.createElement('fieldset');
+  const actLegend = document.createElement('legend');
+  actLegend.textContent = 'On the water';
+  act.append(actLegend, pebble);
   const buttons = new Map<string, HTMLButtonElement>();
 
   const group = (key: 'water' | 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {
@@ -83,6 +93,7 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
     ['on', 'On'],
     ['off', 'Off'],
   ]);
+  root.append(act);
 
   return {
     show(settings) {

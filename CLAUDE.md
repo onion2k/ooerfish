@@ -111,6 +111,13 @@ it.
   draws a fish's glow on the surface over it, for the styles that cannot be
   seen through (`surfaceGlow`); `src/fishdraw.ts` draws each fish as a mesh
   glowing under the water (`FLOW_GLOW`), which see-through water shows.
+- **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
+  filled by `Game.drop` and `Game.dropNear`, which refuse what is off the
+  water and tell of a splash through `GameEvents.splashed`. Their picture is
+  `src/ripples.ts` (a ring's radius and width at an age, pure),
+  `src/ripplesdraw.ts` (the rings as flat pieces, none over the bank) and
+  `splashBurst` in `src/bursts.ts` (the droplets, emitted on the event).
+  `src/pick.ts` turns a tap on the screen into the point on the water.
 - `src/settings.ts` reads the lab's settings (the water, the dirt, the time,
   the view, and see-through water's caustics) from the address and refuses
   what it does not know; `src/lab.ts` is the panel. The save lives in
@@ -195,7 +202,8 @@ For anything new, check what it does, from `DESIGN.md`:
   a frame at that many
 - **phone:** narrow screen, and a slower GPU: which rung it steps down to
 - **the lab:** each way of drawing the water, each time of day, each view,
-  the lake clear and sick; and what the address says that is not known
+  the lake clear and sick; what the address says that is not known; and a
+  pebble dropped on it, by a tap or the button, at the shore and off it
 - **the water:** above, on and under the surface; at the shore's edge; at
   the deepest and the shallowest; a lure or a fish never out of the lake
 - **the line:** cast, sinking, bitten, reeled in, drawn too tight (the fish

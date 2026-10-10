@@ -66,10 +66,30 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
+  // a pebble a third of a second after it landed in front of the boat, in each way of drawing the water: its droplets
+  // in the air and its first rings spreading
+  for (const water of ['open', 'ripple', 'clear'])
+    test(`${water}-splash`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { water, dirt: 0.3, time: 'day', view: 'boat' }, 60);
+      await page.evaluate(() => {
+        window.game!.drop(8, 6);
+        window.game!.step(20);
+      });
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`${water}-splash.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
   test('the water moves by the game clock alone', async ({ page }) => {
-    // two pictures at the same game time are the same to the byte, and a second later the water has moved
+    // two pictures at the same game time are the same to the byte, splash and all, and a second later the water has moved
     await start(page, { seed: 11, paused: true });
     await set(page, STANDARD, 120);
+    await page.evaluate(() => {
+      window.game!.drop(0, 0);
+      window.game!.step(12);
+    });
     await hideOverlays(page);
     // with the page's transitions finished, as the pictures are taken: the boot screen fading out over the first
     // scene drew every pixel different from one frame to the next, and was taken for the water

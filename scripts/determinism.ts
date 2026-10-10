@@ -20,6 +20,8 @@ import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
 const DT = 1 / 60;
+/** How many frames apart the two runs each drop a pebble near the middle. */
+const DROP_EVERY = 200;
 
 export interface TwiceOptions {
   seed: number;
@@ -42,7 +44,7 @@ export interface TwiceResult {
 
 /**
  * Everything the lake is at this moment, as one number in hex: its time,
- * every fish, the levers and the save. Two lakes with the same hash are the same lake, down to the last
+ * every fish, every splash, the levers and the save. Two lakes with the same hash are the same lake, down to the last
  * bit of every float.
  */
 export function hashGame(game: Game): string {
@@ -67,6 +69,15 @@ export function hashGame(game: Game): string {
     eat(fish.speed[i]);
     eat(fish.keeps[i]);
   }
+  const { splashes } = game;
+  eat(splashes.count);
+  eat(splashes.next);
+  for (let i = 0; i < splashes.count; i++) {
+    eat(splashes.x[i]);
+    eat(splashes.y[i]);
+    eat(splashes.at[i]);
+    eat(splashes.size[i]);
+  }
   eat(game.contamination);
   eat(game.timeOfDay);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
@@ -81,6 +92,8 @@ export function playTwice({ seed, frames, every = 300, meddle }: TwiceOptions): 
     const hashes: string[] = [];
     for (let f = 1; f <= frames; f++) {
       game.step(DT);
+      // a pebble dropped by chance now and then, the same frames in both runs, so a splash's chance is held to the seed too
+      if (f % DROP_EVERY === 0) game.dropNear(0, 0);
       meddle?.(game, pass);
       if (f % every === 0) hashes.push(hashGame(game));
     }

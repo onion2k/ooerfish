@@ -150,6 +150,33 @@ test("turns see-through water's caustics on and off in what is drawn", async ({ 
   expect(problems).toEqual([]);
 });
 
+test('drops a pebble where the water is tapped, none for a drag, and one for the button', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  await page.evaluate(() => window.game!.view('shore'));
+  const splashes = () => page.evaluate(() => window.game!.splashes());
+  // a point of the water in front of the shore, where it is on the page
+  const at = (await page.evaluate(() => window.game!.project(4, -6, 0)))!;
+  await page.mouse.click(at.x, at.y);
+  const tapped = await splashes();
+  expect(tapped.length, 'a tap drops one').toBe(1);
+  expect(Math.hypot(tapped[0].x - 4, tapped[0].y + 6), 'where it was tapped').toBeLessThan(0.5);
+  expect(await page.evaluate(() => window.game!.events())).toContain('splashed 4.0,-6.0');
+
+  // a drag across the water turns the camera, and drops nothing
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x + 80, at.y + 10, { steps: 6 });
+  await page.mouse.up();
+  expect((await splashes()).length, 'a drag drops none').toBe(1);
+
+  // the panel's button drops one near what the camera looks at
+  await page.getByRole('button', { name: 'Drop a pebble' }).click();
+  expect((await splashes()).length, 'the button drops one').toBe(2);
+  expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
 test('puts the camera where each view says', async ({ page }) => {
   await start(page, { seed: 1, paused: true });
   for (const [view, near] of [
@@ -181,6 +208,13 @@ test.describe('on a phone', () => {
     expect(panel.y).toBeGreaterThanOrEqual(0);
     await page.getByText('Lake lab').tap();
     await expect(page.locator('#lab')).toBeHidden();
+    // and a tap on the water drops a pebble, as a click does
+    await page.evaluate(() => window.game!.pause());
+    const at = (await page.evaluate(() => window.game!.project(0, -2, 0)))!;
+    await page.touchscreen.tap(at.x, at.y);
+    const tapped = await page.evaluate(() => window.game!.splashes());
+    expect(tapped.length, 'a tap on a phone drops one').toBe(1);
+    expect(Math.hypot(tapped[0].x, tapped[0].y + 2)).toBeLessThan(0.5);
     expect(problems).toEqual([]);
   });
 });

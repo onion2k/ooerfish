@@ -2,20 +2,30 @@
  * The lake itself, without the picture or the page, a step at a time. For
  * now it is the lab's lake: its clock, its fish swimming, and the two levers
  * the lab gives whoever is looking at the water, how dirty the lake is and
- * the time of day. The lab moves the dirt both ways; the cure, when it
+ * the time of day; and what is dropped on it, a splash where it lands, told of
+ * to whoever shows it. The lab moves the dirt both ways; the cure, when it
  * comes, will only ever lower it.
  *
  * Nothing here waits on anything the page does, so the same lake runs in the
  * page and in Node, and what the tests try is what is drawn.
  */
 import { School } from './fish';
-import { FISH_COUNT } from './lake';
+import { DROP_NEAR, FISH_COUNT, inside } from './lake';
 import { Progress } from './progress';
 import type { Random } from './random';
+import { Splashes } from './splash';
+
+/** What happens, for whoever shows it. Every one may be left out. */
+export interface GameEvents {
+  /** Something landed on the water at (x, y), of this size. */
+  splashed?(x: number, y: number, size: number): void;
+}
 
 export interface GameOptions {
   /** Chance; Math.random unless told otherwise, and the tests always tell. */
   random?: Random;
+  /** Whoever shows what happens. */
+  events?: GameEvents;
 }
 
 export class Game {
@@ -24,6 +34,8 @@ export class Game {
   /** Where chance comes from: replaced by the test API's `seed`. */
   random: Random;
   readonly fish = new School();
+  readonly splashes = new Splashes();
+  private readonly events: GameEvents;
   /** How dirty the lake is, from clear (0) to as sick as it gets (1). */
   contamination = 1;
   /** Where the day is, from midnight (0) through noon (0.5) to midnight again (1). */
@@ -34,6 +46,7 @@ export class Game {
     options: GameOptions = {},
   ) {
     this.random = options.random ?? Math.random;
+    this.events = options.events ?? {};
     this.fish.fill(FISH_COUNT, () => this.random());
   }
 
@@ -51,6 +64,30 @@ export class Game {
   /** Where the day is, held to nought and one; what is not a finite number is refused, and changes nothing. */
   setTimeOfDay(v: number) {
     if (Number.isFinite(v)) this.timeOfDay = Math.min(1, Math.max(0, v));
+  }
+
+  /**
+   * Something dropped on the water at (x, y), of `size`: a splash there now, told of. Refused, and nothing recorded or
+   * told, off the water, or where any of it is not a finite number, or of no size.
+   */
+  drop(x: number, y: number, size = 1): boolean {
+    if (![x, y, size].every(Number.isFinite) || size <= 0 || !inside(x, y)) return false;
+    this.splashes.add(x, y, this.t, size);
+    this.events.splashed?.(x, y, size);
+    return true;
+  }
+
+  /** A pebble dropped somewhere on the water near (x, y), by chance; on the water somewhere else if none is near. */
+  dropNear(x: number, y: number): boolean {
+    for (let tries = 0; tries < 40; tries++) {
+      const a = this.random() * Math.PI * 2,
+        r = Math.sqrt(this.random()) * DROP_NEAR;
+      const px = x + Math.cos(a) * r,
+        py = y + Math.sin(a) * r;
+      if (inside(px, py, 1)) return this.drop(px, py);
+    }
+    // nowhere near is on the water: the middle of the lake always is
+    return this.drop(0, 0);
   }
 
   /** The save written now. */

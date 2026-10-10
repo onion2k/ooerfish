@@ -6,7 +6,9 @@ describe('the fuzzer', () => {
   it('plays a seed through without breaking a rule, and does everything a player can', () => {
     const r = fuzz(1, 4000);
     expect(r.failure, JSON.stringify(r.failure)).toBe(null);
-    for (const action of ['wait', 'pause', 'dirt', 'time', 'reload']) expect(r.done[action], action).toBeGreaterThan(0);
+    expect(r.happened.splashed, 'the monkey splashes something').toBeGreaterThan(0);
+    for (const action of ['wait', 'pause', 'dirt', 'time', 'drop', 'drop near', 'reload'])
+      expect(r.done[action], action).toBeGreaterThan(0);
   });
 
   it('plays the same way twice from a seed', () => {
