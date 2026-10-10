@@ -15,7 +15,6 @@
     color-scheme: dark;
     --ink: #f1eee6;
     --dim: #a39f94;
-    --gold: #f2c14e;
   }
   * {
     box-sizing: border-box;
@@ -53,18 +52,6 @@
     backdrop-filter: blur(8px);
     pointer-events: none;
   }
-  #bank {
-    top: 16px;
-    left: 16px;
-    font-size: 15px;
-  }
-  #bank b {
-    display: block;
-    font-size: 30px;
-    font-weight: 700;
-    color: var(--gold);
-    font-variant-numeric: tabular-nums;
-  }
   #stats {
     top: 16px;
     right: 16px;
@@ -77,12 +64,6 @@
     left: 16px;
     color: var(--dim);
     font-size: 13px;
-  }
-  #help span {
-    color: var(--ink);
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
-    padding: 0 6px;
   }
   #boot {
     position: fixed;
@@ -99,7 +80,69 @@
   #boot p {
     color: var(--dim);
   }
+  #labPanel {
+    top: 16px;
+    left: 16px;
+    max-width: 300px;
+    pointer-events: auto;
+    padding: 0;
+  }
+  #labPanel summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  #lab {
+    padding: 0 14px 12px;
+  }
+  #lab fieldset {
+    border: 0;
+    margin: 0 0 8px;
+    padding: 0;
+  }
+  #lab legend {
+    color: var(--dim);
+    font-size: 12px;
+    padding: 0 0 4px;
+  }
+  #lab button {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 7px;
+    padding: 4px 9px;
+    margin: 0 4px 4px 0;
+    cursor: pointer;
+  }
+  #lab button[aria-pressed='true'] {
+    background: #e8f4ff;
+    color: #10202e;
+    border-color: #e8f4ff;
+  }
+  #lab button:focus-visible,
+  #lab input:focus-visible {
+    outline: 2px solid #9fd0ff;
+    outline-offset: 2px;
+  }
+  #lab input[type='range'] {
+    width: 100%;
+  }
+  #lab .ends {
+    display: flex;
+    justify-content: space-between;
+    color: var(--dim);
+    font-size: 11px;
+  }
   @media (max-width: 600px) {
+    #labPanel {
+      top: auto;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      max-width: none;
+    }
     #help,
     #stats {
       display: none;
@@ -107,9 +150,12 @@
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
-<div class="panel" id="bank" hidden><b>0</b>banked</div>
+<details class="panel" id="labPanel" open>
+  <summary>Lake lab</summary>
+  <div id="lab" hidden></div>
+</details>
 <div class="panel" id="stats" hidden></div>
-<div class="panel" id="help" hidden><span>W A S D</span> drive · drag to orbit, wheel to zoom</div>
+<div class="panel" id="help" hidden>drag to look round, wheel to zoom</div>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>
 </div>

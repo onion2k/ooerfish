@@ -4,9 +4,9 @@
  *   npm run bench              measure, and fail if any scenario has moved by more than the tolerance, either way
  *   npm run bench -- --update  write what it takes now as the new baseline, from two readings that agree
  *
- * Two scenarios: the floor at rest, which is what most frames are; and the
- * autopilot pushing balls in, which is what a busy frame is. A game adds a
- * scenario for each way its frames get costly.
+ * A scenario for each way a step of the lake gets costly: the lab's fish
+ * swimming, and a lake as full of them as it can hold. A bench with none
+ * fails: it would hold the game to nothing, and pass in silence.
  *
  * A time on one machine is not a time on another, or on the same one with
  * something else running. So each scenario is held to the baseline as a
@@ -27,8 +27,8 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { Autopilot } from '../src/autopilot';
 import { Game } from '../src/game';
+import { FISH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, type Seen } from './benching';
@@ -50,40 +50,50 @@ interface Result extends Seen {
 interface Scenario {
   name: string;
   frames: number;
-  /** The share of its frames a body is awake in, the least and the most, if it is doing what it is named for. */
-  awake: readonly [number, number];
-  /** The game as the timing starts, and what one timed frame of it is. */
-  setup: () => { game: Game; frame: () => void };
+  /** The share of its frames it is busy in, the least and the most, if it is doing what it is named for. */
+  busy: readonly [number, number];
+  /** The game as the timing starts, what one timed frame of it is, and whether that frame was busy. */
+  setup: () => { game: Game; frame: () => void; busy: () => boolean };
 }
 
 /** A game from a seed, settled. */
-function settled(seed: number): Game {
-  const game = new Game(new Progress(memoryStore()), {}, { random: seeded(seed) });
-  for (let f = 0; f < 180; f++) game.step(DT, { throttle: 0, steer: 0 });
+export function settled(seed: number): Game {
+  const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+  for (let f = 0; f < 180; f++) game.step(DT);
   return game;
+}
+
+/** Whether a step moved any fish: a school that has stopped swimming is timed for nothing. */
+function swimming(game: Game): () => boolean {
+  let was = game.fish.x[0];
+  return () => {
+    const now = game.fish.x[0];
+    const moved = now !== was;
+    was = now;
+    return moved;
+  };
 }
 
 const SCENARIOS: Scenario[] = [
   {
-    name: 'the floor at rest',
-    // a frame at rest costs so little that six hundred of them were timed in half a millisecond, and the figure
-    // wobbled by a third from one run of the bench to the next
-    frames: 20000,
-    awake: [0, 0],
+    name: "the lab's fish swimming",
+    // a step of six fish costs a few ten-thousandths of a millisecond: long enough to be well clear of the machine's
+    // passing noise
+    frames: 40000,
+    busy: [1, 1],
     setup: () => {
       const game = settled(1);
-      return { game, frame: () => game.step(DT, { throttle: 0, steer: 0 }) };
+      return { game, frame: () => game.step(DT), busy: swimming(game) };
     },
   },
   {
-    name: 'the autopilot pushing balls in',
-    // a few minutes of play and a couple of dozen balls banked: in ten seconds the autopilot banked one
-    frames: 12000,
-    awake: [0.25, 1],
+    name: 'a lake as full of fish as it can hold',
+    frames: 10000,
+    busy: [1, 1],
     setup: () => {
       const game = settled(1);
-      const pilot = new Autopilot(game);
-      return { game, frame: () => pilot.step(DT) };
+      game.fish.fill(FISH_CAPACITY, game.random);
+      return { game, frame: () => game.step(DT), busy: swimming(game) };
     },
   },
 ];
@@ -108,13 +118,6 @@ function reference(): number {
   return performance.now() - t;
 }
 
-/** Whether any body on the floor is awake. */
-function anyAwake(game: Game): boolean {
-  const { world } = game;
-  for (let i = 0; i < world.count; i++) if (world.alive[i] && !world.asleep[i]) return true;
-  return false;
-}
-
 function measure(s: Scenario): Result {
   // the reference warmed up first, so its first times are not the compiler's
   for (let k = 0; k < 3; k++) reference();
@@ -126,13 +129,13 @@ function measure(s: Scenario): Result {
   });
   // what the scenario did, counted on a run of its own: the same seed plays the same frames, and looking through
   // the bodies after every one would be a good part of a frame that costs this little
-  const { game, frame } = s.setup();
-  let awake = 0;
+  const { frame, busy: isBusy } = s.setup();
+  let busy = 0;
   for (let f = 0; f < s.frames; f++) {
     frame();
-    if (anyAwake(game)) awake++;
+    if (isBusy()) busy++;
   }
-  return { ms: best.ms, relative: best.ratio, ref: best.ref, frames: s.frames, awake };
+  return { ms: best.ms, relative: best.ratio, ref: best.ref, frames: s.frames, busy };
 }
 
 if (!isMainThread) {
@@ -159,12 +162,17 @@ async function reading(): Promise<Result[]> {
 
 async function main() {
   const update = process.argv.includes('--update');
+  if (!SCENARIOS.length) {
+    console.error('no scenarios: a bench of nothing holds the game to nothing');
+    process.exitCode = 1;
+    return;
+  }
   const results = await reading();
 
   // a scenario that did not do what it is named for is timed for nothing, and its figure is not worth keeping
-  const idle = SCENARIOS.filter((s, k) => !did(results[k], s.awake));
+  const idle = SCENARIOS.filter((s, k) => !did(results[k], s.busy));
   for (const s of idle) {
-    const [least, most] = s.awake;
+    const [least, most] = s.busy;
     console.error(
       `${s.name}: ${line(results[SCENARIOS.indexOf(s)])}, where it should be in ${least === most ? `${least * 100}%` : `${least * 100}% to ${most * 100}%`} of them`,
     );
@@ -241,7 +249,7 @@ async function main() {
 }
 
 function line(r: Result): string {
-  return `${r.ms.toPrecision(3)} ms a frame (${r.relative.toPrecision(3)} of the reference), a body awake in ${r.awake} of ${r.frames} frames`;
+  return `${r.ms.toPrecision(3)} ms a frame (${r.relative.toPrecision(3)} of the reference), busy in ${r.busy} of ${r.frames} frames`;
 }
 
 /** To three figures: a frame here is a thousandth of a millisecond, and four decimal places kept one figure of it. */

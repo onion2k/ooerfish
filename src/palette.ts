@@ -1,0 +1,53 @@
+/**
+ * Every colour the lake is drawn in, by name, in linear light. One place, so
+ * a colour tuned here is the same wherever it is drawn, and a colour that
+ * appears nowhere else cannot drift from its neighbours unseen.
+ *
+ * The look is a picture book's: soft greens and blues, round warm stones,
+ * puffball trees, and the glow a pretty sick green rather than a frightening
+ * one.
+ */
+export type Colour = [number, number, number];
+
+export const PALETTE = {
+  /** The grass of the banks: a soft spring green, a picture book's and not a lawn's. */
+  grass: [0.3, 0.58, 0.2] as Colour,
+  /** The lake's bed, under the water: a soft sandy mud. */
+  bed: [0.42, 0.36, 0.22] as Colour,
+  /** The stones that line the shore, warm and pale. */
+  stone: [0.62, 0.56, 0.5] as Colour,
+  /** The puffball trees. */
+  trunk: [0.36, 0.22, 0.12] as Colour,
+  leaves: [0.18, 0.5, 0.16] as Colour,
+
+  /** The water's own colour, as sick as it gets and as clear as it gets: the contamination runs between them. */
+  sick: [0.16, 0.42, 0.06] as Colour,
+  clear: [0.03, 0.26, 0.62] as Colour,
+  /** The sky the water mirrors is tinted toward these, sick and clear. */
+  sickSky: [0.7, 0.95, 0.45] as Colour,
+  clearSky: [0.75, 0.9, 1] as Colour,
+  /** The glow of a fish that has eaten the waste. */
+  glow: [0.55, 1, 0.3] as Colour,
+
+  /** The sky, straight up and at the horizon, at each time of day. */
+  nightZenith: [0.01, 0.015, 0.05] as Colour,
+  nightHorizon: [0.05, 0.07, 0.17] as Colour,
+  dawnZenith: [0.26, 0.38, 0.72] as Colour,
+  dawnHorizon: [0.98, 0.66, 0.52] as Colour,
+  dayZenith: [0.16, 0.45, 0.92] as Colour,
+  dayHorizon: [0.62, 0.84, 0.98] as Colour,
+  duskZenith: [0.2, 0.15, 0.42] as Colour,
+  duskHorizon: [0.98, 0.5, 0.34] as Colour,
+
+  /** The sun's light at each time of day; the night's is the moon's. */
+  moonlight: [0.28, 0.34, 0.55] as Colour,
+  dawnlight: [2.2, 1.65, 1.25] as Colour,
+  daylight: [2.6, 2.45, 2.2] as Colour,
+  dusklight: [2.2, 1.35, 0.95] as Colour,
+} as const;
+
+/** A colour part of the way from one to another; at nought and one, exactly the one or the other. */
+export function mix(a: Colour, b: Colour, k: number): Colour {
+  const j = 1 - k;
+  return [a[0] * j + b[0] * k, a[1] * j + b[1] * k, a[2] * j + b[2] * k];
+}

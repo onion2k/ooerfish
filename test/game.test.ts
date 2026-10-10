@@ -1,53 +1,30 @@
+/** The lake without its picture: its clock, and that it is played the same from a seed. */
 import { describe, expect, it } from 'vitest';
-import { BALLS, HOLE } from '../src/arena';
-import { checkInvariants } from '../src/invariants';
-import { DT, newGame, settle, still } from './helpers';
+import { DT, newGame, settle } from './helpers';
 
-describe('the game', () => {
-  it('starts with its balls on the floor, and nothing that must hold broken', () => {
+describe('the lake', () => {
+  it('starts at the beginning of its time, and keeps time a step at a time', () => {
     const { game } = newGame();
-    expect(game.world.live).toBe(BALLS);
-    settle(game);
-    expect(game.world.live).toBe(BALLS);
-    expect(checkInvariants(game)).toEqual([]);
+    expect(game.t).toBe(0);
+    settle(game, 60);
+    expect(game.t).toBeCloseTo(1, 10);
+    game.step(DT / 2);
+    expect(game.t).toBeCloseTo(1 + DT / 2, 10);
   });
 
-  it('banks a ball down the hole, drops another, and tells of both', () => {
-    const { game, told } = newGame(2);
-    settle(game);
-    const slot = [...Array(game.world.count).keys()].find((i) => game.world.alive[i])!;
-    game.world.x[slot] = HOLE.x;
-    game.world.y[slot] = HOLE.y;
-    game.world.z[slot] = 2;
-    game.world.wake(slot);
-    settle(game, 180);
-    expect(game.progress.bank).toBe(1);
-    expect(game.progress.save.banked).toBe(1);
-    expect(told.some((t) => t.startsWith('banked'))).toBe(true);
-    expect(told.some((t) => t.startsWith('dropped'))).toBe(true);
-    expect(game.world.live, 'the floor keeps its balls').toBe(BALLS);
-    expect(checkInvariants(game)).toEqual([]);
+  it('stands still for a step of no time', () => {
+    const { game } = newGame();
+    settle(game, 10);
+    const t = game.t;
+    game.step(0);
+    expect(game.t).toBe(t);
   });
 
-  it('writes the save when the bank changes, and not before', () => {
-    const { game, store } = newGame(3);
+  it('writes nothing to the save until asked', () => {
+    const { game, store } = newGame();
     settle(game);
     expect(store.json).toBe(null);
-    game.progress.deposit(1);
-    game.step(DT, still);
-    expect(store.json).toBe(JSON.stringify({ bank: 1, banked: 1 }));
-  });
-
-  it('shoves a ball with the sled', () => {
-    const { game } = newGame(4);
-    settle(game);
-    const slot = [...Array(game.world.count).keys()].find((i) => game.world.alive[i])!;
-    Object.assign(game.sled, { x: -20, y: 0, yaw: 0, speed: 0 });
-    game.world.x[slot] = -12;
-    game.world.y[slot] = 0;
-    game.world.wake(slot);
-    for (let f = 0; f < 90; f++) game.step(DT, { throttle: 1, steer: 0 });
-    expect(game.world.x[slot]).toBeGreaterThan(-8);
-    expect(checkInvariants(game)).toEqual([]);
+    game.persist();
+    expect(store.json).toBe('{}');
   });
 });

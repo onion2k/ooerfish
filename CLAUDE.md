@@ -7,9 +7,11 @@ in. TypeScript, Vite, and WebGPU through
 [artshape-render](https://github.com/onion2k/artshape-render), with the
 physics from [artshape-physics](https://github.com/onion2k/artshape-physics).
 The README says what the game is; this file says how it is made. The house
-rules in `~/.claude/CLAUDE.md` apply too. What is in `src/` is still the
-template's stub, a sled shoving balls into a hole, until the first feature
-replaces it: the model features below are the stub's until then.
+rules in `~/.claude/CLAUDE.md` apply too. For now the page is the **lake
+lab**: one pond, drawn several ways side by side so the water can be chosen
+by looking, with fish swimming under it and a panel for the water, the
+contamination, the time of day and the view. Nothing is played or saved yet;
+the first stage of `DESIGN.md`'s order of work grows out of the lab.
 
 ## The factory
 
@@ -32,7 +34,7 @@ The three properties, and what holds each:
 - **Loads fast.** Boot time and the gzipped download are measured by
   `npm run perf` in headless Chromium and held to a budget and a baseline.
 - **Draws fast.** A frame's cost at the standard view is measured by the
-  same gate, and the physics' by `npm run bench`. A feature that cannot fit
+  same gate, and a step of the lake's own by `npm run bench`. A feature that cannot fit
   the budget gets a rung the game steps down to on a slower machine, not a
   pass.
 
@@ -40,14 +42,19 @@ The three properties, and what holds each:
 
 Numbers, held by gates, on this machine at 1280×800:
 
-| Property                                               | Budget                         | Held by      |
-| ------------------------------------------------------ | ------------------------------ | ------------ |
-| Boot, page start to the frame loop running             | 3000 ms                        | `perf`       |
-| Download, scripts and styles gzipped                   | 400 kB; baseline to the byte   | `perf`       |
-| A frame drawn, the least of 24 at the standard view    | 8 ms                           | `perf`       |
-| The physics, a frame, against the reference arithmetic | baseline ± 15%                 | `bench`      |
-| Pace, the autopilot's minutes to bank ten balls        | baseline ± 20%                 | `pace:check` |
-| Anything kept: bodies, slots, save bytes, heap         | ceilings in `scripts/leaks.ts` | `leaks`      |
+| Property                                                 | Budget                         | Held by |
+| -------------------------------------------------------- | ------------------------------ | ------- |
+| Boot, page start to the frame loop running               | 3000 ms                        | `perf`  |
+| Download, scripts and styles gzipped                     | 400 kB; baseline to the byte   | `perf`  |
+| A frame drawn, the least of 24 at the standard scene     | 8 ms                           | `perf`  |
+| A frame of every way of drawing the water, day and night | 8 ms                           | `perf`  |
+| A step of the lake, against the reference arithmetic     | baseline ± 15%                 | `bench` |
+| Anything kept: fish, save bytes, heap                    | ceilings in `scripts/leaks.ts` | `leaks` |
+
+The standard scene is `STANDARD` in `smoke/game.ts`: open water half
+cleaned, by day, from the shore. There is no pace gate while nothing is
+played: it was the stub's, and comes back with the fishing as the minutes
+to land a fish.
 
 A budget is what the game may cost at all; a baseline is what it cost at
 the last commit, held both ways, so a step toward a budget is noticed as
@@ -61,13 +68,12 @@ should not have is looked into.
 
     npm run dev            the game at http://localhost:5204
     npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook; ~10 s)
-    npm run check          all of it: check:quick, fuzz, determinism, leaks, pace, bench, smoke with perf and look (~20 s)
+    npm run check          all of it: check:quick, fuzz, determinism, leaks, bench, smoke with perf and look (~1 min)
     npm test               unit tests (Vitest, test/)
     npm run fuzz           the game played at random, rules checked; -- --seed N plays one failure again
     npm run determinism    the same seed played twice, hashed, to catch chance not from the seed
     npm run leaks          an hour of play, watching what must stay bounded (10 min of it in check)
-    npm run pace           the autopilot's pace, seed by seed; pace:check holds it to its baseline
-    npm run bench          the physics' frame time held to scripts/bench-baseline.json, both ways
+    npm run bench          a step of the lake held to scripts/bench-baseline.json, both ways
     npm run perf           boot, frame and download held to smoke/perf-baseline.json and the budget
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
@@ -76,7 +82,7 @@ A unit test is allowed thirty seconds, and `vitest.config.ts` says why: the
 limit is there to catch a test that never ends, and how fast the game steps
 is the bench's to hold.
 
-`--update` on `pace:check` or `bench`, `npm run perf:update` and `npm run
+`--update` on `bench`, `npm run perf:update` and `npm run
 look:update` write a baseline again. Only through `/gate-moved`, only for a
 change meant to move it, and the commit says why. Look at every picture.
 The bench writes its baseline from two readings, and only where they agree:
@@ -85,19 +91,27 @@ it.
 
 ## How the code is laid out
 
-- `src/game.ts` is the game without the picture: everything that happens in
-  the arena, a step at a time. It tells what happened through `GameEvents`,
-  and knows nothing of the renderer or the page.
-- `src/main.ts` is the page. It turns those events into words on the screen
-  and draws the frame. There is no game logic here.
-- `src/debug.ts` is `window.game`, the test API. `src/invariants.ts` lists
-  the rules that must always hold. `src/autopilot.ts` plays the game by
-  itself, for the gates.
-- Content (the floor, the hole, the balls) lives in `arena.ts`. The save
-  lives in `progress.ts`. Chance comes from `random.ts`, handed in.
-- `src/physics.ts` is the game's side of artshape-physics, and nothing else
-  imports the package directly. A change a package needs goes in that repo,
-  with a version bump here.
+- `src/game.ts` is the lake without the picture: its clock, its fish, and the
+  lab's two levers on it (contamination, time of day), a step at a time. It
+  knows nothing of the renderer or the page. `src/fish.ts` is the school.
+- `src/main.ts` is the page. It turns the lab's settings into the water, the
+  light and the camera, and draws the frame. There is no game logic here.
+- `src/debug.ts` is `window.game`, the test API: the clock, the fish, and the
+  lab's four controls (`water`, `dirt`, `time`, `view`), each resolving once
+  its change is ready to draw. `src/invariants.ts` lists the rules that must
+  always hold.
+- Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
+  fish count and capacity, and the named views. Colours live in
+  `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
+- **The ways of drawing the water** are in `src/water/`, one file each and a
+  line in `STYLES` (`styles.ts`); `waterColour` is the contamination's colour
+  for all of them. `src/glow.ts` draws a fish's glow on the surface over it.
+- `src/settings.ts` reads the lab's settings from the address and refuses
+  what it does not know; `src/lab.ts` is the panel. The save lives in
+  `progress.ts` and has no fields yet. Chance comes from `random.ts`, handed
+  in.
+- artshape-physics is a dependency with nothing using it: the lure and the
+  bobber will be its bodies, through a `src/physics.ts` of the game's own.
 
 ## Skills
 
@@ -110,31 +124,26 @@ before anything is written; **/commit** commits in the house style.
 
 What to copy the shape of, when building something new:
 
-- **In the arena:** the ball and the hole. The ball is a body kind in
-  `arena.ts`, drawn by `scene.ts`, banked by `game.ts`, counted by
-  `invariants.ts`, read by `debug.ts`, and pictured in `smoke/look.spec.ts`.
-  These are the stub's, and the first feature to land puts the game's own
-  (the lake, the lure, a fish) in their place.
-- **Tools:** the fuzzer (`scripts/fuzzer.ts`), the pace gate
-  (`scripts/pace.ts`) and the bench (`scripts/bench.ts`, its arithmetic in
-  `scripts/benching.ts`). Each has unit tests of its own working parts. The
-  bench passed a frame made thirty times slower until it was made to fail
-  one on purpose: a gate is trusted once it has been seen to fail what it
-  is for.
-- **Test helpers:** `newGame(seed)` in `test/helpers.ts`, and `memoryStore`
-  in `src/progress.ts` for a save that is not the player's.
-
-## Replacing the stub
-
-The stub gives way one feature at a time, through `/feature`, every gate
-green at each step. `arena.ts` is the content and usually goes first; the
-tile grid, the rock and the hole are the physics package's terms and can
-stay. The ball is the one body kind: a new kind is a radius and a name in
-the content, a mesh and a group in `scene.ts`, and a line in the invariants.
-The sled is the player's machine and goes last, since the autopilot, the
-fuzzer's `aim` and the smoke tests all drive it. When a thing a gate holds
-goes, the gate is handed its replacement in the same change: a gate that
-holds nothing is worse than none, because it looks like it does.
+- **A way of drawing the water:** `src/water/ripple.ts`. A file that makes
+  the groups at a contamination, a line in `STYLES`, a unit test in
+  `test/water.test.ts`, pictures in `smoke/look.spec.ts`, and the perf test
+  measures it by itself.
+- **A thing in the lake:** the fish. Its numbers are content in `lake.ts`,
+  it moves in `fish.ts` stepped by `game.ts`, is held by `invariants.ts`,
+  hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
+  the bench, read by `debug.ts`, and drawn (its glow) by `glow.ts`.
+- **A control on the lab:** a key in `Settings` with its check in `CHECK`
+  (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
+  `apply` (`main.ts`), a method on the test API, and a click in the controls
+  test in `smoke/game.spec.ts`.
+- **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the bench
+  (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`). Each has
+  unit tests of its own working parts. The bench passed a frame made thirty
+  times slower until it was made to fail one on purpose: a gate is trusted
+  once it has been seen to fail what it is for.
+- **Test helpers:** `newGame(seed)` in `test/helpers.ts`, `memoryStore` in
+  `src/progress.ts` for a save that is not the player's, and `set(page,
+scene)` in `smoke/game.ts` to put the lab in a scene.
 
 ## Rules for the code
 
@@ -144,15 +153,17 @@ holds nothing is worse than none, because it looks like it does.
 - **Chance is handed in.** `Game` takes a `random`; nothing in `src/` calls
   `Math.random` itself.
 - **Nothing is made each frame.** Pools are sized once and written into;
-  the renderer's groups are fixed and `move` writes them. A per-frame
+  the renderer's groups are fixed and `move` writes them. The water's groups
+  are handed over again only when the lab's water or contamination changes. A per-frame
   allocation is a frame-time bug and a garbage-collection stutter.
 - **Nothing is kept for ever.** A list, map or cache that is added to has to
   be emptied somewhere, and its ceiling named in `scripts/leaks.ts`.
 - **Loading is the first frame's business.** Everything the first frame
   needs is built before `ready`; everything else after it. A dependency is
   weighed against the download budget before it is added.
-- **Every kind of thing is handled everywhere.** A new body kind, event,
-  save field or scene has to work in every path it can reach.
+- **Every kind of thing is handled everywhere.** A new way of drawing the
+  water, time of day, view, thing in the lake or save field has to work in
+  every path it can reach.
 - **Save compatibility.** A new save field needs a default in `progress.ts`
   and a save in the new shape in `test/saves/`; the corpus test fails until
   it is there.
@@ -171,16 +182,14 @@ a picture in `smoke/look.spec.ts`. `npm run check` green, and
 
 ## Edge-case checklist
 
-For anything new, check what it does. The first six are the stub's, and go
-as the stub does; the rest are the game's own, from `DESIGN.md`.
+For anything new, check what it does, from `DESIGN.md`:
 
-- **the hole:** pushed down it
-- **the sled:** shoved by it, driven over, pinned against the rock
 - **save:** saved, reloaded, and loaded from an old save without the field
-- **rock:** against the wall and in the corners; never left in rock
-- **scale:** many at once, at capacity (`BODY_CAPACITY`); and what it costs
+- **scale:** many at once, at capacity (`FISH_CAPACITY`); and what it costs
   a frame at that many
 - **phone:** narrow screen, and a slower GPU: which rung it steps down to
+- **the lab:** each way of drawing the water, each time of day, each view,
+  the lake clear and sick; and what the address says that is not known
 - **the water:** above, on and under the surface; at the shore's edge; at
   the deepest and the shallowest; a lure or a fish never out of the lake
 - **the line:** cast, sinking, bitten, reeled in, drawn too tight (the fish
@@ -197,7 +206,9 @@ as the stub does; the rest are the game's own, from `DESIGN.md`.
   festival day; and the year coming round again
 - **the real clock:** on and off, the same seed playing the same fish,
   weather and catches either way
-- **the lake's contamination:** only ever going down; a lake fully clean
+- **the lake's contamination:** only ever going down; a lake fully clean.
+  The lab's slider moves it both ways, as a lever for looking; the rule that
+  it never rises comes with the cure, and goes in the invariants then
 - **the cabin:** the curing machine, the aquarium at its ceiling, the
   shelves, a fish named and let go
 

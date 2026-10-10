@@ -6,7 +6,7 @@
  *   npm run fuzz -- --seed 17            one seed again, with what was done before it went wrong
  *
  * Fails, and says how to play the failure again, if any seed breaks a rule
- * or throws. Says how much of each thing was done and happened, so a monkey
+ * or throws. Says how much of each thing was done, so a monkey
  * that stopped getting about is noticed.
  */
 import { availableParallelism } from 'node:os';
@@ -47,9 +47,9 @@ async function main() {
     }),
   );
   results.sort((a, b) => a.seed - b.seed);
-  const sum = (key: 'done' | 'happened') => {
+  const sum = () => {
     const out: Record<string, number> = {};
-    for (const r of results) for (const [k, n] of Object.entries(r[key])) out[k] = (out[k] ?? 0) + n;
+    for (const r of results) for (const [k, n] of Object.entries(r.done)) out[k] = (out[k] ?? 0) + n;
     return Object.entries(out)
       .sort((a, b) => b[1] - a[1])
       .map(([k, n]) => `${k} ${n}`)
@@ -59,8 +59,7 @@ async function main() {
   console.log(
     `${seeds.length} seed${seeds.length === 1 ? '' : 's'}, ${frames} frames each (${((performance.now() - started) / 1000).toFixed(1)} s)`,
   );
-  console.log(`  done: ${sum('done')}`);
-  console.log(`  happened: ${sum('happened')}`);
+  console.log(`  done: ${sum()}`);
   for (const r of failed) {
     const f = r.failure!;
     console.error(`\nseed ${f.seed} failed at frame ${f.frame}:`);

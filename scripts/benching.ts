@@ -87,20 +87,20 @@ export function agreed(a: number, b: number, within = AGREE): number | null {
   return (a + b) / 2;
 }
 
-/** What a scenario was seen to do: how many frames it ran, and in how many of them a body was awake. */
+/** What a scenario was seen to do: how many frames it ran, and in how many of them it was busy at what it is named for. */
 export interface Seen {
   frames: number;
-  awake: number;
+  busy: number;
 }
 
 /**
- * Whether a scenario did what it is named for: a body awake in a share of
- * its frames between the least and the most it says it should be. A floor at
- * rest with a ball rolling on it, or an autopilot that never reached a ball,
- * is timed as steadily as the real thing and holds the game to nothing.
+ * Whether a scenario did what it is named for: busy in a share of its frames
+ * between the least and the most it says it should be. A lake whose fish
+ * have stopped swimming is timed as steadily as the real thing and holds the
+ * game to nothing.
  */
 export function did(seen: Seen, share: readonly [number, number]): boolean {
   if (seen.frames <= 0) return false;
-  const awake = seen.awake / seen.frames;
-  return awake >= share[0] && awake <= share[1];
+  const busy = seen.busy / seen.frames;
+  return busy >= share[0] && busy <= share[1];
 }

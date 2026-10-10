@@ -17,24 +17,27 @@ go, let the lure sink, strike when the bobber dips, and reel with an eye on
 the line's tension. The catch goes home to the cabin's curing machine and
 into the aquarium, and the lake's water turns from green to blue.
 
-**Not yet.** What is in `src/` is still the template's stub, a sled shoving
-balls into a hole, until the first feature lands and replaces it. `npm run
-dev` shows that stub, not the game.
+**Not yet.** None of that is built. For now the page is the **lake lab**:
+one pond, drawn several ways side by side, so the water, which is what a
+player looks at most, is chosen by looking. Its panel switches between the
+ways of drawing the water, how dirty the lake is, the time of day and where
+the camera stands, and every setting is in the address, so a link brings the
+same lake back: `npm run dev`, then for instance
+`http://localhost:5204/?water=ripple&dirt=1&time=dusk&view=shore`.
 
 ## What is here
 
 Made from [artshape-game-template](https://github.com/onion2k/artshape-game-template),
 on [artshape-render](https://github.com/onion2k/artshape-render) and
-[artshape-physics](https://github.com/onion2k/artshape-physics), with every
-gate the template carries:
+[artshape-physics](https://github.com/onion2k/artshape-physics), with the
+template's gates (all but its pace gate, which comes back with the fishing):
 
     npm run dev            the game at http://localhost:5204
     npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook)
     npm run fuzz           a monkey plays it, and the rules are checked
     npm run determinism    the same seed played twice, hashed
     npm run leaks          a long game, watching what must stay bounded
-    npm run pace:check     how it plays, held to a baseline both ways
-    npm run bench          what the physics costs a frame, held to a baseline
+    npm run bench          what a step of the lake costs, held to a baseline
     npm run perf           boot time, a frame's cost and the download, held to a budget and a baseline
     npm run smoke          the real thing in headless Chromium on the GPU
     npm run look           what it looks like, held to a picture
@@ -45,16 +48,18 @@ gate the template carries:
 
 ## Layout
 
-    src/game.ts        the game without the picture
-    src/main.ts        the page: events into words, the frame drawn
+    src/game.ts        the lake without the picture: its clock, its fish, the lab's levers
+    src/main.ts        the page: the lab's settings into the water, the light and the camera
     src/debug.ts       window.game, the test API
     src/invariants.ts  what must always hold
-    src/autopilot.ts   the game played by itself, for the gates
-    src/arena.ts       content (the stub's floor, hole and balls, for now)
+    src/lake.ts        content: the shore, the bed, the banks, the fish, the views
+    src/fish.ts        the school, swimming
+    src/water/         the ways of drawing the water, one a file
+    src/look.ts        the toon look and the times of day
+    src/glow.ts        a fish's glow on the surface over it
+    src/lab.ts         the lab's panel; settings.ts reads and writes the address
+    src/scene.ts       the bed, the banks, the stones and the trees
     src/progress.ts    the save, and where it is kept
-    src/physics.ts     the game's side of artshape-physics
-    src/scene.ts       the arena as it is drawn
-    src/sled.ts        the stub's player machine, the last of it to go
     scripts/           the gates, each with its baseline beside it
     test/              unit tests, and a corpus of every save shape
-    smoke/             Playwright: boots, drives, plays through, looks right
+    smoke/             Playwright: boots, works the panel, plays through, looks right

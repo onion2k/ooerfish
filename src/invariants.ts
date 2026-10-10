@@ -1,57 +1,45 @@
 /**
- * What must always be true of the game, however it has been played: the
+ * What must always be true of the lake, however it has been played: the
  * rules that, broken, are a bug whatever the feature was.
  *
- * Every body is a number and out of the rock. The floor has its balls, no
- * more and no fewer. The bank is a whole number that only ever grew. The
- * sled is on the floor.
+ * The time is a number and not before the start. Every fish is a number,
+ * in the water, below the surface and above the bed, and there are no more
+ * than a lake holds. The levers are within nought and one.
  *
  * Checked by the fuzzer after everything it does, by the test API on asking,
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
-import { BALLS, FLOOR, KINDS, KIND_NAME, onFloor } from './arena';
 import type { Game } from './game';
+import { FISH_CAPACITY, bedDepth, inside } from './lake';
 
 /** How many broken rules of one sort are reported before the rest are only counted. */
 const EACH = 3;
 
 export function checkInvariants(game: Game): string[] {
   const out: string[] = [];
-  const { world, sled, progress } = game;
-  const report = (sort: string, found: string[]) => {
-    if (!found.length) return;
-    out.push(...found.slice(0, EACH).map((f) => `${sort}: ${f}`));
-    if (found.length > EACH) out.push(`${sort}: and ${found.length - EACH} more`);
+  const report = (found: string[]) => {
+    out.push(...found.slice(0, EACH));
+    if (found.length > EACH) out.push(`and ${found.length - EACH} more like it`);
   };
-  const at = (i: number) =>
-    `${KIND_NAME[world.kind[i]] ?? `kind ${world.kind[i]}`} ${i} at ${world.x[i].toFixed(1)},${world.y[i].toFixed(1)},${world.z[i].toFixed(1)}`;
+  if (!Number.isFinite(game.t) || game.t < 0) out.push(`the time is ${game.t}`);
 
-  const notNumbers: string[] = [],
-    buried: string[] = [];
-  let live = 0;
-  for (let i = 0; i < world.count; i++) {
-    if (!world.alive[i]) continue;
-    live++;
-    if (world.kind[i] >= KINDS) {
-      notNumbers.push(`slot ${i} is of no kind (${world.kind[i]})`);
-      continue;
-    }
-    const values = [world.x[i], world.y[i], world.z[i], world.vx[i], world.vy[i], world.vz[i]];
-    if (!values.every(Number.isFinite)) notNumbers.push(at(i));
-    else if (!world.carried[i] && !onFloor(world.solid, world.x[i], world.y[i])) buried.push(at(i));
+  const { fish } = game;
+  if (!Number.isInteger(fish.count) || fish.count < 0 || fish.count > FISH_CAPACITY)
+    out.push(`the lake has ${fish.count} fish, where it holds ${FISH_CAPACITY}`);
+  const wrong: string[] = [];
+  for (let i = 0; i < Math.min(fish.count, FISH_CAPACITY); i++) {
+    const x = fish.x[i],
+      y = fish.y[i],
+      depth = fish.depth[i];
+    const at = `fish ${i} at ${x.toFixed(1)},${y.toFixed(1)}, ${depth.toFixed(2)} down`;
+    if (![x, y, depth, fish.heading[i], fish.speed[i]].every(Number.isFinite))
+      wrong.push(`${at}: fish ${i} is not a number`);
+    else if (!inside(x, y) || depth <= 0) wrong.push(`${at}: fish ${i} is out of the water`);
+    else if (depth >= bedDepth(x, y)) wrong.push(`${at}: fish ${i} is under the bed`);
   }
-  report('not a number', notNumbers);
-  report('in the rock', buried);
-  if (live !== world.live) out.push(`the world counts ${world.live} live, and has ${live}`);
-  if (live !== BALLS) out.push(`the floor has ${live} balls, not ${BALLS}`);
+  report(wrong);
 
-  const { bank, banked } = progress.save;
-  if (!Number.isInteger(bank) || bank < 0) out.push(`the bank is ${bank}`);
-  if (!Number.isInteger(banked) || banked < bank) out.push(`banked ${banked} in all, with ${bank} in the bank`);
-
-  if (![sled.x, sled.y, sled.yaw, sled.speed].every(Number.isFinite))
-    out.push(`the sled is at ${sled.x},${sled.y} facing ${sled.yaw} at ${sled.speed}`);
-  else if (sled.x < FLOOR.minX || sled.x > FLOOR.maxX || sled.y < FLOOR.minY || sled.y > FLOOR.maxY)
-    out.push(`the sled is off the floor at ${sled.x.toFixed(1)},${sled.y.toFixed(1)}`);
+  if (!(game.contamination >= 0 && game.contamination <= 1)) out.push(`the contamination is ${game.contamination}`);
+  if (!(game.timeOfDay >= 0 && game.timeOfDay <= 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

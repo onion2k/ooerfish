@@ -1,38 +1,38 @@
 /**
- * The page: the game drawn, and what the player does to it. Everything that
- * happens in the arena happens in `game.ts`; this turns its events into
- * words on the screen and draws the frame, on the game path of
- * artshape-render. There is no game logic here.
+ * The page: the lake drawn, and the lab's panel. Everything that happens at
+ * the lake happens in `game.ts`; this draws the frame, on the game path of
+ * artshape-render, and turns the panel's settings into the water, the light
+ * and the camera they name. There is no game logic here.
  */
 import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
-import { bakeEnvironment } from 'artshape-render/render/env';
 import { LightPool } from 'artshape-render/game/lights';
-import { GameRenderer } from 'artshape-render/game/renderer';
-import { HOLE } from './arena';
+import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
 import { frameCost } from './frame-cost';
-import { Game, type GameEvents } from './game';
-import { Input } from './input';
+import { Game } from './game';
+import { glowQuads } from './glow';
+import { buildPanel } from './lab';
+import { FISH_CAPACITY, VIEWS } from './lake';
+import { light, nearestTime, timeNamed } from './look';
 import { Progress } from './progress';
 import { seeded } from './random';
-import { ARENA_BOX, Scene } from './scene';
+import { SHADOW_BOX, Scene } from './scene';
+import { changed, readSettings, writeSettings, type Settings } from './settings';
+import { STYLES, styleNamed } from './water/styles';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
 const LIGHT_CAPACITY = 16,
-  EFFECT_CAPACITY = 16,
+  EFFECT_CAPACITY = FISH_CAPACITY,
   PARTICLE_CAPACITY = 1024;
-/** How many of the game's events the test API keeps, before the oldest go. */
-const EVENTS_KEPT = 500;
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const boot = document.getElementById('boot')!;
 const bootMsg = document.getElementById('bootMsg')!;
-const bankPanel = document.getElementById('bank')!;
-const bankText = bankPanel.querySelector('b')!;
 const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
+const lab = document.getElementById('lab')!;
 
 main().catch((err: unknown) => {
   bootMsg.textContent = err instanceof Error ? err.message : String(err);
@@ -45,67 +45,33 @@ async function main() {
   const ctx = await createContext(canvas);
   bootMsg.textContent = 'compiling shaders…';
   const renderer = new GameRenderer(ctx, LIGHT_CAPACITY, EFFECT_CAPACITY, PARTICLE_CAPACITY, MM_PER_UNIT);
-  renderer.look = {
-    ...renderer.look,
-    sunDir: [0.35, -0.3, 0.89],
-    sunColour: [1, 0.96, 0.9],
-    exposure: 1.1,
-    ambient: 0.6,
-    background: [0.04, 0.04, 0.05],
-  };
-  const env = bakeEnvironment(ctx, 'studio', { size: 128, mips: 6 });
-  renderer.setEnvironment(env.specular, env.brdf, env.mips);
   renderer.camera.fov = 40;
-  renderer.camera.near = 2;
-  renderer.camera.far = 500;
-  renderer.setSunShadow(ARENA_BOX);
+  renderer.camera.near = 1;
+  renderer.camera.far = 1500;
+  renderer.setSunShadow(SHADOW_BOX);
 
-  // ---- the game, and what it says has happened ----
+  // ---- the game ----
 
   const query = new URLSearchParams(location.search);
-  const progress = new Progress();
-  const input = new Input();
-  /** What has happened, a line each, for the test API. */
-  const eventLog: string[] = [];
-  const log = (line: string) => {
-    eventLog.push(line);
-    if (eventLog.length > EVENTS_KEPT) eventLog.splice(0, eventLog.length - EVENTS_KEPT);
-  };
-  const showBank = () => {
-    bankText.textContent = String(progress.save.bank);
-  };
-  const events: GameEvents = {
-    banked(_kind, x, y) {
-      log(`banked ${x.toFixed(1)},${y.toFixed(1)}`);
-      showBank();
-    },
-    dropped(_kind, x, y) {
-      log(`dropped ${x.toFixed(1)},${y.toFixed(1)}`);
-    },
-  };
-  // ?seed=N makes chance the same from before the first ball drops, for a test that wants the same arena every run
+  // ?seed=N makes chance the same from before anything is built, for a test that wants the same lake every run
   const seed = query.get('seed');
-  const game = new Game(progress, events, seed !== null ? { random: seeded(+seed) } : {});
-  const { world, sled } = game;
+  const game = new Game(new Progress(), seed !== null ? { random: seeded(+seed) } : {});
 
   // ---- the scene ----
 
   const scene = new Scene();
-  renderer.setStatic(scene.static(world.solid));
-  renderer.setDynamic(scene.dynamic());
-  const lights = new LightPool(LIGHT_CAPACITY);
-  lights.add({ position: [HOLE.x, HOLE.y, 14], radius: 40, colour: [1, 0.85, 0.6], intensity: 30 });
-  renderer.setLights(lights);
+  renderer.setStatic(scene.static());
+  renderer.setLights(new LightPool(LIGHT_CAPACITY));
 
   const cam = renderer.camera;
   cam.target = [0, 0, 0];
-  cam.position = [0, -70, 60];
+  cam.position = [0, -70, 30];
   const orbit = new Orbit(cam, {
     element: canvas,
     minPolar: 0.2,
-    maxPolar: 1.3,
-    minDistance: 20,
-    maxDistance: 160,
+    maxPolar: 1.5,
+    minDistance: 10,
+    maxDistance: 200,
     rotateSpeed: 0.4,
     zoomSpeed: 0.8,
     panSpeed: 0,
@@ -126,11 +92,45 @@ async function main() {
   addEventListener('resize', resize);
   resize();
 
-  function upload() {
-    const balls = scene.write(world, sled);
-    renderer.move(0, scene.balls, balls);
-    renderer.move(1, scene.sled, 1);
+  // ---- the lab's settings, and what each one changes ----
+
+  let settings: Settings = readSettings(query);
+  const look = (x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }) => {
+    cam.target = [x, y, 0];
+    orbit.setSpherical(view);
+    for (let i = 0; i < 400; i++) orbit.update();
+  };
+  /** The water, the light and the camera made what the settings say, where they differ from `was`. */
+  async function apply(was: Settings | null) {
+    game.setContamination(settings.dirt);
+    if (!was || was.water !== settings.water || was.dirt !== settings.dirt)
+      // the water's groups handed over again: once a change, never once a frame
+      renderer.setDynamic(styleNamed(settings.water).groups(game.contamination));
+    if (!was || was.time !== settings.time) {
+      const time = timeNamed(settings.time);
+      game.setTimeOfDay(time.at);
+      await light(renderer, ctx, time);
+    }
+    if (!was || was.view !== settings.view) {
+      const v = VIEWS[settings.view];
+      look(v.x, v.y, v);
+    }
+    await renderer.prepare();
   }
+  const panel = buildPanel(lab, (next) => void change(next));
+  async function change(next: Partial<Settings>) {
+    const was = settings;
+    settings = changed(settings, next);
+    panel.show(settings);
+    history.replaceState(null, '', `?${writeSettings(settings, new URLSearchParams(location.search))}`);
+    await apply(was);
+  }
+  panel.show(settings);
+  await apply(null);
+
+  /** The glow over each fish, written each frame into a pool sized once. */
+  const glow = new Float32Array(FISH_CAPACITY * EFFECT_STRIDE);
+  const writeGlow = () => renderer.setEffects(glow, glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow));
 
   /** Whether a frame is being measured: the frame loop stands still while one is. */
   let measuring = false;
@@ -152,7 +152,7 @@ async function main() {
     try {
       return await frameCost(
         () => {
-          upload();
+          writeGlow();
           return renderer.frame(view, 'redraw', 1 / 60);
         },
         () => ctx.device.queue.onSubmittedWorkDone(),
@@ -166,10 +166,9 @@ async function main() {
 
   await renderer.ready;
   boot.classList.add('gone');
-  bankPanel.hidden = false;
   stats.hidden = false;
   help.hidden = false;
-  showBank();
+  lab.hidden = false;
 
   // ---- each frame ----
 
@@ -177,22 +176,24 @@ async function main() {
   let smoothed = 0;
   function simulate(dt: number) {
     frames++;
-    game.step(dt, input.read());
+    game.step(dt);
   }
   function draw(dt: number) {
     orbit.update();
     cam.update();
-    upload();
+    // the renderer's clock is the game's, so a paused lake is still and a test that steps it draws the same frame
+    renderer.time = game.t;
+    writeGlow();
     const t = performance.now();
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);
     smoothed += (performance.now() - t - smoothed) * 0.05;
-    if (frames % 30 === 0) stats.textContent = `${smoothed.toFixed(1)} ms · ${world.live} on the floor`;
+    if (frames % 30 === 0) stats.textContent = `${smoothed.toFixed(1)} ms`;
   }
 
   // ---- the test API, and the frame loop ----
 
   // ?paused=1 starts the game stopped where it was built, so a test sees the
-  // same arena every run: no frame of its own has run, and every one after is
+  // same lake every run: no frame of its own has run, and every one after is
   // the test's, of a length it chose
   let paused = query.has('paused');
   let ready = false;
@@ -208,16 +209,15 @@ async function main() {
     simulate,
     draw,
     frame: () => frames,
-    setDrive: (d) => {
-      input.override = d;
-    },
-    look(x, y, view) {
-      cam.target = [x, y, 0];
-      orbit.setSpherical(view);
-      for (let i = 0; i < 400; i++) orbit.update();
+    look,
+    camera: () => {
+      cam.update();
+      return { position: [...cam.position], target: [...cam.target] };
     },
     measureFrame,
-    events: eventLog,
+    settings: () => ({ ...settings }),
+    change,
+    styles: () => STYLES.map((s) => s.name),
   });
 
   let last = performance.now();

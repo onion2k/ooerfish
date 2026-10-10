@@ -1,79 +1,77 @@
 /**
- * The arena as it is drawn: the floor, the rock round it and the hole, which
- * do not move; and the balls and the sled, which do. The groups are fixed
- * once, and each frame only where everything is written into them. It is
- * handed what it draws from, and never the renderer.
+ * The lake as it is drawn: its bed and banks, the stones along its shore and
+ * the puffball trees on its banks, which do not move; and the water, drawn
+ * whichever way the lab says. It is handed what it draws from, and never the
+ * renderer: the page hands the groups on.
+ *
+ * Where the stones and trees stand is fixed, from a seed of its own and not
+ * the game's, so the lake is the same lake every run and on every seed.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { BODY_CAPACITY, COLS, FLOOR, HOLE, KIND_RADIUS, ORIGIN_X, ORIGIN_Y, ROWS, TILE } from './arena';
+import { BANK_RISE, SHORE_RADIUS, STRETCH, ground, shoreRadius } from './lake';
 import { place } from './matrix';
-import { ball, box, disc, square } from './meshes';
-import type { World } from './physics';
-import { SLED, type Sled } from './sled';
+import { ball, box, sheet } from './meshes';
+import { PALETTE } from './palette';
+import { seeded } from './random';
 
-/** How tall the rock stands. */
-const ROCK_HEIGHT = 3;
+/** How far out the banks are drawn, as a share of the shore's distance: past where the camera sees, so no edge shows. */
+const BANKS_TO = 12;
+/** How many stones line the shore, and how many trees stand on the banks. */
+const STONES = 70;
+const TREES = 26;
+/** The seed the stones and trees are placed from: the lake's own, so they stand still whatever the game's seed. */
+const SCENERY_SEED = 1971;
+
+/** Where a ring `k` of the way out from the middle is, at an angle, on the lake's own stretched shape. */
+function ring(k: number, angle: number): [number, number] {
+  const r = k * shoreRadius(angle);
+  return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
+}
 
 export class Scene {
-  /** The moving placements, one pool a group: the balls, then the sled. */
-  readonly balls = new Float32Array(BODY_CAPACITY * 16);
-  readonly sled = new Float32Array(16);
-
   /** What does not move. */
-  static(solid: Uint8Array): GameGroup[] {
-    const floor = new Float32Array(16);
-    place(
-      floor,
-      0,
-      (FLOOR.minX + FLOOR.maxX) / 2,
-      (FLOOR.minY + FLOOR.maxY) / 2,
-      0,
-      0,
-      FLOOR.maxX - FLOOR.minX,
-      FLOOR.maxY - FLOOR.minY,
-      1,
-    );
-    const rock: number[] = [];
-    for (let ty = 0; ty < ROWS; ty++) for (let tx = 0; tx < COLS; tx++) if (solid[ty * COLS + tx]) rock.push(tx, ty);
-    const rocks = new Float32Array((rock.length / 2) * 16);
-    for (let k = 0; k < rock.length; k += 2)
-      place(rocks, k / 2, ORIGIN_X + (rock[k] + 0.5) * TILE, ORIGIN_Y + (rock[k + 1] + 0.5) * TILE, 0);
-    const hole = new Float32Array(16);
-    place(hole, 0, HOLE.x, HOLE.y, 0.02);
-    return [
-      { mesh: square(), matrices: floor, albedo: [0.62, 0.6, 0.55], roughness: 0.9 },
-      { mesh: box(TILE, TILE, ROCK_HEIGHT), matrices: rocks, albedo: [0.32, 0.3, 0.3], roughness: 0.95 },
-      { mesh: disc(HOLE.radius), matrices: hole, albedo: [0.02, 0.02, 0.02], roughness: 1 },
-    ];
-  }
+  static(): GameGroup[] {
+    const random = seeded(SCENERY_SEED);
+    // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
+    const bed = sheet(ring, ground, 0, 1.04, 28, 160);
+    const banks = sheet(ring, ground, 0.98, BANKS_TO, 40, 160);
+    const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
-  /** What moves: the pools, sized once. */
-  dynamic(): GameGroup[] {
-    return [
-      { mesh: ball(KIND_RADIUS[0]), matrices: this.balls, count: 0, albedo: [0.9, 0.5, 0.2], roughness: 0.4 },
-      {
-        mesh: box(SLED.half[0] * 2, SLED.half[1] * 2, SLED.half[2] * 2),
-        matrices: this.sled,
-        albedo: [0.25, 0.45, 0.85],
-        roughness: 0.5,
-      },
-    ];
-  }
-
-  /** Everything where it is this frame: how many balls are placed. */
-  write(world: World, sled: Sled): number {
-    let n = 0;
-    for (let i = 0; i < world.count; i++) {
-      if (!world.alive[i]) continue;
-      place(this.balls, n++, world.x[i], world.y[i], world.z[i]);
+    // stones along the water's edge, half sunk, of a few sizes
+    const stones = new Float32Array(STONES * 16);
+    for (let i = 0; i < STONES; i++) {
+      const angle = ((i + random() * 0.6) / STONES) * Math.PI * 2;
+      const [x, y] = ring(1.005 + random() * 0.02, angle);
+      const size = 0.6 + random() * 0.7;
+      place(stones, i, x, y, ground(x, y) - size * 0.25, random() * Math.PI, size * 1.3, size, size * 0.7);
     }
-    place(this.sled, 0, sled.x, sled.y, 0, sled.yaw);
-    return n;
+
+    // puffball trees on the banks, out of the way of the shore's view across the water
+    const trunks = new Float32Array(TREES * 16),
+      puffs = new Float32Array(TREES * 16);
+    for (let i = 0; i < TREES; i++) {
+      const angle = ((i + random() * 0.8) / TREES) * Math.PI * 2;
+      // none on the near bank the camera stands on, south of the middle
+      const along = Math.sin(angle) < -0.55 ? 2.6 + random() * 1.5 : 1.3 + random() * 0.9;
+      const [x, y] = ring(along, angle);
+      const z = ground(x, y);
+      const tall = 3 + random() * 3;
+      place(trunks, i, x, y, z, 0, 1, 1, tall);
+      place(puffs, i, x, y, z + tall + 2.2, random() * Math.PI, 1, 1, 0.9);
+    }
+
+    return [
+      { mesh: bed, matrices: one, albedo: PALETTE.bed, roughness: 0.95 },
+      { mesh: banks, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
+      { mesh: ball(1, 4, 7), matrices: stones, albedo: PALETTE.stone, roughness: 0.8 },
+      { mesh: box(0.7, 0.7, 1), matrices: trunks, albedo: PALETTE.trunk, roughness: 0.9 },
+      { mesh: ball(3.2, 5, 9), matrices: puffs, albedo: PALETTE.leaves, roughness: 0.85 },
+    ];
   }
 }
 
-/** The rock's footprint, for the sun's shadow to be fitted to. */
-export const ARENA_BOX = {
-  min: [ORIGIN_X, ORIGIN_Y, -1] as [number, number, number],
-  max: [ORIGIN_X + COLS * TILE, ORIGIN_Y + ROWS * TILE, ROCK_HEIGHT + 2] as [number, number, number],
+/** What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree. */
+export const SHADOW_BOX = {
+  min: [-(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, -(SHORE_RADIUS * 1.5 + BANK_RISE), -8] as [number, number, number],
+  max: [(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, SHORE_RADIUS * 1.5 + BANK_RISE, 16] as [number, number, number],
 };

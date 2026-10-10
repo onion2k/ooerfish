@@ -69,13 +69,13 @@ describe('the bench', () => {
   it('says when a scenario did not do what it is named for', () => {
     const rest: [number, number] = [0, 0],
       play: [number, number] = [0.25, 1];
-    expect(did({ frames: 1000, awake: 0 }, rest)).toBe(true);
-    expect(did({ frames: 1000, awake: 1 }, rest), 'a floor at rest with a ball rolling on it').toBe(false);
-    expect(did({ frames: 1000, awake: 0 }, play), 'an autopilot that never reached a ball').toBe(false);
-    expect(did({ frames: 1000, awake: 249 }, play)).toBe(false);
-    expect(did({ frames: 1000, awake: 250 }, play)).toBe(true);
-    expect(did({ frames: 1000, awake: 1000 }, play)).toBe(true);
-    expect(did({ frames: 0, awake: 0 }, rest), 'a run of no frames did nothing at all').toBe(false);
+    expect(did({ frames: 1000, busy: 0 }, rest)).toBe(true);
+    expect(did({ frames: 1000, busy: 1 }, rest), 'a still lake with one thing moving in it').toBe(false);
+    expect(did({ frames: 1000, busy: 0 }, play), 'fish that never swam').toBe(false);
+    expect(did({ frames: 1000, busy: 249 }, play)).toBe(false);
+    expect(did({ frames: 1000, busy: 250 }, play)).toBe(true);
+    expect(did({ frames: 1000, busy: 1000 }, play)).toBe(true);
+    expect(did({ frames: 0, busy: 0 }, rest), 'a run of no frames did nothing at all').toBe(false);
   });
 });
 

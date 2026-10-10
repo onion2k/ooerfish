@@ -1,14 +1,16 @@
 /**
- * What the game looks like, held to pictures taken before. Every other check
- * is on what the game does; nothing until now noticed a palette gone muddy,
- * a light lost, or the rock drawn over the floor.
+ * What the lake looks like, held to pictures taken before. Every other check
+ * is on what the game does; nothing else notices a palette gone muddy, a
+ * light lost, or water drawn over the bank. In the lake lab these pictures
+ * are also the record of every way of drawing the water: each style at a
+ * dirty and a clean lake by day, and dirty at dusk, when the glow matters.
  *
  * Each scene is set through the test API with chance seeded from before the
- * game is built, the game paused, the camera parked by hand, and a fixed
- * number of frames stepped, so the same machine draws the same pixels every
- * run. The pictures are in `smoke/screens/`. They are this machine's GPU:
- * another one will draw them a little differently, so the pictures are not
- * worth arguing with from elsewhere.
+ * game is built, the game paused, and a fixed number of frames stepped, so
+ * the same machine draws the same pixels every run. The pictures are in
+ * `smoke/screens/`. They are this machine's GPU: another one will draw them
+ * a little differently, so the pictures are not worth arguing with from
+ * elsewhere.
  *
  *   npm run look               the scenes against the pictures
  *   npm run look:update        the pictures written again, after a change meant to alter them
@@ -17,62 +19,101 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { start, watch } from './game';
+import { STANDARD, set, start, watch, type Scene } from './game';
 
 /**
  * How far the pictures may differ before it is a change and not the GPU: not a pixel whose colour is off by more
  * than 0.02, Playwright's own measure of a colour's difference. Drawn on thirty pages just booted, ten of them with
- * every core at other work, the arena matched its picture to the pixel even at a threshold of 0, so there is no
- * drift here to allow for. Playwright leaves out a pixel it takes for the edge of a shape smoothed: four such
- * differed, byte for byte, between the picture and one written again two weeks and six renderer versions later. The five-hundredth of the pixels it used to forgive was 2,048 of them, and a button
- * over the arena is 701. A game that draws more (grass, particles, fog) measures its own drift the same way,
- * before it chooses: `/gate-moved` says how.
+ * every core at other work, the template's arena matched its picture to the pixel even at a threshold of 0, so
+ * there is no drift there to allow for. The lake draws more (moving water, glows over it): its drift is measured
+ * the same way before this is believed of it, and `/gate-moved` says how. Playwright leaves out a pixel it takes
+ * for the edge of a shape smoothed. The five-hundredth of the pixels the template used to forgive was 2,048 of
+ * them, and a button over the scene is 701.
  */
 const TOLERANCE = { maxDiffPixels: 0, threshold: 0.02 };
 
-/** The corner that counts the milliseconds a frame takes is different every run, and says nothing about the look. */
-async function hideStats(page: Page) {
-  await page.locator('#stats').evaluate((el: HTMLElement) => (el.hidden = true));
+/** The corners that count the milliseconds and tell how to look round, and the lab's panel: not the look. */
+async function hideOverlays(page: Page) {
+  await page.evaluate(() => {
+    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+  });
 }
 
+/** Every picture of the lake, by name: each style dirty and clean by day and dirty at dusk, and open water's others. */
+const PICTURES: [string, Scene][] = [
+  ...['open', 'ripple'].flatMap((water): [string, Scene][] => [
+    [`${water}-sick-day`, { water, dirt: 1, time: 'day', view: 'shore' }],
+    [`${water}-clear-day`, { water, dirt: 0, time: 'day', view: 'shore' }],
+    [`${water}-sick-dusk`, { water, dirt: 1, time: 'dusk', view: 'shore' }],
+  ]),
+  ['open-sick-night', { water: 'open', dirt: 1, time: 'night', view: 'shore' }],
+  ['open-half-overhead', { water: 'open', dirt: 0.5, time: 'day', view: 'overhead' }],
+  ['open-half-boat', { water: 'open', dirt: 0.5, time: 'dawn', view: 'boat' }],
+];
+
 test.describe('what it looks like', () => {
-  test('the arena, from the start', async ({ page }) => {
-    const problems = watch(page);
-    await start(page, { seed: 11, paused: true });
-    await page.evaluate(() => {
-      const g = window.game!;
-      g.step(180);
-      g.look(0, 0, { azimuth: 0.9, polar: 0.95, radius: 90 });
-      g.step(1);
+  for (const [name, scene] of PICTURES)
+    test(name, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, scene, 180);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
     });
-    await hideStats(page);
-    await expect(page.locator('#view')).toHaveScreenshot('arena.png', TOLERANCE);
-    expect(problems).toEqual([]);
+
+  test('the water moves by the game clock alone', async ({ page }) => {
+    // two pictures at the same game time are the same to the byte, and a second later the water has moved
+    await start(page, { seed: 11, paused: true });
+    await set(page, STANDARD, 120);
+    await hideOverlays(page);
+    // with the page's transitions finished, as the pictures are taken: the boot screen fading out over the first
+    // scene drew every pixel different from one frame to the next, and was taken for the water
+    const shot = () => page.locator('#view').screenshot({ animations: 'disabled' });
+    const first = await shot();
+    // the page draws frames of its own while paused, of no time: they must draw the same water
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    expect((await shot()).equals(first), 'the same game time drew different water').toBe(true);
+    await page.evaluate(() => window.game!.step(60));
+    expect((await shot()).equals(first), 'a second on, the water had not moved').toBe(false);
   });
 
-  test('a small thing added to the arena is a change', async ({ page }, info) => {
-    // while the pictures are being written this would write its own, button and all, over the arena's
+  test('a small thing added to the scene is a change', async ({ page }, info) => {
+    // while the pictures are being written this would write its own, button and all, over the scene's
     test.skip(!['none', 'missing'].includes(info.config.updateSnapshots), 'the pictures are being written');
     // the gate held to itself: a button a fifth the size of a thumb, which a tolerance of a five-hundredth of the
-    // pixels let through, and let through four times over in a game copied from here
+    // pixels let through, and let through four times over in a game copied from the template
     await start(page, { seed: 11, paused: true });
+    await set(page, PICTURES[0][1], 180);
+    await hideOverlays(page);
     await page.evaluate(() => {
-      const g = window.game!;
-      g.step(180);
-      g.look(0, 0, { azimuth: 0.9, polar: 0.95, radius: 90 });
-      g.step(1);
       const button = document.createElement('button');
       button.textContent = 'Go';
       Object.assign(button.style, { position: 'fixed', left: '600px', top: '380px', font: '12px sans-serif' });
       document.body.append(button);
     });
-    await hideStats(page);
     let seen = '';
     try {
-      await expect(page.locator('#view')).toHaveScreenshot('arena.png', { ...TOLERANCE, timeout: 5000 });
+      await expect(page.locator('#view')).toHaveScreenshot(`${PICTURES[0][0]}.png`, { ...TOLERANCE, timeout: 5000 });
     } catch (e) {
       seen = String(e);
     }
     expect(seen, 'the picture with a button on it matched the picture without').toMatch(/pixels \(ratio/);
+  });
+});
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
+
+  test('the lake from the shore, with the lab folded away', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, view: 'phone' }, 180);
+    await page.evaluate(() => {
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page).toHaveScreenshot('phone.png', TOLERANCE);
+    expect(problems).toEqual([]);
   });
 });

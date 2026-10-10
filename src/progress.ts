@@ -1,13 +1,13 @@
 /**
- * What the player has done, and where it is kept: the bank, in the
- * browser's storage or, for the game run without a page, anywhere. Old
- * saves must still load: a field a save does not have takes its default,
- * and a field it has that the game no longer knows is left alone.
+ * What the player has done, and where it is kept: in the browser's storage
+ * or, for the game run without a page, anywhere. Old saves must still load:
+ * a field a save does not have takes its default, and a field it has that
+ * the game no longer knows is left alone.
+ *
+ * The lake lab keeps nothing yet, so the save has no fields. The first that
+ * is kept gives it one, with a default, and a file in `test/saves`.
  */
-export interface Save {
-  bank: number;
-  banked: number;
-}
+export type Save = Record<string, never>;
 
 /** Where the save is kept. */
 export interface SaveStore {
@@ -61,13 +61,7 @@ export function memoryStore(json: string | null = null): SaveStore & { json: str
   };
 }
 
-const fresh = (): Save => ({ bank: 0, banked: 0 });
-
-/** A number from a save, or the default where it is missing or not a number. */
-function number(from: Record<string, unknown>, key: string, or: number): number {
-  const v = from[key];
-  return typeof v === 'number' && Number.isFinite(v) ? v : or;
-}
+const fresh = (): Save => ({});
 
 export class Progress {
   readonly save: Save;
@@ -83,20 +77,8 @@ export class Progress {
     } catch {
       return;
     }
-    if (typeof raw !== 'object' || raw === null) return;
-    const from = raw as Record<string, unknown>;
-    const d = fresh();
-    this.save.bank = number(from, 'bank', d.bank);
-    this.save.banked = number(from, 'banked', d.banked);
-  }
-
-  get bank() {
-    return this.save.bank;
-  }
-
-  deposit(value: number) {
-    this.save.bank += value;
-    this.save.banked += value;
+    // a field is read here, each with its default, once the save has one; until then there is nothing to read
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return;
   }
 
   persist() {

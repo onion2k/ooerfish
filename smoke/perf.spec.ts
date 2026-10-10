@@ -20,7 +20,7 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
-import { start, watch } from './game';
+import { STANDARD, set, start, watch } from './game';
 import { moved as hasMoved, type Figures } from './judging';
 
 const BASELINE = 'smoke/perf-baseline.json';
@@ -46,15 +46,10 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
   const bundle = bundleBytes();
   await start(page, { seed: 11, paused: true });
   const boot = await page.evaluate(() => window.game!.bootMs);
-  // the standard view: the arena settled, seen from the look picture's camera
-  const frame = await page.evaluate(async () => {
-    const g = window.game!;
-    g.step(180);
-    g.look(0, 0, { azimuth: 0.9, polar: 0.95, radius: 90 });
-    g.step(1);
-    // the first measuring on a page just booted: it keeps the GPU drawing for a quarter of a second before it times
-    return g.measureFrame();
-  });
+  // the standard scene, three seconds on
+  await set(page, STANDARD, 180);
+  // the first measuring on a page just booted: it keeps the GPU drawing for a quarter of a second before it times
+  const frame = await page.evaluate(() => window.game!.measureFrame());
   const now: Figures = { bootMs: Math.round(boot), frameMs: Math.round(frame * 1000) / 1000, bundleBytes: bundle };
   info.annotations.push({ type: 'perf', description: JSON.stringify(now) });
   console.log(
@@ -87,5 +82,25 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
   expect(now.bootMs, 'boot within budget').toBeLessThanOrEqual(BUDGET.bootMs);
   expect(now.frameMs, 'frame within budget').toBeLessThanOrEqual(BUDGET.frameMs);
   expect(now.bundleBytes, 'download within budget').toBeLessThanOrEqual(BUDGET.bundleBytes);
+  expect(problems).toEqual([]);
+});
+
+test('draws every way of the water, at every time of day, within the frame budget', async ({ page }) => {
+  test.setTimeout(180_000);
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true });
+  const styles = await page.evaluate(() => window.game!.styles());
+  const costs: string[] = [];
+  let first = true;
+  for (const water of styles)
+    for (const time of ['day', 'night']) {
+      await set(page, { ...STANDARD, water, time, dirt: 1 }, 60);
+      // the first measured keeps the GPU drawing a quarter of a second; the rest follow on from it
+      const ms = await page.evaluate((warm) => window.game!.measureFrame(warm), first ? undefined : 60);
+      first = false;
+      costs.push(`${water} at ${time}: ${ms.toFixed(3)} ms`);
+      expect(ms, `${water} at ${time} within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
+    }
+  console.log(`frame, every style: ${costs.join(', ')}`);
   expect(problems).toEqual([]);
 });

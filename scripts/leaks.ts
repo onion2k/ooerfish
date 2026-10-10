@@ -1,13 +1,11 @@
 /**
  * A long game played through, watching the things that must not keep
- * growing: the bodies on the floor and the slots they sit in, the save, and
- * the heap.
+ * growing: the fish, the save, and the heap.
  *
  * A map that is added to and never emptied does not throw, break a rule, or
  * move any gate's figure. It shows up an hour into a game as a machine that
  * has slowed to a crawl, on somebody else's computer. Nothing else here would
- * ever see it: the fuzzer plays 4,000 frames and the pace gate stops at a few
- * minutes.
+ * ever see it: the fuzzer plays 4,000 frames.
  *
  * Every size is held two ways: under a ceiling that says what it could ever
  * reasonably be, and, where marked `steady`, not still climbing by the end —
@@ -16,9 +14,8 @@
  * through is not. A new list, map or cache in the game gets a line in
  * `WATCH` and a reading in `sizes`.
  */
-import { BODY_CAPACITY } from '../src/arena';
-import { Autopilot } from '../src/autopilot';
 import { Game } from '../src/game';
+import { FISH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -30,8 +27,7 @@ const DT = 1 / 60;
  * move it and a leak cannot hide under it.
  */
 export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }>> = {
-  bodies: { ceiling: BODY_CAPACITY },
-  slots: { ceiling: BODY_CAPACITY },
+  fish: { ceiling: FISH_CAPACITY },
   'save bytes': { ceiling: 2_000 },
   // the catch-all for what is leaking and has no name here; noisy, so it is given a lot of room
   'heap MB': { ceiling: 300, steady: true },
@@ -39,11 +35,9 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
 
 /** Every size worth watching, read off a game as it stands. */
 export function sizes(game: Game): Record<string, number> {
-  const { world, progress } = game;
   return {
-    bodies: world.live,
-    slots: world.count,
-    'save bytes': JSON.stringify(progress.save).length,
+    fish: game.fish.count,
+    'save bytes': JSON.stringify(game.progress.save).length,
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }
@@ -102,10 +96,9 @@ export function leakRun({ seed, minutes }: LeakOptions): LeakRun {
   const started = performance.now();
   const samples: Record<string, number[]> = {};
   try {
-    const game = new Game(new Progress(memoryStore()), {}, { random: seeded(seed) });
-    const pilot = new Autopilot(game);
+    const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
     for (let minute = 0; minute < minutes; minute++) {
-      for (let f = 0; f < 3600; f++) pilot.step(DT);
+      for (let f = 0; f < 3600; f++) game.step(DT);
       for (const [key, n] of Object.entries(sizes(game))) (samples[key] ??= []).push(n);
     }
     return { seed, minutes, samples, problems: trouble(samples), seconds: (performance.now() - started) / 1000 };

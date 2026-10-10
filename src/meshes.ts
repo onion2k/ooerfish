@@ -1,7 +1,8 @@
 /**
- * The few shapes the arena is made of, built flat-shaded on purpose: a box,
- * a low-poly ball, a square, a disc. Cartoon geometry wants hard edges, so
- * faces do not share vertices and every normal is a face's.
+ * The shapes the lake is made of. A box, a low-poly ball, a square and a disc
+ * are built flat-shaded on purpose: cartoon things want hard edges, so their
+ * faces do not share vertices and every normal is a face's. A sheet, the
+ * ground and the water, is smooth, so a bank reads as a soft slope.
  *
  * Everything is in world units and Z is up, as the renderer has it.
  */
@@ -105,5 +106,43 @@ export function disc(radius: number, segments = 24): Mesh {
       [Math.cos(a1) * radius, Math.sin(a1) * radius, 0],
     );
   }
+  return b.build();
+}
+
+/**
+ * A smooth sheet laid out in rings round the middle: `point(k, angle)` says
+ * where the ring `k` of the way out is at an angle, and `height(x, y)` how
+ * high the sheet is there. Rings run from `from` to `to`, so a sheet can be a
+ * disc or a band. Its normals are the height's own slope, taken across a
+ * small step, so neighbouring sheets of the same height meet with no seam.
+ */
+export function sheet(
+  point: (k: number, angle: number) => [number, number],
+  height: (x: number, y: number) => number,
+  from: number,
+  to: number,
+  rings: number,
+  segments: number,
+): Mesh {
+  const b = new MeshBuilder();
+  const e = 0.05;
+  for (let i = 0; i <= rings; i++) {
+    // rings packed toward the inner edge, where a sheet bends most: the shore
+    const k = from + (to - from) * (i / rings) ** 1.5;
+    for (let j = 0; j <= segments; j++) {
+      const angle = (j / segments) * Math.PI * 2;
+      const [x, y] = point(k, angle);
+      const z = height(x, y);
+      const dx = (height(x + e, y) - height(x - e, y)) / (2 * e),
+        dy = (height(x, y + e) - height(x, y - e)) / (2 * e);
+      const l = Math.hypot(dx, dy, 1);
+      b.vertex(x, y, z, -dx / l, -dy / l, 1 / l, j / segments, k);
+    }
+  }
+  for (let i = 0; i < rings; i++)
+    for (let j = 0; j < segments; j++) {
+      const a = i * (segments + 1) + j;
+      b.quad(a, a + 1, a + segments + 2, a + segments + 1);
+    }
   return b.build();
 }
