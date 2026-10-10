@@ -10,6 +10,7 @@
  */
 import type { ClearWater } from 'artshape-render/game/clear';
 import type { GameGroup } from 'artshape-render/game/renderer';
+import type { GerstnerWave } from 'artshape-render/game/waves';
 import type { TimeOfDay } from '../look';
 import { PALETTE, mix, type Colour } from '../palette';
 import { clear } from './clear';
@@ -28,6 +29,8 @@ export interface WaterStyle {
    * has the fish themselves glowing under it, and a glow on the surface too would be two.
    */
   surfaceGlow: boolean;
+  /** The swells that move its surface, which what floats on it rides: none, and it lies still. */
+  waves?: readonly GerstnerWave[];
   /** For water that is seen through, the renderer's `look.clear` at a contamination and a time of day, with caustics or without. */
   clear?: (contamination: number, caustics: boolean, time: TimeOfDay) => Partial<ClearWater>;
 }

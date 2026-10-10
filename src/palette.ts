@@ -18,6 +18,8 @@ export const PALETTE = {
   stone: [0.62, 0.56, 0.5] as Colour,
   /** The rocks on the lake's bed, and the waterweed growing up from it. */
   bedRock: [0.4, 0.4, 0.38] as Colour,
+  /** The boulders standing in the water, a cooler grey than the bank's stones. */
+  boulder: [0.4, 0.41, 0.42] as Colour,
   weed: [0.16, 0.45, 0.14] as Colour,
   /** The puffball trees. */
   trunk: [0.36, 0.22, 0.12] as Colour,
@@ -31,9 +33,13 @@ export const PALETTE = {
   clearSky: [0.75, 0.9, 1] as Colour,
   /** The see-through water's shallows and deep, clear and as sick as it gets. */
   clearShallow: [0.45, 0.85, 0.8] as Colour,
-  clearDeep: [0.02, 0.2, 0.32] as Colour,
+  clearDeep: [0, 0.16, 0.5] as Colour,
   sickShallow: [0.55, 0.82, 0.3] as Colour,
   sickDeep: [0.07, 0.22, 0.03] as Colour,
+  /** What the see-through water lightens toward by the camera, clear and sick, and toward on its swells' crests. */
+  clearNear: [0.15, 0.55, 0.9] as Colour,
+  sickNear: [0.4, 0.7, 0.2] as Colour,
+  crest: [0.8, 0.97, 1] as Colour,
   /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
   ripple: [0.82, 0.94, 1] as Colour,
   clearSplash: [0.93, 0.98, 1] as Colour,

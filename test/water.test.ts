@@ -96,11 +96,34 @@ describe('the see-through water', () => {
     expect(clear.clear!(0.5, false, timeNamed('day')).caustics).toBe(0);
   });
 
-  it('glitters by the time of day: in the sun the most, and hardly at all by the moon', () => {
-    const at = (t: string) => clear.clear!(0, true, timeNamed(t)).glitter!;
-    expect(at('day')).toBeGreaterThan(at('dawn'));
-    expect(at('dusk')).toBeGreaterThan(at('night'));
-    expect(at('night')).toBeLessThan(0.25);
+  it('sparkles by the time of day, in round stars and not the glitter: in the sun the most, and hardly at all by the moon', () => {
+    const at = (t: string) => clear.clear!(0, true, timeNamed(t));
+    for (const t of ['dawn', 'day', 'dusk', 'night']) expect(at(t).glitter, t).toBe(0);
+    const bright = (t: string) => at(t).sparkleBright!;
+    expect(bright('day')).toBeGreaterThan(bright('dawn'));
+    expect(bright('dusk')).toBeGreaterThan(bright('night'));
+    expect(bright('night')).toBeLessThan(bright('day') * 0.25);
+    expect(at('day').sparkles).toBeGreaterThan(0);
+  });
+
+  it('swells, by the waves it says it has, and hands the same to the renderer', () => {
+    expect(clear.waves?.length).toBe(4);
+    expect(clear.clear!(0.3, true, timeNamed('day')).waves).toBe(clear.waves);
+    expect(styleNamed('open').waves).toBeUndefined();
+  });
+
+  it('is lighter by the camera, toward a blue when clean and a green when sick, with crests and lines of foam', () => {
+    const clean = clear.clear!(0, true, timeNamed('day')),
+      sick = clear.clear!(1, true, timeNamed('day'));
+    const [r0, g0, b0] = clean.near!;
+    expect(b0).toBeGreaterThan(g0);
+    expect(g0).toBeGreaterThan(r0);
+    const [r1, g1, b1] = sick.near!;
+    expect(g1).toBeGreaterThan(b1);
+    expect(g1).toBeGreaterThan(r1);
+    expect(clean.crestAmount).toBeGreaterThan(0);
+    expect(clean.foamWidth2).toBeGreaterThan(0);
+    expect(clean.foamGap).toBeGreaterThan(0);
   });
 
   it('is deep green when sick and deep blue-teal when clean', () => {

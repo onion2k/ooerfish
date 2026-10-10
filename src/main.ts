@@ -27,6 +27,8 @@ import { RippleDraw } from './ripplesdraw';
 import { SHADOW_BOX, Scene } from './scene';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
 import { STYLES, styleNamed } from './water/styles';
+import { shoreField } from './shorefield';
+import { surfaceOf } from './water/swell';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
@@ -139,6 +141,8 @@ async function main() {
     for (let i = 0; i < 400; i++) orbit.update();
     orbit.enabled = was;
   };
+  /** Whether the lake's shore field is with the renderer yet: it costs a few milliseconds, so only once it is wanted. */
+  let shoreFieldMade = false;
   /** The water, the light and the camera made what the settings say, where they differ from `was`. */
   async function apply(was: Settings | null) {
     game.setContamination(settings.dirt);
@@ -147,6 +151,13 @@ async function main() {
       // the water's groups and the fish's handed over again: once a change, never once a frame
       const water = style.groups(game.contamination);
       fishSlot = water.length;
+      // what floats rides the swells the water is drawn with, if it has any
+      casting.surface = ripples.surface = surfaceOf(style.waves, MM_PER_UNIT);
+      // see-through water rings its shores and boulders with foam from the lake's field, made the first time it is asked
+      if (style.clear && !shoreFieldMade) {
+        renderer.setShoreField(shoreField());
+        shoreFieldMade = true;
+      }
       renderer.setDynamic([...water, fish.group(), ripples.group(), ...casting.groups()]);
     }
     if (!was || was.time !== settings.time) {

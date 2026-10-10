@@ -11,6 +11,7 @@ import { box } from './meshes';
 import { PALETTE } from './palette';
 import { RINGS, ringAt } from './ripples';
 import type { Splashes } from './splash';
+import { STILL, type Surface } from './water/swell';
 
 /** How many pieces a ring is drawn with, how far each overlaps the next, and how high above the water it lies. */
 export const PIECES = 24;
@@ -20,6 +21,8 @@ const THIN = 0.02;
 
 export class RippleDraw {
   readonly matrices = new Float32Array(SPLASH_CAPACITY * RINGS.count * PIECES * 16);
+  /** Where the water stands, which each piece rides: still water unless the page says the water swells. */
+  surface: Surface = STILL;
 
   /** The group, handed to the renderer once: its placements written by `write`, as many live as it says. */
   group(): GameGroup {
@@ -41,7 +44,7 @@ export class RippleDraw {
             y = splashes.y[i] + Math.sin(a) * ring.radius;
           if (!inside(x, y)) continue;
           // the piece along the ring, its length round it and its width across it
-          place(this.matrices, n++, x, y, ABOVE, a + Math.PI / 2, length, ring.width, THIN);
+          place(this.matrices, n++, x, y, this.surface(x, y, t) + ABOVE, a + Math.PI / 2, length, ring.width, THIN);
         }
       }
     }

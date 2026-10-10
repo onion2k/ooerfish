@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { flight, flightAt, pathPoints, rodTip } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { CAST, bedDepth, ground, inside } from '../src/lake';
+import { BOULDERS, CAST, bedDepth, boulderGap, ground, inside } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, settle } from './helpers';
@@ -103,6 +103,31 @@ describe('the lure', () => {
     expect(checkInvariants(game)).toEqual([]);
     game.reelIn();
     expect(game.lure.phase).toBe('ready');
+  });
+
+  it('lies on a boulder when cast onto one, as on the bank, at its top and with no splash', () => {
+    // the aim that lands nearest the middle of the boulder in the shallows, found from the flight's own sums
+    const b = BOULDERS[1];
+    let best = { angle: 0, power: 0, gap: Infinity };
+    for (let a = 0; a < 200; a++)
+      for (let p = 1; p <= 40; p++) {
+        const angle = (a / 200) * Math.PI * 2,
+          power = p / 40;
+        const f = flight(angle, power);
+        const gap = Math.hypot(f.landing[0] - b.x, f.landing[1] - b.y);
+        if (gap < best.gap) best = { angle, power, gap };
+      }
+    const f = flight(best.angle, best.power);
+    expect(boulderGap(f.landing[0], f.landing[1]), 'it lands on the boulder').toBeLessThan(0);
+    expect(f.onWater).toBe(false);
+    expect(f.landing[2]).toBeCloseTo(ground(f.landing[0], f.landing[1]), 3);
+    expect(f.landing[2], 'on it, out of the water').toBeGreaterThan(0);
+    const { game, told } = lake();
+    game.cast(best.angle, best.power);
+    settle(game, 240);
+    expect(game.lure.phase).toBe('lying');
+    expect(told).toEqual([]);
+    expect(checkInvariants(game)).toEqual([]);
   });
 
   it('is reeled in first when cast again while it is out', () => {

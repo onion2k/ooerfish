@@ -47,24 +47,107 @@ export function inward(x: number, y: number): number {
   return 1 - distance / shoreRadius(angle);
 }
 
-/** Whether a point is in the water, at least `margin` world units in from the shore. */
-export function inside(x: number, y: number, margin = 0): boolean {
+/** Whether a point is inside the shore, at least `margin` world units in from it, whatever stands in the water there. */
+export function inShore(x: number, y: number, margin = 0): boolean {
   const { distance, angle } = polar(x, y);
   return distance < shoreRadius(angle) - margin;
 }
 
-/** How deep the bed is under a point: the most in the middle, easing to nothing at the shore, nought on land. */
-export function bedDepth(x: number, y: number): number {
+/**
+ * The boulders standing in the lake, out of the water: where each is, how far its waterline is from its middle, and
+ * how high its top stands over the water. Each is a dome rising off the bed, widest where it meets it, so under the
+ * water its flank shallows the bed round it and the water shows its foot. They are bank in the water: no fish swims
+ * into one, a cast landing on one lies there as on the bank, and the foam rings each. Kept off the casts the tests and
+ * the pictures make, so those land on the water as they did.
+ */
+export const BOULDERS: readonly { x: number; y: number; radius: number; rise: number }[] = [
+  // half out of the water at the shore's edge, on the near side the Shore view looks over
+  { x: -13, y: -25.6, radius: 1.8, rise: 1 },
+  // in the shallows to the east
+  { x: 16, y: -12, radius: 1.6, rise: 1.2 },
+  // a pair by the north cove
+  { x: 14, y: 20, radius: 1.4, rise: 0.9 },
+  { x: 16.6, y: 21.8, radius: 0.9, rise: 0.6 },
+];
+
+/** The bowl's depth under a point, as though nothing stood in it. */
+function bowlDepth(x: number, y: number): number {
   const k = inward(x, y);
   if (k <= 0) return 0;
   // a bowl with a gentle shelf at the edge, so the shallows are wide enough to see
   return MAX_DEPTH * (1 - (1 - k) * (1 - k)) * Math.min(1, k * 4);
 }
 
-/** How high the ground is at a point: the bed under the water, the bank rising out of it, one surface with no step. */
+/** How far a boulder's dome goes into the bed under its middle, so its flank stands out of the bed all round on a slope. */
+const BOULDER_SUNK = 1;
+
+/**
+ * Each boulder's dome, worked out once: the height of its middle (sunk into the bed under it), how high it stands from
+ * there and how wide it is at its foot, so its waterline is its radius. The scene draws each as a ball so stretched.
+ */
+export const BOULDER_DOMES = BOULDERS.map((b) => {
+  const under = bowlDepth(b.x, b.y) + BOULDER_SUNK;
+  const tall = b.rise + under;
+  return { x: b.x, y: b.y, base: -under, tall, wide: b.radius / Math.sqrt(1 - (under / tall) ** 2) };
+});
+
+/** How high the boulders stand at a point, the highest of them; minus infinity where none is. */
+function boulderTop(x: number, y: number): number {
+  let top = -Infinity;
+  for (const d of BOULDER_DOMES) {
+    const dx = x - d.x,
+      dy = y - d.y;
+    const k = Math.sqrt(dx * dx + dy * dy) / d.wide;
+    if (k < 1) top = Math.max(top, d.base + d.tall * Math.sqrt(1 - k * k));
+  }
+  return top;
+}
+
+/** How far a point is from the nearest boulder's waterline: below nought inside one. */
+export function boulderGap(x: number, y: number): number {
+  let gap = Infinity;
+  // asked by every fish several times a step, so the root is taken once, of the nearest by its square
+  for (const b of BOULDERS) {
+    const dx = x - b.x,
+      dy = y - b.y;
+    gap = Math.min(gap, Math.sqrt(dx * dx + dy * dy) - b.radius);
+  }
+  return gap;
+}
+
+/** Which boulder is nearest a point, by its waterline. */
+export function nearestBoulder(x: number, y: number): (typeof BOULDERS)[number] {
+  let best = BOULDERS[0],
+    gap = Infinity;
+  for (const b of BOULDERS) {
+    const g = Math.hypot(x - b.x, y - b.y) - b.radius;
+    if (g < gap) [best, gap] = [b, g];
+  }
+  return best;
+}
+
+/** Whether a point is in the water, at least `margin` world units in from the shore and from every boulder. */
+export function inside(x: number, y: number, margin = 0): boolean {
+  return inShore(x, y, margin) && boulderGap(x, y) > margin;
+}
+
+/** How deep the bed is under a point: the most in the middle, easing to nothing at the shore, shallower over a boulder's flank, nought on land. */
+export function bedDepth(x: number, y: number): number {
+  return Math.max(0, Math.min(bowlDepth(x, y), -boulderTop(x, y)));
+}
+
+/** How high the ground is at a point, boulders and all: the bed under the water, the bank and the boulders out of it. */
 export function ground(x: number, y: number): number {
+  return inward(x, y) > 0 ? Math.max(-bowlDepth(x, y), boulderTop(x, y)) : groundUnder(x, y);
+}
+
+/**
+ * How high the ground is at a point without the boulders on it: the bed under the water, the bank rising out of it,
+ * one surface with no step. The bed and the banks are drawn as a sheet from this, and the boulders on it as their own.
+ */
+export function groundUnder(x: number, y: number): number {
   const k = inward(x, y);
-  if (k > 0) return -bedDepth(x, y);
+  if (k > 0) return -bowlDepth(x, y);
   // out of the water, the bank rises from nought at the shore to its top, easing in and out
   const { distance, angle } = polar(x, y);
   const out = Math.min(1, (distance - shoreRadius(angle)) / BANK_RISE);

@@ -106,6 +106,12 @@ describe('the cast, drawn', () => {
     };
     expect(z(10)).not.toBeCloseTo(z(10.4), 4);
     expect(z(12)).toBeCloseTo(z(12), 10);
+    // and it rides the swells: as far over the water as before, where the water stands
+    const still = z(10.4);
+    draw.surface = (x, y, t) => 0.3 * Math.cos(x - y + t);
+    const riding = z(10.4);
+    expect(riding - still).toBeCloseTo(0.3 * Math.cos(game.lure.bobber[0] - game.lure.bobber[1] + 10.4), 5);
+    draw.surface = () => 0;
     // and the lure is under it, at its depth
     draw.write(game, null);
     expect(draw.lure[14]).toBeCloseTo(-game.lure.depth, 5);

@@ -1,7 +1,7 @@
 /** The fish of the lab's lake: where they swim, that they stay in the water, and the lake's two levers. */
 import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
-import { FISH_CAPACITY, FISH_COUNT, bedDepth, inside, shoreRadius } from '../src/lake';
+import { BOULDERS, FISH_CAPACITY, FISH_COUNT, bedDepth, boulderGap, inside, shoreRadius } from '../src/lake';
 import { DT, newGame, settle } from './helpers';
 
 describe('the fish', () => {
@@ -48,6 +48,28 @@ describe('the fish', () => {
     }
     // and none is stuck there turning about: each has swum off toward the middle
     for (let i = 0; i < game.fish.count; i++) expect(game.fish.y[i], `fish ${i} swam off`).toBeLessThan(north - 1.5);
+  });
+
+  it('never swim into a boulder, even headed straight at one from close in at full speed, and swim off again', () => {
+    // the boulder out in the shallows, with open water all round it
+    const b = BOULDERS[1];
+    const { game } = newGame();
+    for (let i = 0; i < game.fish.count; i++) {
+      // round it, each half a unit off its waterline, flat out at its middle
+      const a = (i / game.fish.count) * Math.PI * 2;
+      game.fish.x[i] = b.x + Math.cos(a) * (b.radius + 0.6);
+      game.fish.y[i] = b.y + Math.sin(a) * (b.radius + 0.6);
+      game.fish.heading[i] = a + Math.PI;
+      game.fish.speed[i] = 2.8;
+      game.fish.depth[i] = 0.1;
+    }
+    for (let f = 0; f < 120; f++) {
+      game.step(DT);
+      for (let i = 0; i < game.fish.count; i++)
+        expect(inside(game.fish.x[i], game.fish.y[i]), `fish ${i} at frame ${f}`).toBe(true);
+    }
+    for (let i = 0; i < game.fish.count; i++)
+      expect(boulderGap(game.fish.x[i], game.fish.y[i]), `fish ${i} swam off`).toBeGreaterThan(1.2);
   });
 
   it('go where the seed says, the same twice, and elsewhere from another seed', () => {

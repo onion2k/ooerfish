@@ -101,13 +101,22 @@ it.
   its change is ready to draw. `src/invariants.ts` lists the rules that must
   always hold.
 - Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
-  fish count and capacity, and the named views. Colours live in
+  boulders, the fish count and capacity, and the named views. A boulder is a
+  bit of bank in the water: `inside` is false within its waterline (a margin
+  counted from it as from the shore), `ground` is its dome, and `bedDepth`
+  shallows over its flank, so the fish, splashes, rings, casts and invariants
+  keep off it through the paths they already use; `groundUnder` is the ground
+  without them, which the bed's sheet is drawn from. Colours live in
   `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
 - **The ways of drawing the water** are in `src/water/`, one file each and a
   line in `STYLES` (`styles.ts`): open water, lit ripple, and see-through
   (`clear.ts`, the renderer's clear water from v0.29.0, whose `look.clear`
   follows the contamination, the caustics setting and the time of day).
-  `waterColour` is the opaque styles' contamination colour. `src/glow.ts`
+  `waterColour` is the opaque styles' contamination colour. See-through water
+  wears v0.30.0's finish as sheet D had it (`CLEAR` and `CLEAR_WAVES`): its
+  `waves` are the style's own, which the bobber and the rings ride through
+  `src/water/swell.ts`, and its foam lines come from `src/shorefield.ts`, the
+  distance to the shore or a boulder, made once the first time it is chosen. `src/glow.ts`
   draws a fish's glow on the surface over it, for the styles that cannot be
   seen through (`surfaceGlow`); `src/fishdraw.ts` draws each fish as a mesh
   glowing under the water (`FLOW_GLOW`), which see-through water shows.

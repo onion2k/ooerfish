@@ -11,6 +11,7 @@ import { ANGLER, ground } from './lake';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
+import { STILL, type Surface } from './water/swell';
 
 /** How many pieces the line is drawn with, how many dots the preview, and how many pieces its ring. */
 export const LINE_PIECES = 24;
@@ -76,6 +77,8 @@ export class CastDraw {
   readonly line = new Float32Array((LINE_PIECES + 1) * 16);
   readonly lure = new Float32Array(16);
   readonly bobber = new Float32Array(16);
+  /** Where the water stands, which the bobber rides: still water unless the page says the water swells. */
+  surface: Surface = STILL;
   readonly dots = new Float32Array(PREVIEW_DOTS * 16);
   readonly ringWater = new Float32Array(RING_PIECES * 16);
   readonly ringBank = new Float32Array(RING_PIECES * 16);
@@ -131,7 +134,7 @@ export class CastDraw {
     // the line runs to the bobber once the lure is in the water, and down from it to the lure
     const to = this.b;
     if (lure.phase === 'sinking') {
-      const z = BOB.height * Math.sin(game.t * BOB.rate);
+      const z = this.surface(lure.bobber[0], lure.bobber[1], game.t) + BOB.height * Math.sin(game.t * BOB.rate);
       place(this.bobber, 0, lure.bobber[0], lure.bobber[1], z);
       out.bobber = 1;
       to.set([lure.bobber[0], lure.bobber[1], z]);

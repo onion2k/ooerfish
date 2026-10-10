@@ -64,6 +64,23 @@ describe('the pieces the rings are drawn with', () => {
     expect(draw.write(splashes, SPLASH_LASTS + 0.1), 'none once it is over').toBe(0);
   });
 
+  it('ride the swells: each piece as far above the water as it is drawn there, where the water stands', () => {
+    const splashes = new Splashes();
+    splashes.add(0, 0, 0, 1);
+    const flat = new RippleDraw(),
+      swelling = new RippleDraw();
+    swelling.surface = (x, y, t) => 0.2 * Math.sin(x + 2 * y + t);
+    const n = flat.write(splashes, 0.5);
+    expect(swelling.write(splashes, 0.5)).toBe(n);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = [swelling.matrices[i * 16 + 12], swelling.matrices[i * 16 + 13]];
+      expect(swelling.matrices[i * 16 + 14] - flat.matrices[i * 16 + 14], `piece ${i}`).toBeCloseTo(
+        0.2 * Math.sin(x + 2 * y + 0.5),
+        5,
+      );
+    }
+  });
+
   it('are cut at the shore: a splash at the edge draws only the pieces over the water', () => {
     const splashes = new Splashes();
     const north = shoreRadius(Math.PI / 2);

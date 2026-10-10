@@ -9,7 +9,7 @@
  * the game's, so the lake is the same lake every run and on every seed.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { BANK_RISE, SHORE_RADIUS, STRETCH, bedDepth, ground, shoreRadius } from './lake';
+import { BANK_RISE, BOULDER_DOMES, SHORE_RADIUS, STRETCH, bedDepth, ground, groundUnder, shoreRadius } from './lake';
 import { place } from './matrix';
 import { ball, box, sheet } from './meshes';
 import { PALETTE } from './palette';
@@ -38,8 +38,9 @@ export class Scene {
   static(): GameGroup[] {
     const random = seeded(SCENERY_SEED);
     // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
-    const bed = sheet(ring, ground, 0, 1.04, 28, 160);
-    const banks = sheet(ring, ground, 0.98, BANKS_TO, 40, 160);
+    // the sheets are the ground without the boulders, which are drawn on it as their own
+    const bed = sheet(ring, groundUnder, 0, 1.04, 28, 160);
+    const banks = sheet(ring, groundUnder, 0.98, BANKS_TO, 40, 160);
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
     // stones along the water's edge, half sunk, of a few sizes
@@ -88,8 +89,14 @@ export class Scene {
       }
     }
 
+    // the boulders, each a ball stretched to its dome, its lower half in the bed: rings enough that the cap out of the
+    // water, a few of them at the top of a tall dome, is round and not the pole's cone
+    const boulders = new Float32Array(BOULDER_DOMES.length * 16);
+    BOULDER_DOMES.forEach((d, i) => place(boulders, i, d.x, d.y, d.base, i * 1.3, d.wide, d.wide, d.tall));
+
     return [
       { mesh: bed, matrices: one, albedo: PALETTE.bed, roughness: 0.95 },
+      { mesh: ball(1, 16, 12), matrices: boulders, albedo: PALETTE.boulder, roughness: 0.8 },
       { mesh: ball(1, 3, 6), matrices: rocks, albedo: PALETTE.bedRock, roughness: 0.85 },
       { mesh: box(1, 1, 1), matrices: blades, albedo: PALETTE.weed, roughness: 0.8 },
       { mesh: banks, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },

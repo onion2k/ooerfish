@@ -8,7 +8,18 @@
  * Sized once, at the most a lake can hold, so nothing is made while it
  * swims, and a lake with more fish than that is told so by `fill`.
  */
-import { FISH_ABOVE_BED, FISH_CAPACITY, FISH_SHALLOWEST, FISH_SHORE, bedDepth, inside, inward } from './lake';
+import {
+  FISH_ABOVE_BED,
+  FISH_CAPACITY,
+  FISH_SHALLOWEST,
+  FISH_SHORE,
+  bedDepth,
+  boulderGap,
+  inShore,
+  inside,
+  inward,
+  nearestBoulder,
+} from './lake';
 import type { Random } from './random';
 
 /** How fast a fish swims, the least and the most, in world units a second. */
@@ -18,6 +29,8 @@ const WANDER = 1.6;
 /** How far ahead a fish looks for the shore, and how fast it turns from it. */
 const LOOK = 5;
 const TURN_BACK = 2.5;
+/** How near a boulder a fish's look ahead may come before it turns away from it, in world units from its waterline. */
+const BOULDER_LOOK = 1.5;
 /** How fast a fish eases to the depth it is after, a share of the gap a second. */
 const SINK = 0.4;
 
@@ -60,17 +73,25 @@ export class School {
       let heading = this.heading[i] + (random() * 2 - 1) * WANDER * dt;
       const x = this.x[i],
         y = this.y[i];
-      // the shore ahead: turn toward the middle, the harder the nearer it is
-      if (!inside(x + Math.cos(heading) * LOOK, y + Math.sin(heading) * LOOK, FISH_SHORE)) {
-        const home = Math.atan2(-y, -x);
-        const off = Math.atan2(Math.sin(home - heading), Math.cos(home - heading));
+      // the shore ahead: turn toward the middle, the harder the nearer it is; a boulder ahead: turn away from its middle
+      const ax = x + Math.cos(heading) * LOOK,
+        ay = y + Math.sin(heading) * LOOK;
+      let away = Number.NaN;
+      if (!inShore(ax, ay, FISH_SHORE)) away = Math.atan2(-y, -x);
+      else if (boulderGap(ax, ay) < BOULDER_LOOK) {
+        const b = nearestBoulder(ax, ay);
+        away = Math.atan2(y - b.y, x - b.x);
+      }
+      if (!Number.isNaN(away)) {
+        const off = Math.atan2(Math.sin(away - heading), Math.cos(away - heading));
         heading += Math.sign(off) * Math.min(Math.abs(off), TURN_BACK * dt);
       }
       const nx = x + Math.cos(heading) * this.speed[i] * dt,
         ny = y + Math.sin(heading) * this.speed[i] * dt;
-      // a step toward the shore that would come within half a unit of it is not taken, and the fish turns about: a
-      // turn too slow can never beach it. A step inward always is, so a fish that has come that near swims out again
-      if (inside(nx, ny, 0.5) || inward(nx, ny) > inward(x, y)) {
+      // a step that would come within half a unit of the shore or a boulder is not taken, and the fish turns about: a
+      // turn too slow can never beach it. A step away from whichever it is near is, so long as it comes no nearer the
+      // other, so a fish that has come that near swims out again
+      if (inside(nx, ny, 0.5) || awayFromLand(x, y, nx, ny)) {
         this.x[i] = nx;
         this.y[i] = ny;
       } else heading += Math.PI;
@@ -82,6 +103,18 @@ export class School {
       this.depth[i] = Math.min(hi, Math.max(lo, depth));
     }
   }
+}
+
+/**
+ * Whether a step from (`x`, `y`) to (`nx`, `ny`), which comes within half a unit of the shore or a boulder, is still in
+ * the water and goes away from whichever it is near without coming nearer the other. Only asked when the plain test
+ * fails, which is seldom, so a step in open water pays for none of it.
+ */
+function awayFromLand(x: number, y: number, nx: number, ny: number): boolean {
+  if (!inside(nx, ny)) return false;
+  const gap = boulderGap(nx, ny);
+  const offBoulder = gap > 0.5 || gap > boulderGap(x, y);
+  return offBoulder && (inShore(nx, ny, 0.5) || inward(nx, ny) > inward(x, y));
 }
 
 /** How deep a fish may swim at a point: below the surface and above the bed, the gap halved where it is shallow. */
