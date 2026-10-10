@@ -24,7 +24,8 @@ import { waterPoint } from './pick';
 import { Progress } from './progress';
 import { seeded } from './random';
 import { RippleDraw } from './ripplesdraw';
-import { SHADOW_BOX, Scene } from './scene';
+import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
+import { loadScenery } from './scenery';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
 import { STYLES, styleNamed } from './water/styles';
 import { shoreField } from './shorefield';
@@ -96,8 +97,19 @@ async function main() {
 
   // ---- the scene ----
 
+  // the scenery kit is loaded before the first frame, as the first frame's business, and the banks are built from it
+  bootMsg.textContent = 'loading the scenery…';
+  const scenery = await loadScenery(
+    (url) => fetch(url),
+    import.meta.env.BASE_URL + 'scenery/',
+    (blob) => createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }),
+  );
+  renderer.setCardImages(scenery.masks);
+
   const scene = new Scene();
-  renderer.setStatic(scene.static());
+  renderer.setStatic(scene.static(scenery.kit));
+  // worked out once, from the placements the groups were made from, and read back by the test API
+  const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
   renderer.setLights(new LightPool(LIGHT_CAPACITY));
 
   const cam = renderer.camera;
@@ -444,6 +456,7 @@ async function main() {
     },
     events: eventLog,
     measureFrame,
+    scenery: () => ({ ...sceneryFigured }),
     settings: () => ({ ...settings }),
     change,
     styles: () => STYLES.map((s) => s.name),

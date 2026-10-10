@@ -56,6 +56,14 @@ test('boots with no errors and draws the lake', async ({ page }, info) => {
   expect(problems).toEqual([]);
 });
 
+test('a scenery file that will not load stops the boot, saying so, and no frame is drawn', async ({ page }) => {
+  await page.route('**/scenery/scenery.bin', (route) => route.fulfill({ status: 404, body: 'gone' }));
+  await page.goto('/');
+  await expect(page.locator('#bootMsg')).toContainText('scenery-fetch');
+  await expect(page.locator('#boot')).not.toHaveClass(/gone/);
+  expect(await page.evaluate(() => window.game?.ready ?? false)).toBe(false);
+});
+
 test("works each of the lab's controls by mouse, and keeps them in the address", async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });

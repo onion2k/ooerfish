@@ -18,6 +18,7 @@ import type { Game } from './game';
 import { flight } from './cast';
 import { checkInvariants } from './invariants';
 import { seeded } from './random';
+import type { SceneryFigures } from './scene';
 import type { Settings } from './settings';
 
 declare global {
@@ -150,6 +151,8 @@ export interface GameApi {
    * booted needs. A test that measures scene after scene may ask for less after the first.
    */
   measureFrame(warm?: number): Promise<number>;
+  /** What the kit stands on the banks, in figures: the models placed, the placements, the triangles drawn and the cards. */
+  scenery(): SceneryFigures;
 }
 
 /** What the page gives the API that is not the game's: time, the camera and the renderer. */
@@ -173,6 +176,7 @@ export interface DebugHost {
   target(): [number, number];
   events: string[];
   measureFrame(warm?: number): Promise<number>;
+  scenery(): SceneryFigures;
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
@@ -301,5 +305,6 @@ export function createApi(host: DebugHost): GameApi {
     camera: () => host.camera(),
     project: (x, y, z) => host.project(x, y, z),
     measureFrame: (warm) => host.measureFrame(warm),
+    scenery: () => host.scenery(),
   };
 }

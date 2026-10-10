@@ -10,6 +10,8 @@ export interface Figures {
   bootMs: number;
   frameMs: number;
   bundleBytes: number;
+  /** The scenery kit's files in dist/scenery, each gzipped alone, in bytes. */
+  sceneryBytes: number;
 }
 
 /**
@@ -32,6 +34,8 @@ export const TOLERANCE: Record<keyof Figures, readonly [number, number]> = {
   bootMs: [0.35, 250],
   frameMs: [0.15, 0.01],
   bundleBytes: [0, 0],
+  // a built file is the same bytes every time, as the download is
+  sceneryBytes: [0, 0],
 };
 
 /** Whether a figure has moved from its baseline by more than its tolerance. */

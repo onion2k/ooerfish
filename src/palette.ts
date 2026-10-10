@@ -4,7 +4,7 @@
  * appears nowhere else cannot drift from its neighbours unseen.
  *
  * The look is a picture book's: soft greens and blues, round warm stones,
- * puffball trees, and the glow a pretty sick green rather than a frightening
+ * trees and flowers on its banks, and the glow a pretty sick green rather than a frightening
  * one.
  */
 export type Colour = [number, number, number];
@@ -21,9 +21,15 @@ export const PALETTE = {
   /** The boulders standing in the water, a cooler grey than the bank's stones. */
   boulder: [0.4, 0.41, 0.42] as Colour,
   weed: [0.16, 0.45, 0.14] as Colour,
-  /** The puffball trees. */
+  /** The trees: warm brown bark, and the broadleaf's soft green. */
   trunk: [0.36, 0.22, 0.12] as Colour,
   leaves: [0.18, 0.5, 0.16] as Colour,
+  /** The pines' needles, a darker blue-green than the broadleaf, so a stand of both reads as two trees. */
+  pine: [0.07, 0.33, 0.21] as Colour,
+  /** The flowers of the banks, a soft warm pink and not a saturated one, as a picture book paints them. */
+  flowers: [0.88, 0.5, 0.5] as Colour,
+  /** The mushrooms, a warm pale tan. */
+  mushroom: [0.72, 0.55, 0.36] as Colour,
 
   /** The water's own colour, as sick as it gets and as clear as it gets: the contamination runs between them. */
   sick: [0.16, 0.42, 0.06] as Colour,

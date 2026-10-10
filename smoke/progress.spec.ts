@@ -19,6 +19,19 @@ async function play(page: Page, frames: number, stage: string) {
   expect(broken, `invariants after ${stage}`).toEqual([]);
 }
 
+test('the scenery is loaded at ready, and the banks wear the kit as content says, with cut cards among it', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  // the figures are worked out in node by test/scene.test.ts from the files on disk, and held equal here from the page
+  const scenery = await page.evaluate(() => window.game!.scenery());
+  expect(scenery).toEqual({ models: 31, placements: 186, triangles: 164595, cards: 18 });
+  expect(scenery.cards).toBeGreaterThan(0);
+  await play(page, 60, 'a second with the banks dressed');
+  expect(problems).toEqual([]);
+});
+
 test("the lake's time runs while it is played, and stands still while it is paused", async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });

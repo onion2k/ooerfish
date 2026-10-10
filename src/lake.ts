@@ -262,3 +262,30 @@ export const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
  * First guesses, to be tuned by playing.
  */
 export const CAST = { reach: 45, launch: (28 * Math.PI) / 180, sink: 1.2, lineDepth: 5, aboveBed: 0.3 } as const;
+
+/**
+ * How the banks wear the scenery kit, as content. A tree's scale is picked between the two, then held down so its top
+ * stays under the sun's shadow; the models are about seven to ten metres tall as they come, against a pond thirty
+ * across, so a little over one keeps the old puffball trees' height. Pebbles are tiny as they come, so they are
+ * scaled up to the old stones' size, and sunk by a share of their own height. The clumps are a count of them, how far
+ * out they go in shore radii (denser near the water, by a square), how far from the angler's spot they keep, and
+ * which kinds grow, in what proportion and at what scale (the fern comes nine wide, so it is scaled right down).
+ * First guesses, to be tuned by looking.
+ */
+export const SCENERY = {
+  trees: { tree: [0.95, 1.5], pine: [0.9, 1.5] } as Record<string, readonly [number, number]>,
+  pebbles: { scale: [3, 6] as const, sunk: 0.3 },
+  clumps: {
+    count: 90,
+    reach: 2.5,
+    clear: 5,
+    kinds: {
+      grass: { weight: 4, scale: [1.2, 2.2] },
+      fern: { weight: 2, scale: [0.25, 0.4] },
+      clover: { weight: 2, scale: [2, 3.5] },
+      flowers: { weight: 2, scale: [1.2, 2] },
+      bush: { weight: 2, scale: [1.2, 2.2] },
+      mushroom: { weight: 1, scale: [2, 3.5] },
+    } as Record<string, { weight: number; scale: readonly [number, number] }>,
+  },
+} as const;

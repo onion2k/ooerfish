@@ -13,6 +13,10 @@
  * up early and settles is left alone, and one that creeps all the way
  * through is not. A new list, map or cache in the game gets a line in
  * `WATCH` and a reading in `sizes`.
+ *
+ * The scenery kit is not watched: it is loaded once, before the first frame, and
+ * nothing in it grows, so there is no ceiling to name. Its download is held by
+ * `sceneryBytes` in the perf gate.
  */
 import { Game } from '../src/game';
 import { FISH_CAPACITY, SPLASH_CAPACITY } from '../src/lake';

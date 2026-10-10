@@ -25,7 +25,7 @@ import { moved as hasMoved, type Figures } from './judging';
 
 const BASELINE = 'smoke/perf-baseline.json';
 /** What the game may cost at all, on this machine, whatever it cost before. */
-export const BUDGET = { bootMs: 3000, frameMs: 8, bundleBytes: 400 * 1024 };
+export const BUDGET = { bootMs: 3000, frameMs: 8, bundleBytes: 400 * 1024, sceneryBytes: 900 * 1024 };
 
 /** The built game's download: every script and stylesheet in dist/, gzipped, in bytes. */
 function bundleBytes(): number {
@@ -40,20 +40,40 @@ function bundleBytes(): number {
   return bytes;
 }
 
+/**
+ * The scenery kit's download: every file in dist/scenery, each gzipped alone as a server would send it, in bytes. The
+ * folder is flat (the manifest, the buffer and the masks), so there is no walking into folders.
+ */
+function sceneryBytes(): number {
+  const dir = 'dist/scenery';
+  let bytes = 0;
+  for (const f of readdirSync(dir)) {
+    if (!statSync(join(dir, f)).isFile()) continue;
+    bytes += gzipSync(readFileSync(join(dir, f))).length;
+  }
+  return bytes;
+}
+
 test('boots, draws and downloads within budget, and as it did before', async ({ page }, info) => {
   test.setTimeout(180_000);
   const problems = watch(page);
   const bundle = bundleBytes();
+  const scenery = sceneryBytes();
   await start(page, { seed: 11, paused: true });
   const boot = await page.evaluate(() => window.game!.bootMs);
   // the standard scene, three seconds on
   await set(page, STANDARD, 180);
   // the first measuring on a page just booted: it keeps the GPU drawing for a quarter of a second before it times
   const frame = await page.evaluate(() => window.game!.measureFrame());
-  const now: Figures = { bootMs: Math.round(boot), frameMs: Math.round(frame * 1000) / 1000, bundleBytes: bundle };
+  const now: Figures = {
+    bootMs: Math.round(boot),
+    frameMs: Math.round(frame * 1000) / 1000,
+    bundleBytes: bundle,
+    sceneryBytes: scenery,
+  };
   info.annotations.push({ type: 'perf', description: JSON.stringify(now) });
   console.log(
-    `perf: boot ${now.bootMs} ms, frame ${now.frameMs} ms, download ${now.bundleBytes} bytes (${(now.bundleBytes / 1024).toFixed(1)} kB)`,
+    `perf: boot ${now.bootMs} ms, frame ${now.frameMs} ms, download ${now.bundleBytes} bytes (${(now.bundleBytes / 1024).toFixed(1)} kB), scenery ${now.sceneryBytes} bytes (${(now.sceneryBytes / 1024).toFixed(1)} kB)`,
   );
 
   if (process.env.PERF_UPDATE) {
@@ -67,7 +87,7 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
       throw new Error('no baseline: run npm run perf:update first');
     }
     const moved: string[] = [];
-    for (const key of ['bootMs', 'frameMs', 'bundleBytes'] as const) {
+    for (const key of ['bootMs', 'frameMs', 'bundleBytes', 'sceneryBytes'] as const) {
       const was = baseline[key];
       if (was === undefined) {
         moved.push(`${key} ${now[key]} (not in the baseline)`);
@@ -82,6 +102,7 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
   expect(now.bootMs, 'boot within budget').toBeLessThanOrEqual(BUDGET.bootMs);
   expect(now.frameMs, 'frame within budget').toBeLessThanOrEqual(BUDGET.frameMs);
   expect(now.bundleBytes, 'download within budget').toBeLessThanOrEqual(BUDGET.bundleBytes);
+  expect(now.sceneryBytes, 'scenery within budget').toBeLessThanOrEqual(BUDGET.sceneryBytes);
   expect(problems).toEqual([]);
 });
 
