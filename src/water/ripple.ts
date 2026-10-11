@@ -13,15 +13,16 @@ import { AT_ORIGIN, surface } from './surface';
 
 /**
  * The ripple: cells a world unit, how fast it travels along the world's x, how brightly the crests glow when the lake
- * is as sick as it gets and when it is clear, and how much lighter than the water its crests are.
+ * is as sick as it gets and when it is clear, how rough the surface is, and how much lighter than the water its crests
+ * are. Finer, slower and rougher than it was, with crests only a shade lighter, so the pond is calm and not glittering.
  */
 export const RIPPLE = {
-  scale: 0.12,
-  speed: 0.6,
+  scale: 0.2,
+  speed: 0.15,
   sickGlow: 0.18,
   clearGlow: 0.02,
-  roughness: 0.55,
-  lighter: 0.3,
+  roughness: 0.8,
+  lighter: 0.05,
 } as const;
 
 export const ripple: WaterStyle = {

@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
 import { CLEAR, CLEAR_WAVES } from '../src/water/clear';
-import { STYLES, styleNamed, waterColour } from '../src/water/styles';
+import { STYLES, skyTint, styleNamed, waterColour } from '../src/water/styles';
+import { RIPPLE } from '../src/water/ripple';
 
 describe('the ways of drawing the water', () => {
   it('are named, labelled, and each found by its name', () => {
@@ -161,5 +162,31 @@ describe('the see-through water', () => {
     const [r1, g1, b1] = deep(1);
     expect(g1, 'sick, green the most').toBeGreaterThan(b1);
     expect(g1).toBeGreaterThan(r1);
+  });
+});
+
+describe('open and lit-ripple water: a calm deep-azure pond', () => {
+  const round = (v: number) => Math.round(v * 1000) / 1000;
+  const head = (name: string) => Array.from(styleNamed(name).groups(0)[0].patterns!.subarray(0, 4)).map(round);
+
+  it('is a deep azure at a clean lake, and mirrors a deep blue sky, not a white one', () => {
+    expect(PALETTE.clear).toEqual([0, 0.085, 0.21]);
+    expect(PALETTE.clearSky).toEqual([0.02, 0.28, 0.58]);
+    expect(waterColour(0)).toEqual([0, 0.085, 0.21]);
+    expect(skyTint(0)).toEqual([0.02, 0.28, 0.58]);
+    expect(PALETTE.sick).toEqual([0.16, 0.42, 0.06]);
+    expect(PALETTE.sickSky).toEqual([0.7, 0.95, 0.45]);
+  });
+
+  it('has fine, slow, gentle waves for open water', () => {
+    expect(head('open')).toEqual([FLOW_WATER, 0.8, 0.12, 0.3]);
+    expect(styleNamed('open').groups(0)[0].roughness).toBe(0.08);
+  });
+
+  it('has a fine, slow, rough ripple, with its crests barely lighter than the water', () => {
+    expect(head('ripple')).toEqual([FLOW_RIPPLE, 0.2, 0.15, 0.02]);
+    expect(styleNamed('ripple').groups(0)[0].roughness).toBe(0.8);
+    expect(RIPPLE.lighter).toBe(0.05);
+    expect(RIPPLE.sickGlow).toBe(0.18);
   });
 });

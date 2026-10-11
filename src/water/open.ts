@@ -11,8 +11,11 @@ import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { skyTint, waterColour, type WaterStyle } from './styles';
 import { AT_ORIGIN, surface } from './surface';
 
-/** The waves: cells of the biggest a world unit, how fast they go, and how steeply they tilt the surface. */
-export const OPEN = { scale: 0.35, speed: 0.55, steepness: 0.25, roughness: 0.08 } as const;
+/**
+ * The waves: cells of the biggest a world unit, how fast they go, how steeply they tilt the surface, and how rough it
+ * is. Finer, slower and gentler than they were, for a calm pond: the game's own pace slows the water again.
+ */
+export const OPEN = { scale: 0.8, speed: 0.12, steepness: 0.3, roughness: 0.08 } as const;
 
 export const open: WaterStyle = {
   name: 'open',
