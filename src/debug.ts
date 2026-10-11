@@ -8,14 +8,16 @@
  * `step` plays it on a frame at a time, exactly, drawing the last. `seed`
  * makes chance repeat. Anything that changes the game goes through here,
  * and `state`, `fish`, `settings` and `invariants` read it back. The lab's
- * three controls are here too, doing what the panel's do: `dirt`,
- * `time` and `view` each resolve once the frame they change is ready to draw.
+ * controls are here too, doing what the panel's do (`dirt`, `time`, `view`
+ * and `caustics`), and `mode` what the page's look or cast button does; each
+ * resolves once the frame it changes is ready to draw.
  *
  * The types are shared with the smoke tests, so a test that calls something
  * that is not here does not compile.
  */
 import type { Game } from './game';
 import { flight } from './cast';
+import type { Mode } from './mode';
 import { checkInvariants } from './invariants';
 import { seeded } from './random';
 import type { SceneryFigures } from './scene';
@@ -135,6 +137,14 @@ export interface GameApi {
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
 
+  /**
+   * The page's mode: `look`, where a drag turns the camera in every view, or `cast`, where the camera is held at the
+   * Shore view and a drag back aims a cast. With a mode, puts the page in it as the button does, resolving once it is
+   * ready to draw; without, says which it is in.
+   */
+  mode(): Mode;
+  mode(to: Mode): Promise<void>;
+
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
   /** Where the camera is, and what it is looking at. */
@@ -176,6 +186,9 @@ export interface DebugHost {
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
+  /** The page's mode, and putting the page in one as its button does. */
+  mode(): Mode;
+  setMode(to: Mode): Promise<void>;
 }
 
 export function createApi(host: DebugHost): GameApi {
@@ -293,6 +306,7 @@ export function createApi(host: DebugHost): GameApi {
     time: (name) => host.change({ time: name as Settings['time'] }),
     view: (name) => host.change({ view: name as Settings['view'] }),
     caustics: (on) => host.change({ caustics: on }),
+    mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),

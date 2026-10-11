@@ -68,11 +68,40 @@
     transform: translateX(-50%);
     font-size: 15px;
   }
-  #help {
+  /* look or cast, always on the screen, above the hint that says what a drag does now, in a column so a hint of
+     two or three lines pushes the button up and not under it; on a phone, where the hint is not, at the top left,
+     clear of the lab's panel at the foot and the Reel button at the right */
+  #hud {
+    position: fixed;
     bottom: 16px;
     left: 16px;
+    max-width: min(340px, 40vw);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    pointer-events: none;
+  }
+  #hud .panel {
+    position: static;
+  }
+  #help {
     color: var(--dim);
     font-size: 13px;
+  }
+  #modeButton {
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  #modeButton:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
   }
   #boot {
     position: fixed;
@@ -245,6 +274,10 @@
     #stats {
       display: none;
     }
+    #hud {
+      top: 16px;
+      bottom: auto;
+    }
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
@@ -281,7 +314,10 @@
   <b id="catchName"></b><span id="catchWeight"></span><small>tap to put it in the bucket</small>
 </button>
 <div class="panel" id="bucket" hidden></div>
-<div class="panel" id="help" hidden>drag to look round, wheel to zoom</div>
+<div id="hud">
+  <button class="panel" id="modeButton" type="button" hidden>Cast</button>
+  <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>
+</div>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>
 </div>

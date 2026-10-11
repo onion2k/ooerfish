@@ -78,6 +78,8 @@ export interface Scene {
   time: string;
   view: string;
   caustics?: 'on' | 'off';
+  /** The page's mode, look unless said, put after the view: cast puts the camera at the shore whatever the view. */
+  mode?: 'look' | 'cast';
 }
 
 /**
@@ -95,6 +97,7 @@ export async function set(page: Page, scene: Scene, frames = 120) {
       await g.time(s.time);
       await g.view(s.view);
       await g.caustics(s.caustics ?? 'on');
+      await g.mode(s.mode ?? 'look');
       g.step(n);
     },
     [scene, frames] as const,

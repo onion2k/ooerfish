@@ -180,10 +180,10 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   expect(problems).toEqual([]);
 });
 
-test('casts from the shore by a drag back, to where its preview said, and from nowhere else', async ({ page }) => {
+test('casts by a drag back in cast mode, to where its preview said, and not otherwise', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
-  await page.evaluate(() => window.game!.view('shore'));
+  await page.evaluate(() => window.game!.mode('cast'));
   const box = (await page.locator('#view').boundingBox())!;
   const from = { x: box.x + box.width / 2, y: box.y + box.height * 0.6 };
   const lure = () => page.evaluate(() => window.game!.lure());
@@ -222,8 +222,9 @@ test('casts from the shore by a drag back, to where its preview said, and from n
   expect((await lure()).phase, 'taken back').toBe('ready');
   expect(await page.evaluate(() => window.game!.splashes()), 'no pebble').toHaveLength(1);
 
-  // from overhead a drag turns the camera, and casts nothing
+  // a view picked from the panel is look mode: a drag from overhead turns the camera, and casts nothing
   await page.evaluate(() => window.game!.view('overhead'));
+  expect(await page.evaluate(() => window.game!.mode())).toBe('look');
   const before = await page.evaluate(() => window.game!.camera().position);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
@@ -236,10 +237,10 @@ test('casts from the shore by a drag back, to where its preview said, and from n
   expect(problems).toEqual([]);
 });
 
-test('strikes by a tap and reels by a hold from the shore, and by the button from any view', async ({ page }) => {
+test('strikes by a tap and reels by a hold in cast mode, and by the button from any view', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
-  await page.evaluate(() => window.game!.view('shore'));
+  await page.evaluate(() => window.game!.mode('cast'));
   const box = (await page.locator('#view').boundingBox())!;
   const on = { x: box.x + box.width / 2, y: box.y + box.height * 0.45 };
   const fishing = () => page.evaluate(() => window.game!.fishing());
@@ -283,6 +284,101 @@ test('strikes by a tap and reels by a hold from the shore, and by the button fro
   expect(problems).toEqual([]);
 });
 
+test('looks round by default, and casts only once switched to, by the button or the C key', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  const mode = () => api(() => window.game!.mode());
+  const camera = () => api(() => window.game!.camera().position);
+  const lure = () => api(() => window.game!.lure().phase);
+  const button = page.locator('#modeButton');
+  const box = (await page.locator('#view').boundingBox())!;
+  const from = { x: box.x + box.width / 2, y: box.y + box.height * 0.6 };
+  const drag = async (dx: number, dy: number) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + dx, from.y + dy, { steps: 8 });
+    await page.mouse.up();
+    await api(() => window.game!.step(1));
+  };
+
+  // look is the mode the page starts in, whatever the view: here the Shore view
+  expect(await mode()).toBe('look');
+  expect((await api(() => window.game!.settings())).view).toBe('shore');
+  await expect(button).toHaveText('Cast');
+  await expect(page.locator('#help')).toContainText('drag to look round');
+  const shore = await camera();
+
+  // a drag back turns the camera, and casts nothing, in the Shore view too
+  await drag(-40, 160);
+  expect(await camera(), 'the camera turned').not.toEqual(shore);
+  expect(await lure(), 'and nothing was cast').toBe('ready');
+  expect(await api(() => window.game!.preview()), 'no preview in look mode').toBe(null);
+  expect(await api(() => window.game!.splashes()), 'and no pebble dropped').toHaveLength(0);
+
+  // C switches to cast: the camera is put at the shore view, the button says what it does next
+  await page.keyboard.press('c');
+  expect(await mode()).toBe('cast');
+  const put = await camera();
+  put.forEach((v, k) => expect(v, 'the camera is back at the shore view').toBeCloseTo(shore[k], 3));
+  await expect(button).toHaveText('Look round');
+  await expect(page.locator('#help')).toContainText('drag back to cast');
+
+  // and the same drag now casts, the camera held still
+  await drag(-40, 160);
+  expect(await lure()).toBe('flying');
+  expect(await camera(), 'the camera held still').toEqual(put);
+
+  // the button switches back, leaving the camera where it was, and the orbit works again
+  await button.click();
+  expect(await mode()).toBe('look');
+  await expect(button).toHaveText('Cast');
+  expect(await camera()).toEqual(put);
+  await api(() => window.game!.step(180));
+  const sinking = await lure();
+  await drag(120, 30);
+  expect(await camera(), 'the camera turned again').not.toEqual(put);
+  expect(await lure(), 'and the lure was left as it was').toBe(sinking);
+  // a tap on the water in look mode drops a pebble, and does not strike with the lure in the water
+  const at = (await api(() => window.game!.project(4, -6, 0)))!;
+  await page.mouse.click(at.x, at.y);
+  expect(await api(() => window.game!.splashes()), 'a tap drops a pebble, the lure sinking').toHaveLength(2);
+  expect(await lure()).toBe(sinking);
+
+  // the key does nothing over the lab's controls, where it is only a letter
+  await page.getByRole('button', { name: 'Dusk', exact: true }).focus();
+  await page.keyboard.press('c');
+  expect(await mode(), 'c over a control').toBe('look');
+
+  // a view picked on the panel in cast mode is look mode, and the camera goes where the view says
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.press('c');
+  expect(await mode()).toBe('cast');
+  await page.getByRole('button', { name: 'Overhead', exact: true }).click();
+  expect(await mode(), 'a view picked').toBe('look');
+  await expect(button).toHaveText('Cast');
+  expect((await camera())[2], 'overhead is high').toBeGreaterThan(80);
+  // the Shore view picked again puts the camera back, as it is the view's to do, and stays look
+  await page.getByRole('button', { name: 'Shore', exact: true }).click();
+  expect(await mode()).toBe('look');
+  const back = await camera();
+  back.forEach((v, k) => expect(v).toBeCloseTo(shore[k], 3));
+  // and picked while it is the view already, it puts the camera back from wherever it was turned
+  await drag(100, 20);
+  expect(await camera()).not.toEqual(back);
+  await page.getByRole('button', { name: 'Shore', exact: true }).click();
+  (await camera()).forEach((v, k) => expect(v).toBeCloseTo(shore[k], 3));
+
+  // the test API: the mode read and set, cast putting the camera at the shore
+  await api(() => window.game!.view('boat'));
+  await api(() => window.game!.mode('cast'));
+  expect((await api(() => window.game!.settings())).view, 'cast is the Shore view').toBe('shore');
+  await api(() => window.game!.mode('look'));
+  expect(await mode()).toBe('look');
+  expect(await api(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
 test('puts the camera where each view says', async ({ page }) => {
   await start(page, { seed: 1, paused: true });
   for (const [view, near] of [
@@ -321,8 +417,10 @@ test.describe('on a phone', () => {
     const tapped = await page.evaluate(() => window.game!.splashes());
     expect(tapped.length, 'a tap on a phone drops one').toBe(1);
     expect(Math.hypot(tapped[0].x, tapped[0].y + 2)).toBeLessThan(0.5);
-    // and one finger dragged back from the shore casts, as the mouse does
-    await page.evaluate(() => window.game!.view('shore'));
+    // the mode button is in reach on the phone, and one finger dragged back in cast mode casts, as the mouse does
+    await expect(page.locator('#modeButton')).toBeInViewport();
+    await page.locator('#modeButton').tap();
+    expect(await page.evaluate(() => window.game!.mode())).toBe('cast');
     await touchDrag(page, { x: 200, y: 500 }, { x: 200, y: 640 });
     expect((await page.evaluate(() => window.game!.lure())).phase, 'a finger casts').toBe('flying');
     expect(problems).toEqual([]);

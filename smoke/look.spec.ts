@@ -31,10 +31,10 @@ import { STANDARD, set, start, watch, type Scene } from './game';
  */
 const TOLERANCE = { maxDiffPixels: 0, threshold: 0.02 };
 
-/** The corners that count the milliseconds and tell how to look round, and the lab's panel: not the look. */
+/** The corners that count the milliseconds and tell how to look round, the look or cast button, and the lab's panel: not the look. */
 async function hideOverlays(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+    for (const id of ['stats', 'help', 'labPanel', 'modeButton']) document.getElementById(id)!.hidden = true;
   });
 }
 

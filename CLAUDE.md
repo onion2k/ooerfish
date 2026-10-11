@@ -108,10 +108,10 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   lab's two levers on it (contamination, time of day), a step at a time. It
   knows nothing of the renderer or the page. `src/fish.ts` is the school.
 - `src/main.ts` is the page. It turns the lab's settings into the water, the
-  light and the camera, and draws the frame. There is no game logic here.
+  light and the camera, and the page's mode into what a drag does, and draws the frame. There is no game logic here.
 - `src/debug.ts` is `window.game`, the test API: the clock, the fish, and the
   lab's controls (`dirt`, `time`, `view`, `caustics`), each resolving once
-  its change is ready to draw. `src/invariants.ts` lists the rules that must
+  its change is ready to draw, and the page's `mode`. `src/invariants.ts` lists the rules that must
   always hold.
 - Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
   boulders, the fish count and capacity, and the named views. A boulder is a
@@ -148,8 +148,19 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   `Game.step` and cast by `Game.cast` and `Game.reelIn`; `src/aim.ts` is
   ooergolf's drag back as a cast; `src/castdraw.ts` draws the rod, line,
   bobber, lure and preview. Its figures are first guesses in `CAST` and
-  `ANGLER` (`lake.ts`). The player is the angler and is not drawn; a drag
-  casts only in the Shore view, where the orbit is off.
+  `ANGLER` (`lake.ts`). The player is the angler and is not drawn.
+- **The page's mode, look or cast** (`src/mode.ts`: `nextMode` is a pure
+  function from a mode and an event to the next mode and what the camera does;
+  `main.ts` does it). It starts in look: the orbit is on in every view,
+  Shore too, a drag turns the camera and a tap drops a pebble. Cast (the
+  button, always on the screen and saying what it does next, or the C key,
+  not over the lab's controls) puts the camera at the Shore view, the view
+  setting becoming `shore`, turns the orbit off, and a drag back aims, letting
+  go casts and a tap with the lure sinking strikes. Picking a view, from the
+  panel or `game.view`, is look mode again, and puts the camera there even if
+  it is the view already. The mode is the page's and not a setting: it is not
+  in the address, and `game.mode()` reads and sets it. The Game's `cast`,
+  `aim` and the fuzzer do not go through it.
 - **The fishing:** `src/bite.ts` is a fish and the lure (none, coming,
   nibbling, biting, hooked, landed): one fish at a time, which the school's
   wander leaves alone (`School.held`) while `steerTo` swims it, the strike's
@@ -160,8 +171,8 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   `FISHING`, `FIGHT` and `PERCH` in `lake.ts`, tuned on measured seeds.
   `castdraw.ts` bends the rod, colours the line by the tension and hangs a
   landed fish; `src/fightview.ts` is the gauge, the Strike/Reel button, the
-  card and the bucket. A tap strikes and a hold reels in the Shore view;
-  space and the button do in any view.
+  card and the bucket. A tap strikes and a hold reels in cast mode;
+  space and the button do in any view and mode.
 - **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
   filled by `Game.drop` and `Game.dropNear`, which refuse what is off the
   water and tell of a splash through `GameEvents.splashed`. Their picture is
@@ -259,6 +270,8 @@ For anything new, check what it does, from `DESIGN.md`:
 - **scale:** many at once, at capacity (`FISH_CAPACITY`); and what it costs
   a frame at that many
 - **phone:** narrow screen, and a slower GPU: which rung it steps down to
+- **the mode:** look and cast, each view picked from each, the button and
+  the key, a drag, a tap and a hold in each, and cast again while out
 - **the lab:** each time of day, each view, caustics on and off,
   the lake clear and sick; what the address says that is not known; and a
   pebble dropped on it, by a tap or the button, at the shore and off it

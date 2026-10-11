@@ -19,6 +19,7 @@ import { Game, type GameEvents } from './game';
 import { buildPanel } from './lab';
 import { VIEWS, WATER_PACE } from './lake';
 import { light, timeNamed } from './look';
+import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
 import { seeded } from './random';
@@ -51,6 +52,7 @@ const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
 const lab = document.getElementById('lab')!;
 const castLine = document.getElementById('castLine')!;
+const modeButton = document.getElementById('modeButton')!;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 main().catch((err: unknown) => {
@@ -161,13 +163,15 @@ async function main() {
     // the orbit moves the camera only while it is on, so it is on while the camera is put there, and as it was after
     const was = orbit.enabled;
     orbit.enabled = true;
+    // the momentum of a drag is let die away first: left in, it carries the view past where it is put
+    for (let i = 0; i < 40; i++) orbit.update();
     cam.target = [x, y, 0];
     orbit.setSpherical(view);
     for (let i = 0; i < 400; i++) orbit.update();
     orbit.enabled = was;
   };
   /** The water, the light and the camera made what the settings say, where they differ from `was`. */
-  async function apply(was: Settings | null) {
+  async function apply(was: Settings | null, viewPicked = false) {
     game.setContamination(settings.dirt);
     if (!was || was.dirt !== settings.dirt) {
       // the water's groups and the fish's handed over again: once a change, never once a frame
@@ -187,15 +191,18 @@ async function main() {
       ...renderer.look,
       clear: style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
     };
-    if (!was || was.view !== settings.view) {
+    // a view picked puts the camera there even when it is the view already, so it is the way back from being turned away
+    if (!was || was.view !== settings.view || viewPicked) {
       const v = VIEWS[settings.view];
       look(v.x, v.y, v);
-      // from the shore a drag casts, and the camera holds still behind the angler; from anywhere else it turns the camera
-      orbit.enabled = settings.view !== 'shore';
       aim = null;
     }
+    // look turns the camera by a drag in every view; cast holds it still behind the angler, where a drag aims
+    orbit.enabled = orbits(mode);
     await renderer.prepare();
   }
+  /** Look, where a drag turns the camera, or cast, where it aims a cast: the page starts by looking. */
+  let mode: Mode = 'look';
   const panel = buildPanel(lab, (next) => void change(next), {
     drop: () => game.dropNear(cam.target[0], cam.target[1]),
     reelIn: () => game.reelIn(),
@@ -226,8 +233,8 @@ async function main() {
   // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
   const tapInverse = new Float32Array(16);
   let down: { x: number; y: number; at: number } | null = null;
-  // and from the shore a drag back aims a cast, its preview drawn as it goes, and letting go casts it
-  const casts = () => settings.view === 'shore';
+  // and in cast mode a drag back aims a cast, its preview drawn as it goes, and letting go casts it
+  const casts = () => mode === 'cast';
   const aimOf = (e: PointerEvent, from: { x: number; y: number }) => {
     const box = canvas.getBoundingClientRect();
     const heading = Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]);
@@ -287,11 +294,15 @@ async function main() {
     );
     if (at) game.drop(at[0], at[1]);
   });
-  // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. Not over the lab's own
-  // controls, where space presses what has the focus
+  // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
+  // and cast. Neither over the lab's own controls, where the key is only what it types or presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch') !== null;
+    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch, #modeButton') !== null;
   window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
+      void setMode('toggle');
+      return;
+    }
     if (e.code !== 'Space' || onControl(e)) return;
     e.preventDefault();
     if (game.bite.phase === 'hooked') game.reel(true);
@@ -316,12 +327,38 @@ async function main() {
     () => game,
   );
 
-  async function change(next: Partial<Settings>) {
+  /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
+  function showMode(to: Mode) {
+    if (to !== 'cast') {
+      // leaving cast drops an aim begun, and a reel held by the screen
+      aim = null;
+      down = null;
+      if (reelingByHold) game.reel(false);
+      reelingByHold = false;
+    }
+    mode = to;
+    orbit.enabled = orbits(mode);
+    const words = wording(mode);
+    modeButton.textContent = words.button;
+    help.textContent = words.hint;
+  }
+  /** A mode event: the mode it makes, and the camera put at the shore if it says so, resolving once that is ready. */
+  async function setMode(event: ModeEvent) {
+    const step = nextMode(mode, event);
+    showMode(step.mode);
+    if (step.camera === 'shore') await change({ view: 'shore' }, true);
+  }
+  modeButton.addEventListener('click', () => void setMode('toggle'));
+
+  /** The settings changed; a view picked, from the panel or the test API, is look mode unless it is the mode itself that picked it. */
+  async function change(next: Partial<Settings>, byMode = false) {
     const was = settings;
     settings = changed(settings, next);
+    const picked = next.view !== undefined && Object.hasOwn(VIEWS, String(next.view));
+    if (picked && !byMode) showMode(nextMode(mode, 'view').mode);
     panel.show(settings);
     history.replaceState(null, '', `?${writeSettings(settings, new URLSearchParams(location.search))}`);
-    await apply(was);
+    await apply(was, picked);
   }
   panel.show(settings);
   await apply(null);
@@ -384,6 +421,7 @@ async function main() {
   boot.classList.add('gone');
   stats.hidden = false;
   help.hidden = false;
+  modeButton.hidden = false;
   lab.hidden = false;
 
   // ---- each frame ----
@@ -450,7 +488,9 @@ async function main() {
     measureFrame,
     scenery: () => ({ ...sceneryFigured }),
     settings: () => ({ ...settings }),
-    change,
+    change: (next) => change(next),
+    mode: () => mode,
+    setMode: (to) => setMode(to),
   });
 
   let last = performance.now();

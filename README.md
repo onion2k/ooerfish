@@ -17,9 +17,11 @@ go, let the lure sink, strike when the bobber dips, and reel with an eye on
 the line's tension. The catch goes home to the cabin's curing machine and
 into the aquarium, and the lake's water turns from green to blue.
 
-**Not yet.** Only the cast is built: from the Shore view, drag back to aim
-(a dotted arc shows where the lure will land), let go to cast, and the lure
-splashes in and sinks under its bobber; "Reel in" brings it back. Otherwise
+**Not yet.** Only the cast is built: the camera is moved by dragging, in
+every view; the "Cast" button, or the C key, puts it at the shore, where you
+drag back to aim (a dotted arc shows where the lure will land), let go to
+cast, and the lure splashes in and sinks under its bobber; "Reel in" brings
+it back, and "Look round" or C goes back to moving the camera. Otherwise
 the page is the **lake lab**:
 one pond, its water seen through to its bed, its rocks and weed and the fish
 glowing among them, as the lake is seen into while it is cleaned. Its panel
@@ -58,6 +60,7 @@ The scenery on the banks is Quaternius's Stylized Nature MegaKit (CC0), via
 
     src/game.ts        the lake without the picture: its clock, its fish, the lab's levers
     src/main.ts        the page: the lab's settings into the water, the light and the camera
+    src/mode.ts        look or cast: what a drag does, and the camera's part in switching
     src/debug.ts       window.game, the test API
     src/invariants.ts  what must always hold
     src/lake.ts        content: the shore, the bed, the banks, the fish, the views

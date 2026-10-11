@@ -40,7 +40,8 @@ never how a fish is caught.
 - **Find.** Fish show by their glow under the water, and by what the surface does: bubbles, a swirl, a lily
   pad twitching. A Geiger counter that purrs rather than clicks is an optional gadget.
 - **Cast.** Drag back, see where the lure will land, let go: ooergolf's strike, with its preview of the
-  flight and the wind's bend. On a phone it is one finger.
+  flight and the wind's bend. On a phone it is one finger. The camera is the player's to move, by a drag, and a
+  button (or the C key) switches between looking round and casting.
 - **Sink.** The lure sinks while the player counts it down; fish keep to depths of their own. A twitch draws
   one in.
 - **Bite.** The bobber dips, and the player strikes inside a timing window, which is generous.
