@@ -45,8 +45,9 @@ function hashGroups(groups: GameGroup[]): string {
 const GROUND = 5;
 
 describe('a scene without the kit', () => {
-  it('is the scene as it was before the kit, every group, matrix and mesh', () => {
-    expect(hashGroups(new Scene().static())).toBe('8:6ed0df4e');
+  it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
+    // the hash holds the albedo, so it moved once, on 11 October 2026, with the palette's dark greens and greys, and not with any shape
+    expect(hashGroups(new Scene().static())).toBe('8:6663e7fb');
   });
 });
 

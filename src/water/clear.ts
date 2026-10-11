@@ -1,13 +1,16 @@
 /**
  * See-through water: the renderer's clear water (`FLOW_CLEAR`, from v0.29.0), drawn after the rest of the lake so
  * what is under it shows through: the bed, its rocks and weeds, and the fish glowing among them. What is below is lost
- * to the deep colour with depth, there is foam where it is thin, glitter on the waves and caustics on the shallow bed.
+ * to the deep colour with depth, there is foam where it is thin, glints on the waves and caustics on the shallow bed.
  * The contamination is its colours and how far into it one can see: a sick lake is green and murky, and a clean one
- * clear blue-teal, as the sheets chosen from on 10 October 2026 had it at a clarity of 1.6.
+ * a deep azure.
  *
- * Its finish is v0.30.0's, as sheet D beside the target picture had it on 10 October 2026: a richer blue lightening
- * toward the camera, four gentle swells with lighter crests, round soft sparkles in place of the glitter's dashes, and
- * lines of foam round every shore and boulder from the lake's shore field, which the page hands the renderer.
+ * Its finish is the calm painted pond's, tuned toward the reference picture on 11 October 2026: a fine, slow flow, a
+ * deep blue that is the near water too right across the pond, swells too low and short to crest, one thin line of foam
+ * round every shore and boulder from the lake's shore field (which the page hands the renderer), and a few big soft
+ * glints. Because that blue is dark, the sky's mirror would be eased away by the camera and the water would read flat;
+ * so, with renderer v0.32.0's mirror, the sky it shows is tinted a light cyan and a good share of it is kept near the
+ * camera. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
  */
 import { FLOW_CLEAR, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
@@ -17,39 +20,42 @@ import type { WaterStyle } from './styles';
 import { AT_ORIGIN, surface } from './surface';
 
 /**
- * The waves (open water's, gentler, so the bed reads through them), how clear the water is when clean and how much of
- * that a sick lake keeps, the caustics' strength when clean and what share of it a sick lake keeps, and the foam's depth.
+ * The flow's scale (cells to a world unit), speed and tilt; how clear the water is when clean and how much of that a
+ * sick lake keeps; the caustics' strength when clean and what share of it a sick lake keeps; and the foam's depth.
  */
 export const CLEAR = {
-  scale: 0.35,
-  speed: 0.55,
-  steepness: 0.12,
-  clarity: 1.6,
+  scale: 1.2,
+  speed: 0.12,
+  steepness: 0.8,
+  clarity: 0.4,
   sickClarity: 0.25,
-  caustics: 0.6,
+  caustics: 0.2,
   sickCaustics: 0.5,
   // with the shore field, the foam is a line this wide round every shore and boulder, a gap, and a second thinner line
-  foamWidth: 0.35,
-  foamGap: 0.4,
-  foamWidth2: 0.2,
-  // the near colour's reach from the camera, and how much of the crest colour the swells' tops take
-  nearDistance: 18,
-  crestAmount: 0.4,
+  foamWidth: 0.3,
+  foamGap: 0.35,
+  foamWidth2: 0.1,
+  // the near colour's reach from the camera, which is nearly all the pond, and how much of the crest colour the swells' tops take (none)
+  nearDistance: 90,
+  crestAmount: 0,
   // the sparkles: all the lattice's cells may, how nearly a wave must catch the glint, how bright by day, and how big
   sparkles: 1,
-  sparkleCut: 0.4,
-  sparkleBright: 8,
-  sparkleSize: 4,
+  sparkleCut: 0.3,
+  sparkleBright: 16,
+  sparkleSize: 5,
   // a sick lake keeps this share of the sparkles' brightness
   sickSparkles: 0.5,
+  // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
+  mirrorNear: 0.4,
+  mirror: 1,
 } as const;
 
-/** The four gentle swells, a few centimetres high, from four ways, the longest the highest. */
+/** The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. */
 export const CLEAR_WAVES: readonly GerstnerWave[] = [
-  { direction: 1.2, wavelength: 9, amplitude: 0.09, steepness: 0.3 },
-  { direction: 2.1, wavelength: 6, amplitude: 0.05, steepness: 0.25 },
-  { direction: 0.6, wavelength: 4, amplitude: 0.03, steepness: 0.2 },
-  { direction: 1.7, wavelength: 14, amplitude: 0.1, steepness: 0.15 },
+  { direction: 1.2, wavelength: 3, amplitude: 0.012, steepness: 0.2 },
+  { direction: 2.1, wavelength: 2, amplitude: 0.008, steepness: 0.2 },
+  { direction: 0.6, wavelength: 1.5, amplitude: 0.005, steepness: 0.15 },
+  { direction: 1.7, wavelength: 4, amplitude: 0.012, steepness: 0.1 },
 ];
 
 const held = (v: number) => Math.min(1, Math.max(0, v));
@@ -97,6 +103,9 @@ export const clear: WaterStyle = {
       sparkleCut: CLEAR.sparkleCut,
       sparkleBright: CLEAR.sparkleBright * time.glitter * (1 - (1 - CLEAR.sickSparkles) * k),
       sparkleSize: CLEAR.sparkleSize,
+      mirrorTint: PALETTE.mirrorTint,
+      mirrorNear: CLEAR.mirrorNear,
+      mirror: CLEAR.mirror,
     };
   },
 };

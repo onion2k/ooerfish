@@ -209,6 +209,13 @@ export const FIGHT = {
 /** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */
 export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
 
+/**
+ * The water is drawn at this share of the game's clock, so a pond is calm: its swells, ripples, caustics, foam and
+ * sparkles all move at it, and what floats on it (the bobber, a splash's rings) is read at it too. It is content, with
+ * the lake's other figures, and `main.ts` is what hands it to the renderer and to `surfaceOf`.
+ */
+export const WATER_PACE = 0.4;
+
 /** How many fish swim in the lab's lake, and the most a lake may ever hold, which fixes the pools. */
 export const FISH_COUNT = 6;
 export const FISH_CAPACITY = 32;

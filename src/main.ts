@@ -18,7 +18,7 @@ import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
 import { glowQuads } from './glow';
 import { buildPanel } from './lab';
-import { FISH_CAPACITY, VIEWS } from './lake';
+import { FISH_CAPACITY, VIEWS, WATER_PACE } from './lake';
 import { light, nearestTime, timeNamed } from './look';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
@@ -29,7 +29,7 @@ import { loadScenery } from './scenery';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
 import { STYLES, styleNamed } from './water/styles';
 import { shoreField } from './shorefield';
-import { surfaceOf } from './water/swell';
+import { surfaceOf, waterClock } from './water/swell';
 import { FightView } from './fightview';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
@@ -171,8 +171,8 @@ async function main() {
       // the water's groups and the fish's handed over again: once a change, never once a frame
       const water = style.groups(game.contamination);
       fishSlot = water.length;
-      // what floats rides the swells the water is drawn with, if it has any
-      casting.surface = ripples.surface = surfaceOf(style.waves, MM_PER_UNIT);
+      // what floats rides the swells the water is drawn with, if it has any, at the water's own pace
+      casting.surface = ripples.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
       // see-through water rings its shores and boulders with foam from the lake's field, made the first time it is asked
       if (style.clear && !shoreFieldMade) {
         renderer.setShoreField(shoreField());
@@ -406,8 +406,9 @@ async function main() {
   function draw(dt: number) {
     orbit.update();
     cam.update();
-    // the renderer's clock is the game's, so a paused lake is still and a test that steps it draws the same frame
-    renderer.time = game.t;
+    // the renderer's clock is the game's at the water's pace, so a paused lake is still and a test that steps it draws
+    // the same frame
+    renderer.time = waterClock(game.t, WATER_PACE);
     writeGlow();
     const t = performance.now();
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);

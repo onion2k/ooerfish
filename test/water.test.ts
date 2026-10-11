@@ -4,6 +4,7 @@ import { FLOW_CLEAR, FLOW_RIPPLE, FLOW_WATER } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
 import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
+import { CLEAR, CLEAR_WAVES } from '../src/water/clear';
 import { STYLES, styleNamed, waterColour } from '../src/water/styles';
 
 describe('the ways of drawing the water', () => {
@@ -81,7 +82,7 @@ describe('the see-through water', () => {
 
   it('is murkier the sicker the lake, and as clear as was chosen when clean', () => {
     const at = (dirt: number) => clear.clear!(dirt, true, timeNamed('day')).clarity!;
-    expect(at(0)).toBeCloseTo(1.6, 10);
+    expect(at(0)).toBeCloseTo(CLEAR.clarity, 10);
     let was = at(0);
     for (let k = 1; k <= 10; k++) {
       const now = at(k / 10);
@@ -121,9 +122,35 @@ describe('the see-through water', () => {
     const [r1, g1, b1] = sick.near!;
     expect(g1).toBeGreaterThan(b1);
     expect(g1).toBeGreaterThan(r1);
-    expect(clean.crestAmount).toBeGreaterThan(0);
+    expect(clean.crestAmount, 'a calm pond has no lighter crests').toBe(0);
     expect(clean.foamWidth2).toBeGreaterThan(0);
     expect(clean.foamGap).toBeGreaterThan(0);
+  });
+
+  it('is the calm painted pond: low short swells, a mirror tinted cyan and kept by the camera, its colours deep azure', () => {
+    for (const w of CLEAR_WAVES) {
+      expect(w.amplitude, 'a swell under two centimetres').toBeLessThan(0.02);
+      expect(w.wavelength, 'and under five metres long').toBeLessThan(5);
+    }
+    expect(CLEAR_WAVES.length).toBe(4);
+    const look = clear.clear!(0, true, timeNamed('day'));
+    expect(look.mirrorTint).toEqual([0.5, 0.95, 1.1]);
+    expect(look.mirrorNear).toBe(0.4);
+    expect(look.mirror).toBe(1);
+    expect(look.nearDistance).toBe(90);
+    expect(look.crestAmount).toBe(0);
+    expect(look.sparkleSize).toBe(5);
+    // the flow is fine, slow and tilted: 1.2 cells, a tenth of a unit a second, steeply
+    const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
+    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 0.12, 0.8]);
+    // the water is a darker, richer blue than a turquoise: blue over green over red in the shallows, near and deep
+    for (const c of [PALETTE.clearShallow, PALETTE.clearNear, PALETTE.clearDeep]) {
+      expect(c[2]).toBeGreaterThan(c[1]);
+      expect(c[1]).toBeGreaterThan(c[0]);
+    }
+    expect(PALETTE.clearDeep).toEqual([0, 0.1, 0.34]);
+    expect(PALETTE.clearNear).toEqual([0.02, 0.12, 0.33]);
+    expect(PALETTE.clearShallow).toEqual([0.08, 0.36, 0.7]);
   });
 
   it('is deep green when sick and deep blue-teal when clean', () => {

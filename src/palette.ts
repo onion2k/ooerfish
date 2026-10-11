@@ -3,29 +3,29 @@
  * a colour tuned here is the same wherever it is drawn, and a colour that
  * appears nowhere else cannot drift from its neighbours unseen.
  *
- * The look is a picture book's: soft greens and blues, round warm stones,
- * trees and flowers on its banks, and the glow a pretty sick green rather than a frightening
- * one.
+ * The look is a picture book's, painted toward a reference on 11 October 2026: deep azure water against dark,
+ * quiet greens and greys on the banks, a pale sky, trees and flowers on its banks, and the glow a pretty sick green
+ * rather than a frightening one.
  */
 export type Colour = [number, number, number];
 
 export const PALETTE = {
-  /** The grass of the banks: a soft spring green, a picture book's and not a lawn's. */
-  grass: [0.3, 0.58, 0.2] as Colour,
-  /** The lake's bed, under the water: a soft sandy mud. */
-  bed: [0.42, 0.36, 0.22] as Colour,
-  /** The stones that line the shore, warm and pale. */
-  stone: [0.62, 0.56, 0.5] as Colour,
+  /** The grass of the banks: a deep, quiet green, dark against the bright water as in the reference. */
+  grass: [0.045, 0.135, 0.03] as Colour,
+  /** The lake's bed, under the water: a near-black mud, so the water over it reads as deep. */
+  bed: [0.05, 0.04, 0.035] as Colour,
+  /** The stones that line the shore, a dark neutral grey. */
+  stone: [0.24, 0.24, 0.22] as Colour,
   /** The rocks on the lake's bed, and the waterweed growing up from it. */
   bedRock: [0.4, 0.4, 0.38] as Colour,
   /** The boulders standing in the water, a cooler grey than the bank's stones. */
-  boulder: [0.4, 0.41, 0.42] as Colour,
+  boulder: [0.22, 0.22, 0.21] as Colour,
   weed: [0.16, 0.45, 0.14] as Colour,
-  /** The trees: warm brown bark, and the broadleaf's soft green. */
-  trunk: [0.36, 0.22, 0.12] as Colour,
-  leaves: [0.18, 0.5, 0.16] as Colour,
+  /** The trees: dark brown bark, and the broadleaf's deep green. */
+  trunk: [0.07, 0.045, 0.03] as Colour,
+  leaves: [0.04, 0.09, 0.03] as Colour,
   /** The pines' needles, a darker blue-green than the broadleaf, so a stand of both reads as two trees. */
-  pine: [0.07, 0.33, 0.21] as Colour,
+  pine: [0.02, 0.07, 0.045] as Colour,
   /** The flowers of the banks, a soft warm pink and not a saturated one, as a picture book paints them. */
   flowers: [0.88, 0.5, 0.5] as Colour,
   /** The mushrooms, a warm pale tan. */
@@ -37,15 +37,17 @@ export const PALETTE = {
   /** The sky the water mirrors is tinted toward these, sick and clear. */
   sickSky: [0.7, 0.95, 0.45] as Colour,
   clearSky: [0.75, 0.9, 1] as Colour,
-  /** The see-through water's shallows and deep, clear and as sick as it gets. */
-  clearShallow: [0.45, 0.85, 0.8] as Colour,
-  clearDeep: [0, 0.16, 0.5] as Colour,
+  /** The see-through water's shallows and deep, clear (a deep azure) and as sick as it gets. */
+  clearShallow: [0.08, 0.36, 0.7] as Colour,
+  clearDeep: [0, 0.1, 0.34] as Colour,
   sickShallow: [0.55, 0.82, 0.3] as Colour,
   sickDeep: [0.07, 0.22, 0.03] as Colour,
   /** What the see-through water lightens toward by the camera, clear and sick, and toward on its swells' crests. */
-  clearNear: [0.15, 0.55, 0.9] as Colour,
+  clearNear: [0.02, 0.12, 0.33] as Colour,
   sickNear: [0.4, 0.7, 0.2] as Colour,
   crest: [0.8, 0.97, 1] as Colour,
+  /** What the see-through water multiplies the sky it mirrors by: a light cyan, so the reflection is not the sky's plain pale blue. */
+  mirrorTint: [0.5, 0.95, 1.1] as Colour,
   /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
   ripple: [0.82, 0.94, 1] as Colour,
   clearSplash: [0.93, 0.98, 1] as Colour,
@@ -71,8 +73,8 @@ export const PALETTE = {
   nightHorizon: [0.05, 0.07, 0.17] as Colour,
   dawnZenith: [0.26, 0.38, 0.72] as Colour,
   dawnHorizon: [0.98, 0.66, 0.52] as Colour,
-  dayZenith: [0.16, 0.45, 0.92] as Colour,
-  dayHorizon: [0.62, 0.84, 0.98] as Colour,
+  dayZenith: [0.55, 0.7, 0.88] as Colour,
+  dayHorizon: [0.85, 0.9, 0.95] as Colour,
   duskZenith: [0.2, 0.15, 0.42] as Colour,
   duskHorizon: [0.98, 0.5, 0.34] as Colour,
 
