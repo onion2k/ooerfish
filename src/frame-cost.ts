@@ -19,6 +19,9 @@
  * What it cannot do is read a frame while another program is on the GPU:
  * every sample then takes three times as long, for as long as that lasts.
  *
+ * `samples` is fewer than the default only where a shorter reading will do: the page's governor, at boot, takes
+ * a few, since the least of them is the frame's own cost and a slow frame shows in every one.
+ *
  * It is all by time and not by frames, so that it holds for a game whose
  * frame costs ten times this one's.
  */
@@ -32,7 +35,12 @@ export const SAMPLES = 24,
 /** The most frames in a sample: what a frame too small for the clock to see is given. */
 const MOST = 2000;
 
-export async function frameCost(draw: () => boolean, done: () => Promise<unknown>, warm = WARM_MS): Promise<number> {
+export async function frameCost(
+  draw: () => boolean,
+  done: () => Promise<unknown>,
+  warm = WARM_MS,
+  samples = SAMPLES,
+): Promise<number> {
   /** A lot of frames drawn back to back, and what one of them took; 0 where none was drawn, or too few to time. */
   const lot = async (frames: number) => {
     await new Promise((r) => setTimeout(r, 0));
@@ -61,7 +69,7 @@ export async function frameCost(draw: () => boolean, done: () => Promise<unknown
     }
   }
   const times: number[] = [];
-  for (let i = 0; i < SAMPLES; i++) {
+  for (let i = 0; i < samples; i++) {
     const frame = await lot(frames);
     if (frame > 0) times.push(frame);
   }

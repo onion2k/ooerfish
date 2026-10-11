@@ -87,6 +87,15 @@ describe('what a frame costs', () => {
     expect(dear.samples()).toEqual(Array(SAMPLES).fill(10));
   });
 
+  it('takes only the samples it is asked for, the least of them as before', async () => {
+    const full = machine({ cpu: 0.1, gpu: () => 0.4 });
+    await frameCost(full.draw, full.done);
+    vi.restoreAllMocks();
+    const few = machine({ cpu: 0.1, gpu: () => 0.4 });
+    expect(await frameCost(few.draw, few.done, WARM_MS, 4)).toBeCloseTo(0.5, 9);
+    expect(full.lots.length - few.lots.length).toBe(SAMPLES - 4);
+  });
+
   it('reads a frame to a hundredth of a millisecond on a clock that ticks in tenths', async () => {
     // a browser's clock is coarse on purpose; a frame of 0.47 ms timed alone reads 0.4 or 0.5, a fifth apart
     const m = machine({ cpu: 0.07, gpu: () => 0.4, grain: 0.1 });

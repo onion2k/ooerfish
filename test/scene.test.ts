@@ -10,7 +10,7 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import { ANGLER, SCENERY, STRETCH, ground, inShore, inside, shoreRadius } from '../src/lake';
 import { PALETTE } from '../src/palette';
 import { SCENERY_ROLES, ROLE_COLOUR, readKit, readManifest, type Kit } from '../src/scenery';
-import { SHADOW_BOX, Scene, footprint, sceneryFigures, type Placement } from '../src/scene';
+import { SHADOW_BOX, Scene, cheapPick, footprint, sceneryFigures, treeScale, type Placement } from '../src/scene';
 import { newGame } from './helpers';
 
 const kit: Kit = readKit(
@@ -206,5 +206,37 @@ describe('the scenery figures the test API reports', () => {
 
   it('are as the content says today (the smoke stage holds the same figures from the page)', () => {
     expect(figures).toEqual({ models: 31, placements: 186, triangles: 164595, cards: 18 });
+  });
+});
+
+describe("a tree's scale and a model's pick", () => {
+  const boxOf = (tall: number) => ({
+    min: [0, 0, 0] as [number, number, number],
+    max: [1, 1, tall] as [number, number, number],
+  });
+
+  it('holds a tree down so no top passes the shadow box, whatever the scale and the model', () => {
+    const tree = [...kit.models.values()].find((m) => m.kind === 'tree')!;
+    const tall = { ...tree, bounds: boxOf(40) };
+    for (const z of [0, 2.2]) {
+      const scale = treeScale(tall, z, 1);
+      expect(z + scale * 40).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
+      expect(scale).toBeLessThan(SCENERY.trees[tall.kind][1]);
+    }
+    // and where there is room it is the scale content picked
+    const low = { ...tall, bounds: boxOf(5) };
+    expect(treeScale(low, 0, 0)).toBe(SCENERY.trees[low.kind][0]);
+  });
+
+  it('picks models in proportion to one over their triangles', () => {
+    const models = [...kit.models.values()].filter((m) => m.kind === 'tree' || m.kind === 'pine');
+    const N = 20_000,
+      picked = new Map<string, number>();
+    for (let i = 0; i < N; i++) {
+      const m = cheapPick(models, (i + 0.5) / N);
+      picked.set(m.name, (picked.get(m.name) ?? 0) + 1);
+    }
+    const sum = models.reduce((n, m) => n + 1 / m.triangles, 0);
+    for (const m of models) expect((picked.get(m.name) ?? 0) / N, m.name).toBeCloseTo(1 / m.triangles / sum, 3);
   });
 });

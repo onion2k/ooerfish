@@ -84,6 +84,27 @@ function ring(k: number, angle: number): [number, number] {
   return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
 }
 
+/**
+ * A model of the trees picked by the weight of one over its triangles, from a draw `u` in [0, 1): a cheaper model is
+ * picked the more often, for a scene that wants more trees for fewer triangles. Pure, so a test can hold the weighting
+ * over an even grid of draws.
+ */
+export function cheapPick(models: KitModel[], u: number): KitModel {
+  let total = 0;
+  for (const m of models) total += 1 / m.triangles;
+  let at = u * total;
+  for (const m of models) if ((at -= 1 / m.triangles) < 0) return m;
+  return models[models.length - 1];
+}
+
+/**
+ * A tree's scale: picked between its kind's two by `u`, then held down (a hair under, so rounding cannot tip it
+ * over) so the top stays under the sun's shadow whatever the range says, for a tree standing at height `z`.
+ */
+export function treeScale(model: KitModel, z: number, u: number): number {
+  return Math.min(lerp(SCENERY.trees[model.kind], u), ((SHADOW_BOX.max[2] - z) / model.bounds.max[2]) * 0.999);
+}
+
 export class Scene {
   /**
    * Everything the one seeded stream draws, in the order it always has: the stones, trees, bed rocks and weed, and
@@ -183,11 +204,7 @@ export class Scene {
       const model = pick(trees);
       const yaw = random() * Math.PI * 2;
       const z = ground(x, y);
-      // held down (a hair under, so rounding cannot tip it over) so the top stays under the sun's shadow, whatever the range says
-      const scale = Math.min(
-        lerp(SCENERY.trees[model.kind], random()),
-        ((SHADOW_BOX.max[2] - z) / model.bounds.max[2]) * 0.999,
-      );
+      const scale = treeScale(model, z, random());
       out.push({ model, kind: 'tree', x, y, z, yaw, scale });
     }
 
