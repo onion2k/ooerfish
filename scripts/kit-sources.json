@@ -156,81 +156,11 @@
       "kind": "pebble"
     },
     {
-      "file": "Pine_699sFuLCN2.glb",
-      "name": "Pine_699sFuLCN2",
-      "polyPizzaId": "699sFuLCN2",
-      "sha256": "3a5db923999bd47281f1f38cf8451c1544acfad33d953892fa95ca74765be361",
-      "kind": "pine"
-    },
-    {
-      "file": "Pine_79gmlLnweB.glb",
-      "name": "Pine_79gmlLnweB",
-      "polyPizzaId": "79gmlLnweB",
-      "sha256": "240e6f60c5b106a892c80490d7c710f20ef902b328b5e173c0a567334e4df972",
-      "kind": "pine"
-    },
-    {
-      "file": "Pine_Zt62gceKXZ.glb",
-      "name": "Pine_Zt62gceKXZ",
-      "polyPizzaId": "Zt62gceKXZ",
-      "sha256": "d5d7714406e11c7f6578adda7f4f1ec6f6fe1c514b1e97fda923d83845b028b2",
-      "kind": "pine"
-    },
-    {
-      "file": "Pine_igSu0cPoBz.glb",
-      "name": "Pine_igSu0cPoBz",
-      "polyPizzaId": "igSu0cPoBz",
-      "sha256": "b2cc7f2e672f94a41925ba831af8b3db9cbe6621172fb6f2717881c81c074e18",
-      "kind": "pine"
-    },
-    {
-      "file": "Pine_rfnxJv0Rqa.glb",
-      "name": "Pine_rfnxJv0Rqa",
-      "polyPizzaId": "rfnxJv0Rqa",
-      "sha256": "4902bbecd22a9503871f48e5815f33dd7d51f4077299c16e0dd968217e46d435",
-      "kind": "pine"
-    },
-    {
       "file": "Tall_Grass_JSIYtscPmP.glb",
       "name": "Tall_Grass_JSIYtscPmP",
       "polyPizzaId": "JSIYtscPmP",
       "sha256": "497f6303b662b2f65eea4f158d9f02d18a672d4f1422c7ba1df36be3be9caaa3",
       "kind": "grass"
-    },
-    {
-      "file": "Tree_QVOop92WmG.glb",
-      "name": "Tree_QVOop92WmG",
-      "polyPizzaId": "QVOop92WmG",
-      "sha256": "f38d3e28803609be98fc0fe2d3315f505ae2cd338168f12fec1f93299b4d39b6",
-      "kind": "tree"
-    },
-    {
-      "file": "Tree_YWjGDJ9F7g.glb",
-      "name": "Tree_YWjGDJ9F7g",
-      "polyPizzaId": "YWjGDJ9F7g",
-      "sha256": "2bbb3d68b88f9d05cddcc1d6d9cd1ec83c8652eda62bc26e973dee2b870415a9",
-      "kind": "tree"
-    },
-    {
-      "file": "Tree_aVOxaHRPWe.glb",
-      "name": "Tree_aVOxaHRPWe",
-      "polyPizzaId": "aVOxaHRPWe",
-      "sha256": "b591827c6aad32ec9fd964d878f3925c302d2a144597f1d5e84068df99b880ba",
-      "kind": "tree"
-    },
-    {
-      "file": "Tree_qZtx0AHhcy.glb",
-      "name": "Tree_qZtx0AHhcy",
-      "polyPizzaId": "qZtx0AHhcy",
-      "sha256": "cac32bae011effbb327cf650b5a3cb82ab7d4c4334151955d30814b2faaaaf98",
-      "kind": "tree"
-    },
-    {
-      "file": "Tree_t9KbsfYdXz.glb",
-      "name": "Tree_t9KbsfYdXz",
-      "polyPizzaId": "t9KbsfYdXz",
-      "sha256": "6ddb7b1d81a325cfbe3053f43c96ce8b6a871dc866702ef3993dbecc79430b70",
-      "kind": "tree"
     }
   ]
 }

@@ -613,3 +613,85 @@ export const pack = (
   }
   return { bin, models: out };
 };
+
+/** The manifest as `scenery.json` holds it: what `pack` makes of the models, with the masks and the readers' notes. */
+export interface ManifestFile {
+  version: number;
+  note: string;
+  arrays: Record<string, string>;
+  maskSize: number;
+  masks: string[];
+  models: ModelEntry[];
+}
+
+/** What a prune leaves: the manifest and buffer without the kinds named, and what went. */
+export interface Pruned {
+  manifest: ManifestFile;
+  bin: Uint8Array;
+  dropped: { models: string[]; masks: string[] };
+}
+
+/**
+ * The kit without every model of some kinds, worked out from the files already written and not from the GLBs, so the
+ * models a game has stopped using can leave the download without the kit's 85 MB being fetched again. The survivors
+ * keep their order and their bytes, and are laid end to end again, each array on a four-byte boundary, with the
+ * offsets written anew. A mask goes only if it is unused now and so is every mask after it: the layers are counted
+ * from one, so taking one from the middle would move the layer of each after it, and the game pins those. Nothing is
+ * changed in what comes in. A kind with no model, no kind at all, a prune that would empty the kit and an offset that
+ * runs past the buffer are each refused by name, since a prune that did nothing would look like one that worked.
+ */
+export const prune = (manifest: ManifestFile, bin: Uint8Array, kinds: readonly string[]): Pruned => {
+  if (kinds.length === 0) throw new KitError('prune-nothing', 'name the kinds of model to drop');
+  const known = new Set(manifest.models.map((m) => m.kind));
+  for (const kind of kinds)
+    if (!known.has(kind))
+      throw new KitError(
+        'prune-nothing',
+        `the kit has no model of the kind "${kind}" (it has ${[...known].sort().join(', ')})`,
+      );
+  const drop = new Set(kinds);
+  const kept = manifest.models.filter((m) => !drop.has(m.kind));
+  if (kept.length === 0) throw new KitError('prune-empty', `dropping ${[...drop].join(', ')} would leave no model`);
+
+  const padded = (bytes: number): number => Math.ceil(bytes / 4) * 4;
+  const out: number[][] = [];
+  let at = 0;
+  const models: ModelEntry[] = kept.map((m) => {
+    const first = at;
+    const parts = m.parts.map((p): PartEntry => {
+      const copy = (from: number, bytes: number, what: string): number => {
+        if (from < 0 || from + bytes > bin.length)
+          throw new KitError(
+            'prune-range',
+            `${m.name}'s ${what} at ${from} for ${bytes} bytes runs past the ${bin.length}`,
+          );
+        const start = at;
+        out.push([start, from, bytes]);
+        at += padded(bytes);
+        return start;
+      };
+      return {
+        ...p,
+        positionsOffset: copy(p.positionsOffset, p.vertices * 6, 'positions'),
+        normalsOffset: copy(p.normalsOffset, p.vertices * 6, 'normals'),
+        uvsOffset: copy(p.uvsOffset, p.vertices * 8, 'uvs'),
+        indicesOffset: copy(p.indicesOffset, p.indexCount * 2, 'indices'),
+      };
+    });
+    return { ...m, bytes: at - first, parts };
+  });
+  const bytes = new Uint8Array(at);
+  for (const [start, from, count] of out) bytes.set(bin.subarray(from, from + count), start);
+
+  let used = 0;
+  for (const m of models) for (const p of m.parts) used = Math.max(used, p.layer);
+  const masks = manifest.masks.slice(0, used);
+  return {
+    manifest: { ...manifest, masks, models },
+    bin: bytes,
+    dropped: {
+      models: manifest.models.filter((m) => drop.has(m.kind)).map((m) => m.name),
+      masks: manifest.masks.slice(used),
+    },
+  };
+};

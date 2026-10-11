@@ -86,8 +86,12 @@ export const ROLE_COLOUR: Record<SceneryRole, keyof typeof PALETTE> = {
   mushroom: 'mushroom',
 };
 
-/** What the game does with a model, as `scripts/kit-sources.json` says: a test holds the two lists equal. */
-export const KINDS = ['bush', 'clover', 'fern', 'flowers', 'grass', 'mushroom', 'pebble', 'pine', 'tree'] as const;
+/**
+ * What the game does with a model, as `scripts/kit-sources.json` says: a test holds the two lists equal. The kit's
+ * trees and pines are not among them since the lake's trees are the package's (`trees.ts`) and `npm run kit:prune`
+ * took them out of the files, so a manifest that still carries one is a stale build and is refused by name.
+ */
+export const KINDS = ['bush', 'clover', 'fern', 'flowers', 'grass', 'mushroom', 'pebble'] as const;
 
 /** The manifest's version and array types that this reader knows. */
 const VERSION = 2;

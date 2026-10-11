@@ -115,8 +115,8 @@ const realBin = (): ArrayBuffer => {
 describe('the manifest read', () => {
   it('accepts the one the converter wrote', () => {
     const m = readManifest(realJson());
-    expect(m.models).toHaveLength(33);
-    expect(m.masks).toHaveLength(5);
+    expect(m.models).toHaveLength(23);
+    expect(m.masks).toHaveLength(4);
   });
 
   /** Each case alters a copy of the real manifest and says what the refusal must name. */
@@ -126,6 +126,7 @@ describe('the manifest read', () => {
     ['other array types', (m) => (m.arrays.positions = 'float32'), /scenery-arrays/],
     ['an extra array', (m) => (m.arrays.colours = 'uint8'), /scenery-arrays/],
     ['an unknown role', (m) => (m.models[0].parts[0].role = 'moss'), /scenery-role.*moss/],
+    ['a model of a kind pruned away, the kit’s tree', (m) => (m.models[0].kind = 'tree'), /scenery-kind.*tree/],
     ['a layer past the masks', (m) => (m.models[0].parts[0].layer = 6), /scenery-layer/],
     ['a negative layer', (m) => (m.models[0].parts[0].layer = -1), /scenery-layer/],
     ['a mask size not a power of two', (m) => (m.maskSize = 300), /scenery-mask-size/],
@@ -159,12 +160,12 @@ describe('the manifest read', () => {
 });
 
 describe('the kit read', () => {
-  it('holds all 33 models, in range, named as the sources name them', () => {
+  it('holds all 23 models, in range, named as the sources name them', () => {
     const kit = readKit(readManifest(realJson()), realBin());
     const names = [...kit.models.keys()];
     const listed = sources().models;
     expect(names.sort()).toEqual(listed.map((m) => m.name).sort());
-    expect(names).toHaveLength(33);
+    expect(names).toHaveLength(23);
     let triangles = 0;
     for (const model of kit.models.values()) {
       triangles += model.triangles;
@@ -177,7 +178,7 @@ describe('the kit read', () => {
         if (['leaves', 'pine', 'flowers'].includes(part.role)) expect(part.layer).toBeGreaterThanOrEqual(1);
       }
     }
-    expect(triangles).toBe(49760);
+    expect(triangles).toBe(9519);
     expect(kit.maskFiles).toEqual(maskNames());
   });
 
@@ -239,8 +240,8 @@ describe('the scenery loaded', () => {
   it('returns the kit and the masks in layer order, fetching each file once', async () => {
     const { asked, fetcher } = serve();
     const { kit, masks } = await loadScenery(fetcher, '/s/', decode);
-    expect(kit.models.size).toBe(33);
-    expect(masks).toHaveLength(5);
+    expect(kit.models.size).toBe(23);
+    expect(masks).toHaveLength(4);
     expect([...asked].sort()).toEqual(files.map((f: string) => '/s/' + f).sort());
     masks.forEach((mask, i) =>
       expect((mask as unknown as { size: number }).size).toBe(readFileSync(DIR + kit.maskFiles[i]).length),

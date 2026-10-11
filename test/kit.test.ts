@@ -16,6 +16,7 @@ import {
   encodeHalf,
   pack,
   parseGlb,
+  prune,
   readParts,
   roleOf,
   shrinkAlpha,
@@ -403,5 +404,109 @@ describe('the normals of a leaf card', () => {
       if (before[v] >= 0) for (let k = 0; k < 3; k++) expect(turned[v * 3 + k]).toBe(kit[v * 3 + k]);
       else expect(after[v]).toBeCloseTo(-before[v], 5);
     }
+  });
+});
+
+describe('a kit pruned of some kinds, with no GLB to hand', () => {
+  const part = (vertices: number, layer = 0, seed = 0) => ({
+    role: layer > 0 ? ('leaves' as const) : ('stone' as const),
+    layer,
+    positions: new Float32Array(vertices * 3).map((_, i) => ((i + seed) % 7) - 3),
+    normals: new Float32Array(vertices * 3).map((_, i) => ((i + seed) % 3 === 2 ? 1 : 0)),
+    uvs: new Float32Array(vertices * 2).map((_, i) => (i + seed) / 100),
+    indices: new Uint32Array(6).map((_, i) => (i + seed) % vertices),
+  });
+  // a tree on the last mask, a bush on the second, a pebble on none, and the first mask used by nobody: as the real kit's
+  // twisted tree's is, so a mask that is unused but not trailing must be kept, for it fixes the layers after it
+  const packed = pack([
+    { name: 'Pebble_a', kind: 'pebble', parts: [part(5, 0, 1)] },
+    { name: 'Tree_a', kind: 'tree', parts: [part(7, 0, 2), part(9, 3, 3)] },
+    { name: 'Bush_a', kind: 'bush', parts: [part(11, 2, 4)] },
+    { name: 'Tree_b', kind: 'tree', parts: [part(13, 3, 5)] },
+    { name: 'Pine_a', kind: 'pine', parts: [part(3, 3, 6)] },
+  ]);
+  const manifest = () => ({
+    version: 2,
+    note: 'n',
+    arrays: { positions: 'float16', normals: 'float16', uvs: 'float32', indices: 'uint16' },
+    maskSize: 256,
+    masks: ['mask-one.png', 'mask-two.png', 'mask-three.png'],
+    models: JSON.parse(JSON.stringify(packed.models)) as typeof packed.models,
+  });
+  const bytesOf = (bin: Uint8Array, p: (typeof packed.models)[0]['parts'][0]) => {
+    const n = p.vertices;
+    return [
+      bin.slice(p.positionsOffset, p.positionsOffset + n * 6),
+      bin.slice(p.normalsOffset, p.normalsOffset + n * 6),
+      bin.slice(p.uvsOffset, p.uvsOffset + n * 8),
+      bin.slice(p.indicesOffset, p.indicesOffset + p.indexCount * 2),
+    ].map((b) => Array.from(b).join(','));
+  };
+
+  it('drops every model of the kinds named, and none of the others', () => {
+    const out = prune(manifest(), packed.bin, ['tree', 'pine']);
+    expect(out.manifest.models.map((m) => m.name)).toEqual(['Pebble_a', 'Bush_a']);
+    expect(out.dropped.models.sort()).toEqual(['Pine_a', 'Tree_a', 'Tree_b']);
+  });
+
+  it('keeps each kept part’s bytes exactly, in the order they were, with every offset on a four-byte boundary', () => {
+    const out = prune(manifest(), packed.bin, ['tree', 'pine']);
+    const was = new Map(packed.models.map((m) => [m.name, m]));
+    for (const m of out.manifest.models)
+      m.parts.forEach((p, i) => {
+        expect(bytesOf(out.bin, p), m.name).toEqual(bytesOf(packed.bin, was.get(m.name)!.parts[i]));
+        for (const at of [p.positionsOffset, p.normalsOffset, p.uvsOffset, p.indicesOffset]) expect(at % 4).toBe(0);
+      });
+    expect(out.bin.length % 4).toBe(0);
+  });
+
+  it('packs the buffer tight: the survivors’ bytes and no more, so what was dropped is gone from it', () => {
+    const out = prune(manifest(), packed.bin, ['tree', 'pine']);
+    const kept = packed.models.filter((m) => ['Pebble_a', 'Bush_a'].includes(m.name)).reduce((n, m) => n + m.bytes, 0);
+    expect(out.bin.length).toBe(kept);
+    expect(out.manifest.models.map((m) => m.bytes)).toEqual(
+      packed.models.filter((m) => ['Pebble_a', 'Bush_a'].includes(m.name)).map((m) => m.bytes),
+    );
+    expect(out.bin.length).toBeLessThan(packed.bin.length);
+  });
+
+  it('drops a trailing mask nobody uses now, and keeps one that is unused but in the middle, so no layer moves', () => {
+    const out = prune(manifest(), packed.bin, ['tree', 'pine']);
+    expect(out.manifest.masks).toEqual(['mask-one.png', 'mask-two.png']);
+    expect(out.dropped.masks).toEqual(['mask-three.png']);
+    expect(out.manifest.models.find((m) => m.name === 'Bush_a')!.parts[0].layer).toBe(2);
+  });
+
+  it('keeps a mask a surviving model still wears', () => {
+    const out = prune(manifest(), packed.bin, ['pine']);
+    expect(out.manifest.masks).toHaveLength(3);
+    expect(out.dropped.masks).toEqual([]);
+  });
+
+  it('leaves everything else of the manifest as it was, and the input alone', () => {
+    const before = JSON.stringify(manifest());
+    const binBefore = Array.from(packed.bin).join();
+    const m = manifest();
+    const out = prune(m, packed.bin, ['tree']);
+    expect(JSON.stringify(m)).toBe(before);
+    expect(Array.from(packed.bin).join()).toBe(binBefore);
+    expect(out.manifest.version).toBe(2);
+    expect(out.manifest.note).toBe('n');
+    expect(out.manifest.maskSize).toBe(256);
+    expect(out.manifest.arrays).toEqual(m.arrays);
+  });
+
+  it('gives the same bytes every time', () => {
+    const a = prune(manifest(), packed.bin, ['tree', 'pine']);
+    const b = prune(manifest(), packed.bin, ['pine', 'tree']);
+    expect(Array.from(a.bin)).toEqual(Array.from(b.bin));
+    expect(JSON.stringify(a.manifest)).toBe(JSON.stringify(b.manifest));
+  });
+
+  it('refuses a kind the kit has no model of, a prune that would leave nothing, and a buffer too short, by name', () => {
+    expect(() => prune(manifest(), packed.bin, ['tree', 'dragon'])).toThrowError(/prune-nothing.*dragon/);
+    expect(() => prune(manifest(), packed.bin, [])).toThrowError(/prune-nothing/);
+    expect(() => prune(manifest(), packed.bin, ['tree', 'pine', 'bush', 'pebble'])).toThrowError(/prune-empty/);
+    expect(() => prune(manifest(), packed.bin.slice(0, 40), ['tree'])).toThrowError(/prune-range/);
   });
 });
