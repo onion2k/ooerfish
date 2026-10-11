@@ -189,10 +189,10 @@ artshape-render and artshape-physics, as ooergolf uses them, and the factory's r
 `CLAUDE.md`: seeded chance handed in, nothing made each frame, nothing kept for ever, invariants, the fuzzer,
 determinism, leaks and perf.
 
-- **The water** is the renderer's open water (`PATTERN.ocean`); its `body` and `tint` moving from green to blue
-  is the cleaning seen. **The glow under the water** is the first thing to try: if the water cannot show depth,
-  a glow on the surface over a fish, brighter and wider the shallower it swims, may do, and otherwise the
-  renderer is changed.
+- **The water** is the renderer's clear water, seen into (`FLOW_CLEAR`); its colours, its clarity and its
+  murk moving from sick green to blue are the cleaning seen. It is the game's only water: the lake is seen into
+  as it is cleaned. **The glow under the water** is the fish themselves, glowing meshes the water shows, dimmed
+  and tinted by the depth; a glow drawn on the surface was tried first and is gone.
 - **The day** is the sky gradient and the lights, by game time; **spray, blossom, leaves, snow and fireflies**
   the renderer's particles, the ones blown by a wash of air that ooergolf never used; **the banks** the GPU
   grass in the wind, the low-poly scenery and the backdrop.
@@ -254,7 +254,6 @@ Each stage is a feature, built and verified before the next, every gate green at
 
 ## What is not decided
 
-- Whether the renderer's water can show a glow beneath it, or the surface stands in for depth.
 - Whether the game-side rope feels right on a fast reel, or the physics needs a rope.
 - The fishing's figures: the cast's reach, the sink's rate, the strike's window, the tension's limits.
 - How many lakes, and each one's fish.

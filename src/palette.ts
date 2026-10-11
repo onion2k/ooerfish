@@ -31,18 +31,6 @@ export const PALETTE = {
   /** The mushrooms, a warm pale tan. */
   mushroom: [0.72, 0.55, 0.36] as Colour,
 
-  /**
-   * The body colour of the opaque waters (open and lit ripple), as sick as it gets and as clear as it gets: the
-   * contamination runs between them. Clear is a deep, dark azure, to sit with the see-through water's.
-   */
-  sick: [0.16, 0.42, 0.06] as Colour,
-  clear: [0, 0.085, 0.21] as Colour,
-  /**
-   * The sky the open water mirrors is tinted toward these, sick and clear. The sky is pale now, so the clear tint is a
-   * deep blue: a pale one would mirror it back and the pond would read white.
-   */
-  sickSky: [0.7, 0.95, 0.45] as Colour,
-  clearSky: [0.02, 0.28, 0.58] as Colour,
   /** The see-through water's shallows and deep, clear (a deep azure) and as sick as it gets. */
   clearShallow: [0.08, 0.36, 0.7] as Colour,
   clearDeep: [0, 0.1, 0.34] as Colour,

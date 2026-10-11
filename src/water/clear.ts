@@ -63,7 +63,6 @@ const held = (v: number) => Math.min(1, Math.max(0, v));
 export const clear: WaterStyle = {
   name: 'clear',
   label: 'See-through',
-  surfaceGlow: false,
   waves: CLEAR_WAVES,
   groups(contamination) {
     const k = held(contamination);

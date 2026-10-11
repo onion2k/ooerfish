@@ -1,7 +1,6 @@
 /**
- * The lab's settings: which way the water is drawn, how dirty the lake is,
- * the time of day, where the camera stands, and whether see-through water
- * has caustics on its bed. They live in the address, so a
+ * The lab's settings: how dirty the lake is, the time of day, where the
+ * camera stands, and whether the water has caustics on its bed. They live in the address, so a
  * link or a picture brings the same lake back, and nowhere else: they are the
  * viewer's, not the game's, and are never saved.
  *
@@ -10,23 +9,20 @@
  */
 import { VIEWS, type ViewName } from './lake';
 import { TIMES, type TimeOfDay } from './look';
-import { STYLES } from './water/styles';
 
 export interface Settings {
-  water: string;
   /** How dirty the lake is, from clear (0) to sick (1). */
   dirt: number;
   time: TimeOfDay['name'];
   view: ViewName;
-  /** Whether see-through water lights its bed with caustics. */
+  /** Whether the water lights its bed with caustics. */
   caustics: 'on' | 'off';
 }
 
-export const DEFAULTS: Settings = { water: 'open', dirt: 1, time: 'day', view: 'shore', caustics: 'on' };
+export const DEFAULTS: Settings = { dirt: 1, time: 'day', view: 'shore', caustics: 'on' };
 
 /** What each setting may be, read from text as the address has it: the setting, or null for what is not known. */
 const CHECK: { [K in keyof Settings]: (text: string) => Settings[K] | null } = {
-  water: (text) => (STYLES.some((s) => s.name === text) ? text : null),
   dirt: (text) => (text.trim() !== '' && Number.isFinite(Number(text)) ? Math.min(1, Math.max(0, Number(text))) : null),
   time: (text) => TIMES.find((t) => t.name === text)?.name ?? null,
   view: (text) => (Object.hasOwn(VIEWS, text) ? (text as ViewName) : null),
@@ -58,7 +54,6 @@ export function changed(settings: Settings, next: Partial<Record<keyof Settings,
 /** The address's query with the settings written into it, and whatever else it said kept. */
 export function writeSettings(settings: Settings, query: URLSearchParams): string {
   const out = new URLSearchParams(query);
-  out.set('water', settings.water);
   out.set('dirt', String(Math.round(settings.dirt * 100) / 100));
   out.set('time', settings.time);
   out.set('view', settings.view);

@@ -21,16 +21,14 @@ into the aquarium, and the lake's water turns from green to blue.
 (a dotted arc shows where the lure will land), let go to cast, and the lure
 splashes in and sinks under its bobber; "Reel in" brings it back. Otherwise
 the page is the **lake lab**:
-one pond, drawn three ways side by side (open water, lit ripple, and water
-that is seen through to its bed, its rocks and weed and the fish glowing
-among them), so the water, which is what a player looks at most, is chosen
-by looking. Its panel switches between the
-ways of drawing the water, how dirty the lake is, the time of day and where
-the camera stands; a tap on the water, or the "Drop a pebble" button,
+one pond, its water seen through to its bed, its rocks and weed and the fish
+glowing among them, as the lake is seen into while it is cleaned. Its panel
+switches how dirty the lake is, the time of day, where the camera stands and
+whether the water has caustics; a tap on the water, or the "Drop a pebble" button,
 drops a pebble that splashes and sends rings across it; and every setting is
 in the address, so a link brings the
 same lake back: `npm run dev`, then for instance
-`http://localhost:5204/?water=ripple&dirt=1&time=dusk&view=shore`.
+`http://localhost:5204/?dirt=1&time=dusk&view=shore`.
 
 ## What is here
 
@@ -64,9 +62,8 @@ The scenery on the banks is Quaternius's Stylized Nature MegaKit (CC0), via
     src/invariants.ts  what must always hold
     src/lake.ts        content: the shore, the bed, the banks, the fish, the views
     src/fish.ts        the school, swimming
-    src/water/         the ways of drawing the water, one a file
+    src/water/         the water seen into, a file and a line in STYLES
     src/look.ts        the toon look and the times of day
-    src/glow.ts        a fish's glow on the surface over it, for water not seen through
     src/fishdraw.ts    the fish as glowing meshes under the water
     src/cast.ts        a cast's flight, as sums; lure.ts the lure; aim.ts a drag as a cast
     src/castdraw.ts    the rod, the line, the bobber, the lure and the preview

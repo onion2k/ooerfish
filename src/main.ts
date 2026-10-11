@@ -8,7 +8,7 @@ import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
 import { LightPool } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
-import { EFFECT_STRIDE, GameRenderer } from 'artshape-render/game/renderer';
+import { GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
 import { splashBurst } from './bursts';
 import { aimFrom } from './aim';
@@ -16,10 +16,9 @@ import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
-import { glowQuads } from './glow';
 import { buildPanel } from './lab';
-import { FISH_CAPACITY, VIEWS, WATER_PACE } from './lake';
-import { light, nearestTime, timeNamed } from './look';
+import { VIEWS, WATER_PACE } from './lake';
+import { light, timeNamed } from './look';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
 import { seeded } from './random';
@@ -27,7 +26,7 @@ import { RippleDraw } from './ripplesdraw';
 import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
 import { loadScenery } from './scenery';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
-import { STYLES, styleNamed } from './water/styles';
+import { STYLES } from './water/styles';
 import { shoreField } from './shorefield';
 import { surfaceOf, waterClock } from './water/swell';
 import { FightView } from './fightview';
@@ -35,7 +34,8 @@ import { FightView } from './fightview';
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
 const LIGHT_CAPACITY = 16,
-  EFFECT_CAPACITY = FISH_CAPACITY,
+  // nothing is drawn as an effect layer: the fish glow under the water as meshes
+  EFFECT_CAPACITY = 0,
   // twelve splashes live at once, a hundred droplets each, with room to spare
   PARTICLE_CAPACITY = 2048;
 /** How far a pointer may move, in CSS pixels, and how long it may be down, in milliseconds, and still be a tap and not a drag. */
@@ -112,6 +112,9 @@ async function main() {
   const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
   renderer.setLights(new LightPool(LIGHT_CAPACITY));
 
+  // the foam rings the shore and the boulders from the lake's field, made once and before the first frame
+  renderer.setShoreField(shoreField());
+
   const cam = renderer.camera;
   cam.target = [0, 0, 0];
   cam.position = [0, -70, 30];
@@ -144,6 +147,8 @@ async function main() {
   // ---- the lab's settings, and what each one changes ----
 
   let settings: Settings = readSettings(query);
+  /** The one way the water is drawn; another would be chosen here. */
+  const style = STYLES[0];
   /** The fish as they are drawn, and which of the dynamic groups they are. */
   const fish = new FishDraw();
   let fishSlot = 1;
@@ -161,23 +166,15 @@ async function main() {
     for (let i = 0; i < 400; i++) orbit.update();
     orbit.enabled = was;
   };
-  /** Whether the lake's shore field is with the renderer yet: it costs a few milliseconds, so only once it is wanted. */
-  let shoreFieldMade = false;
   /** The water, the light and the camera made what the settings say, where they differ from `was`. */
   async function apply(was: Settings | null) {
     game.setContamination(settings.dirt);
-    const style = styleNamed(settings.water);
-    if (!was || was.water !== settings.water || was.dirt !== settings.dirt) {
+    if (!was || was.dirt !== settings.dirt) {
       // the water's groups and the fish's handed over again: once a change, never once a frame
       const water = style.groups(game.contamination);
       fishSlot = water.length;
-      // what floats rides the swells the water is drawn with, if it has any, at the water's own pace
+      // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = ripples.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      // see-through water rings its shores and boulders with foam from the lake's field, made the first time it is asked
-      if (style.clear && !shoreFieldMade) {
-        renderer.setShoreField(shoreField());
-        shoreFieldMade = true;
-      }
       renderer.setDynamic([...water, fish.group(), ripples.group(), ...casting.groups()]);
     }
     if (!was || was.time !== settings.time) {
@@ -185,10 +182,10 @@ async function main() {
       game.setTimeOfDay(time.at);
       await light(renderer, ctx, time);
     }
-    // how see-through water is, which only it reads: a uniform, so written on every change for nothing
+    // how clear the water is: a uniform, so written on every change for nothing
     renderer.look = {
       ...renderer.look,
-      clear: style.clear?.(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
+      clear: style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
     };
     if (!was || was.view !== settings.view) {
       const v = VIEWS[settings.view];
@@ -329,10 +326,8 @@ async function main() {
   panel.show(settings);
   await apply(null);
 
-  /** The glow over each fish, written each frame into a pool sized once. */
-  const glow = new Float32Array(FISH_CAPACITY * EFFECT_STRIDE);
-  /** Each frame: the fish where they are, and their glow on the surface for water that cannot be seen through. */
-  const writeGlow = () => {
+  /** Each frame: the fish where they are, glowing under the water, and the cast and the rings on it. */
+  const writeFrame = () => {
     // the cast first, which says where a landed fish hangs; then the fish, that one hanging there
     const drawn = casting.write(game, aim);
     const hung = drawn.hung ? game.bite.fish : -1;
@@ -351,10 +346,6 @@ async function main() {
     renderer.move(g, casting.ringBank, drawn.ringBank);
     showCast();
     fightView.show();
-    const shown = styleNamed(settings.water).surfaceGlow
-      ? glowQuads(glow, game.fish, cam, nearestTime(game.timeOfDay).glow, hung)
-      : 0;
-    renderer.setEffects(glow, shown);
   };
 
   /** Whether a frame is being measured: the frame loop stands still while one is. */
@@ -377,7 +368,7 @@ async function main() {
     try {
       return await frameCost(
         () => {
-          writeGlow();
+          writeFrame();
           return renderer.frame(view, 'redraw', 1 / 60);
         },
         () => ctx.device.queue.onSubmittedWorkDone(),
@@ -409,7 +400,7 @@ async function main() {
     // the renderer's clock is the game's at the water's pace, so a paused lake is still and a test that steps it draws
     // the same frame
     renderer.time = waterClock(game.t, WATER_PACE);
-    writeGlow();
+    writeFrame();
     const t = performance.now();
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);
     smoothed += (performance.now() - t - smoothed) * 0.05;
@@ -460,7 +451,6 @@ async function main() {
     scenery: () => ({ ...sceneryFigured }),
     settings: () => ({ ...settings }),
     change,
-    styles: () => STYLES.map((s) => s.name),
   });
 
   let last = performance.now();

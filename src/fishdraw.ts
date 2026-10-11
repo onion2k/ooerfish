@@ -1,9 +1,8 @@
 /**
  * The fish as they are drawn: a low-poly body each, glowing in the glow's
  * green with a light of its own (the renderer's `FLOW_GLOW`), placed where the
- * school is, under the water by its depth, its nose the way it swims. Under
- * opaque water they are hidden, and the surface's glow stands for them; under
- * see-through water they are seen, dimmed and tinted by the water over them.
+ * school is, under the water by its depth, its nose the way it swims. The water is
+ * seen through, so they are seen, dimmed and tinted by the water over them.
  *
  * One group, its pool sized once at the most a lake holds, written each frame.
  */

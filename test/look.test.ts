@@ -22,11 +22,8 @@ describe('the times of day', () => {
     expect(nearestTime(0.3).name).toBe('dawn');
   });
 
-  it('make a fish glow brighter at dusk and night than by day', () => {
-    const glow = (name: string) => timeNamed(name).glow;
-    expect(glow('dusk')).toBeGreaterThan(glow('day'));
-    expect(glow('night')).toBeGreaterThan(glow('dusk'));
-    expect(glow('dawn')).toBeGreaterThan(glow('day'));
+  it('carry no glow of their own: a fish glows as a mesh under the water, not on its surface by the hour', () => {
+    for (const t of TIMES) expect('glow' in t, t.name).toBe(false);
   });
 
   it("each have a sky that is their own, the zenith's colour overhead and the horizon's at the horizon", () => {

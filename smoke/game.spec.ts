@@ -70,10 +70,9 @@ test("works each of the lab's controls by mouse, and keeps them in the address",
   const settings = () => page.evaluate(() => window.game!.settings());
   const pressed = (label: string) => page.getByRole('button', { name: label, exact: true });
 
-  await pressed('Lit ripple').click();
-  await expect.poll(settings).toMatchObject({ water: 'ripple' });
-  await expect(pressed('Lit ripple')).toHaveAttribute('aria-pressed', 'true');
-  await expect(pressed('Open water')).toHaveAttribute('aria-pressed', 'false');
+  // the lake has one water, so the panel has no choice of it
+  await expect(page.getByText('Water', { exact: true })).toHaveCount(0);
+  await expect(pressed('Open water')).toHaveCount(0);
 
   // the slider dragged a quarter of the way from clear to sick, by the mouse, as a viewer does
   const box = (await page.locator('#dirt').boundingBox())!;
@@ -89,16 +88,13 @@ test("works each of the lab's controls by mouse, and keeps them in the address",
   await expect.poll(settings).toMatchObject({ time: 'dusk' });
   expect((await page.evaluate(() => window.game!.state())).timeOfDay).toBe(0.75);
 
-  // the see-through water, and its caustics turned off and on again
-  await pressed('See-through').click();
-  await expect.poll(settings).toMatchObject({ water: 'clear' });
+  // the water's caustics turned off and on again
   await pressed('Off').click();
   await expect.poll(settings).toMatchObject({ caustics: 'off' });
   await expect(pressed('Off')).toHaveAttribute('aria-pressed', 'true');
   expect(new URL(page.url()).searchParams.get('caustics')).toBe('off');
   await pressed('On').click();
   await expect.poll(settings).toMatchObject({ caustics: 'on' });
-  await pressed('Lit ripple').click();
 
   await pressed('Overhead').click();
   await expect.poll(settings).toMatchObject({ view: 'overhead' });
@@ -108,13 +104,12 @@ test("works each of the lab's controls by mouse, and keeps them in the address",
   // the address says it all, and a reload of it brings the same lake back
   const said = await settings();
   const url = new URL(page.url());
-  expect(url.searchParams.get('water')).toBe('ripple');
+  expect(url.searchParams.has('water')).toBe(false);
   expect(url.searchParams.get('time')).toBe('dusk');
   expect(url.searchParams.get('view')).toBe('overhead');
   await page.reload();
   await ready(page);
   expect(await settings()).toEqual(said);
-  await expect(pressed('Lit ripple')).toHaveAttribute('aria-pressed', 'true');
   await expect(pressed('Dusk')).toHaveAttribute('aria-pressed', 'true');
   expect(problems).toEqual([]);
 });
@@ -124,7 +119,6 @@ test('refuses what the address says that it does not know, and draws the default
   await page.goto('/?water=lava&dirt=lots&time=teatime&view=moon&paused=1');
   await ready(page);
   expect(await page.evaluate(() => window.game!.settings())).toEqual({
-    water: 'open',
     dirt: 1,
     time: 'day',
     view: 'shore',
@@ -136,7 +130,7 @@ test('refuses what the address says that it does not know, and draws the default
 test("turns see-through water's caustics on and off in what is drawn", async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
-  await set(page, { water: 'clear', dirt: 0, time: 'day', view: 'boat' }, 30);
+  await set(page, { dirt: 0, time: 'day', view: 'boat' }, 30);
   // the panel and the corners out of the picture: the panel's own buttons, drawn over the canvas, are not the water
   await page.evaluate(() => {
     for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;

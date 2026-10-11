@@ -8,7 +8,6 @@
 import { VIEWS } from './lake';
 import { TIMES } from './look';
 import type { Settings } from './settings';
-import { STYLES } from './water/styles';
 
 /** What a view is called on the panel. */
 const VIEW_LABELS: Record<keyof typeof VIEWS, string> = {
@@ -48,7 +47,7 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
   act.append(actLegend, pebble, reel);
   const buttons = new Map<string, HTMLButtonElement>();
 
-  const group = (key: 'water' | 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {
+  const group = (key: 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {
     const field = document.createElement('fieldset');
     const legend = document.createElement('legend');
     legend.textContent = title;
@@ -65,12 +64,6 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
     }
     root.append(field);
   };
-
-  group(
-    'water',
-    'Water',
-    STYLES.map((s) => [s.name, s.label]),
-  );
 
   const dirtField = document.createElement('fieldset');
   const dirtLegend = document.createElement('legend');
@@ -99,7 +92,6 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
     'View',
     (Object.keys(VIEWS) as (keyof typeof VIEWS)[]).map((v) => [v, VIEW_LABELS[v]]),
   );
-  // the see-through water's own: what the opaque ways of drawing it have none of
   group('caustics', 'Caustics', [
     ['on', 'On'],
     ['off', 'Off'],

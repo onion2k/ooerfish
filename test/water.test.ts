@@ -1,36 +1,26 @@
-/** The ways of drawing the water, as data: each one's groups, and the contamination's colour through them. */
+/** The ways of drawing the water, as data: each one's groups. There is one, the water seen into. */
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
-import { FLOW_CLEAR, FLOW_RIPPLE, FLOW_WATER } from 'artshape-render/game/flow';
+import { FLOW_CLEAR } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
 import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
 import { CLEAR, CLEAR_WAVES } from '../src/water/clear';
-import { STYLES, skyTint, styleNamed, waterColour } from '../src/water/styles';
-import { RIPPLE } from '../src/water/ripple';
+import { STYLES } from '../src/water/styles';
 
 describe('the ways of drawing the water', () => {
-  it('are named, labelled, and each found by its name', () => {
-    expect(STYLES.map((s) => s.name)).toEqual(['open', 'ripple', 'clear']);
-    for (const s of STYLES) {
-      expect(s.label.length).toBeGreaterThan(0);
-      expect(styleNamed(s.name)).toBe(s);
-    }
+  it('are one, the see-through water, named and labelled', () => {
+    expect(STYLES.map((s) => s.name)).toEqual(['clear']);
+    for (const s of STYLES) expect(s.label.length).toBeGreaterThan(0);
   });
 
-  it('refuse a name they do not know, by giving the first', () => {
-    expect(styleNamed('lava')).toBe(STYLES[0]);
-    expect(styleNamed('')).toBe(STYLES[0]);
-  });
-
-  it('each give one water group, flowing in its own way, at any contamination', () => {
-    const kinds: Record<string, number> = { open: FLOW_WATER, ripple: FLOW_RIPPLE, clear: FLOW_CLEAR };
+  it('give one water group, flowing the clear way, at any contamination', () => {
     for (const s of STYLES)
       for (const dirt of [0, 0.5, 1]) {
         const groups = s.groups(dirt);
         expect(groups.length, s.name).toBe(1);
         const [water] = groups;
         expect(water.patterns?.length).toBe(PATTERN_STRIDE);
-        expect(water.patterns?.[0], `${s.name}'s flow kind`).toBe(kinds[s.name]);
+        expect(water.patterns?.[0], `${s.name}'s flow kind`).toBe(FLOW_CLEAR);
         expect(water.albedo?.every(Number.isFinite)).toBe(true);
         expect(water.mesh.indices.length).toBeGreaterThan(0);
       }
@@ -42,47 +32,23 @@ describe('the ways of drawing the water', () => {
       expect(s.groups(0.3)[0].albedo).not.toEqual(s.groups(0.7)[0].albedo);
     }
   });
-});
 
-describe("the contamination's colour", () => {
-  it('is sick green when dirty and clear blue when clean', () => {
-    expect(waterColour(1)).toEqual(PALETTE.sick);
-    expect(waterColour(0)).toEqual(PALETTE.clear);
-    const [r, g, b] = waterColour(1);
-    expect(g, 'green when dirty').toBeGreaterThan(b);
-    expect(g).toBeGreaterThan(r);
-    const [, g0, b0] = waterColour(0);
-    expect(b0, 'blue when clean').toBeGreaterThan(g0);
-  });
-
-  it('moves steadily from one to the other, never past either', () => {
-    let was = waterColour(0);
-    for (let k = 1; k <= 20; k++) {
-      const now = waterColour(k / 20);
-      // blue only ever falls and green only ever rises as the lake gets dirtier
-      expect(now[2]).toBeLessThanOrEqual(was[2] + 1e-12);
-      expect(now[1]).toBeGreaterThanOrEqual(was[1] - 1e-12);
-      was = now;
-    }
-    expect(waterColour(2)).toEqual(waterColour(1));
-    expect(waterColour(-1)).toEqual(waterColour(0));
+  it('leave the palette nothing that only the opaque waters read', () => {
+    for (const key of ['clear', 'sick', 'clearSky', 'sickSky']) expect(key in PALETTE, key).toBe(false);
   });
 });
 
 describe('the see-through water', () => {
-  const clear = styleNamed('clear');
+  const clear = STYLES[0];
 
-  it('is seen through: it draws no glow on its surface, since the fish glow under it, and says how clear it is', () => {
+  it('is seen through: the fish glow under it, so it has no glow of its surface, and it says how clear it is', () => {
     expect(clear.label).toBe('See-through');
-    expect(clear.surfaceGlow).toBe(false);
-    expect(styleNamed('open').surfaceGlow).toBe(true);
-    expect(styleNamed('ripple').surfaceGlow).toBe(true);
-    expect(clear.clear).toBeDefined();
-    expect(styleNamed('open').clear).toBeUndefined();
+    expect('surfaceGlow' in clear).toBe(false);
+    expect(typeof clear.clear).toBe('function');
   });
 
   it('is murkier the sicker the lake, and as clear as was chosen when clean', () => {
-    const at = (dirt: number) => clear.clear!(dirt, true, timeNamed('day')).clarity!;
+    const at = (dirt: number) => clear.clear(dirt, true, timeNamed('day')).clarity!;
     expect(at(0)).toBeCloseTo(CLEAR.clarity, 10);
     let was = at(0);
     for (let k = 1; k <= 10; k++) {
@@ -94,12 +60,12 @@ describe('the see-through water', () => {
   });
 
   it('has caustics when they are asked for, and none when they are not', () => {
-    expect(clear.clear!(0.5, true, timeNamed('day')).caustics).toBeGreaterThan(0);
-    expect(clear.clear!(0.5, false, timeNamed('day')).caustics).toBe(0);
+    expect(clear.clear(0.5, true, timeNamed('day')).caustics).toBeGreaterThan(0);
+    expect(clear.clear(0.5, false, timeNamed('day')).caustics).toBe(0);
   });
 
   it('sparkles by the time of day, in round stars and not the glitter: in the sun the most, and hardly at all by the moon', () => {
-    const at = (t: string) => clear.clear!(0, true, timeNamed(t));
+    const at = (t: string) => clear.clear(0, true, timeNamed(t));
     for (const t of ['dawn', 'day', 'dusk', 'night']) expect(at(t).glitter, t).toBe(0);
     const bright = (t: string) => at(t).sparkleBright!;
     expect(bright('day')).toBeGreaterThan(bright('dawn'));
@@ -110,13 +76,12 @@ describe('the see-through water', () => {
 
   it('swells, by the waves it says it has, and hands the same to the renderer', () => {
     expect(clear.waves?.length).toBe(4);
-    expect(clear.clear!(0.3, true, timeNamed('day')).waves).toBe(clear.waves);
-    expect(styleNamed('open').waves).toBeUndefined();
+    expect(clear.clear(0.3, true, timeNamed('day')).waves).toBe(clear.waves);
   });
 
   it('is lighter by the camera, toward a blue when clean and a green when sick, with crests and lines of foam', () => {
-    const clean = clear.clear!(0, true, timeNamed('day')),
-      sick = clear.clear!(1, true, timeNamed('day'));
+    const clean = clear.clear(0, true, timeNamed('day')),
+      sick = clear.clear(1, true, timeNamed('day'));
     const [r0, g0, b0] = clean.near!;
     expect(b0).toBeGreaterThan(g0);
     expect(g0).toBeGreaterThan(r0);
@@ -134,7 +99,7 @@ describe('the see-through water', () => {
       expect(w.wavelength, 'and under five metres long').toBeLessThan(5);
     }
     expect(CLEAR_WAVES.length).toBe(4);
-    const look = clear.clear!(0, true, timeNamed('day'));
+    const look = clear.clear(0, true, timeNamed('day'));
     expect(look.mirrorTint).toEqual([0.5, 0.95, 1.1]);
     expect(look.mirrorNear).toBe(0.4);
     expect(look.mirror).toBe(1);
@@ -162,31 +127,5 @@ describe('the see-through water', () => {
     const [r1, g1, b1] = deep(1);
     expect(g1, 'sick, green the most').toBeGreaterThan(b1);
     expect(g1).toBeGreaterThan(r1);
-  });
-});
-
-describe('open and lit-ripple water: a calm deep-azure pond', () => {
-  const round = (v: number) => Math.round(v * 1000) / 1000;
-  const head = (name: string) => Array.from(styleNamed(name).groups(0)[0].patterns!.subarray(0, 4)).map(round);
-
-  it('is a deep azure at a clean lake, and mirrors a deep blue sky, not a white one', () => {
-    expect(PALETTE.clear).toEqual([0, 0.085, 0.21]);
-    expect(PALETTE.clearSky).toEqual([0.02, 0.28, 0.58]);
-    expect(waterColour(0)).toEqual([0, 0.085, 0.21]);
-    expect(skyTint(0)).toEqual([0.02, 0.28, 0.58]);
-    expect(PALETTE.sick).toEqual([0.16, 0.42, 0.06]);
-    expect(PALETTE.sickSky).toEqual([0.7, 0.95, 0.45]);
-  });
-
-  it('has fine, slow, gentle waves for open water', () => {
-    expect(head('open')).toEqual([FLOW_WATER, 0.8, 0.12, 0.3]);
-    expect(styleNamed('open').groups(0)[0].roughness).toBe(0.08);
-  });
-
-  it('has a fine, slow, rough ripple, with its crests barely lighter than the water', () => {
-    expect(head('ripple')).toEqual([FLOW_RIPPLE, 0.2, 0.15, 0.02]);
-    expect(styleNamed('ripple').groups(0)[0].roughness).toBe(0.8);
-    expect(RIPPLE.lighter).toBe(0.05);
-    expect(RIPPLE.sickGlow).toBe(0.18);
   });
 });

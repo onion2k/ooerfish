@@ -8,9 +8,9 @@ in. TypeScript, Vite, and WebGPU through
 physics from [artshape-physics](https://github.com/onion2k/artshape-physics).
 The README says what the game is; this file says how it is made. The house
 rules in `~/.claude/CLAUDE.md` apply too. For now the page is the **lake
-lab**: one pond, drawn several ways side by side so the water can be chosen
-by looking, with fish swimming under it and a panel for the water, the
-contamination, the time of day and the view. In it a fish can be cast for,
+lab**: one pond, its water seen into (the lake is seen into as it is cleaned,
+which is what the game is about), with fish swimming under it and a panel for
+the contamination, the time of day, the view and the caustics. In it a fish can be cast for,
 hooked, played and landed (stages 1 and 2 of `DESIGN.md`'s order of work);
 nothing is saved yet, and the bucket is the session's until the cure comes.
 
@@ -43,18 +43,18 @@ The three properties, and what holds each:
 
 Numbers, held by gates, on this machine at 1280×800:
 
-| Property                                                 | Budget                         | Held by |
-| -------------------------------------------------------- | ------------------------------ | ------- |
-| Boot, page start to the frame loop running               | 3000 ms                        | `perf`  |
-| Download, scripts and styles gzipped                     | 400 kB; baseline to the byte   | `perf`  |
-| A frame drawn, the least of 24 at the standard scene     | 8 ms                           | `perf`  |
-| A frame of every way of drawing the water, day and night | 8 ms                           | `perf`  |
-| A step of the lake, against the reference arithmetic     | baseline ± 15%                 | `bench` |
-| Game minutes for the angler to land three fish           | baseline ± 20%, both ways      | `pace`  |
-| The scenery download, `public/scenery` gzipped           | 900 kB; baseline to the byte   | `perf`  |
-| Anything kept: fish, save bytes, heap                    | ceilings in `scripts/leaks.ts` | `leaks` |
+| Property                                             | Budget                         | Held by |
+| ---------------------------------------------------- | ------------------------------ | ------- |
+| Boot, page start to the frame loop running           | 3000 ms                        | `perf`  |
+| Download, scripts and styles gzipped                 | 400 kB; baseline to the byte   | `perf`  |
+| A frame drawn, the least of 24 at the standard scene | 8 ms                           | `perf`  |
+| A frame of the water, day and night                  | 8 ms                           | `perf`  |
+| A step of the lake, against the reference arithmetic | baseline ± 15%                 | `bench` |
+| Game minutes for the angler to land three fish       | baseline ± 20%, both ways      | `pace`  |
+| The scenery download, `public/scenery` gzipped       | 900 kB; baseline to the byte   | `perf`  |
+| Anything kept: fish, save bytes, heap                | ceilings in `scripts/leaks.ts` | `leaks` |
 
-The standard scene is `STANDARD` in `smoke/game.ts`: open water half
+The standard scene is `STANDARD` in `smoke/game.ts`: the water half
 cleaned, by day, from the shore. The pace gate's angler (`src/angler.ts`)
 casts toward the middle, strikes on the dip and plays the line by its gauge;
 `scripts/pace.ts` says how its tolerance was measured.
@@ -110,7 +110,7 @@ and normals are float16 and indices uint16. Run it again to change the kit.
 - `src/main.ts` is the page. It turns the lab's settings into the water, the
   light and the camera, and draws the frame. There is no game logic here.
 - `src/debug.ts` is `window.game`, the test API: the clock, the fish, and the
-  lab's four controls (`water`, `dirt`, `time`, `view`), each resolving once
+  lab's controls (`dirt`, `time`, `view`, `caustics`), each resolving once
   its change is ready to draw. `src/invariants.ts` lists the rules that must
   always hold.
 - Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
@@ -131,18 +131,16 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   bank, and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
   (counts, scales, layers); the roles map to the palette in `scenery.ts`.
   `game.scenery()` counts what was handed over.
-- **The ways of drawing the water** are in `src/water/`, one file each and a
-  line in `STYLES` (`styles.ts`): open water, lit ripple, and see-through
-  (`clear.ts`, the renderer's clear water from v0.29.0, whose `look.clear`
-  follows the contamination, the caustics setting and the time of day).
-  `waterColour` is the opaque styles' contamination colour. See-through water
-  wears v0.30.0's finish as sheet D had it (`CLEAR` and `CLEAR_WAVES`): its
-  `waves` are the style's own, which the bobber and the rings ride through
+- **The water** is drawn one way, the water seen into, in `src/water/`: a
+  file and a line in `STYLES` (`styles.ts`), so another would be a file and a
+  line. It is `clear.ts`, the renderer's clear water (from v0.29.0), whose
+  `look.clear` follows the contamination, the caustics setting and the time
+  of day, with its finish in `CLEAR` and `CLEAR_WAVES`: its `waves` are the
+  style's own, which the bobber and the rings ride through
   `src/water/swell.ts`, and its foam lines come from `src/shorefield.ts`, the
-  distance to the shore or a boulder, made once the first time it is chosen. `src/glow.ts`
-  draws a fish's glow on the surface over it, for the styles that cannot be
-  seen through (`surfaceGlow`); `src/fishdraw.ts` draws each fish as a mesh
-  glowing under the water (`FLOW_GLOW`), which see-through water shows.
+  distance to the shore or a boulder, made once at boot. `src/fishdraw.ts`
+  draws each fish as a mesh glowing under the water (`FLOW_GLOW`), which the
+  water shows; there is no glow drawn on the surface.
 - **The cast:** `src/cast.ts` is its flight as sums (an arc from the rod's tip
   that lands where it first meets the water or the bank), shared by the
   preview, so the preview is the flight to the bit; `src/lure.ts` is the lure
@@ -171,8 +169,8 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   `src/ripplesdraw.ts` (the rings as flat pieces, none over the bank) and
   `splashBurst` in `src/bursts.ts` (the droplets, emitted on the event).
   `src/pick.ts` turns a tap on the screen into the point on the water.
-- `src/settings.ts` reads the lab's settings (the water, the dirt, the time,
-  the view, and see-through water's caustics) from the address and refuses
+- `src/settings.ts` reads the lab's settings (the dirt, the time, the view,
+  and the water's caustics) from the address and refuses
   what it does not know; `src/lab.ts` is the panel. The save lives in
   `progress.ts` and has no fields yet. Chance comes from `random.ts`, handed
   in.
@@ -190,14 +188,17 @@ before anything is written; **/commit** commits in the house style.
 
 What to copy the shape of, when building something new:
 
-- **A way of drawing the water:** `src/water/ripple.ts`. A file that makes
-  the groups at a contamination, a line in `STYLES`, a unit test in
-  `test/water.test.ts`, pictures in `smoke/look.spec.ts`, and the perf test
-  measures it by itself.
+- **A way of drawing the water:** there is one, `src/water/clear.ts`. Another
+  would be a file beside it that makes the groups at a contamination and its
+  `look.clear`, a line in `STYLES`, a unit test in `test/water.test.ts`, and
+  pictures in `smoke/look.spec.ts`; it would also need a way to be chosen
+  (a `Settings` key, as a control on the lab below), since nothing chooses
+  between waters now.
 - **A thing in the lake:** the fish. Its numbers are content in `lake.ts`,
   it moves in `fish.ts` stepped by `game.ts`, is held by `invariants.ts`,
   hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
-  the bench, read by `debug.ts`, and drawn (its glow) by `glow.ts`.
+  the bench, read by `debug.ts`, and drawn (its glow, as a mesh) by
+  `fishdraw.ts`.
 - **A control on the lab:** a key in `Settings` with its check in `CHECK`
   (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
   `apply` (`main.ts`), a method on the test API, and a click in the controls
@@ -224,7 +225,7 @@ scene)` in `smoke/game.ts` to put the lab in a scene.
   `Math.random` itself.
 - **Nothing is made each frame.** Pools are sized once and written into;
   the renderer's groups are fixed and `move` writes them. The water's groups
-  are handed over again only when the lab's water or contamination changes. A per-frame
+  are handed over again only when the lab's contamination changes. A per-frame
   allocation is a frame-time bug and a garbage-collection stutter.
 - **Nothing is kept for ever.** A list, map or cache that is added to has to
   be emptied somewhere, and its ceiling named in `scripts/leaks.ts`.
@@ -258,7 +259,7 @@ For anything new, check what it does, from `DESIGN.md`:
 - **scale:** many at once, at capacity (`FISH_CAPACITY`); and what it costs
   a frame at that many
 - **phone:** narrow screen, and a slower GPU: which rung it steps down to
-- **the lab:** each way of drawing the water, each time of day, each view,
+- **the lab:** each time of day, each view, caustics on and off,
   the lake clear and sick; what the address says that is not known; and a
   pebble dropped on it, by a tap or the button, at the shore and off it
 - **the water:** above, on and under the surface; at the shore's edge; at

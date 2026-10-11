@@ -8,7 +8,7 @@
  * `step` plays it on a frame at a time, exactly, drawing the last. `seed`
  * makes chance repeat. Anything that changes the game goes through here,
  * and `state`, `fish`, `settings` and `invariants` read it back. The lab's
- * four controls are here too, doing what the panel's do: `water`, `dirt`,
+ * three controls are here too, doing what the panel's do: `dirt`,
  * `time` and `view` each resolve once the frame they change is ready to draw.
  *
  * The types are shared with the smoke tests, so a test that calls something
@@ -94,8 +94,6 @@ export interface GameApi {
   events(): string[];
   /** The lab's settings as they stand, as the address has them. */
   settings(): Settings;
-  /** The names of the ways the water can be drawn. */
-  styles(): string[];
   /** The rules that must always hold, broken; empty when all is well. */
   invariants(): string[];
   /** The save written now, and what it is. */
@@ -128,15 +126,13 @@ export interface GameApi {
   /** A pebble dropped somewhere near what the camera looks at, as the panel's button does. */
   dropNear(): boolean;
 
-  /** The water drawn the way of that name, as its button on the panel does. */
-  water(name: string): Promise<void>;
   /** The lake made as dirty as that, from clear (0) to sick (1), as the slider does. */
   dirt(contamination: number): Promise<void>;
   /** The time of day of that name: night, dawn, day or dusk. */
   time(name: string): Promise<void>;
   /** The camera put at the view of that name: shore, boat, overhead or phone. */
   view(name: string): Promise<void>;
-  /** See-through water's caustics, on or off. */
+  /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
@@ -180,7 +176,6 @@ export interface DebugHost {
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
-  styles(): string[];
 }
 
 export function createApi(host: DebugHost): GameApi {
@@ -229,7 +224,6 @@ export function createApi(host: DebugHost): GameApi {
     },
     events: () => host.events.splice(0),
     settings: () => host.settings(),
-    styles: () => host.styles(),
     invariants: () => checkInvariants(game),
     save() {
       game.persist();
@@ -295,7 +289,6 @@ export function createApi(host: DebugHost): GameApi {
     },
     drop: (x, y) => game.drop(x, y),
     dropNear: () => game.dropNear(...host.target()),
-    water: (name) => host.change({ water: name }),
     dirt: (contamination) => host.change({ dirt: contamination }),
     time: (name) => host.change({ time: name as Settings['time'] }),
     view: (name) => host.change({ view: name as Settings['view'] }),

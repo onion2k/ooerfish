@@ -4,7 +4,7 @@
  * day. One place for it, so every scene and picture is drawn alike.
  *
  * Each time of day is data: its sky, its sun, how much light there is all
- * round, and how bright a fish's glow reads. The sky the water mirrors is
+ * round, and how much the water glitters. The sky the water mirrors is
  * made from the same colours as the sky drawn behind it, so the reflection
  * of dusk is dusk's, and not the renderer's stock daylight.
  */
@@ -45,8 +45,6 @@ export interface TimeOfDay {
   ambient: number;
   /** How bright the whole picture is drawn: the toon bands are at a colour's full strength, so night is made dark here. */
   exposure: number;
-  /** How bright a fish's glow is drawn. */
-  glow: number;
   /** How much see-through water glitters: the renderer's glitter is the sun's hue at its full, the moon's too. */
   glitter: number;
 }
@@ -61,7 +59,6 @@ export const TIMES: readonly TimeOfDay[] = [
     sun: [-0.3, 0.4, 0.86],
     sunColour: PALETTE.moonlight,
     ambient: 0.25,
-    glow: 2.2,
     glitter: 0.12,
   },
   {
@@ -73,7 +70,6 @@ export const TIMES: readonly TimeOfDay[] = [
     sun: [0.9, -0.25, 0.35],
     sunColour: PALETTE.dawnlight,
     ambient: 0.75,
-    glow: 1.0,
     glitter: 0.6,
   },
   {
@@ -85,7 +81,6 @@ export const TIMES: readonly TimeOfDay[] = [
     sun: [0.45, -0.5, 0.74],
     sunColour: PALETTE.daylight,
     ambient: 1,
-    glow: 0.6,
     glitter: 1,
   },
   {
@@ -97,7 +92,6 @@ export const TIMES: readonly TimeOfDay[] = [
     sun: [-0.9, 0.2, 0.3],
     sunColour: PALETTE.dusklight,
     ambient: 0.65,
-    glow: 1.4,
     glitter: 0.5,
   },
 ];

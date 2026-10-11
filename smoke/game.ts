@@ -72,9 +72,8 @@ export async function ready(page: Page) {
   }
 }
 
-/** A scene in the lab: the water drawn a way, the lake as dirty as that, at a time of day, from a view. */
+/** A scene in the lab: the lake as dirty as that, at a time of day, from a view. */
 export interface Scene {
-  water: string;
   dirt: number;
   time: string;
   view: string;
@@ -82,17 +81,16 @@ export interface Scene {
 }
 
 /**
- * The standard scene, which the perf gate measures and the pictures start from: open water half cleaned, by day,
+ * The standard scene, which the perf gate measures and the pictures start from: the water half cleaned, by day,
  * from the shore.
  */
-export const STANDARD: Scene = { water: 'open', dirt: 0.5, time: 'day', view: 'shore' };
+export const STANDARD: Scene = { dirt: 0.5, time: 'day', view: 'shore' };
 
 /** The lab set to a scene through the test API, and `frames` frames stepped, so the fish and the water are on. */
 export async function set(page: Page, scene: Scene, frames = 120) {
   await page.evaluate(
     async ([s, n]) => {
       const g = window.game!;
-      await g.water(s.water);
       await g.dirt(s.dirt);
       await g.time(s.time);
       await g.view(s.view);

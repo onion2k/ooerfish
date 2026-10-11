@@ -1,9 +1,8 @@
 /**
  * What the lake looks like, held to pictures taken before. Every other check
  * is on what the game does; nothing else notices a palette gone muddy, a
- * light lost, or water drawn over the bank. In the lake lab these pictures
- * are also the record of every way of drawing the water: each style at a
- * dirty and a clean lake by day, and dirty at dusk, when the glow matters.
+ * light lost, or water drawn over the bank. The lake's one water is
+ * pictured at a dirty and a clean lake by day, dirty at dusk and night, from the boat and overhead.
  *
  * Each scene is set through the test API with chance seeded from before the
  * game is built, the game paused, and a fixed number of frames stepped, so
@@ -39,20 +38,14 @@ async function hideOverlays(page: Page) {
   });
 }
 
-/** Every picture of the lake, by name: each style dirty and clean by day and dirty at dusk, and open water's others. */
+/** Every picture of the lake, by name: dirty and clean by day, dirty at dusk and night, and from the boat and overhead. */
 const PICTURES: [string, Scene][] = [
-  ...['open', 'ripple'].flatMap((water): [string, Scene][] => [
-    [`${water}-sick-day`, { water, dirt: 1, time: 'day', view: 'shore' }],
-    [`${water}-clear-day`, { water, dirt: 0, time: 'day', view: 'shore' }],
-    [`${water}-sick-dusk`, { water, dirt: 1, time: 'dusk', view: 'shore' }],
-  ]),
-  ['clear-sick-day', { water: 'clear', dirt: 1, time: 'day', view: 'shore' }],
-  ['clear-clear-day', { water: 'clear', dirt: 0, time: 'day', view: 'shore' }],
-  ['clear-sick-dusk', { water: 'clear', dirt: 1, time: 'dusk', view: 'shore' }],
-  ['clear-half-boat', { water: 'clear', dirt: 0.5, time: 'day', view: 'boat' }],
-  ['open-sick-night', { water: 'open', dirt: 1, time: 'night', view: 'shore' }],
-  ['open-half-overhead', { water: 'open', dirt: 0.5, time: 'day', view: 'overhead' }],
-  ['open-half-boat', { water: 'open', dirt: 0.5, time: 'dawn', view: 'boat' }],
+  ['sick-day', { dirt: 1, time: 'day', view: 'shore' }],
+  ['clear-day', { dirt: 0, time: 'day', view: 'shore' }],
+  ['sick-dusk', { dirt: 1, time: 'dusk', view: 'shore' }],
+  ['half-boat', { dirt: 0.5, time: 'day', view: 'boat' }],
+  ['sick-night', { dirt: 1, time: 'night', view: 'shore' }],
+  ['half-overhead', { dirt: 0.5, time: 'day', view: 'overhead' }],
 ];
 
 test.describe('what it looks like', () => {
@@ -66,62 +59,57 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
-  // a pebble a third of a second after it landed in front of the boat, in each way of drawing the water: its droplets
-  // in the air and its first rings spreading
-  for (const water of ['open', 'ripple', 'clear'])
-    test(`${water}-splash`, async ({ page }) => {
+  // a pebble a third of a second after it landed in front of the boat: its droplets in the air and its first rings
+  // spreading
+  test('splash', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { dirt: 0.3, time: 'day', view: 'boat' }, 60);
+    await page.evaluate(() => {
+      window.game!.drop(8, 6);
+      window.game!.step(20);
+    });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('splash.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
+  // bobber
+  for (const [name, act] of [
+    ['aim-water', 'aim water'],
+    ['aim-bank', 'aim bank'],
+    ['flight', 'flight'],
+    ['sinking', 'sinking'],
+  ] as const)
+    test(`cast-${name}`, async ({ page }) => {
       const problems = watch(page);
       await start(page, { seed: 11, paused: true });
-      await set(page, { water, dirt: 0.3, time: 'day', view: 'boat' }, 60);
-      await page.evaluate(() => {
-        window.game!.drop(8, 6);
-        window.game!.step(20);
-      });
+      // a cast landing on a bank lands off to the side, out of the Shore view's frame: it is pictured from overhead
+      await set(page, { dirt: 0.2, time: 'day', view: name === 'aim-bank' ? 'overhead' : 'shore' }, 60);
+      await page.evaluate((what) => {
+        const g = window.game!;
+        if (what === 'aim water') g.aim({ angle: Math.PI / 2 + 0.2, power: 0.7 });
+        if (what === 'aim bank') g.aim({ angle: 0.3, power: 0.85 });
+        if (what === 'flight' || what === 'sinking') g.cast(Math.PI / 2 + 0.2, 0.7);
+        g.step(what === 'sinking' ? 175 : what === 'flight' ? 25 : 1);
+      }, act);
       await hideOverlays(page);
-      await expect(page.locator('#view')).toHaveScreenshot(`${water}-splash.png`, TOLERANCE);
+      await expect(page.locator('#view')).toHaveScreenshot(`cast-${name}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
 
-  // the cast from the shore, by day, on open water and see-through: aimed at the water and at the bank, in the air,
-  // and landed and sinking under its bobber
-  for (const water of ['open', 'clear'])
-    for (const [name, act] of [
-      ['aim-water', 'aim water'],
-      ['aim-bank', 'aim bank'],
-      ['flight', 'flight'],
-      ['sinking', 'sinking'],
-    ] as const)
-      test(`${water}-cast-${name}`, async ({ page }) => {
-        const problems = watch(page);
-        await start(page, { seed: 11, paused: true });
-        // a cast landing on a bank lands off to the side, out of the Shore view's frame: it is pictured from overhead
-        await set(page, { water, dirt: 0.2, time: 'day', view: name === 'aim-bank' ? 'overhead' : 'shore' }, 60);
-        await page.evaluate((what) => {
-          const g = window.game!;
-          if (what === 'aim water') g.aim({ angle: Math.PI / 2 + 0.2, power: 0.7 });
-          if (what === 'aim bank') g.aim({ angle: 0.3, power: 0.85 });
-          if (what === 'flight' || what === 'sinking') g.cast(Math.PI / 2 + 0.2, 0.7);
-          g.step(what === 'sinking' ? 175 : what === 'flight' ? 25 : 1);
-        }, act);
-        await hideOverlays(page);
-        await expect(page.locator('#view')).toHaveScreenshot(`${water}-cast-${name}.png`, TOLERANCE);
-        expect(problems).toEqual([]);
-      });
-
   // the fishing from the shore: the bobber dipped at a bite, a fish played with the line warm and the rod bent, and a
-  // fish landed, hanging from the rod with its card shown; the first two in open water and see-through, the fight by
-  // day and at dusk
-  for (const [name, water, time, moment] of [
-    ['open-bite', 'open', 'day', 'bite'],
-    ['clear-bite', 'clear', 'day', 'bite'],
-    ['open-fight', 'open', 'day', 'fight'],
-    ['clear-fight-dusk', 'clear', 'dusk', 'fight'],
-    ['clear-landed', 'clear', 'day', 'landed'],
+  // fish landed, hanging from the rod with its card shown; the fight by day and at dusk
+  for (const [name, time, moment] of [
+    ['bite', 'day', 'bite'],
+    ['fight-dusk', 'dusk', 'fight'],
+    ['landed', 'day', 'landed'],
   ] as const)
     test(`fishing-${name}`, async ({ page }) => {
       const problems = watch(page);
       await start(page, { seed: 11, paused: true });
-      await set(page, { water, dirt: 0.2, time, view: 'shore' }, 30);
+      await set(page, { dirt: 0.2, time, view: 'shore' }, 30);
       await page.evaluate((m) => window.game!.fishTo(m), moment);
       await hideOverlays(page);
       await expect(page.locator('#view')).toHaveScreenshot(`fishing-${name}.png`, TOLERANCE);
@@ -190,7 +178,7 @@ test.describe('on a phone', () => {
   test('a fish on the line, with the gauge and the Reel button in reach of a thumb', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
-    await set(page, { ...STANDARD, water: 'clear', view: 'phone' }, 30);
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
     await page.evaluate(() => {
       window.game!.fishTo('fight');
       document.getElementById('stats')!.hidden = true;

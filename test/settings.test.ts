@@ -5,12 +5,11 @@ import { DEFAULTS, changed, readSettings, writeSettings } from '../src/settings'
 describe("the lab's settings", () => {
   it('are the defaults from an empty address', () => {
     expect(readSettings(new URLSearchParams(''))).toEqual(DEFAULTS);
-    expect(DEFAULTS).toEqual({ water: 'open', dirt: 1, time: 'day', view: 'shore', caustics: 'on' });
+    expect(DEFAULTS).toEqual({ dirt: 1, time: 'day', view: 'shore', caustics: 'on' });
   });
 
   it('are read from the address', () => {
-    expect(readSettings(new URLSearchParams('water=clear&dirt=0.25&time=dusk&view=boat&caustics=off'))).toEqual({
-      water: 'clear',
+    expect(readSettings(new URLSearchParams('dirt=0.25&time=dusk&view=boat&caustics=off'))).toEqual({
       dirt: 0.25,
       time: 'dusk',
       view: 'boat',
@@ -19,7 +18,7 @@ describe("the lab's settings", () => {
   });
 
   it('refuse what they do not know, by name, keeping the default', () => {
-    const s = readSettings(new URLSearchParams('water=lava&dirt=lots&time=teatime&view=moon&caustics=sometimes'));
+    const s = readSettings(new URLSearchParams('dirt=lots&time=teatime&view=moon&caustics=sometimes'));
     expect(s).toEqual(DEFAULTS);
     expect(readSettings(new URLSearchParams('dirt=7')).dirt).toBe(1);
     expect(readSettings(new URLSearchParams('dirt=-2')).dirt).toBe(0);
@@ -27,7 +26,7 @@ describe("the lab's settings", () => {
   });
 
   it('come back as they went, through the address', () => {
-    const s = { water: 'ripple', dirt: 0.4, time: 'night', view: 'overhead', caustics: 'off' } as const;
+    const s = { dirt: 0.4, time: 'night', view: 'overhead', caustics: 'off' } as const;
     const back = readSettings(new URLSearchParams(writeSettings(s, new URLSearchParams('seed=3&paused=1'))));
     expect(back).toEqual(s);
     // what else the address said is kept
@@ -37,9 +36,15 @@ describe("the lab's settings", () => {
   });
 
   it('take a change, and refuse what they do not know, keeping what they had', () => {
-    const s = changed(DEFAULTS, { water: 'ripple', dirt: 0.3 });
-    expect(s).toEqual({ ...DEFAULTS, water: 'ripple', dirt: 0.3 });
-    expect(changed(s, { water: 'lava', time: 'teatime', view: 'moon', dirt: Number.NaN })).toEqual(s);
+    const s = changed(DEFAULTS, { dirt: 0.3 });
+    expect(s).toEqual({ ...DEFAULTS, dirt: 0.3 });
+    expect(changed(s, { time: 'teatime', view: 'moon', dirt: Number.NaN })).toEqual(s);
     expect(changed(s, { dirt: 9 }).dirt).toBe(1);
+  });
+
+  it('have no choice of water: the lake is seen into, and an address from before that said one still loads', () => {
+    const old = readSettings(new URLSearchParams('water=ripple&dirt=0.5'));
+    expect(old).toEqual({ ...DEFAULTS, dirt: 0.5 });
+    expect('water' in old).toBe(false);
   });
 });
