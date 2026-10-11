@@ -104,10 +104,12 @@ describe('the see-through water', () => {
     expect(look.mirrorNear).toBe(0.3);
     expect(look.mirror).toBe(1.2);
     expect(look.nearDistance).toBe(45);
-    expect(look.clarity).toBe(1.2);
+    expect(look.clarity).toBe(0.8);
     expect(look.caustics).toBe(0.12);
     expect(look.crestAmount).toBe(0);
-    expect(look.sparkleSize).toBe(5);
+    expect(look.sparkleSize).toBe(9);
+    expect(look.sparkles).toBe(0.3);
+    expect(look.sparkleBright).toBe(24);
     // the flow is fine, slow and only faintly tilted: 1.2 cells, a tenth of a unit a second
     const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
     expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 0.12, 0.38]);

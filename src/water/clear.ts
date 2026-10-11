@@ -8,7 +8,7 @@
  * Its finish is the pond tuned against the user's reference (an Unreal cartoon water) on 11 October 2026: a flat,
  * saturated blue near the camera with faint, soft ripples on it, a lighter blue far off, swells too low and short to
  * crest, one thin line of foam round every shore and boulder from the lake's shore field (which the page hands the
- * renderer), and a few big soft glints. The water is clear (a clarity of 1.2), so the bed, the weed and the fish glowing
+ * renderer), and three or so big soft glints. The water is clear (a clarity of 0.8, so the deep middle reads a purer blue from above), so the bed, the weed and the fish glowing
  * among them are seen in it. Because the blue is dark, the sky's mirror would be eased away by the camera and the water
  * would read flat; so, with renderer v0.32.0's mirror, the sky it shows is tinted and a good share of it is kept near
  * the camera. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
@@ -28,7 +28,7 @@ export const CLEAR = {
   scale: 1.2,
   speed: 0.12,
   steepness: 0.38,
-  clarity: 1.2,
+  clarity: 0.8,
   sickClarity: 0.25,
   caustics: 0.12,
   sickCaustics: 0.5,
@@ -39,11 +39,11 @@ export const CLEAR = {
   // the near colour's reach from the camera, so the far water is lighter than the near, and how much of the crest colour the swells' tops take (none)
   nearDistance: 45,
   crestAmount: 0,
-  // the sparkles: half the lattice's cells may, how nearly a wave must catch the glint, how bright by day, and how big
-  sparkles: 0.5,
+  // the sparkles: three in ten of the lattice's cells may (from above that is three big soft stars and not a lattice of hard dots), how nearly a wave must catch the glint, how bright by day, and how big
+  sparkles: 0.3,
   sparkleCut: 0.45,
-  sparkleBright: 14,
-  sparkleSize: 5,
+  sparkleBright: 24,
+  sparkleSize: 9,
   // a sick lake keeps this share of the sparkles' brightness
   sickSparkles: 0.5,
   // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
