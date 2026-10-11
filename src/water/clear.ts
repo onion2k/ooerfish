@@ -32,8 +32,12 @@ export const CLEAR = {
   sickClarity: 0.25,
   caustics: 0.12,
   sickCaustics: 0.5,
-  // with the shore field, the foam is one thin line this wide round every shore and boulder (the second line is none)
-  foamWidth: 0.25,
+  // with the shore field, the foam is one bold line this wide round every shore and boulder (the second line is none),
+  // and its edge is crisp, a fiftieth of its width, as an ink line is; the renderer's soft default read as a haze. The
+  // renderer can also ring things standing in the water (foamEverywhere), which the lake will want when there is a
+  // boat; it is off because the bobber is too small to ring and a full-width band muddies a gently sloping shore.
+  foamWidth: 0.3,
+  foamSoft: 0.02,
   foamGap: 0.35,
   foamWidth2: 0,
   // the near colour's reach from the camera, so the far water is lighter than the near, and how much of the crest colour the swells' tops take (none)
@@ -92,6 +96,7 @@ export const clear: WaterStyle = {
     return {
       clarity: CLEAR.clarity * (1 - (1 - CLEAR.sickClarity) * k),
       foamWidth: CLEAR.foamWidth,
+      foamSoft: CLEAR.foamSoft,
       foamGap: CLEAR.foamGap,
       foamWidth2: CLEAR.foamWidth2,
       // the sparkles stand in for the glitter, by the time of day as it did

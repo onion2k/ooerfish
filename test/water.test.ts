@@ -93,6 +93,14 @@ describe('the see-through water', () => {
     expect(clean.foamGap).toBeGreaterThan(0);
   });
 
+  it('draws its foam as a bold line with a crisp edge, round the shore and the boulders only', () => {
+    const clean = clear.clear(0, true, timeNamed('day'));
+    expect(clean.foamWidth, 'a bold line').toBe(0.3);
+    expect(clean.foamSoft, 'its edge crisp, a fiftieth of its width').toBe(0.02);
+    expect(clean.foamWidth2, 'one line').toBe(0);
+    expect(clean.foamEverywhere, 'things in the water are not ringed').toBeUndefined();
+  });
+
   it('is the calm painted pond: faint soft ripples, a mirror tinted and kept by the camera, a flat saturated blue, and clear enough to see the bed', () => {
     for (const w of CLEAR_WAVES) {
       expect(w.amplitude, 'a swell under two centimetres').toBeLessThan(0.02);
