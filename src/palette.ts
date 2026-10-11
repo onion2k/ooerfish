@@ -10,8 +10,15 @@
 export type Colour = [number, number, number];
 
 export const PALETTE = {
-  /** The grass of the banks: a deep, quiet green, dark against the bright water as in the reference. */
-  grass: [0.045, 0.135, 0.03] as Colour,
+  /**
+   * The grass of the banks, the ground painted under the blades: the colour they average to from root to tip
+   * (`grassGround` of `LUSH`, which a test holds it to), so the gaps between them and the fade past the far distance
+   * do not show. A deep, quiet green, dark against the bright water as in the reference.
+   */
+  grass: [0.06235, 0.18412, 0.03765] as Colour,
+  /** The blades of the banks' grass, from the dark of the root, which darkens into the ground, to the lighter tip. */
+  bladeBase: [0.03, 0.09, 0.02] as Colour,
+  bladeTip: [0.085, 0.25, 0.05] as Colour,
   /** The lake's bed, under the water: a dark slate, so that the shallows seen through the water stay blue and not grey (a dark earth bed had greyed them). */
   bed: [0.035, 0.06, 0.11] as Colour,
   /** The stones that line the shore, a dark neutral grey. */

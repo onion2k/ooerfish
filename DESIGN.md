@@ -196,7 +196,7 @@ determinism, leaks and perf.
   and tinted by the depth; a glow drawn on the surface was tried first and is gone.
 - **The day** is the sky gradient and the lights, by game time; **spray, blossom, leaves, snow and fireflies**
   the renderer's particles, the ones blown by a wash of air that ooergolf never used; **the banks** the GPU
-  grass in the wind, the low-poly scenery and the backdrop.
+  grass in the wind (built: `src/grass.ts`), the low-poly scenery (built, with a woodland round the lake) and the backdrop.
 - **The lure, the bobber and the drums** are bodies; floating and sinking are added in the game's step, as
   golf's wind is, unless the physics is given buoyancy. **Currents** are belts, as ooergolf's streams.
   **Snags** are static bodies and boxes. **The cast** is golf's flight, and its preview.

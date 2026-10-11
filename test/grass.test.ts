@@ -1,0 +1,118 @@
+/**
+ * The banks' grass as the renderer is handed it: where it grows, how high the ground is under it, and that the
+ * renderer would take it. The blades are never listed (the renderer grows them from the field), so these hold the
+ * field to the lake: nothing grows in the water or at the angler's feet, everything dry does, and the ground painted
+ * under the blades is the colour they average to. A field that put grass in the water would pass every other test.
+ */
+import { describe, expect, it, vi } from 'vitest';
+import { checkField, grassGround, levels } from 'artshape-render/game/grass';
+import { BREEZE, GRASS_OPTIONS, LUSH, bankField } from '../src/grass';
+import { ANGLER, BANK_RISE, BANK_TOP, SHORE_RADIUS, STRETCH, groundUnder, inShore, inside } from '../src/lake';
+import { PALETTE } from '../src/palette';
+
+const field = bankField();
+const cells = Array.from({ length: field.cols * field.rows }, (_, i) => {
+  const c = i % field.cols,
+    r = Math.floor(i / field.cols);
+  const x = field.origin[0] + (c + 0.5) * field.cell,
+    y = field.origin[1] + (r + 0.5) * field.cell;
+  return { i, x, y, grass: field.mask[i] > 0 };
+});
+const planted = cells.filter((c) => c.grass);
+
+describe('the banks field', () => {
+  it('is one the renderer takes, with the options it is given', () => {
+    expect(() => checkField(field, GRASS_OPTIONS)).not.toThrow();
+    expect(field.kinds).toEqual([LUSH]);
+  });
+
+  it('has grass, and some cells without', () => {
+    expect(planted.length).toBeGreaterThan(10_000);
+    expect(planted.length).toBeLessThan(cells.length);
+  });
+
+  it('grows nothing in the water, any corner of a cell included', () => {
+    const h = field.cell / 2;
+    for (const c of planted)
+      for (const [dx, dy] of [
+        [0, 0],
+        [-h, -h],
+        [h, -h],
+        [-h, h],
+        [h, h],
+      ])
+        expect(inside(c.x + dx, c.y + dy, 0), `cell at ${c.x},${c.y}`).toBe(false);
+  });
+
+  it("grows nothing at the angler's feet, and the cell they stand on is bare", () => {
+    for (const c of planted) expect(Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y)).toBeGreaterThan(4);
+    const under = cells.find((c) => Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y) < field.cell);
+    expect(under?.grass).toBe(false);
+  });
+
+  it('grows on every bank cell above the shore gap that is not at the angler, and nowhere else', () => {
+    let dry = 0;
+    for (const c of cells) {
+      const bank = !inShore(c.x, c.y, -0.9) && Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y) > 4;
+      if (bank) dry++;
+      expect(c.grass, `cell at ${c.x},${c.y}`).toBe(bank);
+    }
+    expect(dry).toBe(planted.length);
+  });
+
+  it('keeps a gap at the waterline: a cell just beyond the shore is bare', () => {
+    // 0.9 out from the shore is where the grass begins
+    expect(cells.some((c) => !c.grass && !inShore(c.x, c.y, 0) && inShore(c.x, c.y, -0.9))).toBe(true);
+  });
+
+  it('stands every cell on the ground under it, boulders left out as the banks sheet is drawn', () => {
+    for (const c of cells) expect(field.heights[c.i], `cell at ${c.x},${c.y}`).toBe(Math.fround(groundUnder(c.x, c.y)));
+  });
+
+  it('reaches out past the banks the sun shades, on every side, and carries on to the horizon at the bank top', () => {
+    const halfW = (SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH,
+      halfH = SHORE_RADIUS * 1.5 + BANK_RISE;
+    expect(field.origin[0]).toBeLessThanOrEqual(-halfW);
+    expect(field.origin[1]).toBeLessThanOrEqual(-halfH);
+    expect(field.origin[0] + field.cols * field.cell).toBeGreaterThanOrEqual(halfW);
+    expect(field.origin[1] + field.rows * field.cell).toBeGreaterThanOrEqual(halfH);
+    expect(field.outside).toEqual({ kind: 0, height: BANK_TOP });
+  });
+
+  it('is the same field every time it is made, whatever Math.random says', () => {
+    const random = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('the grass asked Math.random');
+    });
+    let again;
+    try {
+      again = bankField();
+    } finally {
+      random.mockRestore();
+    }
+    expect(again.seed).toBe(field.seed);
+    expect(again.mask).toEqual(field.mask);
+    expect(again.heights).toEqual(field.heights);
+  });
+});
+
+describe("the grass's figures", () => {
+  it("are paid for at ooergolf's rings, and rise from near to far", () => {
+    const { near, mid, far } = levels(field, GRASS_OPTIONS);
+    expect([near, mid, far]).toEqual([36, 110, 300]);
+  });
+
+  it('blow a slow breeze across the lake, the long blades giving to it', () => {
+    expect(BREEZE).toEqual({ direction: [1, 0.3], strength: 0.3, gustSize: 20, gustSpeed: 4 });
+    expect(LUSH.give).toBeGreaterThan(0.5);
+  });
+
+  it("have the bank painted the colour the blades average to, as ooergolf holds its ground to its blades' ", () => {
+    const ground = grassGround(LUSH);
+    for (let c = 0; c < 3; c++) expect(PALETTE.grass[c]).toBeCloseTo(ground[c], 4);
+  });
+
+  it('take their blades colour from the palette', () => {
+    expect(LUSH.base).toEqual(PALETTE.bladeBase);
+    expect(LUSH.tip).toEqual(PALETTE.bladeTip);
+  });
+});

@@ -46,8 +46,8 @@ const GROUND = 5;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and not with any shape
-    expect(hashGroups(new Scene().static())).toBe('8:4b372d74');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape
+    expect(hashGroups(new Scene().static())).toBe('8:68efd988');
   });
 });
 
@@ -72,11 +72,15 @@ describe('a scene with the kit', () => {
 });
 
 const placements: Placement[] = new Scene().placements(kit);
+/** The same banks on the lean rung: no woodland. */
+const lean: Placement[] = new Scene().placements(kit, { woodland: false });
+/** The woodland alone: what the full rung has that the lean does not, which it adds last. */
+const woodland: Placement[] = placements.slice(lean.length);
 const of = (kind: Placement['kind']) => placements.filter((p) => p.kind === kind);
 
 describe('the banks', () => {
   it('have the trees, the pebbles and the clumps content says', () => {
-    expect(of('tree')).toHaveLength(26);
+    expect(of('tree')).toHaveLength(26 + SCENERY.woodland.count);
     expect(of('pebble')).toHaveLength(70);
     expect(of('clump')).toHaveLength(SCENERY.clumps.count);
     expect(of('tree').every((p) => ['tree', 'pine'].includes(p.model.kind))).toBe(true);
@@ -205,22 +209,58 @@ describe('the scenery figures the test API reports', () => {
   });
 
   it('are as the content says today (the smoke stage holds the same figures from the page)', () => {
-    expect(figures).toEqual({ models: 31, placements: 186, triangles: 164595, cards: 18 });
+    expect(figures).toEqual({ models: 33, placements: 246, triangles: 385769, cards: 20 });
   });
 });
 
-describe("a tree's scale and a model's pick", () => {
+describe('the woodland', () => {
+  const k = (p: Placement) => {
+    const a = Math.atan2(p.y, p.x / STRETCH);
+    return Math.hypot(p.x / STRETCH, p.y) / shoreRadius(a);
+  };
+  const south = (p: Placement) => Math.sin(Math.atan2(p.y, p.x / STRETCH)) < -0.55;
+
+  it('is the sixty trees content says, all trees, added after everything else', () => {
+    expect(woodland).toHaveLength(SCENERY.woodland.count);
+    expect(woodland).toHaveLength(60);
+    expect(woodland.every((p) => p.kind === 'tree' && ['tree', 'pine'].includes(p.model.kind))).toBe(true);
+  });
+
+  it('leaves every other placement exactly where the lean rung has it, so stepping down only takes trees away', () => {
+    expect(lean).toHaveLength(246 - 60);
+    expect(JSON.stringify(placements.slice(0, lean.length))).toBe(JSON.stringify(lean));
+  });
+
+  it('stands in its band of shore radii, further out on the south bank', () => {
+    const { band, southBand } = SCENERY.woodland;
+    for (const p of woodland) {
+      const [lo, hi] = south(p) ? southBand : band;
+      expect(k(p), `${p.model.name} at ${p.x},${p.y}`).toBeGreaterThanOrEqual(lo - 1e-9);
+      expect(k(p), `${p.model.name} at ${p.x},${p.y}`).toBeLessThanOrEqual(hi + 1e-9);
+    }
+    // and both bands were reached
+    expect(woodland.some(south)).toBe(true);
+    expect(woodland.some((p) => !south(p))).toBe(true);
+  });
+
+  it('thickens outward: three in four of it in the outer half of its band (a square root of the draw), not one in two', () => {
+    const [lo, hi] = SCENERY.woodland.band;
+    const open = woodland.filter((p) => !south(p));
+    const outer = open.filter((p) => k(p) > (lo + hi) / 2).length;
+    expect(outer / open.length).toBeGreaterThan(0.62);
+  });
+
   const boxOf = (tall: number) => ({
     min: [0, 0, 0] as [number, number, number],
     max: [1, 1, tall] as [number, number, number],
   });
 
-  it('holds a tree down so no top passes the shadow box, whatever the scale and the model', () => {
+  it('is held down so no top passes the shadow box, whatever the scale and the model', () => {
     const tree = [...kit.models.values()].find((m) => m.kind === 'tree')!;
-    const tall = { ...tree, bounds: boxOf(40) };
+    const tall = { ...tree, bounds: boxOf(20) };
     for (const z of [0, 2.2]) {
       const scale = treeScale(tall, z, 1);
-      expect(z + scale * 40).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
+      expect(z + scale * 20).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
       expect(scale).toBeLessThan(SCENERY.trees[tall.kind][1]);
     }
     // and where there is room it is the scale content picked
@@ -228,8 +268,29 @@ describe("a tree's scale and a model's pick", () => {
     expect(treeScale(low, 0, 0)).toBe(SCENERY.trees[low.kind][0]);
   });
 
-  it('picks models in proportion to one over their triangles', () => {
+  it('keeps clear of the water, the angler and the shadow box top, as the spot trees do', () => {
+    for (const p of woodland) {
+      for (const [x, y] of footprint(p)) {
+        expect(inside(x, y, 0), `${p.model.name} at ${p.x},${p.y}`).toBe(false);
+        expect(Math.hypot(x - ANGLER.x, y - ANGLER.y)).toBeGreaterThanOrEqual(5);
+      }
+      expect(p.z + p.scale * p.model.bounds.max[2]).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
+      expect(p.z).toBe(ground(p.x, p.y));
+    }
+  });
+
+  it('is at true scale: the trees about two and a half to three times the old, up to the shadow box', () => {
+    expect(SCENERY.trees.tree).toEqual([2.4, 3.2]);
+    expect(SCENERY.trees.pine).toEqual([2.4, 3.2]);
+    expect(SHADOW_BOX.max[2]).toBe(40);
+    for (const p of woodland) expect(p.scale).toBeGreaterThanOrEqual(2.4 - 1e-9);
+  });
+
+  it('picks its models by the weight of one over their triangles, so it costs fewer triangles a tree', () => {
     const models = [...kit.models.values()].filter((m) => m.kind === 'tree' || m.kind === 'pine');
+    const tris = (m: (typeof models)[number]) => m.parts.reduce((n, part) => n + part.mesh.indices.length / 3, 0);
+    expect(models.every((m) => m.triangles === tris(m))).toBe(true);
+    // over an even grid of draws, each model is picked in proportion to 1 / triangles
     const N = 20_000,
       picked = new Map<string, number>();
     for (let i = 0; i < N; i++) {
@@ -238,5 +299,22 @@ describe("a tree's scale and a model's pick", () => {
     }
     const sum = models.reduce((n, m) => n + 1 / m.triangles, 0);
     for (const m of models) expect((picked.get(m.name) ?? 0) / N, m.name).toBeCloseTo(1 / m.triangles / sum, 3);
+    // and the woodland that was drawn costs less a tree than an even pick of the models would
+    const even = models.reduce((n, m) => n + m.triangles, 0) / models.length;
+    const cost = woodland.reduce((n, p) => n + p.model.triangles, 0) / woodland.length;
+    expect(cost).toBeLessThan(even);
+  });
+});
+
+describe('the lean rung', () => {
+  it('has the woodland out of its groups and nothing else, in the same order', () => {
+    const full = new Scene().static(kit);
+    const thin = new Scene().static(kit, { woodland: false });
+    expect(sceneryFigures(lean).placements).toBe(186);
+    // a model that stood only in the woodland has no group; the rest hold fewer matrices or the same
+    expect(thin.length).toBeLessThanOrEqual(full.length);
+    const matrices = (gs: GameGroup[]) => gs.reduce((n, g) => n + g.matrices.length / 16, 0);
+    expect(matrices(full) - matrices(thin)).toBeGreaterThanOrEqual(60);
+    for (let i = 0; i < GROUND; i++) expect(thin[i].matrices).toEqual(full[i].matrices);
   });
 });

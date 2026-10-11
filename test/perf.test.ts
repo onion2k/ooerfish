@@ -5,7 +5,8 @@
  * looks the same as one that passes.
  */
 import { describe, expect, it } from 'vitest';
-import { TOLERANCE, moved } from '../smoke/judging';
+import { PNG } from 'pngjs';
+import { GRASS_WOBBLE, TOLERANCE, moved, pixelsApart } from '../smoke/judging';
 
 describe('the perf gate', () => {
   it('holds the download to the byte, either way', () => {
@@ -31,5 +32,51 @@ describe('the perf gate', () => {
     expect(moved('bootMs', 50, 60)).toBe(false);
     expect(moved('bootMs', 1000, 1400)).toBe(true);
     expect(moved('bootMs', 1000, 600)).toBe(true);
+  });
+});
+
+describe('the pictures, drawn twice at one moment', () => {
+  const picture = (paint: (x: number, y: number) => [number, number, number]) => {
+    const png = new PNG({ width: 20, height: 10 });
+    for (let y = 0; y < 10; y++)
+      for (let x = 0; x < 20; x++) {
+        const [r, g, b] = paint(x, y);
+        png.data.set([r, g, b, 255], (y * 20 + x) * 4);
+      }
+    return PNG.sync.write(png);
+  };
+  const flat = picture(() => [40, 90, 30]);
+
+  it('count the pixels that differ by more than a few of 255, and none where they are the same', () => {
+    expect(pixelsApart(flat, flat)).toBe(0);
+    expect(
+      pixelsApart(
+        flat,
+        picture((x, y) => (x === 3 && y === 4 ? [200, 90, 30] : [40, 90, 30])),
+      ),
+    ).toBe(1);
+    // a drift of a few levels in a channel is the GPU's and not a change
+    expect(
+      pixelsApart(
+        flat,
+        picture(() => [43, 88, 32]),
+      ),
+    ).toBe(0);
+    expect(
+      pixelsApart(
+        flat,
+        picture(() => [40, 90, 40]),
+      ),
+    ).toBe(200);
+  });
+
+  it('tell pictures of different sizes apart as wholly different', () => {
+    const png = new PNG({ width: 4, height: 4 });
+    expect(pixelsApart(flat, PNG.sync.write(png))).toBe(200);
+  });
+
+  it('forgive the grass its wobble, which is a few pixels, and not a button, which is hundreds', () => {
+    expect(GRASS_WOBBLE).toBeGreaterThanOrEqual(1);
+    expect(GRASS_WOBBLE).toBeLessThan(100);
   });
 });

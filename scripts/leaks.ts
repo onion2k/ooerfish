@@ -16,7 +16,12 @@
  *
  * The scenery kit is not watched: it is loaded once, before the first frame, and
  * nothing in it grows, so there is no ceiling to name. Its download is held by
- * `sceneryBytes` in the perf gate.
+ * `sceneryBytes` in the perf gate. Nor is the banks' grass: its field is made once
+ * (half-unit cells over the banks, a fixed size) and handed to the renderer, which
+ * grows the blades again each frame from a hash into buffers sized once, so nothing
+ * is added to over an hour; the woodland is a fixed sixty placements. Switching rung
+ * hands the renderer fresh groups and lets the old go, and is the page's, not the
+ * game's, and so not played here.
  */
 import { Game } from '../src/game';
 import { FISH_CAPACITY, SPLASH_CAPACITY } from '../src/lake';

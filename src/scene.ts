@@ -76,6 +76,11 @@ interface Spot {
   y: number;
 }
 
+/** What a scene is built with: the woodland round the lake, which the lean rung leaves out. */
+export interface SceneOptions {
+  woodland?: boolean;
+}
+
 const lerp = (range: readonly [number, number], k: number) => range[0] + (range[1] - range[0]) * k;
 
 /** Where a ring `k` of the way out from the middle is, at an angle, on the lake's own stretched shape. */
@@ -85,9 +90,9 @@ function ring(k: number, angle: number): [number, number] {
 }
 
 /**
- * A model of the trees picked by the weight of one over its triangles, from a draw `u` in [0, 1): a cheaper model is
- * picked the more often, for a scene that wants more trees for fewer triangles. Pure, so a test can hold the weighting
- * over an even grid of draws.
+ * A model of the trees picked by the weight of one over its triangles, from a draw `u` in [0, 1): the woodland costs
+ * fewer triangles a tree, since every one is drawn three times (the sun's shadow, the occlusion prepass and the
+ * colour). Pure, so a test can hold the weighting over an even grid of draws.
  */
 export function cheapPick(models: KitModel[], u: number): KitModel {
   let total = 0;
@@ -173,9 +178,12 @@ export class Scene {
 
   /**
    * What the kit stands on the banks: a pebble at each old stone's place, a tree at each old tree's, and the bank
-   * clumps, picked, turned and scaled from the dressing's own stream. The same every call.
+   * clumps, picked, turned and scaled from the dressing's own stream, and then the woodland unless the lean rung
+   * leaves it out. The woodland is drawn from the stream last and stands last in the list, so the lean rung's
+   * placements are the full rung's first ones bit for bit, and stepping down only takes trees away. The same every
+   * call.
    */
-  placements(kit: Kit): Placement[] {
+  placements(kit: Kit, options: SceneOptions = {}): Placement[] {
     const { stoneSpots, treeSpots } = this.layout();
     const random = seeded(DRESSING_SEED);
     // by name, so the pick does not depend on the order the manifest happens to list the models in
@@ -232,11 +240,28 @@ export class Scene {
       out.push(placed);
       made++;
     }
+
+    // the woodland: more trees in a band out from the banks, denser further out by a square root, the near south bank
+    // kept clear, each model picked toward the cheaper; the top held under the sun's shadow as the spot trees' are
+    if (options.woodland !== false) {
+      const { count, band, southBand } = SCENERY.woodland;
+      for (let i = 0; i < count; i++) {
+        const model = cheapPick(trees, random());
+        const angle = random() * Math.PI * 2;
+        const u = Math.sqrt(random());
+        const [lo, hi] = Math.sin(angle) < -0.55 ? southBand : band;
+        const [x, y] = ring(lo + (hi - lo) * u, angle);
+        const z = ground(x, y);
+        const yaw = random() * Math.PI * 2;
+        const scale = treeScale(model, z, random());
+        out.push({ model, kind: 'tree', x, y, z, yaw, scale });
+      }
+    }
     return out;
   }
 
   /** What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. */
-  static(kit?: Kit): GameGroup[] {
+  static(kit?: Kit, options: SceneOptions = {}): GameGroup[] {
     const { stones, trunks, puffs, rocks, blades, boulders } = this.layout();
     // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
     // the sheets are the ground without the boulders, which are drawn on it as their own
@@ -262,7 +287,7 @@ export class Scene {
 
     // one group per part of each model that stands anywhere, its placements being that model's
     const by = new Map<string, Placement[]>();
-    for (const p of this.placements(kit)) by.set(p.model.name, [...(by.get(p.model.name) ?? []), p]);
+    for (const p of this.placements(kit, options)) by.set(p.model.name, [...(by.get(p.model.name) ?? []), p]);
     for (const model of kit.models.values()) {
       const there = by.get(model.name);
       if (!there) continue;
@@ -317,8 +342,8 @@ export function footprint(p: Placement): [number, number][] {
   return [at(0, 0), at(min[0], min[1]), at(max[0], min[1]), at(min[0], max[1]), at(max[0], max[1])];
 }
 
-/** What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree. */
+/** What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree (the trees at true scale stand up to thirty tall). */
 export const SHADOW_BOX = {
   min: [-(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, -(SHORE_RADIUS * 1.5 + BANK_RISE), -8] as [number, number, number],
-  max: [(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, SHORE_RADIUS * 1.5 + BANK_RISE, 16] as [number, number, number],
+  max: [(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, SHORE_RADIUS * 1.5 + BANK_RISE, 40] as [number, number, number],
 };

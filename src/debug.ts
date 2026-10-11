@@ -18,6 +18,7 @@
 import type { Game } from './game';
 import { flight } from './cast';
 import type { Mode } from './mode';
+import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import { seeded } from './random';
 import type { SceneryFigures } from './scene';
@@ -159,6 +160,15 @@ export interface GameApi {
   measureFrame(warm?: number): Promise<number>;
   /** What the kit stands on the banks, in figures: the models placed, the placements, the triangles drawn and the cards. */
   scenery(): SceneryFigures;
+  /**
+   * The rung the page is drawn on: `full`, with the banks' grass and the woodland, or `lean`, without them. With a
+   * rung, puts the page on it as the governor does at boot, resolving once it is ready to draw; without, says which
+   * it is on.
+   */
+  rung(): Rung;
+  rung(to: Rung): Promise<void>;
+  /** The blades of grass the last frame drew, near and far, read back from the GPU: none on the lean rung. */
+  grass(): Promise<{ near: number; far: number }>;
 }
 
 /** What the page gives the API that is not the game's: time, the camera and the renderer. */
@@ -183,6 +193,9 @@ export interface DebugHost {
   events: string[];
   measureFrame(warm?: number): Promise<number>;
   scenery(): SceneryFigures;
+  rung(): Rung;
+  setRung(to: Rung): Promise<void>;
+  grass(): Promise<{ near: number; far: number }>;
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
@@ -313,5 +326,7 @@ export function createApi(host: DebugHost): GameApi {
     project: (x, y, z) => host.project(x, y, z),
     measureFrame: (warm) => host.measureFrame(warm),
     scenery: () => host.scenery(),
+    rung: ((to?: Rung) => (to === undefined ? host.rung() : host.setRung(to))) as GameApi['rung'],
+    grass: () => host.grass(),
   };
 }

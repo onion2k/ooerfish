@@ -8,6 +8,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { PNG } from 'pngjs';
 import { ready, set, start, touchDrag, watch } from './game';
+import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /** How many frames the page draws in a second. */
 function framesInASecond(page: Page) {
@@ -147,8 +148,12 @@ test("turns see-through water's caustics on and off in what is drawn", async ({ 
   const on = await shot('on');
   const off = await shot('off');
   const again = await shot('on');
-  expect(on.equals(off), 'caustics on and off drew the same').toBe(false);
-  expect(on.equals(again), 'caustics on, twice at the same time, drew differently').toBe(true);
+  // caustics in this scene are faint (a few levels of 255), so any difference at all counts, not only a clear one
+  expect(pixelsApart(on, off, 0), 'caustics on and off drew the same').toBeGreaterThan(GRASS_WOBBLE * 10);
+  // not the same bytes: the grass's blades are drawn in no fixed order and a pixel or two of the far bank flickers
+  expect(pixelsApart(on, again, 0), 'caustics on, twice at the same time, drew differently').toBeLessThanOrEqual(
+    GRASS_WOBBLE,
+  );
   expect(problems).toEqual([]);
 });
 

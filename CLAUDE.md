@@ -130,7 +130,29 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   hand-made banks are built. Placement keeps off the water and the near south
   bank, and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
   (counts, scales, layers); the roles map to the palette in `scenery.ts`.
-  `game.scenery()` counts what was handed over.
+  `game.scenery()` counts what was handed over. The trees stand at their true
+  size (scale 2.4 to 3.2, up to thirty tall, so `SHADOW_BOX` reaches 40), and
+  `SCENERY.woodland` adds sixty more in a band of shore radii (further out on
+  the south bank), each model picked by one over its triangles (`cheapPick`),
+  drawn from the dressing stream last so the lean rung's placements are the
+  full rung's first ones bit for bit.
+- **The grass:** `src/grass.ts` is the banks' long grass as the renderer grows
+  it (`setGrass`, `wind`): the `LUSH` kind (colours in `PALETTE.bladeBase` and
+  `bladeTip`), `bankField()` (half-unit cells over the banks to the shadow
+  box; grass where it is dry, 0.9 back from the waterline and over 4 from the
+  angler, heights from `groundUnder`), `GRASS_OPTIONS` (ooergolf's rings) and
+  `BREEZE`. `PALETTE.grass`, the ground under the blades, is held by a test to
+  `grassGround(LUSH)`. The renderer's clock runs at the water's pace, so the
+  breeze is slow; there is no second clock. `game.grass()` reads the blades
+  drawn near and far back from the GPU.
+- **The rung:** the page is on `full` (the grass and the woodland) or `lean`
+  (neither), `src/rung.ts`. At boot, unless `?rung=full|lean` asks, the
+  governor measures the frame as `measureFrame` does (the least of five
+  samples, half a second) and steps to lean when it is over
+  `RUNG_DOWN_MS` (8, the budget), once and never again; `game.rung()` reads and
+  sets it, resolving when applied. The smoke's `start` puts the page on `full`
+  unless it is asked for `rung: 'auto'`, so a picture or a frame never depends
+  on the machine's mood.
 - **The water** is drawn one way, the water seen into, in `src/water/`: a
   file and a line in `STYLES` (`styles.ts`), so another would be a file and a
   line. It is `clear.ts`, the renderer's clear water (from v0.29.0), whose
@@ -215,7 +237,8 @@ What to copy the shape of, when building something new:
   `apply` (`main.ts`), a method on the test API, and a click in the controls
   test in `smoke/game.spec.ts`.
 - **A thing on the bank:** a model in `scripts/kit-sources.json` and its
-  counts and scales in `SCENERY` (`lake.ts`), converted by `kit.ts`, read by
+  counts and scales in `SCENERY` (`lake.ts`; the woodland is a count and a
+  band there, and the grass a kind and a field in `grass.ts`), converted by `kit.ts`, read by
   `scenery.ts`, placed by `scene.ts`, held by `test/scene.test.ts`, counted by
   `game.scenery()`, weighed by `sceneryBytes`, and seen in the look pictures.
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the bench
@@ -272,6 +295,9 @@ For anything new, check what it does, from `DESIGN.md`:
 - **phone:** narrow screen, and a slower GPU: which rung it steps down to
 - **the mode:** look and cast, each view picked from each, the button and
   the key, a drag, a tap and a hold in each, and cast again while out
+- **the rung:** full and lean, each time of day and view on each; the governor
+  choosing at boot, forced by the address, and set through `game.rung()` while
+  playing; lean has no grass drawn and 60 fewer placements
 - **the lab:** each time of day, each view, caustics on and off,
   the lake clear and sick; what the address says that is not known; and a
   pebble dropped on it, by a tap or the button, at the shore and off it

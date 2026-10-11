@@ -30,10 +30,16 @@ export function watch(page: Page): string[] {
  * scripts run, and only on the first load, so a reload keeps what was
  * played), and ready. `seed` makes chance the same from before the game is
  * built, and `paused` stops it before a frame of its own has run, so
- * everything after is the test's own stepping.
+ * everything after is the test's own stepping. The page is put on the full
+ * rung unless a test says otherwise: the governor would choose by how busy the
+ * machine is, and a picture or a frame that depended on that would hold the
+ * game to the machine's mood. `rung: 'auto'` lets the governor choose.
  */
-export async function start(page: Page, options: { save?: Partial<Save>; seed?: number; paused?: boolean } = {}) {
-  const { save, seed, paused } = options;
+export async function start(
+  page: Page,
+  options: { save?: Partial<Save>; seed?: number; paused?: boolean; rung?: 'full' | 'lean' | 'auto' } = {},
+) {
+  const { save, seed, paused, rung = 'full' } = options;
   if (save)
     await page.addInitScript((s) => {
       if (sessionStorage.getItem('game-test-seeded')) return;
@@ -43,6 +49,7 @@ export async function start(page: Page, options: { save?: Partial<Save>; seed?: 
   const query = new URLSearchParams();
   if (seed !== undefined) query.set('seed', String(seed));
   if (paused) query.set('paused', '1');
+  if (rung !== 'auto') query.set('rung', rung);
   await page.goto(query.size ? `/?${query.toString()}` : '/');
   await ready(page);
 }

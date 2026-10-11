@@ -19,6 +19,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { STANDARD, set, start, watch, type Scene } from './game';
+import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /**
  * How far the pictures may differ before it is a change and not the GPU: not a pixel whose colour is off by more
@@ -27,9 +28,12 @@ import { STANDARD, set, start, watch, type Scene } from './game';
  * there is no drift there to allow for. The lake draws more (moving water, glows over it): its drift is measured
  * the same way before this is believed of it, and `/gate-moved` says how. Playwright leaves out a pixel it takes
  * for the edge of a shape smoothed. The five-hundredth of the pixels the template used to forgive was 2,048 of
- * them, and a button over the scene is 701.
+ * them, and a button over the scene is 701. Since the banks' grass the lake does drift, by a pixel or two: the
+ * renderer's blades are drawn in no fixed order, so where two meet at one depth the last wins. `GRASS_WOBBLE`
+ * (`judging.ts`) is that drift measured and widened, a handful of pixels and no share, and the test below that
+ * holds the gate to a button still fails it.
  */
-const TOLERANCE = { maxDiffPixels: 0, threshold: 0.02 };
+const TOLERANCE = { maxDiffPixels: GRASS_WOBBLE, threshold: 0.02 };
 
 /** The corners that count the milliseconds and tell how to look round, the look or cast button, and the lab's panel: not the look. */
 async function hideOverlays(page: Page) {
@@ -131,9 +135,12 @@ test.describe('what it looks like', () => {
     const first = await shot();
     // the page draws frames of its own while paused, of no time: they must draw the same water
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    expect((await shot()).equals(first), 'the same game time drew different water').toBe(true);
+    // not the same bytes: the grass's blades are drawn in no fixed order and a pixel or two of the far bank flickers
+    expect(pixelsApart(await shot(), first), 'the same game time drew different water').toBeLessThanOrEqual(
+      GRASS_WOBBLE,
+    );
     await page.evaluate(() => window.game!.step(60));
-    expect((await shot()).equals(first), 'a second on, the water had not moved').toBe(false);
+    expect(pixelsApart(await shot(), first), 'a second on, the water had not moved').toBeGreaterThan(1000);
   });
 
   test('a small thing added to the scene is a change', async ({ page }, info) => {

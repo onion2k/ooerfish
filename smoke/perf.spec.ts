@@ -59,8 +59,11 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
   const problems = watch(page);
   const bundle = bundleBytes();
   const scenery = sceneryBytes();
-  await start(page, { seed: 11, paused: true });
+  // the governor chooses, as it does for a player, so the boot figure holds the frame it measures; a machine too busy
+  // to draw the full rung inside the budget would step down, and the frame below would then not be the full rung's
+  await start(page, { seed: 11, paused: true, rung: 'auto' });
   const boot = await page.evaluate(() => window.game!.bootMs);
+  expect(await page.evaluate(() => window.game!.rung()), 'the governor kept the full rung').toBe('full');
   // the standard scene, three seconds on
   await set(page, STANDARD, 180);
   // the first measuring on a page just booted: it keeps the GPU drawing for a quarter of a second before it times

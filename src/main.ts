@@ -10,6 +10,7 @@ import { LightPool } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
+import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { aimFrom } from './aim';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
@@ -22,6 +23,7 @@ import { light, timeNamed } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
+import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
 import { RippleDraw } from './ripplesdraw';
 import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
@@ -109,9 +111,27 @@ async function main() {
   renderer.setCardImages(scenery.masks);
 
   const scene = new Scene();
-  renderer.setStatic(scene.static(scenery.kit));
-  // worked out once, from the placements the groups were made from, and read back by the test API
-  const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
+  // the rung the page is drawn on: full has the banks' grass and the woodland, lean has neither. The address may ask
+  // for one (a test does, and so does a slow machine's owner); without, the governor chooses once the page has booted.
+  const asked = rungAsked(query.get('rung'));
+  let rung: Rung = asked === 'auto' ? 'full' : asked;
+  // worked out once a rung, from the placements the groups were made from, and read back by the test API
+  let sceneryFigured = sceneryFigures(scene.placements(scenery.kit, { woodland: rung === 'full' }));
+  // the grass field is made once and handed over each time the full rung is drawn: nothing in it grows
+  let field: ReturnType<typeof bankField> | null = null;
+  /** The page put on a rung: the banks' groups made again with or without the woodland, and the grass grown or let go. */
+  async function setRung(to: Rung) {
+    rung = to;
+    const full = to === 'full';
+    renderer.setStatic(scene.static(scenery.kit, { woodland: full }));
+    sceneryFigured = sceneryFigures(scene.placements(scenery.kit, { woodland: full }));
+    field ??= bankField();
+    await renderer.setGrass(full ? field : null, GRASS_OPTIONS);
+  }
+  await setRung(rung);
+  // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
+  // grass has no second clock of its own
+  renderer.wind = BREEZE;
   renderer.setLights(new LightPool(LIGHT_CAPACITY));
 
   // the foam rings the shore and the boulders from the lake's field, made once and before the first frame
@@ -393,7 +413,7 @@ async function main() {
    * to be shown is counted. The frame loop draws nothing meanwhile: its frame, sixty times a second, fell in one
    * sample in three and read as a frame taking twice as long.
    */
-  async function measureFrame(warm?: number): Promise<number> {
+  async function measureFrame(warm?: number, samples?: number): Promise<number> {
     const target = ctx.device.createTexture({
       label: 'measuring target',
       size: [width, height],
@@ -410,6 +430,7 @@ async function main() {
         },
         () => ctx.device.queue.onSubmittedWorkDone(),
         warm,
+        samples,
       );
     } finally {
       measuring = false;
@@ -418,6 +439,15 @@ async function main() {
   }
 
   await renderer.ready;
+  // the governor: the frame of the full rung measured once, here, as the page will draw it, and the page stepped down
+  // to lean if it is over the budget. The least of a few samples after the GPU has been kept drawing, so a busy
+  // machine only ever adds to a sample and cannot make a fast one read slow; nothing is measured again, so a page
+  // does not change what it draws as it plays
+  if (asked === 'auto') {
+    const ms = await measureFrame(BOOT_MEASURE.warmMs, BOOT_MEASURE.samples);
+    if (rungFor(ms) !== rung) await setRung(rungFor(ms));
+    await renderer.prepare();
+  }
   boot.classList.add('gone');
   stats.hidden = false;
   help.hidden = false;
@@ -487,6 +517,12 @@ async function main() {
     events: eventLog,
     measureFrame,
     scenery: () => ({ ...sceneryFigured }),
+    rung: () => rung,
+    setRung: async (to) => {
+      await setRung(to);
+      await renderer.prepare();
+    },
+    grass: () => renderer.grassDrawn(),
     settings: () => ({ ...settings }),
     change: (next) => change(next),
     mode: () => mode,
