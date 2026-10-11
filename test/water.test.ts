@@ -89,34 +89,38 @@ describe('the see-through water', () => {
     expect(g1).toBeGreaterThan(b1);
     expect(g1).toBeGreaterThan(r1);
     expect(clean.crestAmount, 'a calm pond has no lighter crests').toBe(0);
-    expect(clean.foamWidth2).toBeGreaterThan(0);
+    expect(clean.foamWidth2, 'one thin line of foam, no second').toBe(0);
     expect(clean.foamGap).toBeGreaterThan(0);
   });
 
-  it('is the calm painted pond: low short swells, a mirror tinted cyan and kept by the camera, its colours deep azure', () => {
+  it('is the calm painted pond: faint soft ripples, a mirror tinted and kept by the camera, a flat saturated blue, and clear enough to see the bed', () => {
     for (const w of CLEAR_WAVES) {
       expect(w.amplitude, 'a swell under two centimetres').toBeLessThan(0.02);
       expect(w.wavelength, 'and under five metres long').toBeLessThan(5);
     }
     expect(CLEAR_WAVES.length).toBe(4);
     const look = clear.clear(0, true, timeNamed('day'));
-    expect(look.mirrorTint).toEqual([0.5, 0.95, 1.1]);
-    expect(look.mirrorNear).toBe(0.4);
-    expect(look.mirror).toBe(1);
-    expect(look.nearDistance).toBe(90);
+    expect(look.mirrorTint).toEqual([0.35, 0.62, 0.92]);
+    expect(look.mirrorNear).toBe(0.3);
+    expect(look.mirror).toBe(1.2);
+    expect(look.nearDistance).toBe(45);
+    expect(look.clarity).toBe(1.2);
+    expect(look.caustics).toBe(0.12);
     expect(look.crestAmount).toBe(0);
     expect(look.sparkleSize).toBe(5);
-    // the flow is fine, slow and tilted: 1.2 cells, a tenth of a unit a second, steeply
+    // the flow is fine, slow and only faintly tilted: 1.2 cells, a tenth of a unit a second
     const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
-    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 0.12, 0.8]);
+    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 0.12, 0.38]);
     // the water is a darker, richer blue than a turquoise: blue over green over red in the shallows, near and deep
     for (const c of [PALETTE.clearShallow, PALETTE.clearNear, PALETTE.clearDeep]) {
       expect(c[2]).toBeGreaterThan(c[1]);
       expect(c[1]).toBeGreaterThan(c[0]);
     }
-    expect(PALETTE.clearDeep).toEqual([0, 0.1, 0.34]);
-    expect(PALETTE.clearNear).toEqual([0.02, 0.12, 0.33]);
+    expect(PALETTE.clearDeep).toEqual([0.06, 0.26, 0.52]);
+    expect(PALETTE.clearNear).toEqual([0.015, 0.09, 0.3]);
     expect(PALETTE.clearShallow).toEqual([0.08, 0.36, 0.7]);
+    // and the bed is a dark slate, which keeps the shallows blue seen through them
+    expect(PALETTE.bed).toEqual([0.035, 0.06, 0.11]);
   });
 
   it('is deep green when sick and deep blue-teal when clean', () => {

@@ -12,15 +12,16 @@ export type Colour = [number, number, number];
 export const PALETTE = {
   /** The grass of the banks: a deep, quiet green, dark against the bright water as in the reference. */
   grass: [0.045, 0.135, 0.03] as Colour,
-  /** The lake's bed, under the water: a near-black mud, so the water over it reads as deep. */
-  bed: [0.05, 0.04, 0.035] as Colour,
+  /** The lake's bed, under the water: a dark slate, so that the shallows seen through the water stay blue and not grey (a dark earth bed had greyed them). */
+  bed: [0.035, 0.06, 0.11] as Colour,
   /** The stones that line the shore, a dark neutral grey. */
   stone: [0.24, 0.24, 0.22] as Colour,
-  /** The rocks on the lake's bed, and the waterweed growing up from it. */
-  bedRock: [0.4, 0.4, 0.38] as Colour,
+  /** The rocks on the lake's bed, cooler than the bank's stones for lying under blue water. */
+  bedRock: [0.3, 0.33, 0.36] as Colour,
   /** The boulders standing in the water, a cooler grey than the bank's stones. */
   boulder: [0.22, 0.22, 0.21] as Colour,
-  weed: [0.16, 0.45, 0.14] as Colour,
+  /** The waterweed growing up from the bed, muted because it is seen through clearer water. */
+  weed: [0.05, 0.16, 0.07] as Colour,
   /** The trees: dark brown bark, and the broadleaf's deep green. */
   trunk: [0.07, 0.045, 0.03] as Colour,
   leaves: [0.04, 0.09, 0.03] as Colour,
@@ -31,17 +32,17 @@ export const PALETTE = {
   /** The mushrooms, a warm pale tan. */
   mushroom: [0.72, 0.55, 0.36] as Colour,
 
-  /** The see-through water's shallows and deep, clear (a deep azure) and as sick as it gets. */
+  /** The see-through water's shallows and deep, clear (a flat saturated blue) and as sick as it gets. */
   clearShallow: [0.08, 0.36, 0.7] as Colour,
-  clearDeep: [0, 0.1, 0.34] as Colour,
+  clearDeep: [0.06, 0.26, 0.52] as Colour,
   sickShallow: [0.55, 0.82, 0.3] as Colour,
   sickDeep: [0.07, 0.22, 0.03] as Colour,
   /** What the see-through water lightens toward by the camera, clear and sick, and toward on its swells' crests. */
-  clearNear: [0.02, 0.12, 0.33] as Colour,
+  clearNear: [0.015, 0.09, 0.3] as Colour,
   sickNear: [0.4, 0.7, 0.2] as Colour,
   crest: [0.8, 0.97, 1] as Colour,
-  /** What the see-through water multiplies the sky it mirrors by: a light cyan, so the reflection is not the sky's plain pale blue. */
-  mirrorTint: [0.5, 0.95, 1.1] as Colour,
+  /** What the see-through water multiplies the sky it mirrors by: a soft blue, so the reflection is the water's own colour lightened and not the sky's plain pale blue. */
+  mirrorTint: [0.35, 0.62, 0.92] as Colour,
   /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
   ripple: [0.82, 0.94, 1] as Colour,
   clearSplash: [0.93, 0.98, 1] as Colour,

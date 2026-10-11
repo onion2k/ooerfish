@@ -5,12 +5,13 @@
  * The contamination is its colours and how far into it one can see: a sick lake is green and murky, and a clean one
  * a deep azure.
  *
- * Its finish is the calm painted pond's, tuned toward the reference picture on 11 October 2026: a fine, slow flow, a
- * deep blue that is the near water too right across the pond, swells too low and short to crest, one thin line of foam
- * round every shore and boulder from the lake's shore field (which the page hands the renderer), and a few big soft
- * glints. Because that blue is dark, the sky's mirror would be eased away by the camera and the water would read flat;
- * so, with renderer v0.32.0's mirror, the sky it shows is tinted a light cyan and a good share of it is kept near the
- * camera. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
+ * Its finish is the pond tuned against the user's reference (an Unreal cartoon water) on 11 October 2026: a flat,
+ * saturated blue near the camera with faint, soft ripples on it, a lighter blue far off, swells too low and short to
+ * crest, one thin line of foam round every shore and boulder from the lake's shore field (which the page hands the
+ * renderer), and a few big soft glints. The water is clear (a clarity of 1.2), so the bed, the weed and the fish glowing
+ * among them are seen in it. Because the blue is dark, the sky's mirror would be eased away by the camera and the water
+ * would read flat; so, with renderer v0.32.0's mirror, the sky it shows is tinted and a good share of it is kept near
+ * the camera. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
  */
 import { FLOW_CLEAR, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
@@ -26,34 +27,34 @@ import { AT_ORIGIN, surface } from './surface';
 export const CLEAR = {
   scale: 1.2,
   speed: 0.12,
-  steepness: 0.8,
-  clarity: 0.4,
+  steepness: 0.38,
+  clarity: 1.2,
   sickClarity: 0.25,
-  caustics: 0.2,
+  caustics: 0.12,
   sickCaustics: 0.5,
-  // with the shore field, the foam is a line this wide round every shore and boulder, a gap, and a second thinner line
-  foamWidth: 0.3,
+  // with the shore field, the foam is one thin line this wide round every shore and boulder (the second line is none)
+  foamWidth: 0.25,
   foamGap: 0.35,
-  foamWidth2: 0.1,
-  // the near colour's reach from the camera, which is nearly all the pond, and how much of the crest colour the swells' tops take (none)
-  nearDistance: 90,
+  foamWidth2: 0,
+  // the near colour's reach from the camera, so the far water is lighter than the near, and how much of the crest colour the swells' tops take (none)
+  nearDistance: 45,
   crestAmount: 0,
-  // the sparkles: all the lattice's cells may, how nearly a wave must catch the glint, how bright by day, and how big
-  sparkles: 1,
-  sparkleCut: 0.3,
-  sparkleBright: 16,
+  // the sparkles: half the lattice's cells may, how nearly a wave must catch the glint, how bright by day, and how big
+  sparkles: 0.5,
+  sparkleCut: 0.45,
+  sparkleBright: 14,
   sparkleSize: 5,
   // a sick lake keeps this share of the sparkles' brightness
   sickSparkles: 0.5,
   // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
-  mirrorNear: 0.4,
-  mirror: 1,
+  mirrorNear: 0.3,
+  mirror: 1.2,
 } as const;
 
 /** The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. */
 export const CLEAR_WAVES: readonly GerstnerWave[] = [
-  { direction: 1.2, wavelength: 3, amplitude: 0.012, steepness: 0.2 },
-  { direction: 2.1, wavelength: 2, amplitude: 0.008, steepness: 0.2 },
+  { direction: 1.2, wavelength: 3, amplitude: 0.012, steepness: 0.38 },
+  { direction: 2.1, wavelength: 2, amplitude: 0.008, steepness: 0.38 },
   { direction: 0.6, wavelength: 1.5, amplitude: 0.005, steepness: 0.15 },
   { direction: 1.7, wavelength: 4, amplitude: 0.012, steepness: 0.1 },
 ];

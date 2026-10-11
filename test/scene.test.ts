@@ -46,8 +46,8 @@ const GROUND = 5;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved once, on 11 October 2026, with the palette's dark greens and greys, and not with any shape
-    expect(hashGroups(new Scene().static())).toBe('8:6663e7fb');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and not with any shape
+    expect(hashGroups(new Scene().static())).toBe('8:4b372d74');
   });
 });
 
