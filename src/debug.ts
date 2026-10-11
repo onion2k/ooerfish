@@ -158,10 +158,10 @@ export interface GameApi {
    * booted needs. A test that measures scene after scene may ask for less after the first.
    */
   measureFrame(warm?: number): Promise<number>;
-  /** What the kit stands on the banks, in figures: the models placed, the placements, the triangles drawn and the cards. */
+  /** What stands on the banks, in figures: the kit models and tree variants placed, the placements, the triangles drawn and the cards. */
   scenery(): SceneryFigures;
   /**
-   * The rung the page is drawn on: `full`, with the banks' grass and the woodland, or `lean`, without them. With a
+   * The rung the page is drawn on: `full`, with the banks' grass, or `lean`, without it. With a
    * rung, puts the page on it as the governor does at boot, resolving once it is ready to draw; without, says which
    * it is on.
    */

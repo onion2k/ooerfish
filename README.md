@@ -50,8 +50,11 @@ template's gates (all but its pace gate, which comes back with the fishing):
     npm run look           what it looks like, held to a picture
     npm run check          all of it
 
-The scenery on the banks is Quaternius's Stylized Nature MegaKit (CC0), via
-[poly.pizza](https://poly.pizza), turned into the game's palette.
+The trees are low-poly broadleaves and conifers cut by
+[artshape-render](https://github.com/onion2k/artshape-render)'s generators, as
+ooergolf's are. The pebbles and the plants on the banks are Quaternius's
+Stylized Nature MegaKit (CC0), via [poly.pizza](https://poly.pizza), turned into
+the game's palette.
 
 `CLAUDE.md` says how the game is changed, and `.claude/skills` carries
 `/feature`, `/bug`, `/gate-moved` and `/commit`.
@@ -74,7 +77,8 @@ The scenery on the banks is Quaternius's Stylized Nature MegaKit (CC0), via
     src/pick.ts        a tap on the screen, to the point on the water
     src/lab.ts         the lab's panel; settings.ts reads and writes the address
     src/scene.ts       the bed and its rocks and weed, the banks, the stones and the trees
-    src/scenery.ts     loads the kit's trees, plants and stones from public/scenery
+    src/trees.ts       the low-poly tree variants and their colours
+    src/scenery.ts     loads the kit's plants and stones from public/scenery
     src/progress.ts    the save, and where it is kept
     scripts/           the gates, each with its baseline beside it
     test/              unit tests, and a corpus of every save shape

@@ -271,25 +271,24 @@ export const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
 export const CAST = { reach: 45, launch: (28 * Math.PI) / 180, sink: 1.2, lineDepth: 5, aboveBed: 0.3 } as const;
 
 /**
- * How the banks wear the scenery kit, as content. A tree's scale is picked between the two, then held down so its top
- * stays under the sun's shadow; the models are about seven to ten metres tall as they come, against a pond thirty
- * across. They were scaled to a little over one, which kept the old puffball trees' height; since the grass came
- * (12 October 2026) they stand at their true size, two and a half to three times that, up to thirty tall. Pebbles are tiny as they come, so they are
- * scaled up to the old stones' size, and sunk by a share of their own height. The clumps are a count of them, how far
- * out they go in shore radii (denser near the water, by a square), how far from the angler's spot they keep, and
- * which kinds grow, in what proportion and at what scale (the fern comes nine wide, so it is scaled right down).
- * First guesses, to be tuned by looking.
+ * How the banks are dressed, as content. The trees are the package's low-poly broadleaves and conifers, each placement
+ * a variant scaled to a height picked between its kind's two, then held down so its top stays under the sun's shadow.
+ * The heights are those the kit's trees stood at (the kit's models were seven to ten metres as they come, scaled two
+ * and a half to three times, against a pond thirty across), and the user chose them against the reference. Pebbles are
+ * tiny as they come, so they are scaled up to the old stones' size, and sunk by a share of their own height. The clumps
+ * are a count of them, how far out they go in shore radii (denser near the water, by a square), how far from the
+ * angler's spot they keep, and which kinds grow, in what proportion and at what scale (the fern comes nine wide, so it
+ * is scaled right down). First guesses, to be tuned by looking.
  */
 export const SCENERY = {
-  trees: { tree: [2.4, 3.2], pine: [2.4, 3.2] } as Record<string, readonly [number, number]>,
+  trees: { broadleaf: [16, 29], conifer: [17, 32] } as Record<'broadleaf' | 'conifer', readonly [number, number]>,
   /**
    * The woodland round the lake: more trees than the twenty-six that stand by the water, in a band of shore radii
    * (further out on the south bank, which the camera looks from, so the near bank stays open), denser outward by a
-   * square root. Each model is picked by one over its triangles, so the woodland costs fewer triangles a tree: a tree
-   * is drawn three times (the sun's shadow, the occlusion prepass and the colour), about 4 ms for a hundred.
-   * Sixty is what fits the frame budget with the grass (7.4 ms of 8); the lean rung has none of it.
+   * square root. A tree is a few hundred triangles at most (the kit's were three to six thousand), so two hundred and
+   * ten of them cost less than sixty of the kit's did.
    */
-  woodland: { count: 60, band: [1.3, 3.3] as const, southBand: [2.8, 4.2] as const },
+  woodland: { count: 210, band: [1.3, 3.3] as const, southBand: [2.8, 4.2] as const },
   pebbles: { scale: [3, 6] as const, sunk: 0.3 },
   clumps: {
     count: 90,
@@ -307,7 +306,7 @@ export const SCENERY = {
 } as const;
 
 /**
- * The frame, in milliseconds, past which the page steps down to the lean rung (no grass and no woodland) at boot: the
+ * The frame, in milliseconds, past which the page steps down to the lean rung (no grass) at boot: the
  * frame budget itself. A machine that draws the full rung inside the budget keeps it.
  */
 export const RUNG_DOWN_MS = 8;

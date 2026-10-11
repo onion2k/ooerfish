@@ -111,23 +111,22 @@ async function main() {
   renderer.setCardImages(scenery.masks);
 
   const scene = new Scene();
-  // the rung the page is drawn on: full has the banks' grass and the woodland, lean has neither. The address may ask
-  // for one (a test does, and so does a slow machine's owner); without, the governor chooses once the page has booted.
+  // the rung the page is drawn on: full has the banks' grass, lean has none (the woodland costs a tenth of a
+  // millisecond and stands on both). The address may ask for one (a test does, and so does a slow machine's owner);
+  // without, the governor chooses once the page has booted.
   const asked = rungAsked(query.get('rung'));
   let rung: Rung = asked === 'auto' ? 'full' : asked;
-  // worked out once a rung, from the placements the groups were made from, and read back by the test API
-  let sceneryFigured = sceneryFigures(scene.placements(scenery.kit, { woodland: rung === 'full' }));
+  // worked out once, from the placements the groups are made from, and read back by the test API
+  const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
   // the grass field is made once and handed over each time the full rung is drawn: nothing in it grows
   let field: ReturnType<typeof bankField> | null = null;
-  /** The page put on a rung: the banks' groups made again with or without the woodland, and the grass grown or let go. */
+  /** The page put on a rung: the grass grown or let go. */
   async function setRung(to: Rung) {
     rung = to;
-    const full = to === 'full';
-    renderer.setStatic(scene.static(scenery.kit, { woodland: full }));
-    sceneryFigured = sceneryFigures(scene.placements(scenery.kit, { woodland: full }));
     field ??= bankField();
-    await renderer.setGrass(full ? field : null, GRASS_OPTIONS);
+    await renderer.setGrass(to === 'full' ? field : null, GRASS_OPTIONS);
   }
+  renderer.setStatic(scene.static(scenery.kit));
   await setRung(rung);
   // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
   // grass has no second clock of its own

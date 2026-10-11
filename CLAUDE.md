@@ -83,6 +83,7 @@ looked into.
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
     npm run kit -- <dir>   a folder of .glb into public/scenery (see below)
+    npm run kit:prune -- <kind> ...  models of those kinds out of public/scenery, no GLBs needed
 
 A unit test is allowed thirty seconds, and `vitest.config.ts` says why: the
 limit is there to catch a test that never ends, and how fast the game steps
@@ -101,6 +102,13 @@ checks each against the sha256 in `scripts/kit-sources.json`, and writes
 `public/scenery/` (generated, never edited, and in `.prettierignore`). Cards
 take face normals by default (`--card-normals=face|kit|turned`), positions
 and normals are float16 and indices uint16. Run it again to change the kit.
+The game no longer uses the kit's trees and pines (the lake's trees are the
+package's low-poly ones), so they were taken out with `npm run kit:prune --
+tree pine`, which reads the committed `public/scenery` files, drops every model
+of the kinds named (and the masks only they used, if they are the last ones, so
+no layer moves), and writes them again, byte for byte the same every time from
+the same files; `kit-sources.json` lost the ten models too, so a full run
+agrees. The kit now gives the pebbles and the bank's clumps only.
 
 ## How the code is laid out
 
@@ -124,18 +132,26 @@ and normals are float16 and indices uint16. Run it again to change the kit.
 - **The banks:** `src/scenery.ts` reads `public/scenery` (`readManifest`,
   `readKit`, `loadScenery`, refusing what it does not know by name) before
   `ready`, and hands the card masks to `renderer.setCardImages`.
-  `Scene.static(kit)` in `src/scene.ts` places the kit's trees, pebbles and
-  clumps from a dressing seed of its own, so the game's seed does not move
+  `Scene.static(kit)` in `src/scene.ts` places the kit's pebbles and clumps and
+  the trees from a dressing seed of its own, so the game's seed does not move
   them; the bed, weed and boulders are as they were, and with no kit the old
   hand-made banks are built. Placement keeps off the water and the near south
   bank, and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
   (counts, scales, layers); the roles map to the palette in `scenery.ts`.
-  `game.scenery()` counts what was handed over. The trees stand at their true
-  size (scale 2.4 to 3.2, up to thirty tall, so `SHADOW_BOX` reaches 40), and
-  `SCENERY.woodland` adds sixty more in a band of shore radii (further out on
-  the south bank), each model picked by one over its triangles (`cheapPick`),
-  drawn from the dressing stream last so the lean rung's placements are the
-  full rung's first ones bit for bit.
+  `game.scenery()` counts what was handed over. **The trees** are not the kit's
+  but the package's low-poly generators (`artshape-render/parts/lowpoly`, as
+  ooergolf's): `src/trees.ts` makes four `broadleaf` and three `conifer`
+  variants once at a height of one, `treeFor(u)` picks one from a placement's
+  own draw (never its place in a list, so one more tree moves no other), and
+  `TREE_COLOUR` colours each part by its name (`trunk`, `leaves`, `crown`, the
+  canopy's lighter top; the conifer's leaves are `PALETTE.pine`). A tree's
+  matrix scales a variant to its height, `SCENERY.trees` (broadleaf 16 to 29,
+  conifer 17 to 32, the kit's true-size heights, held under `SHADOW_BOX` which
+  reaches 40), and a group is made per variant and part. A tree takes three
+  draws of the stream, as the kit's did, so the pebbles and clumps stay where
+  they were; `SCENERY.woodland` adds 210 more in a band of shore radii (further
+  out on the south bank), drawn last. A tree is 50 to 250 triangles against the
+  kit's three to six thousand.
 - **The grass:** `src/grass.ts` is the banks' long grass as the renderer grows
   it (`setGrass`, `wind`): the `LUSH` kind (colours in `PALETTE.bladeBase` and
   `bladeTip`), `bankField()` (half-unit cells over the banks to the shadow
@@ -145,8 +161,9 @@ and normals are float16 and indices uint16. Run it again to change the kit.
   `grassGround(LUSH)`. The renderer's clock runs at the water's pace, so the
   breeze is slow; there is no second clock. `game.grass()` reads the blades
   drawn near and far back from the GPU.
-- **The rung:** the page is on `full` (the grass and the woodland) or `lean`
-  (neither), `src/rung.ts`. At boot, unless `?rung=full|lean` asks, the
+- **The rung:** the page is on `full` (the grass) or `lean` (no grass),
+  `src/rung.ts`; the woodland stands on both, since measured it costs about
+  0.1 ms (the grass about 1 ms). At boot, unless `?rung=full|lean` asks, the
   governor measures the frame as `measureFrame` does (the least of five
   samples, half a second) and steps to lean when it is over
   `RUNG_DOWN_MS` (8, the budget), once and never again; `game.rung()` reads and
@@ -236,11 +253,14 @@ What to copy the shape of, when building something new:
   (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
   `apply` (`main.ts`), a method on the test API, and a click in the controls
   test in `smoke/game.spec.ts`.
-- **A thing on the bank:** a model in `scripts/kit-sources.json` and its
-  counts and scales in `SCENERY` (`lake.ts`; the woodland is a count and a
-  band there, and the grass a kind and a field in `grass.ts`), converted by `kit.ts`, read by
-  `scenery.ts`, placed by `scene.ts`, held by `test/scene.test.ts`, counted by
+- **A thing on the bank:** a plant or a stone: a model in
+  `scripts/kit-sources.json` and its counts and scales in `SCENERY`
+  (`lake.ts`; the grass a kind and a field in `grass.ts`), converted by
+  `kit.ts`, read by `scenery.ts`, placed by `scene.ts`, held by `test/scene.test.ts`, counted by
   `game.scenery()`, weighed by `sceneryBytes`, and seen in the look pictures.
+  A tree is not one of these: its generator seeds are in `trees.ts`, its
+  heights and the woodland's count in `SCENERY`, and it is placed by `scene.ts`
+  and held by `test/scene.test.ts` and `test/trees.test.ts` all the same.
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the bench
   (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`). Each has
   unit tests of its own working parts. The bench passed a frame made thirty
@@ -297,7 +317,7 @@ For anything new, check what it does, from `DESIGN.md`:
   the key, a drag, a tap and a hold in each, and cast again while out
 - **the rung:** full and lean, each time of day and view on each; the governor
   choosing at boot, forced by the address, and set through `game.rung()` while
-  playing; lean has no grass drawn and 60 fewer placements
+  playing; lean has no grass drawn and the same placements
 - **the lab:** each time of day, each view, caustics on and off,
   the lake clear and sick; what the address says that is not known; and a
   pebble dropped on it, by a tap or the button, at the shore and off it

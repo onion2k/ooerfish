@@ -3,8 +3,10 @@
  * rocks and waterweed on its bed (which see-through water shows), and the
  * trees and clumps on its banks, which do not move. It is handed what it draws
  * from, the scenery kit when the page has loaded one, and never the renderer:
- * the page hands the groups on. Without a kit it draws the old puffball trees
- * and ball stones, which the tests hold to the bit.
+ * the page hands the groups on. The kit gives the pebbles and the bank's clumps;
+ * the trees are the package's low-poly broadleaves and conifers (`trees.ts`),
+ * whatever the kit holds. Without a kit it draws the old puffball trees and
+ * ball stones, which the tests hold to the bit.
  *
  * Where the stones and trees stand is fixed, from a seed of its own and not
  * the game's, so the lake is the same lake every run and on every seed. The
@@ -31,6 +33,7 @@ import { ball, box, sheet } from './meshes';
 import { PALETTE } from './palette';
 import { seeded } from './random';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
+import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeBounds, treeFor, type TreeKind } from './trees';
 
 /** How far out the banks are drawn, as a share of the shore's distance: past where the camera sees, so no edge shows. */
 const BANKS_TO = 12;
@@ -44,7 +47,7 @@ const BLADES = 5;
 /** The seed the stones and trees are placed from: the lake's own, so they stand still whatever the game's seed. */
 const SCENERY_SEED = 1971;
 /** The seed the kit's dressing is drawn from: a constant of its own, so it is independent of the stream above and of the game. */
-const DRESSING_SEED = 4417;
+export const DRESSING_SEED = 4417;
 /** How many tries a clump gets to find a dry, clear place before the dressing gives up on it (the count is then short, and a test says so). */
 const TRIES = 40;
 
@@ -60,9 +63,9 @@ const ROUGHNESS: Record<SceneryRole, number> = {
 };
 
 /** A model of the kit set on the ground: where, turned how far about the vertical, and how big all round. */
-export interface Placement {
+export interface KitPlacement {
   model: KitModel;
-  kind: 'tree' | 'pebble' | 'clump';
+  kind: 'pebble' | 'clump';
   x: number;
   y: number;
   z: number;
@@ -70,15 +73,24 @@ export interface Placement {
   scale: number;
 }
 
-/** Where the old stones and trees stood, which the kit's pebbles and trees keep. */
+/** A tree set on the ground: which kind and which of its variants, where, turned how far, and how tall it stands. */
+export interface TreePlacement {
+  kind: 'tree';
+  tree: TreeKind;
+  variant: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  height: number;
+}
+
+export type Placement = KitPlacement | TreePlacement;
+
+/** Where the old stones and trees stood, which the kit's pebbles and the package's trees keep. */
 interface Spot {
   x: number;
   y: number;
-}
-
-/** What a scene is built with: the woodland round the lake, which the lean rung leaves out. */
-export interface SceneOptions {
-  woodland?: boolean;
 }
 
 const lerp = (range: readonly [number, number], k: number) => range[0] + (range[1] - range[0]) * k;
@@ -90,24 +102,19 @@ function ring(k: number, angle: number): [number, number] {
 }
 
 /**
- * A model of the trees picked by the weight of one over its triangles, from a draw `u` in [0, 1): the woodland costs
- * fewer triangles a tree, since every one is drawn three times (the sun's shadow, the occlusion prepass and the
- * colour). Pure, so a test can hold the weighting over an even grid of draws.
+ * A tree's height: picked between its kind's two by `u`, then held down (a hair under, so rounding cannot tip it over)
+ * so the top stays under the sun's shadow whatever the range says, for a tree standing at height `z`. A variant is one
+ * tall, so the height is also the scale it is drawn at.
  */
-export function cheapPick(models: KitModel[], u: number): KitModel {
-  let total = 0;
-  for (const m of models) total += 1 / m.triangles;
-  let at = u * total;
-  for (const m of models) if ((at -= 1 / m.triangles) < 0) return m;
-  return models[models.length - 1];
+export function treeHeight(tree: TreeKind, z: number, u: number): number {
+  return Math.min(lerp(SCENERY.trees[tree], u), (SHADOW_BOX.max[2] - z) * 0.999);
 }
 
-/**
- * A tree's scale: picked between its kind's two by `u`, then held down (a hair under, so rounding cannot tip it
- * over) so the top stays under the sun's shadow whatever the range says, for a tree standing at height `z`.
- */
-export function treeScale(model: KitModel, z: number, u: number): number {
-  return Math.min(lerp(SCENERY.trees[model.kind], u), ((SHADOW_BOX.max[2] - z) / model.bounds.max[2]) * 0.999);
+/** A tree stood at a place from the three draws it takes of the dressing stream, in order: its pick, its turn and its height. */
+function treeAt(x: number, y: number, pick: number, turn: number, size: number): TreePlacement {
+  const z = ground(x, y);
+  const { tree, variant } = treeFor(pick);
+  return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size) };
 }
 
 export class Scene {
@@ -177,13 +184,12 @@ export class Scene {
   }
 
   /**
-   * What the kit stands on the banks: a pebble at each old stone's place, a tree at each old tree's, and the bank
-   * clumps, picked, turned and scaled from the dressing's own stream, and then the woodland unless the lean rung
-   * leaves it out. The woodland is drawn from the stream last and stands last in the list, so the lean rung's
-   * placements are the full rung's first ones bit for bit, and stepping down only takes trees away. The same every
-   * call.
+   * What stands on the banks: a pebble at each old stone's place, a tree at each old tree's, and the bank clumps,
+   * picked, turned and scaled from the dressing's own stream, and then the woodland. The trees take three draws each,
+   * as the kit's did, so the pebbles and clumps are where they always were, and the woodland is drawn last and stands
+   * last in the list. The same every call.
    */
-  placements(kit: Kit, options: SceneOptions = {}): Placement[] {
+  placements(kit: Kit): Placement[] {
     const { stoneSpots, treeSpots } = this.layout();
     const random = seeded(DRESSING_SEED);
     // by name, so the pick does not depend on the order the manifest happens to list the models in
@@ -207,13 +213,12 @@ export class Scene {
       });
     }
 
-    const trees = named.filter((m) => m.kind === 'tree' || m.kind === 'pine');
+    // a tree is three draws, a pick, a turn and a height, as the kit's were, so the clumps drawn after them are where
+    // they always were; the pick is a draw of the tree's own and not its place in the list
     for (const { x, y } of treeSpots) {
-      const model = pick(trees);
-      const yaw = random() * Math.PI * 2;
-      const z = ground(x, y);
-      const scale = treeScale(model, z, random());
-      out.push({ model, kind: 'tree', x, y, z, yaw, scale });
+      const pick = random(),
+        turn = random();
+      out.push(treeAt(x, y, pick, turn, random()));
     }
 
     // clumps: a kind by its weight, a model of it, a place nearer the water more often than far, and kept only if
@@ -242,26 +247,22 @@ export class Scene {
     }
 
     // the woodland: more trees in a band out from the banks, denser further out by a square root, the near south bank
-    // kept clear, each model picked toward the cheaper; the top held under the sun's shadow as the spot trees' are
-    if (options.woodland !== false) {
-      const { count, band, southBand } = SCENERY.woodland;
-      for (let i = 0; i < count; i++) {
-        const model = cheapPick(trees, random());
-        const angle = random() * Math.PI * 2;
-        const u = Math.sqrt(random());
-        const [lo, hi] = Math.sin(angle) < -0.55 ? southBand : band;
-        const [x, y] = ring(lo + (hi - lo) * u, angle);
-        const z = ground(x, y);
-        const yaw = random() * Math.PI * 2;
-        const scale = treeScale(model, z, random());
-        out.push({ model, kind: 'tree', x, y, z, yaw, scale });
-      }
+    // kept clear; the top held under the sun's shadow as the spot trees' are
+    const { count, band, southBand } = SCENERY.woodland;
+    for (let i = 0; i < count; i++) {
+      const draw = random();
+      const angle = random() * Math.PI * 2;
+      const u = Math.sqrt(random());
+      const [lo, hi] = Math.sin(angle) < -0.55 ? southBand : band;
+      const [x, y] = ring(lo + (hi - lo) * u, angle);
+      const turn = random();
+      out.push(treeAt(x, y, draw, turn, random()));
     }
     return out;
   }
 
   /** What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. */
-  static(kit?: Kit, options: SceneOptions = {}): GameGroup[] {
+  static(kit?: Kit): GameGroup[] {
     const { stones, trunks, puffs, rocks, blades, boulders } = this.layout();
     // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
     // the sheets are the ground without the boulders, which are drawn on it as their own
@@ -285,9 +286,11 @@ export class Scene {
       return groups;
     }
 
-    // one group per part of each model that stands anywhere, its placements being that model's
-    const by = new Map<string, Placement[]>();
-    for (const p of this.placements(kit, options)) by.set(p.model.name, [...(by.get(p.model.name) ?? []), p]);
+    // one group per part of each kit model that stands anywhere, its placements being that model's; the kit gives the
+    // pebbles and the clumps, and the trees are drawn from the package's below
+    const all = this.placements(kit);
+    const by = new Map<string, KitPlacement[]>();
+    for (const p of all) if (p.kind !== 'tree') by.set(p.model.name, [...(by.get(p.model.name) ?? []), p]);
     for (const model of kit.models.values()) {
       const there = by.get(model.name);
       if (!there) continue;
@@ -302,13 +305,30 @@ export class Scene {
           ...(part.layer > 0 ? { card: { layer: part.layer } } : {}),
         });
     }
+
+    // one group per part of each variant that stands anywhere: the variant is one tall, so a tree's matrix scales it to
+    // its height all round, and the parts of a variant share the matrices
+    for (const tree of ['broadleaf', 'conifer'] as const)
+      VARIANTS[tree].forEach((variant, v) => {
+        const there = all.filter((p): p is TreePlacement => p.kind === 'tree' && p.tree === tree && p.variant === v);
+        if (there.length === 0) return;
+        const matrices = new Float32Array(there.length * 16);
+        there.forEach((p, i) => place(matrices, i, p.x, p.y, p.z, p.yaw, p.height));
+        for (const part of variant.parts)
+          groups.push({
+            mesh: part.mesh,
+            matrices,
+            albedo: PALETTE[TREE_COLOUR[tree][part.name]],
+            roughness: TREE_ROUGHNESS[tree][part.name],
+          });
+      });
     return groups;
   }
 }
 
 /** What the kit puts on the banks, in figures: the test API's `scenery()`, and what a smoke stage holds the page to. */
 export interface SceneryFigures {
-  /** Models of the kit stood at least once. */
+  /** Kit models and tree variants stood at least once. */
   models: number;
   placements: number;
   /** Triangles drawn: each part's, once a placement. */
@@ -320,25 +340,29 @@ export interface SceneryFigures {
 /** The figures of a set of placements, worked out from them as `static` makes its groups from them. */
 export function sceneryFigures(placements: Placement[]): SceneryFigures {
   const placed = new Set<KitModel>();
+  const variants = new Set<string>();
   let triangles = 0;
   for (const p of placements) {
-    placed.add(p.model);
-    for (const part of p.model.parts) triangles += part.mesh.indices.length / 3;
+    if (p.kind === 'tree') {
+      variants.add(`${p.tree}${p.variant}`);
+      for (const part of VARIANTS[p.tree][p.variant].parts) triangles += part.mesh.indices.length / 3;
+    } else {
+      placed.add(p.model);
+      for (const part of p.model.parts) triangles += part.mesh.indices.length / 3;
+    }
   }
   let cards = 0;
   for (const model of placed) for (const part of model.parts) if (part.layer > 0) cards++;
-  return { models: placed.size, placements: placements.length, triangles, cards };
+  return { models: placed.size + variants.size, placements: placements.length, triangles, cards };
 }
 
 /** The corners of a placement's footprint on the ground, after its yaw and scale, and its middle. */
 export function footprint(p: Placement): [number, number][] {
-  const { min, max } = p.model.bounds;
+  const { min, max } = p.kind === 'tree' ? treeBounds(p.tree, p.variant) : p.model.bounds;
+  const scale = p.kind === 'tree' ? p.height : p.scale;
   const c = Math.cos(p.yaw),
     s = Math.sin(p.yaw);
-  const at = (x: number, y: number): [number, number] => [
-    p.x + (c * x - s * y) * p.scale,
-    p.y + (s * x + c * y) * p.scale,
-  ];
+  const at = (x: number, y: number): [number, number] => [p.x + (c * x - s * y) * scale, p.y + (s * x + c * y) * scale];
   return [at(0, 0), at(min[0], min[1]), at(max[0], min[1]), at(min[0], max[1]), at(max[0], max[1])];
 }
 

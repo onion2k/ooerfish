@@ -1,9 +1,12 @@
 /**
- * The rung the page is drawn on: `full`, the banks' grass and the woodland round the lake, or `lean`, without
- * either, for a GPU that cannot draw them inside the frame budget. The governor picks one at boot from a frame
- * measured there; the decision is a sum on that number so it can be held without a GPU, and what the address may ask
- * for is read here too, since an unknown name must be refused and not guessed at. Without this a slow machine would
- * be given the woodland anyway, and a test could not put the page on either rung.
+ * The rung the page is drawn on: `full`, with the banks' grass, or `lean`, without it, for a GPU that cannot draw it
+ * inside the frame budget. The grass is the one thing it takes away: measured on 11 October 2026 (standard scene,
+ * five fresh pages each), the grass costs about a millisecond (3.0 ms with it, 2.0 without) and the woodland of two
+ * hundred and ten low-poly trees about a tenth of one (2.03 ms with, 1.91 without), well under the 0.3 ms it would
+ * take to be worth dropping, so the trees stand on both. The governor picks one at boot from a frame measured there;
+ * the decision is a sum on that number so it can be held without a GPU, and what the address may ask for is read here
+ * too, since an unknown name must be refused and not guessed at. Without this a slow machine would be given the grass
+ * anyway, and a test could not put the page on either rung.
  */
 import { RUNG_DOWN_MS } from './lake';
 

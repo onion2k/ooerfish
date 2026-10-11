@@ -1,5 +1,5 @@
 /**
- * The rung the page draws on: full, with the banks' grass and the woodland, or lean, without them. The governor's
+ * The rung the page draws on: full, with the banks' grass, or lean, without it. The governor's
  * decision is a pure sum on a measured frame, so it is held here without a GPU; the measuring itself is the smoke
  * test's. A governor that stepped down a machine that was fast enough would take the grass away for nothing, and one
  * that never stepped down would leave a slow machine below its frame rate.

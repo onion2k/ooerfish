@@ -32,6 +32,8 @@ export const PALETTE = {
   /** The trees: dark brown bark, and the broadleaf's deep green. */
   trunk: [0.07, 0.045, 0.03] as Colour,
   leaves: [0.04, 0.09, 0.03] as Colour,
+  /** The top of a broadleaf's canopy, lit from above: its leaves a third and a bit lighter, as ooergolf's trees are. */
+  crown: [0.054, 0.1215, 0.0405] as Colour,
   /** The pines' needles, a darker blue-green than the broadleaf, so a stand of both reads as two trees. */
   pine: [0.02, 0.07, 0.045] as Colour,
   /** The flowers of the banks, a soft warm pink and not a saturated one, as a picture book paints them. */
