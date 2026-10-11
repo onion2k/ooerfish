@@ -101,7 +101,7 @@ describe('the see-through water', () => {
     expect(CLEAR_WAVES.length).toBe(4);
     const look = clear.clear(0, true, timeNamed('day'));
     expect(look.mirrorTint).toEqual([0.35, 0.62, 0.92]);
-    expect(look.mirrorNear).toBe(0.3);
+    expect(look.mirrorNear, 'the mirror is not kept near the camera').toBe(0);
     expect(look.mirror).toBe(1.2);
     expect(look.nearDistance).toBe(45);
     expect(look.clarity).toBe(0.8);
@@ -110,9 +110,14 @@ describe('the see-through water', () => {
     expect(look.sparkleSize).toBe(9);
     expect(look.sparkles).toBe(0.3);
     expect(look.sparkleBright).toBe(24);
-    // the flow is fine, slow and only faintly tilted: 1.2 cells, a tenth of a unit a second
+    // the fine waves' slopes lift the body toward a lighter blue, painted and not mirrored
+    expect(look.ripple).toEqual(PALETTE.rippleLight);
+    expect(PALETTE.rippleLight).toEqual([0.28, 0.52, 0.88]);
+    expect(look.rippleAmount).toBe(0.3);
+    expect(look.rippleCut).toBe(0.4);
+    // the flow is fine, slow and gently tilted: 2.4 cells, a tenth of a unit a second
     const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
-    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 0.12, 0.38]);
+    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([2.4, 0.12, 0.3]);
     // the water is a darker, richer blue than a turquoise: blue over green over red in the shallows, near and deep
     for (const c of [PALETTE.clearShallow, PALETTE.clearNear, PALETTE.clearDeep]) {
       expect(c[2]).toBeGreaterThan(c[1]);

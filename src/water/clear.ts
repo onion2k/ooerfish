@@ -9,9 +9,9 @@
  * saturated blue near the camera with faint, soft ripples on it, a lighter blue far off, swells too low and short to
  * crest, one thin line of foam round every shore and boulder from the lake's shore field (which the page hands the
  * renderer), and three or so big soft glints. The water is clear (a clarity of 0.8, so the deep middle reads a purer blue from above), so the bed, the weed and the fish glowing
- * among them are seen in it. Because the blue is dark, the sky's mirror would be eased away by the camera and the water
- * would read flat; so, with renderer v0.32.0's mirror, the sky it shows is tinted and a good share of it is kept near
- * the camera. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
+ * among them are seen in it. The sky it mirrors is tinted (renderer v0.32.0) but no longer kept near the camera: the flow is finer and gentler (2.4 cells, a tilt of 0.3), and its detail is painted into the body, the
+ * fine waves' slopes lifting the water toward a lighter blue (v0.33.0's ripple colour) as the reference's streaks are,
+ * and not shown through the mirror. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
  */
 import { FLOW_CLEAR, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
@@ -25,9 +25,9 @@ import { AT_ORIGIN, surface } from './surface';
  * sick lake keeps; the caustics' strength when clean and what share of it a sick lake keeps; and the foam's depth.
  */
 export const CLEAR = {
-  scale: 1.2,
+  scale: 2.4,
   speed: 0.12,
-  steepness: 0.38,
+  steepness: 0.3,
   clarity: 0.8,
   sickClarity: 0.25,
   caustics: 0.12,
@@ -47,8 +47,11 @@ export const CLEAR = {
   // a sick lake keeps this share of the sparkles' brightness
   sickSparkles: 0.5,
   // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
-  mirrorNear: 0.3,
+  mirrorNear: 0,
   mirror: 1.2,
+  // the fine waves' lightening of the body: how much, and how steep a slope must be before it takes any (its colour is `PALETTE.rippleLight`)
+  rippleAmount: 0.3,
+  rippleCut: 0.4,
 } as const;
 
 /** The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. */
@@ -106,6 +109,9 @@ export const clear: WaterStyle = {
       mirrorTint: PALETTE.mirrorTint,
       mirrorNear: CLEAR.mirrorNear,
       mirror: CLEAR.mirror,
+      ripple: PALETTE.rippleLight,
+      rippleAmount: CLEAR.rippleAmount,
+      rippleCut: CLEAR.rippleCut,
     };
   },
 };

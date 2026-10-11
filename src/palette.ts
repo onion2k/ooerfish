@@ -43,6 +43,8 @@ export const PALETTE = {
   crest: [0.8, 0.97, 1] as Colour,
   /** What the see-through water multiplies the sky it mirrors by: a soft blue, so the reflection is the water's own colour lightened and not the sky's plain pale blue. */
   mirrorTint: [0.35, 0.62, 0.92] as Colour,
+  /** The lighter blue the see-through water's fine waves lift its body toward by their slopes: the painted streaks of the reference, whatever the sky is. */
+  rippleLight: [0.28, 0.52, 0.88] as Colour,
   /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
   ripple: [0.82, 0.94, 1] as Colour,
   clearSplash: [0.93, 0.98, 1] as Colour,
