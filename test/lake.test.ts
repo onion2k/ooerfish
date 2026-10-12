@@ -10,6 +10,8 @@ import {
   CABIN_AT,
   CLIFF,
   DECK,
+  DECK_NEAR,
+  DECK_ROUND,
   JETTY,
   NOTCHES,
   STRETCH,
@@ -399,5 +401,44 @@ describe('the cabin’s and the jetty’s colours', () => {
       seen.add(PALETTE[n].join());
     }
     expect(seen.size).toBe(names.length);
+  });
+});
+
+describe('the jetty’s gap, answered cheaply from far off', () => {
+  /** The rectangle's gap as it was before the circle was put in front of it, kept here to hold the new one to. */
+  const exact = (x: number, y: number) => {
+    const [u, v] = deckFrame(x, y);
+    const du = Math.abs(u - JETTY.length / 2) - JETTY.length / 2,
+      dv = Math.abs(v) - JETTY.width / 2;
+    return du > 0 || dv > 0 ? Math.hypot(Math.max(du, 0), Math.max(dv, 0)) : Math.max(du, dv);
+  };
+
+  it('is the rectangle’s gap exactly within the circle and the near ring beyond it, over a grid of points', () => {
+    let near = 0;
+    for (let x = DECK.x - 40; x <= DECK.x + 40; x += 0.37)
+      for (let y = DECK.y - 40; y <= DECK.y + 40; y += 0.37) {
+        const d = Math.hypot(x - DECK_ROUND.x, y - DECK_ROUND.y);
+        if (d > DECK_ROUND.radius + DECK_NEAR) continue;
+        near++;
+        expect(Math.abs(jettyGap(x, y) - exact(x, y)), `${x},${y}`).toBeLessThan(1e-9);
+      }
+    expect(near, 'points checked').toBeGreaterThan(1000);
+  });
+
+  it('is, from far off, no less than the distance to the circle, and more than any margin that is asked', () => {
+    let far = 0;
+    for (let x = DECK.x - 80; x <= DECK.x + 80; x += 0.91)
+      for (let y = DECK.y - 80; y <= DECK.y + 80; y += 0.91) {
+        const d = Math.hypot(x - DECK_ROUND.x, y - DECK_ROUND.y);
+        if (d <= DECK_ROUND.radius + DECK_NEAR) continue;
+        far++;
+        const gap = jettyGap(x, y);
+        expect(gap, `${x},${y}`).toBeGreaterThanOrEqual(d - DECK_ROUND.radius - 1e-9);
+        expect(gap).toBeLessThanOrEqual(exact(x, y) + 1e-9);
+        expect(gap).toBeGreaterThan(DECK_NEAR - 1e-9);
+      }
+    expect(far, 'points checked').toBeGreaterThan(1000);
+    // the widest margin a fish is placed in from the shore is six: well under what a far point answers
+    expect(DECK_NEAR).toBeGreaterThan(6);
   });
 });

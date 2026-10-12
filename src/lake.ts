@@ -172,10 +172,37 @@ export function deckFrame(x: number, y: number): [along: number, across: number]
   return [dx * DECK.inward[0] + dy * DECK.inward[1], dx * DECK.along[0] + dy * DECK.along[1]];
 }
 
-/** How far a point is from the deck's edge in plan: below nought inside it, as `boulderGap` is inside a boulder. */
+/** The deck's middle, and how far its corners are from it: the circle that holds the whole deck. */
+export const DECK_ROUND = {
+  x: DECK.x + (DECK.inward[0] * JETTY.length) / 2,
+  y: DECK.y + (DECK.inward[1] * JETTY.length) / 2,
+  radius: Math.hypot(JETTY.length / 2, JETTY.width / 2),
+};
+/**
+ * How far past the deck's circle `jettyGap` takes the trouble to be exact. The widest margin anything asks `inside` for
+ * is the six a fish is placed in from the shore, so beyond this the answer only has to be plainly more than that.
+ */
+export const DECK_NEAR = 8;
+const DECK_NEAR_SQUARED = (DECK_ROUND.radius + DECK_NEAR) ** 2;
+
+/**
+ * How far a point is from the deck's edge in plan: below nought inside it, as `boulderGap` is inside a boulder. Asked by
+ * every fish several times a step, so a point far from the deck is answered with its distance from the deck's circle,
+ * which the true gap can only exceed, and the rectangle's sums are done for those near it alone.
+ */
 export function jettyGap(x: number, y: number): number {
-  const [u, v] = deckFrame(x, y);
-  return boxGap(u - JETTY.length / 2, v, JETTY.length / 2, JETTY.width / 2);
+  const mx = x - DECK_ROUND.x,
+    my = y - DECK_ROUND.y;
+  const far = mx * mx + my * my;
+  if (far > DECK_NEAR_SQUARED) return Math.sqrt(far) - DECK_ROUND.radius;
+  const dx = x - DECK.x,
+    dy = y - DECK.y;
+  return boxGap(
+    dx * DECK.inward[0] + dy * DECK.inward[1] - JETTY.length / 2,
+    dx * DECK.along[0] + dy * DECK.along[1],
+    JETTY.length / 2,
+    JETTY.width / 2,
+  );
 }
 
 /** The point on the deck nearest a point, in plan: where a fish swimming at it should be turned from. */
@@ -194,8 +221,8 @@ export function inside(x: number, y: number, margin = 0): boolean {
 /**
  * The cabin on the bank behind the jetty, as content: it stands `k` shore radii out at the jetty's angle, its door to
  * the lake. Its body is `along` the shore by `across` toward the lake and `high`; its roof is two panels leaning at
- * `pitch` from a ridge along the shore, overhanging the walls by `overhang`; the chimney is `size` square and `high` over
- * the roof's ridge, `along` from the middle; the door is in the lake-facing wall, and the window `along` from the middle
+ * `pitch` from a ridge along the shore, overhanging the walls by `overhang`; the chimney is `size` square and `high`, standing `from` over the
+ * eaves, `along` from the middle on the ridge; the door is in the lake-facing wall, and the window `along` from the middle
  * and `sill` over the ground. It has no rules: it is drawn on the bank only, and what is cast onto it lies on the ground.
  * `clear` is how far the grass, the trees and the clumps keep back from the roof's edge. First guesses, from the mock the
  * user chose.
@@ -205,7 +232,7 @@ export const CABIN = {
   k: 1.32,
   body: { along: 9, across: 7, high: 4.6 },
   roof: { pitch: (35 * Math.PI) / 180, overhang: 0.7, thick: 0.45 },
-  chimney: { size: 1.1, high: 2.4, along: 2.8 },
+  chimney: { size: 1.1, high: 2.4, from: 1.6, along: 2.8 },
   door: { width: 1.5, high: 2.6 },
   window: { width: 1.6, high: 1.3, along: 2.6, sill: 1.8 },
   clear: 0.5,

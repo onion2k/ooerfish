@@ -10,6 +10,7 @@ import { LightPool } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
+import { cabinGroups, jettyGroups } from './cabin';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
@@ -127,9 +128,10 @@ async function main() {
     field ??= bankField();
     await renderer.setGrass(to === 'full' ? field : null, GRASS_OPTIONS);
   }
-  // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on
+  // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on;
+  // the cabin and the jetty are built once and stand still
   const mists = fallMists();
-  renderer.setStatic([...scene.static(scenery.kit), ...fallGroups()]);
+  renderer.setStatic([...scene.static(scenery.kit), ...fallGroups(), ...cabinGroups(), ...jettyGroups()]);
   await setRung(rung);
   // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
   // grass has no second clock of its own

@@ -8,6 +8,7 @@
  * stage the game's invariants are checked.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { jettyGap } from '../src/lake';
 import { STANDARD, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
@@ -129,6 +130,22 @@ test('the fish swim the lake, and stay in it', async ({ page }) => {
   expect(after.length).toBe(6);
   for (let i = 0; i < after.length; i++)
     expect(Math.hypot(after[i].x - before[i].x, after[i].y - before[i].y), `fish ${i} swam`).toBeGreaterThan(1);
+  expect(problems).toEqual([]);
+});
+
+test('the fish keep off the jetty’s deck, ten seconds in a second at a time, and the count is the same at the end', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  const count = (await page.evaluate(() => window.game!.fish())).length;
+  expect(count).toBe(6);
+  for (let second = 0; second < 10; second++) {
+    await play(page, 60, `second ${second} by the jetty`);
+    for (const f of await page.evaluate(() => window.game!.fish()))
+      expect(jettyGap(f.x, f.y), `a fish at ${f.x},${f.y} in second ${second}`).toBeGreaterThan(0);
+  }
+  expect((await page.evaluate(() => window.game!.fish())).length).toBe(count);
   expect(problems).toEqual([]);
 });
 
