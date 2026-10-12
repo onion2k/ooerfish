@@ -15,10 +15,14 @@
  * are the ones they always had, and tuning the dressing never moves them.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
+import { at, built, lump } from 'artshape-render/mesh/lowpoly';
 import {
   ANGLER,
   BANK_RISE,
+  BANK_TOP,
   BOULDER_DOMES,
+  CLIFF,
+  NOTCHES,
   SCENERY,
   SHORE_RADIUS,
   STRETCH,
@@ -26,10 +30,12 @@ import {
   ground,
   groundUnder,
   inside,
+  onFace,
+  onFall,
   shoreRadius,
 } from './lake';
 import { place } from './matrix';
-import { ball, box, sheet } from './meshes';
+import { ball, box, sheet, splitBySlope } from './meshes';
 import { PALETTE } from './palette';
 import { seeded } from './random';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
@@ -37,6 +43,28 @@ import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeBounds, treeFor, type TreeKi
 
 /** How far out the banks are drawn, as a share of the shore's distance: past where the camera sees, so no edge shows. */
 const BANKS_TO = 12;
+/**
+ * Where the banks' rings go, as stops of (from, to, how many rings): fine up the cliff's wall, where the ground rises
+ * eighteen units in a few, then coarser behind it and packed outward to `BANKS_TO`. The sheet has enough segments round
+ * that a fall's notch, two or three units wide, is a few of them.
+ */
+const BANK_STOPS: readonly [number, number, number][] = [
+  [0.98, CLIFF.foot, 2],
+  [CLIFF.foot, CLIFF.top + 0.04, 16],
+  [CLIFF.top + 0.04, 1.6, 8],
+];
+const BANK_FAR_RINGS = 24;
+const BANK_SEGMENTS = 360;
+
+/** The rings the banks' sheet is laid out in. */
+function bankRings(): number[] {
+  const ks: number[] = [BANK_STOPS[0][0]];
+  for (const [from, to, n] of BANK_STOPS) for (let i = 1; i <= n; i++) ks.push(from + (to - from) * (i / n));
+  const last = BANK_STOPS[BANK_STOPS.length - 1][1];
+  for (let i = 1; i <= BANK_FAR_RINGS; i++) ks.push(last + (BANKS_TO - last) * (i / BANK_FAR_RINGS) ** 1.5);
+  return ks;
+}
+
 /** How many stones line the shore, and how many trees stand on the banks. */
 const STONES = 70;
 const TREES = 26;
@@ -48,6 +76,8 @@ const BLADES = 5;
 const SCENERY_SEED = 1971;
 /** The seed the kit's dressing is drawn from: a constant of its own, so it is independent of the stream above and of the game. */
 export const DRESSING_SEED = 4417;
+/** How many tries a placement the cliff's face turned away gets to find a clear place on the plateau behind. */
+const PLATEAU_TRIES = 200;
 /** How many tries a clump gets to find a dry, clear place before the dressing gives up on it (the count is then short, and a test says so). */
 const TRIES = 40;
 
@@ -115,6 +145,65 @@ function treeAt(x: number, y: number, pick: number, turn: number, size: number):
   const z = ground(x, y);
   const { tree, variant } = treeFor(pick);
   return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size) };
+}
+
+/** One lump of faceted rock, of a size of one, which every lump of the cliff is scaled from: a ball pushed in at random, its faces flat and its bottom cut off, so a lump sunk to its middle does not hang out of a steep wall. */
+const ROCK = built((b) => lump(b, at(0, 0, 0), seeded(5), 4, 8, [1, 1, 1], { give: 0.18, floor: -0.4 }));
+
+/** A lump of rock embedded in the cliff: where it is, which way it is turned, and its half-widths along the wall, out from it and up. */
+export interface CliffLump {
+  where: 'crest' | 'foot' | 'face';
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  rx: number;
+  ry: number;
+  rz: number;
+}
+
+/**
+ * The lumps of rock along the cliff's crest and its foot, drawn from a seed of their own so nothing else moves: each
+ * kind spread evenly across the part of the wall that stands whole, jittered, its middle on the ground (so the lower
+ * half is sunk in the wall or the ledge), and slid along the wall from any fall's channel, which is left bare for the
+ * water. The same every call.
+ */
+export function cliffLumps(): CliffLump[] {
+  const random = seeded(CLIFF.seed);
+  const reach = CLIFF.half - CLIFF.edge - 0.04;
+  const out: CliffLump[] = [];
+  for (const where of ['crest', 'foot', 'face'] as const) {
+    const { count, k, size, spread } = CLIFF.lumps[where];
+    for (let i = 0; i < count; i++) {
+      const rx = lerp(size, random());
+      const ry = rx * (where === 'crest' ? 0.5 + random() * 0.3 : 0.8 + random() * 0.4);
+      const rz = rx * (where === 'crest' ? 0.9 + random() * 0.5 : 0.6 + random() * 0.4);
+      const turn = (random() - 0.5) * 0.6;
+      let angle = CLIFF.middle + reach * (((i + 0.5 + (random() - 0.5) * 0.5) / count) * 2 - 1);
+      let [x, y] = ring(k + (random() - 0.5) * spread, angle);
+      // slid along the wall, away from a channel it would stand in, until it clears it
+      for (let step = 0; step < 60; step++) {
+        const n = NOTCHES.find(
+          (m) => Math.abs((x - m.x) * m.along[0] + (y - m.y) * m.along[1]) < m.width / 2 + Math.max(rx, ry) * 0.5 + 0.5,
+        );
+        if (!n) break;
+        const side = (x - n.x) * n.along[0] + (y - n.y) * n.along[1] >= 0 ? 1 : -1;
+        // along runs clockwise, so a positive side is further clockwise, a smaller angle
+        angle -= side * 0.01;
+        [x, y] = ring(k, angle);
+      }
+      let z = groundUnder(x, y);
+      if (where === 'face') {
+        // sunk two thirds into the wall: its middle a third of its depth back from the face, so a third of its width shows
+        const l = Math.hypot(x, y);
+        x += (x / l) * (ry / 3);
+        y += (y / l) * (ry / 3);
+        z = Math.min(z, groundUnder(x, y));
+      }
+      out.push({ where, x, y, z, yaw: Math.atan2(y, x) + Math.PI / 2 + turn, rx, ry, rz });
+    }
+  }
+  return out;
 }
 
 export class Scene {
@@ -187,7 +276,7 @@ export class Scene {
    * What stands on the banks: a pebble at each old stone's place, a tree at each old tree's, and the bank clumps,
    * picked, turned and scaled from the dressing's own stream, and then the woodland. The trees take three draws each,
    * as the kit's did, so the pebbles and clumps are where they always were, and the woodland is drawn last and stands
-   * last in the list. The same every call.
+   * last in the list, and the cliff turns away what it must. The same every call.
    */
   placements(kit: Kit): Placement[] {
     const { stoneSpots, treeSpots } = this.layout();
@@ -196,6 +285,30 @@ export class Scene {
     const named = [...kit.models.values()].sort((a, b) => (a.name < b.name ? -1 : 1));
     const pick = (models: KitModel[]) => models[Math.floor(random() * models.length)];
     const out: Placement[] = [];
+    // the cliff's face is bare rock, and a placement the draws stood with a corner of its footprint on it is moved onto
+    // the plateau behind, from a stream of the cliff's own, after the draws: every other is exactly where it would have
+    // been, none is lost, and the counts are the content's
+    const spare = seeded(CLIFF.seed + 1);
+    const onPlateau = (
+      make: (x: number, y: number) => Placement,
+      drawn: Placement,
+      [lo, hi]: readonly [number, number],
+      near = false,
+    ) => {
+      const clear = (p: Placement) => footprint(p).every(([x, y]) => !onFace(x, y) && !onFall(x, y));
+      if (clear(drawn)) return drawn;
+      let moved = drawn;
+      for (let tries = 0; tries < PLATEAU_TRIES; tries++) {
+        const angle = CLIFF.middle + (spare() * 2 - 1) * (CLIFF.half - CLIFF.edge - 0.05);
+        // further out as it goes, by a square root, as the woodland is, or nearer by a square, as the clumps are
+        const u = spare();
+        const from = Math.max(lo, CLIFF.top + 0.3);
+        const [x, y] = ring(from + (hi - from) * (near ? u * u : Math.sqrt(u)), angle);
+        moved = make(x, y);
+        if (clear(moved)) break;
+      }
+      return moved;
+    };
 
     const pebbles = named.filter((m) => m.kind === 'pebble');
     for (const { x, y } of stoneSpots) {
@@ -217,8 +330,9 @@ export class Scene {
     // they always were; the pick is a draw of the tree's own and not its place in the list
     for (const { x, y } of treeSpots) {
       const pick = random(),
-        turn = random();
-      out.push(treeAt(x, y, pick, turn, random()));
+        turn = random(),
+        size = random();
+      out.push(onPlateau((x, y) => treeAt(x, y, pick, turn, size), treeAt(x, y, pick, turn, size), [1.5, 2.3]));
     }
 
     // clumps: a kind by its weight, a model of it, a place nearer the water more often than far, and kept only if
@@ -242,7 +356,7 @@ export class Scene {
         )
       )
         continue;
-      out.push(placed);
+      out.push(onPlateau((x, y) => ({ ...placed, x, y, z: ground(x, y) }), placed, [1.5, 2.5], true));
       made++;
     }
 
@@ -256,7 +370,8 @@ export class Scene {
       const [lo, hi] = Math.sin(angle) < -0.55 ? southBand : band;
       const [x, y] = ring(lo + (hi - lo) * u, angle);
       const turn = random();
-      out.push(treeAt(x, y, draw, turn, random()));
+      const size = random();
+      out.push(onPlateau((x, y) => treeAt(x, y, draw, turn, size), treeAt(x, y, draw, turn, size), [lo, hi]));
     }
     return out;
   }
@@ -267,7 +382,11 @@ export class Scene {
     // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
     // the sheets are the ground without the boulders, which are drawn on it as their own
     const bed = sheet(ring, groundUnder, 0, 1.04, 28, 160);
-    const banks = sheet(ring, groundUnder, 0.98, BANKS_TO, 40, 160);
+    // the banks, cut by slope: the grass where the ground is gentle, the rock where it leans past the rock slope
+    const { steep, gentle } = splitBySlope(sheet(ring, groundUnder, 0, 0, bankRings(), BANK_SEGMENTS), CLIFF.rockSlope);
+    const lumps = cliffLumps();
+    const lumpMatrices = new Float32Array(lumps.length * 16);
+    lumps.forEach((l, i) => place(lumpMatrices, i, l.x, l.y, l.z, l.yaw, l.rx, l.ry, l.rz));
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
     const groups: GameGroup[] = [
@@ -275,7 +394,9 @@ export class Scene {
       { mesh: ball(1, 16, 12), matrices: boulders, albedo: PALETTE.boulder, roughness: 0.8 },
       { mesh: ball(1, 3, 6), matrices: rocks, albedo: PALETTE.bedRock, roughness: 0.85 },
       { mesh: box(1, 1, 1), matrices: blades, albedo: PALETTE.weed, roughness: 0.8 },
-      { mesh: banks, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
+      { mesh: gentle, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
+      { mesh: steep, matrices: one, albedo: PALETTE.cliff, roughness: 0.92 },
+      { mesh: ROCK, matrices: lumpMatrices, albedo: PALETTE.cliff, roughness: 0.92 },
     ];
     if (!kit) {
       groups.push(
@@ -366,8 +487,16 @@ export function footprint(p: Placement): [number, number][] {
   return [at(0, 0), at(min[0], min[1]), at(max[0], min[1]), at(min[0], max[1]), at(max[0], max[1])];
 }
 
-/** What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree (the trees at true scale stand up to thirty tall). */
+/**
+ * What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree standing on the cliff's
+ * plateau (the trees at true scale stand up to thirty-two tall, on a plateau twenty over the water), with a unit to
+ * spare. It was forty before the cliff.
+ */
 export const SHADOW_BOX = {
   min: [-(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, -(SHORE_RADIUS * 1.5 + BANK_RISE), -8] as [number, number, number],
-  max: [(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, SHORE_RADIUS * 1.5 + BANK_RISE, 40] as [number, number, number],
+  max: [
+    (SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH,
+    SHORE_RADIUS * 1.5 + BANK_RISE,
+    BANK_TOP + CLIFF.height + Math.max(...Object.values(SCENERY.trees).map((r) => r[1])) + 1,
+  ] as [number, number, number],
 };

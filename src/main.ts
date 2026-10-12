@@ -10,6 +10,7 @@ import { LightPool } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { createApi } from './debug';
+import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { aimFrom } from './aim';
@@ -126,7 +127,9 @@ async function main() {
     field ??= bankField();
     await renderer.setGrass(to === 'full' ? field : null, GRASS_OPTIONS);
   }
-  renderer.setStatic(scene.static(scenery.kit));
+  // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on
+  const mists = fallMists();
+  renderer.setStatic([...scene.static(scenery.kit), ...fallGroups()]);
   await setRung(rung);
   // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
   // grass has no second clock of its own
@@ -460,6 +463,8 @@ async function main() {
   function simulate(dt: number) {
     frames++;
     game.step(dt);
+    // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
+    for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
   function draw(dt: number) {
     orbit.update();

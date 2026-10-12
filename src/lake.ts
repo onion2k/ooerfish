@@ -143,7 +143,8 @@ export function ground(x: number, y: number): number {
 
 /**
  * How high the ground is at a point without the boulders on it: the bed under the water, the bank rising out of it,
- * one surface with no step. The bed and the banks are drawn as a sheet from this, and the boulders on it as their own.
+ * and the cliff behind the north bank standing on that, one surface with no step. The bed and the banks are drawn as a
+ * sheet from this, and the boulders on it as their own.
  */
 export function groundUnder(x: number, y: number): number {
   const k = inward(x, y);
@@ -151,7 +152,126 @@ export function groundUnder(x: number, y: number): number {
   // out of the water, the bank rises from nought at the shore to its top, easing in and out
   const { distance, angle } = polar(x, y);
   const out = Math.min(1, (distance - shoreRadius(angle)) / BANK_RISE);
-  return BANK_TOP * out * out * (3 - 2 * out);
+  return BANK_TOP * out * out * (3 - 2 * out) + cliffRise(x, y);
+}
+
+/** The smooth step from nought at `a` to one at `b`. */
+function smooth(a: number, b: number, v: number): number {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * The rock wall behind the north bank, as content: a sector round due north (`middle`, in the lake's own polar frame)
+ * that is `half` either side of it and eases to nothing over the last `edge`, so its ends blend into the banks. The
+ * bank is as it is to `foot` (in shore radii, a thin ledge at the water), then the wall rises to `top`, where the
+ * plateau stands `height` over the bank, and goes on behind it. A notch in the crest lets each fall down: the crest
+ * dips there to the share `dip` of itself, over the notch's `width` and a little beyond, for a short way back from
+ * the lip (so the notch is a bay in the crest and not a trench into the woods), and the wall in its channel is a
+ * straight chute so a strip of water lies on it. Faces leaning past `rockSlope` (radians, from level) are rock: no
+ * grass grows on them and nothing stands on them. The lumps are faceted rock embedded along the crest and the foot,
+ * `count` of each, `size` between their least and most half-width, so the wall is not a smooth ramp. First guesses, to
+ * be tuned by looking at the mock the user chose from.
+ */
+export const CLIFF = {
+  middle: Math.PI / 2,
+  half: 0.7,
+  edge: 0.15,
+  foot: 1.03,
+  top: 1.22,
+  height: 18,
+  dip: 0.6,
+  // the notch dips whole to this far past the lip (in shore radii) and has filled in again at this
+  notchBack: [0.04, 0.2] as const,
+  // the two falls, round from east and how wide each is in world units
+  notches: [
+    { angle: Math.PI / 2 - 0.22, width: 3.2 },
+    { angle: Math.PI / 2 + 0.3, width: 2.2 },
+  ] as const,
+  rockSlope: (50 * Math.PI) / 180,
+  seed: 4242,
+  lumps: {
+    // the crest's lumps stand on the plateau a little back of the lip, so their tops show over it and they do not hang from the face
+    crest: { count: 10, k: 1.32, spread: 0.03, size: [3.5, 5.5] as const },
+    foot: { count: 8, k: 1.06, spread: 0.03, size: [2.2, 3.6] as const },
+    // the face's own lumps, at mid height and sunk two thirds into the wall so only their facets show, which break up what
+    // would otherwise be one smooth ramp from the crest to the foot
+    face: { count: 8, k: 1.12, spread: 0.1, size: [2.5, 4] as const },
+  },
+} as const;
+
+/** A notch in the crest: where its line meets the shore, the unit directions in toward the lake and along the shore, and its width. */
+export interface Notch {
+  angle: number;
+  width: number;
+  x: number;
+  y: number;
+  inward: readonly [number, number];
+  along: readonly [number, number];
+}
+
+/** The notches, worked out once: each one's line runs straight out from the lake's middle through the shore at its angle. */
+export const NOTCHES: readonly Notch[] = CLIFF.notches.map(({ angle, width }) => {
+  const r = shoreRadius(angle);
+  const x = Math.cos(angle) * r * STRETCH,
+    y = Math.sin(angle) * r;
+  const l = Math.hypot(x, y);
+  const inward: [number, number] = [-x / l, -y / l];
+  return { angle, width, x, y, inward, along: [-inward[1], inward[0]] };
+});
+
+/** How much a point is in a notch's channel: one across the notch's width, easing to nought a little past it, the most of any notch. */
+export function channel(x: number, y: number): number {
+  let c = 0;
+  for (const n of NOTCHES) {
+    const side = Math.abs((x - n.x) * n.along[0] + (y - n.y) * n.along[1]);
+    c = Math.max(c, 1 - smooth(n.width * 0.5, n.width * 1.1, side));
+  }
+  return c;
+}
+
+/** How much higher the cliff makes the ground at a point than the bank alone would be: nought outside its sector and before its foot. */
+export function cliffRise(x: number, y: number): number {
+  const { distance, angle } = polar(x, y);
+  const d = Math.abs(Math.atan2(Math.sin(angle - CLIFF.middle), Math.cos(angle - CLIFF.middle)));
+  if (d >= CLIFF.half) return 0;
+  const k = distance / shoreRadius(angle);
+  if (k <= CLIFF.foot) return 0;
+  const sector = 1 - smooth(CLIFF.half - CLIFF.edge, CLIFF.half, d);
+  const t = Math.min(1, (k - CLIFF.foot) / (CLIFF.top - CLIFF.foot));
+  const c = channel(x, y);
+  // in the channel the wall is a straight chute and the crest is dipped, back only a little way from the lip
+  const dipped = c * (1 - smooth(CLIFF.top + CLIFF.notchBack[0], CLIFF.top + CLIFF.notchBack[1], k));
+  const profile = (1 - c) * (t * t * (3 - 2 * t)) + c * t;
+  return sector * CLIFF.height * (1 - (1 - CLIFF.dip) * dipped) * profile;
+}
+
+/**
+ * Whether a point is on a fall's line, in a channel's width and from the wall's foot to where the notch has filled in
+ * behind the lip: the water's own place, where no grass grows and nothing stands. A blade at the lip would hang over the fall.
+ */
+export function onFall(x: number, y: number): boolean {
+  const k = 1 - inward(x, y);
+  if (k < CLIFF.foot || k > CLIFF.top + CLIFF.notchBack[1]) return false;
+  // on the cliff's side of the shore along the notch's line, and not on some other bank at the same distance across
+  return NOTCHES.some(
+    (n) =>
+      (x - n.x) * -n.inward[0] + (y - n.y) * -n.inward[1] > 0 &&
+      Math.abs((x - n.x) * n.along[0] + (y - n.y) * n.along[1]) < n.width / 2 + FALL_MARGIN,
+  );
+}
+
+/** How far past a fall's own width the grass and the clumps keep back. */
+const FALL_MARGIN = 0.6;
+
+/** How far across a step the ground's lean is taken for `onFace`. */
+const LEAN_STEP = 0.25;
+
+/** Whether the ground at a point leans past the rock slope: the cliff's face, which has no grass and nothing standing on it. */
+export function onFace(x: number, y: number): boolean {
+  const dx = (groundUnder(x + LEAN_STEP, y) - groundUnder(x - LEAN_STEP, y)) / (2 * LEAN_STEP),
+    dy = (groundUnder(x, y + LEAN_STEP) - groundUnder(x, y - LEAN_STEP)) / (2 * LEAN_STEP);
+  return Math.atan(Math.hypot(dx, dy)) > CLIFF.rockSlope;
 }
 
 /**

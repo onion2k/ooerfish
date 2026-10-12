@@ -27,6 +27,11 @@ export const PALETTE = {
   bedRock: [0.3, 0.33, 0.36] as Colour,
   /** The boulders standing in the water, a cooler grey than the bank's stones. */
   boulder: [0.22, 0.22, 0.21] as Colour,
+  /** The cliff's rock, a cool dark grey-blue, darker than the boulders so it stands behind the lake as a wall and does not glare. */
+  cliff: [0.15, 0.165, 0.2] as Colour,
+  /** The waterfalls' water, a pale blue-white, and the foam where it lands. */
+  fallWater: [0.7, 0.86, 0.95] as Colour,
+  foam: [0.96, 0.99, 1] as Colour,
   /** The waterweed growing up from the bed, muted because it is seen through clearer water. */
   weed: [0.05, 0.16, 0.07] as Colour,
   /** The trees: dark brown bark, and the broadleaf's deep green. */

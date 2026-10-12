@@ -7,7 +7,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { checkField, grassGround, levels } from 'artshape-render/game/grass';
 import { BREEZE, GRASS_OPTIONS, LUSH, bankField } from '../src/grass';
-import { ANGLER, BANK_RISE, BANK_TOP, SHORE_RADIUS, STRETCH, groundUnder, inShore, inside } from '../src/lake';
+import {
+  ANGLER,
+  BANK_RISE,
+  BANK_TOP,
+  CLIFF,
+  NOTCHES,
+  SHORE_RADIUS,
+  STRETCH,
+  groundUnder,
+  inShore,
+  inside,
+  onFace,
+  onFall,
+  shoreRadius,
+} from '../src/lake';
 import { PALETTE } from '../src/palette';
 
 const field = bankField();
@@ -50,14 +64,59 @@ describe('the banks field', () => {
     expect(under?.grass).toBe(false);
   });
 
-  it('grows on every bank cell above the shore gap that is not at the angler, and nowhere else', () => {
+  it('grows on every bank cell above the shore gap that is not at the angler or on the cliff’s face or in a fall’s channel, and nowhere else', () => {
     let dry = 0;
     for (const c of cells) {
-      const bank = !inShore(c.x, c.y, -0.9) && Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y) > 4;
+      const bank =
+        !inShore(c.x, c.y, -0.9) &&
+        Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y) > 4 &&
+        !onFace(c.x, c.y) &&
+        !onFall(c.x, c.y);
       if (bank) dry++;
       expect(c.grass, `cell at ${c.x},${c.y}`).toBe(bank);
     }
     expect(dry).toBe(planted.length);
+  });
+
+  it('grows no blade on the cliff’s face, where the ground leans past the rock slope, and some on the plateau above it', () => {
+    const at = (k: number, angle: number) => {
+      const r = k * shoreRadius(angle);
+      return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
+    };
+    const near = (x: number, y: number) =>
+      cells.reduce((best, c) => (Math.hypot(c.x - x, c.y - y) < Math.hypot(best.x - x, best.y - y) ? c : best));
+    // down the wall's middle: every cell on the way up is bare while the ground leans past the slope
+    let bare = 0;
+    for (let i = 0; i <= 60; i++) {
+      const [x, y] = at(CLIFF.foot + ((CLIFF.top - CLIFF.foot) * i) / 60, CLIFF.middle + 0.3);
+      const c = near(x, y);
+      if (onFace(c.x, c.y)) {
+        expect(c.grass, `cell at ${c.x},${c.y}`).toBe(false);
+        bare++;
+      }
+    }
+    expect(bare, 'the face was reached').toBeGreaterThan(10);
+    // and the plateau, level and dry, is grass
+    for (const k of [1.4, 1.8, 2.1]) {
+      const [x, y] = at(k, CLIFF.middle + 0.1);
+      if (y < field.origin[1] + field.rows * field.cell) expect(near(x, y).grass, `at ${k}`).toBe(true);
+    }
+    expect(planted.some((c) => groundUnder(c.x, c.y) > CLIFF.height)).toBe(true);
+    // none of the planted cells leans past the slope
+    expect(planted.every((c) => !onFace(c.x, c.y))).toBe(true);
+  });
+
+  it('grows no blade in a fall’s channel, at the lip or behind it, and grows right up to its edge', () => {
+    const inChannel = cells.filter((c) => onFall(c.x, c.y));
+    expect(inChannel.length, 'the channels were reached').toBeGreaterThan(20);
+    for (const c of inChannel) expect(c.grass, `cell at ${c.x},${c.y}`).toBe(false);
+    for (const n of NOTCHES) {
+      // a cell past the channel’s margin, on the plateau behind the lip, is grass
+      const x = n.x - n.inward[0] * 15 + n.along[0] * (n.width + 3),
+        y = n.y - n.inward[1] * 15 + n.along[1] * (n.width + 3);
+      const c = cells.reduce((b, q) => (Math.hypot(q.x - x, q.y - y) < Math.hypot(b.x - x, b.y - y) ? q : b));
+      expect(c.grass).toBe(true);
+    }
   });
 
   it('keeps a gap at the waterline: a cell just beyond the shore is bare', () => {

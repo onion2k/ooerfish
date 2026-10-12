@@ -10,10 +10,33 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { ANGLER, SCENERY, STRETCH, ground, inShore, inside, shoreRadius } from '../src/lake';
+import {
+  ANGLER,
+  BANK_TOP,
+  CLIFF,
+  NOTCHES,
+  SCENERY,
+  STRETCH,
+  ground,
+  groundUnder,
+  inShore,
+  inside,
+  onFace,
+  onFall,
+  shoreRadius,
+} from '../src/lake';
 import { PALETTE } from '../src/palette';
 import { SCENERY_ROLES, ROLE_COLOUR, readKit, readManifest, type Kit } from '../src/scenery';
-import { DRESSING_SEED, SHADOW_BOX, Scene, footprint, sceneryFigures, treeHeight, type Placement } from '../src/scene';
+import {
+  DRESSING_SEED,
+  SHADOW_BOX,
+  Scene,
+  cliffLumps,
+  footprint,
+  sceneryFigures,
+  treeHeight,
+  type Placement,
+} from '../src/scene';
 import { seeded } from '../src/random';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeFor } from '../src/trees';
 import { newGame } from './helpers';
@@ -46,13 +69,13 @@ function hashGroups(groups: GameGroup[]): string {
   return `${groups.length}:${h.toString(16)}`;
 }
 
-/** The first five groups: the bed, the boulders, the bed rocks, the weed and the banks. */
-const GROUND = 5;
+/** The first seven groups: the bed, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
+const GROUND = 7;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
     // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape
-    expect(hashGroups(new Scene().static())).toBe('8:68efd988');
+    expect(hashGroups(new Scene().static())).toBe('10:1315315c');
   });
 });
 
@@ -60,7 +83,7 @@ describe('a scene with the kit', () => {
   const plain = new Scene().static();
   const dressed = new Scene().static(kit);
 
-  it('leaves the bed, boulders, rocks, weed and banks exactly as they were', () => {
+  it('leaves the bed, boulders, rocks, weed, banks, face and lumps exactly as they were', () => {
     for (let i = 0; i < GROUND; i++) {
       expect(dressed[i].matrices).toEqual(plain[i].matrices);
       expect(dressed[i].mesh).toEqual(plain[i].mesh);
@@ -79,6 +102,8 @@ describe('a scene with the kit', () => {
 const FIGURES = { models: 30, placements: 396, triangles: 90951, cards: 10 };
 
 type TreePlacement = Extract<Placement, { kind: 'tree' }>;
+/** Whether a point is under the cliff's sector, in the lake's own frame. */
+const underCliff = (x: number, y: number) => Math.abs(Math.atan2(y, x / STRETCH) - CLIFF.middle) <= CLIFF.half;
 const isTree = (p: Placement): p is TreePlacement => p.kind === 'tree';
 const label = (p: Placement) => (isTree(p) ? `${p.tree}${p.variant}` : p.model.name) + ` at ${p.x},${p.y}`;
 /** How tall a placement stands: a tree its height, the kit's models their top at their scale. */
@@ -120,13 +145,25 @@ describe('the banks', () => {
   });
 
   it('keep the pebbles and the clumps exactly where the kit’s trees left them (the draws they come from are untouched)', () => {
+    // the ones outside the cliff's sector; the cliff turns some inside it away after the draws, and raises the rest
     const rows = placements
-      .filter((p) => p.kind !== 'tree')
+      .filter((p): p is Exclude<Placement, TreePlacement> => !isTree(p) && !underCliff(p.x, p.y))
       .map((p) => [p.model.name, p.kind, p.x, p.y, p.z, p.yaw, p.scale]);
-    expect(rows).toHaveLength(160);
-    // taken from the placements as they were with the kit's trees, before the trees changed (sha256 of the JSON)
+    expect(rows).toHaveLength(121);
+    // taken from the placements as they were before the cliff (sha256 of the JSON)
     expect(createHash('sha256').update(JSON.stringify(rows)).digest('hex')).toBe(
-      '6cc42708366c9a4fc89fbe99d1b340462af2898b4d69d700bb8c884b1f2ba201',
+      '7a8fc5297330de6f223faf013086e53671c10ba35a64d1fa27ce9f34a2f559ae',
+    );
+  });
+
+  it('keep the trees well clear of the cliff’s sector exactly where they were before it', () => {
+    // a rad past the sector’s edge: a crown reaching onto the face from just outside it is moved, and that is the cliff’s
+    const rows = trees
+      .filter((p) => Math.abs(Math.atan2(p.y, p.x / STRETCH) - CLIFF.middle) > 1)
+      .map((p) => [p.tree, p.variant, p.x, p.y, p.z, p.yaw, p.height]);
+    expect(rows).toHaveLength(158);
+    expect(createHash('sha256').update(JSON.stringify(rows)).digest('hex')).toBe(
+      '89d0e1646716d200d480c6e3a88522258a8ae05672eb9e74502aa88181cb5c56',
     );
   });
 
@@ -388,7 +425,7 @@ describe('the woodland', () => {
         expect(h).toBeLessThanOrEqual(SCENERY.trees[kind][1]);
       }
     // a bank so high that the range would pass the box is held down; where there is room it is the height content picked
-    expect(treeHeight('conifer', 20, 1)).toBeLessThan(SCENERY.trees.conifer[1]);
+    expect(treeHeight('conifer', 22, 1)).toBeLessThan(SCENERY.trees.conifer[1]);
     expect(treeHeight('broadleaf', 0, 0)).toBe(SCENERY.trees.broadleaf[0]);
     expect(treeHeight('broadleaf', 0, 1)).toBe(SCENERY.trees.broadleaf[1]);
   });
@@ -403,9 +440,12 @@ describe('the woodland', () => {
   });
 
   it('is at true scale: tall as the kit’s trees were, up to the shadow box', () => {
-    expect(SHADOW_BOX.max[2]).toBe(40);
+    // the plateau, and the tallest tree on it, and a unit to spare
+    expect(SHADOW_BOX.max[2]).toBe(BANK_TOP + CLIFF.height + 32 + 1);
     for (const p of woodland)
-      expect(p.height).toBeGreaterThanOrEqual(Math.min(SCENERY.trees[p.tree][0], (40 - p.z) * 0.999) - 1e-9);
+      expect(p.height).toBeGreaterThanOrEqual(
+        Math.min(SCENERY.trees[p.tree][0], (SHADOW_BOX.max[2] - p.z) * 0.999) - 1e-9,
+      );
   });
 
   it('costs the few triangles of the package’s trees: well under the kit’s three thousand a tree', () => {
@@ -413,5 +453,106 @@ describe('the woodland', () => {
       VARIANTS[p.tree][p.variant].parts.reduce((n, q) => n + q.mesh.indices.length / 3, 0);
     const mean = woodland.reduce((n, p) => n + tris(p), 0) / woodland.length;
     expect(mean).toBeLessThan(250);
+  });
+});
+
+describe('the cliff in the scene', () => {
+  const groups = new Scene().static(kit);
+  const rock = groups.filter((g) => g.albedo === PALETTE.cliff);
+  const lumps = cliffLumps();
+  const slopeOf = (m: { positions: Float32Array; indices: ArrayLike<number> }, t: number) => {
+    const p = (k: number) => [0, 1, 2].map((a) => m.positions[m.indices[t * 3 + k] * 3 + a]);
+    const [a, b, c] = [p(0), p(1), p(2)];
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+      v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    return Math.acos(Math.abs(n[2]) / Math.hypot(...n));
+  };
+
+  it('draws the wall in rock: a face of the steep faces and the lumps along it, both in the cliff’s colour', () => {
+    expect(rock).toHaveLength(2);
+    expect(groups.slice(0, GROUND).filter((g) => g.albedo === PALETTE.cliff)).toHaveLength(2);
+    expect(PALETTE.cliff[2], 'a cool rock').toBeGreaterThan(PALETTE.cliff[0]);
+    for (const c of PALETTE.cliff) expect(c).toBeLessThan(0.25);
+  });
+
+  it('cuts the banks by slope: no face of the grass is steeper than the rock slope, every face of the rock is', () => {
+    const [face] = rock;
+    const banks = groups[4].mesh;
+    expect(face.mesh.indices.length / 3).toBeGreaterThan(200);
+    for (let t = 0; t < face.mesh.indices.length / 3; t++)
+      expect(slopeOf(face.mesh, t)).toBeGreaterThan(CLIFF.rockSlope);
+    for (let t = 0; t < banks.indices.length / 3; t++) expect(slopeOf(banks, t)).toBeLessThanOrEqual(CLIFF.rockSlope);
+  });
+
+  it('keeps the rock face to the cliff’s sector, and draws all the banks otherwise', () => {
+    const face = rock[0].mesh;
+    for (let i = 0; i < face.positions.length; i += 3)
+      expect(Math.abs(Math.atan2(face.positions[i + 1], face.positions[i] / STRETCH) - CLIFF.middle)).toBeLessThan(
+        CLIFF.half + 0.05,
+      );
+    expect(groups[4].mesh.indices.length / 3).toBeGreaterThan(30_000);
+  });
+
+  it('stands the lumps along the crest and the foot, as many as content says, none across a fall’s channel', () => {
+    expect(lumps.filter((l) => l.where === 'crest')).toHaveLength(CLIFF.lumps.crest.count);
+    expect(lumps.filter((l) => l.where === 'foot')).toHaveLength(CLIFF.lumps.foot.count);
+    expect(lumps.filter((l) => l.where === 'face')).toHaveLength(CLIFF.lumps.face.count);
+    for (const l of lumps) {
+      for (const n of NOTCHES) {
+        const lateral = Math.abs((l.x - n.x) * n.along[0] + (l.y - n.y) * n.along[1]);
+        expect(lateral, `${l.where} lump at ${l.x},${l.y}`).toBeGreaterThan(n.width / 2 + Math.max(l.rx, l.ry) * 0.5);
+      }
+      // half sunk: its middle on the ground, so the lower half is in it
+      if (l.where !== 'face') expect(l.z).toBeCloseTo(groundUnder(l.x, l.y), 6);
+    }
+    expect(rock[1].matrices.length / 16).toBe(lumps.length);
+  });
+
+  it('stands the foot lumps by the water and not in it, and the crest lumps on the crest', () => {
+    for (const l of lumps.filter((q) => q.where === 'foot')) expect(inShore(l.x, l.y, 0), `${l.x},${l.y}`).toBe(false);
+    for (const l of lumps.filter((q) => q.where === 'crest'))
+      expect(l.z, `${l.x},${l.y}`).toBeGreaterThan(CLIFF.height * CLIFF.dip - 1);
+  });
+
+  it('sets the face’s lumps at mid height, sunk into the wall so a third of each shows, and none out in the air', () => {
+    for (const l of lumps.filter((q) => q.where === 'face')) {
+      expect(l.z, `${l.x},${l.y}`).toBeGreaterThan(CLIFF.height * 0.1);
+      expect(l.z, `${l.x},${l.y}`).toBeLessThan(CLIFF.height * 0.9);
+      // its middle is on or behind the wall: the ground at its middle is no lower than the lump's middle less its sinking
+      expect(groundUnder(l.x, l.y), `${l.x},${l.y}`).toBeGreaterThanOrEqual(l.z - 1e-6);
+    }
+  });
+
+  it('makes the lumps the same every call', () => {
+    expect(cliffLumps()).toEqual(lumps);
+  });
+
+  it('stands no tree and no clump on the face, any corner of its footprint included', () => {
+    for (const p of [...trees, ...of('clump')])
+      for (const [x, y] of footprint(p)) expect(onFace(x, y), label(p)).toBe(false);
+  });
+
+  it('keeps every clump and tree out of a fall’s channel, from the foot to where the notch fills in', () => {
+    for (const p of [...trees, ...of('clump')])
+      for (const [x, y] of footprint(p)) expect(onFall(x, y), label(p)).toBe(false);
+  });
+
+  it('stands trees on the plateau, at the plateau’s height, and some', () => {
+    const up = trees.filter((p) => p.z > CLIFF.height - 1);
+    expect(up.length).toBeGreaterThan(8);
+    for (const p of up) {
+      expect(p.z).toBe(ground(p.x, p.y));
+      expect(p.z + p.height).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
+    }
+  });
+
+  it('moves what the draws stood on the face onto the plateau, none lost, and leaves every other where it was', () => {
+    // the counts are content's (the tests above hold them), and the ones outside the sector are the fixtures'; what is
+    // in the sector now stands clear, and the plateau is wooded
+    const inSector = trees.filter((p) => underCliff(p.x, p.y));
+    expect(inSector.length).toBeGreaterThan(30);
+    for (const p of inSector) for (const [x, y] of footprint(p)) expect(onFace(x, y), label(p)).toBe(false);
+    expect(of('clump').filter((p) => underCliff(p.x, p.y)).length).toBeGreaterThan(5);
   });
 });

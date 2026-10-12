@@ -27,3 +27,29 @@ export function splashBurst(x: number, y: number, size: number, contamination: n
     floor: -0.05,
   };
 }
+
+/**
+ * The mist at the foot of a fall: how many droplets each time, how fast up and how far out they go, how much they
+ * scatter, how long they last and how big they are, and how many game frames pass between one burst and the next. Few
+ * and small beside a splash's, since a fall throws them again and again and two falls' worth are alive at once.
+ */
+export const MIST = { count: 6, up: 4, out: 2.5, spread: 1.4, life: 0.8, size: 0.4, every: 5 } as const;
+
+/** The mist thrown up at a fall's foot (x, y), going out the way (outX, outY) points, which is away from the cliff. */
+export function mist(x: number, y: number, outX: number, outY: number): Emit {
+  return {
+    position: [x, y, 0.15],
+    velocity: [outX * MIST.out, outY * MIST.out, MIST.up],
+    spread: MIST.spread,
+    count: MIST.count,
+    life: MIST.life,
+    lifeSpread: 0.3,
+    size: MIST.size,
+    growth: 0.6,
+    colour: PALETTE.foam,
+    alpha: 0.5,
+    gravity: 0.5,
+    // a droplet falling back through the surface is gone
+    floor: -0.05,
+  };
+}
