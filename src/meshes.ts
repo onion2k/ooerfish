@@ -113,7 +113,8 @@ export function disc(radius: number, segments = 24): Mesh {
  * A smooth sheet laid out in rings round the middle: `point(k, angle)` says
  * where the ring `k` of the way out is at an angle, and `height(x, y)` how
  * high the sheet is there. Rings run from `from` to `to`, so a sheet can be a
- * disc or a band. Its normals are the height's own slope, taken across a
+ * disc or a band. `rings` is either how many (packed toward the inner edge) or the rings' own distances, each of the
+ * way out as `point` counts it, for a sheet that wants them fine in one place and coarse elsewhere. Its normals are the height's own slope, taken across a
  * small step, so neighbouring sheets of the same height meet with no seam.
  */
 export function sheet(
@@ -121,14 +122,15 @@ export function sheet(
   height: (x: number, y: number) => number,
   from: number,
   to: number,
-  rings: number,
+  rings: number | readonly number[],
   segments: number,
 ): Mesh {
   const b = new MeshBuilder();
   const e = 0.05;
-  for (let i = 0; i <= rings; i++) {
+  const count = typeof rings === 'number' ? rings : rings.length - 1;
+  for (let i = 0; i <= count; i++) {
     // rings packed toward the inner edge, where a sheet bends most: the shore
-    const k = from + (to - from) * (i / rings) ** 1.5;
+    const k = typeof rings === 'number' ? from + (to - from) * (i / rings) ** 1.5 : rings[i];
     for (let j = 0; j <= segments; j++) {
       const angle = (j / segments) * Math.PI * 2;
       const [x, y] = point(k, angle);
@@ -139,10 +141,58 @@ export function sheet(
       b.vertex(x, y, z, -dx / l, -dy / l, 1 / l, j / segments, k);
     }
   }
-  for (let i = 0; i < rings; i++)
+  for (let i = 0; i < count; i++)
     for (let j = 0; j < segments; j++) {
       const a = i * (segments + 1) + j;
       b.quad(a, a + 1, a + segments + 2, a + segments + 1);
     }
   return b.build();
+}
+
+/**
+ * A mesh cut in two by how steeply its triangles lean: `steep` the ones leaning more than `minSlope` (radians, from
+ * level) either way, `gentle` the rest, every triangle in exactly one. Each half keeps only the vertices its triangles
+ * use, with their normals and uvs, so the cliff's rock face and the bank's grass are two meshes cut from one sheet
+ * that was drawn as one surface.
+ */
+export function splitBySlope(mesh: Mesh, minSlope: number): { steep: Mesh; gentle: Mesh } {
+  const { positions: p, indices } = mesh;
+  // a face leans past the slope when its normal's share of straight up is under the cosine of the cut
+  const level = Math.cos(minSlope);
+  const halves: [number[], number[]] = [[], []];
+  for (let t = 0; t < indices.length; t += 3) {
+    const a = indices[t] * 3,
+      b = indices[t + 1] * 3,
+      c = indices[t + 2] * 3;
+    const ux = p[b] - p[a],
+      uy = p[b + 1] - p[a + 1],
+      uz = p[b + 2] - p[a + 2];
+    const vx = p[c] - p[a],
+      vy = p[c + 1] - p[a + 1],
+      vz = p[c + 2] - p[a + 2];
+    const nx = uy * vz - uz * vy,
+      ny = uz * vx - ux * vz,
+      nz = ux * vy - uy * vx;
+    const steep = Math.abs(nz) / (Math.hypot(nx, ny, nz) || 1) < level;
+    halves[steep ? 0 : 1].push(indices[t], indices[t + 1], indices[t + 2]);
+  }
+  const cut = (ids: number[]): Mesh => {
+    const renumbered = new Map<number, number>();
+    for (const v of ids) if (!renumbered.has(v)) renumbered.set(v, renumbered.size);
+    const out: Mesh = {
+      positions: new Float32Array(renumbered.size * 3),
+      normals: new Float32Array(renumbered.size * 3),
+      uvs: new Float32Array(renumbered.size * 2),
+      indices: Uint32Array.from(ids, (v) => renumbered.get(v)!),
+    };
+    for (const [v, i] of renumbered) {
+      for (let a = 0; a < 3; a++) {
+        out.positions[i * 3 + a] = mesh.positions[v * 3 + a];
+        out.normals[i * 3 + a] = mesh.normals[v * 3 + a];
+      }
+      for (let a = 0; a < 2; a++) out.uvs[i * 2 + a] = mesh.uvs[v * 2 + a];
+    }
+    return out;
+  };
+  return { steep: cut(halves[0]), gentle: cut(halves[1]) };
 }
