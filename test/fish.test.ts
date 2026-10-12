@@ -1,7 +1,19 @@
 /** The fish of the lab's lake: where they swim, that they stay in the water, and the lake's two levers. */
 import { describe, expect, it } from 'vitest';
+import { School } from '../src/fish';
 import { checkInvariants } from '../src/invariants';
-import { BOULDERS, FISH_CAPACITY, FISH_COUNT, bedDepth, boulderGap, inside, shoreRadius } from '../src/lake';
+import {
+  BOULDERS,
+  FISH_CAPACITY,
+  FISH_COUNT,
+  JETTY,
+  STRETCH,
+  bedDepth,
+  boulderGap,
+  inside,
+  jettyGap,
+  shoreRadius,
+} from '../src/lake';
 import { DT, newGame, settle } from './helpers';
 
 describe('the fish', () => {
@@ -70,6 +82,85 @@ describe('the fish', () => {
     }
     for (let i = 0; i < game.fish.count; i++)
       expect(boulderGap(game.fish.x[i], game.fish.y[i]), `fish ${i} swam off`).toBeGreaterThan(1.2);
+  });
+
+  it('never swim under the jetty, even headed straight at its side or its end from close in at full speed, and swim off again', () => {
+    // the deck's own frame, worked out afresh: a point `u` along it from its start and `v` across from its middle line
+    const r = JETTY.k * shoreRadius(JETTY.angle);
+    const sx = Math.cos(JETTY.angle) * r * STRETCH,
+      sy = Math.sin(JETTY.angle) * r;
+    const l = Math.hypot(sx, sy);
+    const ix = -sx / l,
+      iy = -sy / l;
+    const onDeck = (u: number, v: number): [number, number] => [sx + ix * u - iy * v, sy + iy * u + ix * v];
+    const heading = Math.atan2(iy, ix);
+    // each starts 0.6 of a unit off an edge, headed in at its middle: from either side, and from beyond the end
+    const starts: [number, number, number][] = [
+      [...onDeck(5, JETTY.width / 2 + 0.6), heading - Math.PI / 2],
+      [...onDeck(9, -(JETTY.width / 2 + 0.6)), heading + Math.PI / 2],
+      [...onDeck(JETTY.length + 0.6, 0), heading + Math.PI],
+      [...onDeck(7, JETTY.width / 2 + 0.6), heading - Math.PI / 2 + 0.3],
+      [...onDeck(11, -(JETTY.width / 2 + 0.6)), heading + Math.PI / 2 - 0.3],
+      [...onDeck(JETTY.length + 0.6, 0.5), heading + Math.PI - 0.2],
+    ];
+    const { game } = newGame();
+    expect(game.fish.count).toBe(starts.length);
+    starts.forEach(([x, y, h], i) => {
+      game.fish.x[i] = x;
+      game.fish.y[i] = y;
+      game.fish.heading[i] = h;
+      game.fish.speed[i] = 2.8;
+      game.fish.depth[i] = 0.1;
+    });
+    for (let f = 0; f < 120; f++) {
+      game.step(DT);
+      for (let i = 0; i < game.fish.count; i++) {
+        expect(inside(game.fish.x[i], game.fish.y[i]), `fish ${i} at frame ${f}`).toBe(true);
+        expect(jettyGap(game.fish.x[i], game.fish.y[i]), `fish ${i} at frame ${f}`).toBeGreaterThan(0);
+      }
+    }
+    for (let i = 0; i < game.fish.count; i++)
+      expect(jettyGap(game.fish.x[i], game.fish.y[i]), `fish ${i} swam off`).toBeGreaterThan(1.2);
+  });
+
+  it('turn from the jetty before they reach it, and one that has come within half a unit of it comes no nearer', () => {
+    const r = JETTY.k * shoreRadius(JETTY.angle);
+    const sx = Math.cos(JETTY.angle) * r * STRETCH,
+      sy = Math.sin(JETTY.angle) * r;
+    const l = Math.hypot(sx, sy);
+    const ix = -sx / l,
+      iy = -sy / l;
+    const onDeck = (u: number, v: number): [number, number] => [sx + ix * u - iy * v, sy + iy * u + ix * v];
+    const across = Math.atan2(-ix, iy);
+    // a fish whose wander is stilled, headed straight at the deck from a few units off its side, begins to turn from it
+    // while still well away, as it does from a boulder, and not only when a step would be refused
+    const school = new School();
+    school.fill(1, () => 0.5);
+    const [fx, fy] = onDeck(8, JETTY.width / 2 + 3.5);
+    school.x[0] = fx;
+    school.y[0] = fy;
+    school.heading[0] = across;
+    school.speed[0] = 2.8;
+    school.depth[0] = 0.1;
+    for (let f = 0; f < 10; f++) school.step(DT, () => 0.5);
+    expect(jettyGap(school.x[0], school.y[0]), 'still well away').toBeGreaterThan(2.5);
+    const turned = Math.abs(Math.atan2(Math.sin(school.heading[0] - across), Math.cos(school.heading[0] - across)));
+    expect(turned, 'the heading has turned from the deck').toBeGreaterThan(0.1);
+    // and one already within half a unit, headed straight at it, is never carried nearer
+    const near = newGame().game;
+    const [x, y] = onDeck(8, JETTY.width / 2 + 0.3);
+    near.fish.x[0] = x;
+    near.fish.y[0] = y;
+    near.fish.heading[0] = across;
+    near.fish.speed[0] = 2.8;
+    near.fish.depth[0] = 0.1;
+    let was = jettyGap(x, y);
+    for (let f = 0; f < 30; f++) {
+      near.step(DT);
+      const gap = jettyGap(near.fish.x[0], near.fish.y[0]);
+      expect(gap, `frame ${f}`).toBeGreaterThanOrEqual(Math.min(was, 0.5) - 1e-9);
+      was = gap;
+    }
   });
 
   it('go where the seed says, the same twice, and elsewhere from another seed', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
+import { DECK } from '../src/lake';
 import { newGame, settle } from './helpers';
 
 describe('what must always hold', () => {
@@ -8,6 +9,13 @@ describe('what must always hold', () => {
     expect(checkInvariants(game)).toEqual([]);
     settle(game);
     expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a fish on the jetty’s deck as out of the water, with no rule of its own', () => {
+    const { game } = newGame();
+    game.fish.x[0] = DECK.x + DECK.inward[0] * 6;
+    game.fish.y[0] = DECK.y + DECK.inward[1] * 6;
+    expect(checkInvariants(game).join('\n')).toMatch(/fish 0 is out of the water/);
   });
 
   it('reports a time that is not a number, or before the start', () => {

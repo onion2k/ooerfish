@@ -10,7 +10,20 @@
  * written: the grass keeps off the water, off the angler's feet and off the boulders by asking the lake's own sums.
  */
 import type { GrassField, GrassKind, GrassOptions, Wind } from 'artshape-render/game/grass';
-import { ANGLER, BANK_RISE, BANK_TOP, SHORE_RADIUS, STRETCH, groundUnder, inShore, onFace, onFall } from './lake';
+import {
+  ANGLER,
+  BANK_RISE,
+  BANK_TOP,
+  CABIN,
+  SHORE_RADIUS,
+  STRETCH,
+  cabinGap,
+  groundUnder,
+  inShore,
+  jettyGap,
+  onFace,
+  onFall,
+} from './lake';
 import { PALETTE } from './palette';
 
 /**
@@ -42,7 +55,7 @@ const ANGLER_CLEAR = 4;
 
 /**
  * The grass field: half-unit cells over the banks out to the sun's shadow box, grass wherever the ground is dry,
- * a gap from the waterline, and not at the angler's feet or on the cliff's face; beyond the grid the same grass carries on at the top of
+ * a gap from the waterline, and not at the angler's feet, on the cliff's face, under the cabin or on the jetty's shore end; beyond the grid the same grass carries on at the top of
  * the banks to the horizon. The heights are the ground without the boulders, which the banks' sheet is drawn from.
  */
 export function bankField(): GrassField {
@@ -62,7 +75,9 @@ export function bankField(): GrassField {
       const clear = Math.hypot(x - ANGLER.x, y - ANGLER.y) > ANGLER_CLEAR;
       // none on the cliff's face, where the ground leans past the rock slope and the wall is bare rock, and none in a
       // fall's channel, where a blade at the lip would hang over the water
-      mask[i] = dry && clear && !onFace(x, y) && !onFall(x, y) ? 1 : 0;
+      // none under the cabin's roof or the keep-back round it, and none through the jetty's planks where it starts on the bank
+      const built = cabinGap(x, y) < CABIN.clear || jettyGap(x, y) < CABIN.clear;
+      mask[i] = dry && clear && !onFace(x, y) && !onFall(x, y) && !built ? 1 : 0;
     }
   return {
     origin: [-halfW, -halfH],

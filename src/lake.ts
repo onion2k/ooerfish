@@ -126,9 +126,109 @@ export function nearestBoulder(x: number, y: number): (typeof BOULDERS)[number] 
   return best;
 }
 
-/** Whether a point is in the water, at least `margin` world units in from the shore and from every boulder. */
+/**
+ * The jetty, as content: a deck of planks out from the north-east bank over the water, on posts standing from the bed.
+ * It starts where the line from the lake's middle through the shore at `angle` is `k` shore radii out, and runs `length`
+ * toward the lake's middle, `width` across and standing `top` over the surface. Like a boulder it is a bit of bank in
+ * the water: no fish swims under it, a cast landing on it lies there on the planks, and the foam rings it. The posts,
+ * `size` square, stand under the deck at these distances along it, a pair at each, `side` either side of its middle, so
+ * they need nothing of their own. The bed and the water run on under it as they were.
+ */
+export const JETTY = {
+  angle: 0.74,
+  k: 1.04,
+  length: 13,
+  width: 2.6,
+  top: 0.45,
+  // the deck is this thick, under its top
+  thick: 0.3,
+  posts: { along: [1.5, 5, 8.5, 12] as readonly number[], side: 1.1, size: 0.4 },
+} as const;
+
+/** The ring point `k` shore radii out at an angle, in the lake's stretched frame, and the unit directions there in toward the lake's middle and along the shore. */
+function ringFrame(k: number, angle: number) {
+  const r = k * shoreRadius(angle);
+  const x = Math.cos(angle) * r * STRETCH,
+    y = Math.sin(angle) * r;
+  const l = Math.hypot(x, y);
+  const inward: [number, number] = [-x / l, -y / l];
+  return { x, y, inward, along: [-inward[1], inward[0]] as [number, number] };
+}
+
+/** The jetty's deck worked out once: where it starts, the unit directions in toward the lake's middle and along the shore. */
+export const DECK = ringFrame(JETTY.k, JETTY.angle);
+
+/** How far a point is outside a rectangle `halfU` by `halfV` about its middle, in plan, below nought inside it. */
+function boxGap(u: number, v: number, halfU: number, halfV: number): number {
+  const du = Math.abs(u) - halfU,
+    dv = Math.abs(v) - halfV;
+  return du > 0 || dv > 0 ? Math.hypot(Math.max(du, 0), Math.max(dv, 0)) : Math.max(du, dv);
+}
+
+/** A point in the deck's own frame: how far in along it from its start, and how far across from its middle line. */
+export function deckFrame(x: number, y: number): [along: number, across: number] {
+  const dx = x - DECK.x,
+    dy = y - DECK.y;
+  return [dx * DECK.inward[0] + dy * DECK.inward[1], dx * DECK.along[0] + dy * DECK.along[1]];
+}
+
+/** How far a point is from the deck's edge in plan: below nought inside it, as `boulderGap` is inside a boulder. */
+export function jettyGap(x: number, y: number): number {
+  const [u, v] = deckFrame(x, y);
+  return boxGap(u - JETTY.length / 2, v, JETTY.length / 2, JETTY.width / 2);
+}
+
+/** The point on the deck nearest a point, in plan: where a fish swimming at it should be turned from. */
+export function nearestOnDeck(x: number, y: number): [number, number] {
+  const [u, v] = deckFrame(x, y);
+  const cu = Math.min(JETTY.length, Math.max(0, u)),
+    cv = Math.min(JETTY.width / 2, Math.max(-JETTY.width / 2, v));
+  return [DECK.x + DECK.inward[0] * cu + DECK.along[0] * cv, DECK.y + DECK.inward[1] * cu + DECK.along[1] * cv];
+}
+
+/** Whether a point is in the water, at least `margin` world units in from the shore and from every boulder and the deck. */
 export function inside(x: number, y: number, margin = 0): boolean {
-  return inShore(x, y, margin) && boulderGap(x, y) > margin;
+  return inShore(x, y, margin) && boulderGap(x, y) > margin && jettyGap(x, y) > margin;
+}
+
+/**
+ * The cabin on the bank behind the jetty, as content: it stands `k` shore radii out at the jetty's angle, its door to
+ * the lake. Its body is `along` the shore by `across` toward the lake and `high`; its roof is two panels leaning at
+ * `pitch` from a ridge along the shore, overhanging the walls by `overhang`; the chimney is `size` square and `high` over
+ * the roof's ridge, `along` from the middle; the door is in the lake-facing wall, and the window `along` from the middle
+ * and `sill` over the ground. It has no rules: it is drawn on the bank only, and what is cast onto it lies on the ground.
+ * `clear` is how far the grass, the trees and the clumps keep back from the roof's edge. First guesses, from the mock the
+ * user chose.
+ */
+export const CABIN = {
+  angle: JETTY.angle,
+  k: 1.32,
+  body: { along: 9, across: 7, high: 4.6 },
+  roof: { pitch: (35 * Math.PI) / 180, overhang: 0.7, thick: 0.45 },
+  chimney: { size: 1.1, high: 2.4, along: 2.8 },
+  door: { width: 1.5, high: 2.6 },
+  window: { width: 1.6, high: 1.3, along: 2.6, sill: 1.8 },
+  clear: 0.5,
+} as const;
+
+/** The cabin's middle on the bank, and the unit directions in toward the lake and along the shore, worked out once. */
+export const CABIN_AT = ringFrame(CABIN.k, CABIN.angle);
+
+/** How far a point is from the edge of the cabin's roof in plan: below nought under it. */
+export function cabinGap(x: number, y: number): number {
+  const dx = x - CABIN_AT.x,
+    dy = y - CABIN_AT.y;
+  return boxGap(
+    dx * CABIN_AT.along[0] + dy * CABIN_AT.along[1],
+    dx * CABIN_AT.inward[0] + dy * CABIN_AT.inward[1],
+    CABIN.body.along / 2 + CABIN.roof.overhang,
+    CABIN.body.across / 2 + CABIN.roof.overhang,
+  );
+}
+
+/** Whether a point is where the cabin and the jetty's shore end stand, or within the keep-back of them: no grass, tree or clump is. */
+export function onCabinOrDeck(x: number, y: number): boolean {
+  return cabinGap(x, y) < CABIN.clear || jettyGap(x, y) < CABIN.clear;
 }
 
 /** How deep the bed is under a point: the most in the middle, easing to nothing at the shore, shallower over a boulder's flank, nought on land. */
@@ -136,9 +236,18 @@ export function bedDepth(x: number, y: number): number {
   return Math.max(0, Math.min(bowlDepth(x, y), -boulderTop(x, y)));
 }
 
-/** How high the ground is at a point, boulders and all: the bed under the water, the bank and the boulders out of it. */
-export function ground(x: number, y: number): number {
+/**
+ * How high the ground is at a point with no deck laid on it: the bed under the water, the bank and the boulders out of
+ * it. The scenery stands on this, so a stone or a weed under the deck is where the draws put it and not on the planks.
+ */
+export function bareGround(x: number, y: number): number {
   return inward(x, y) > 0 ? Math.max(-bowlDepth(x, y), boulderTop(x, y)) : groundUnder(x, y);
+}
+
+/** How high the ground is at a point, boulders and the jetty's planks and all: what a cast lands on. */
+export function ground(x: number, y: number): number {
+  const bare = bareGround(x, y);
+  return jettyGap(x, y) < 0 ? Math.max(bare, JETTY.top) : bare;
 }
 
 /**

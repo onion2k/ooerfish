@@ -11,12 +11,15 @@ import {
   ANGLER,
   BANK_RISE,
   BANK_TOP,
+  CABIN,
   CLIFF,
   NOTCHES,
   SHORE_RADIUS,
   STRETCH,
+  cabinGap,
   groundUnder,
   inShore,
+  jettyGap,
   inside,
   onFace,
   onFall,
@@ -64,14 +67,16 @@ describe('the banks field', () => {
     expect(under?.grass).toBe(false);
   });
 
-  it('grows on every bank cell above the shore gap that is not at the angler or on the cliff’s face or in a fall’s channel, and nowhere else', () => {
+  it('grows on every bank cell above the shore gap that is not at the angler, on the cliff’s face, in a fall’s channel, under the cabin or on the jetty’s shore end, and nowhere else', () => {
     let dry = 0;
     for (const c of cells) {
       const bank =
         !inShore(c.x, c.y, -0.9) &&
         Math.hypot(c.x - ANGLER.x, c.y - ANGLER.y) > 4 &&
         !onFace(c.x, c.y) &&
-        !onFall(c.x, c.y);
+        !onFall(c.x, c.y) &&
+        cabinGap(c.x, c.y) >= CABIN.clear &&
+        jettyGap(c.x, c.y) >= CABIN.clear;
       if (bank) dry++;
       expect(c.grass, `cell at ${c.x},${c.y}`).toBe(bank);
     }
@@ -117,6 +122,17 @@ describe('the banks field', () => {
       const c = cells.reduce((b, q) => (Math.hypot(q.x - x, q.y - y) < Math.hypot(b.x - x, b.y - y) ? q : b));
       expect(c.grass).toBe(true);
     }
+  });
+
+  it('grows no blade under the cabin’s roof or half a unit from its edge, nor on the jetty’s shore end, and grows right up to those', () => {
+    const under = cells.filter((c) => cabinGap(c.x, c.y) < CABIN.clear);
+    const deck = cells.filter((c) => jettyGap(c.x, c.y) < CABIN.clear && !inShore(c.x, c.y, -0.9));
+    expect(under.length, 'cells under the cabin').toBeGreaterThan(100);
+    expect(deck.length, 'cells on the shore end of the deck').toBeGreaterThan(0);
+    for (const c of [...under, ...deck]) expect(c.grass, `cell at ${c.x},${c.y}`).toBe(false);
+    // and the cells just outside the keep-back, on the bank, are grass
+    const edge = cells.filter((c) => cabinGap(c.x, c.y) >= CABIN.clear && cabinGap(c.x, c.y) < CABIN.clear + 0.5);
+    expect(edge.filter((c) => c.grass).length).toBeGreaterThan(edge.length * 0.8);
   });
 
   it('keeps a gap at the waterline: a cell just beyond the shore is bare', () => {

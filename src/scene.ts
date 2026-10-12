@@ -21,15 +21,18 @@ import {
   BANK_RISE,
   BANK_TOP,
   BOULDER_DOMES,
+  CABIN,
   CLIFF,
   NOTCHES,
   SCENERY,
   SHORE_RADIUS,
   STRETCH,
+  bareGround,
   bedDepth,
-  ground,
+  cabinGap,
   groundUnder,
   inside,
+  jettyGap,
   onFace,
   onFall,
   shoreRadius,
@@ -78,6 +81,9 @@ const SCENERY_SEED = 1971;
 export const DRESSING_SEED = 4417;
 /** How many tries a placement the cliff's face turned away gets to find a clear place on the plateau behind. */
 const PLATEAU_TRIES = 200;
+/** How far, in radians round the shore, a pebble slides at a time to get off the cabin's ground or the deck, and how many slides it gets. */
+const SLIDE_STEP = 0.01;
+const SLIDE_TRIES = 80;
 /** How many tries a clump gets to find a dry, clear place before the dressing gives up on it (the count is then short, and a test says so). */
 const TRIES = 40;
 
@@ -142,7 +148,7 @@ export function treeHeight(tree: TreeKind, z: number, u: number): number {
 
 /** A tree stood at a place from the three draws it takes of the dressing stream, in order: its pick, its turn and its height. */
 function treeAt(x: number, y: number, pick: number, turn: number, size: number): TreePlacement {
-  const z = ground(x, y);
+  const z = bareGround(x, y);
   const { tree, variant } = treeFor(pick);
   return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size) };
 }
@@ -221,7 +227,7 @@ export class Scene {
       const angle = ((i + random() * 0.6) / STONES) * Math.PI * 2;
       const [x, y] = ring(1.005 + random() * 0.02, angle);
       const size = 0.6 + random() * 0.7;
-      place(stones, i, x, y, ground(x, y) - size * 0.25, random() * Math.PI, size * 1.3, size, size * 0.7);
+      place(stones, i, x, y, bareGround(x, y) - size * 0.25, random() * Math.PI, size * 1.3, size, size * 0.7);
       stoneSpots.push({ x, y });
     }
 
@@ -234,7 +240,7 @@ export class Scene {
       // none on the near bank the camera stands on, south of the middle
       const along = Math.sin(angle) < -0.55 ? 2.6 + random() * 1.5 : 1.3 + random() * 0.9;
       const [x, y] = ring(along, angle);
-      const z = ground(x, y);
+      const z = bareGround(x, y);
       const tall = 3 + random() * 3;
       place(trunks, i, x, y, z, 0, 1, 1, tall);
       place(puffs, i, x, y, z + tall + 2.2, random() * Math.PI, 1, 1, 0.9);
@@ -247,7 +253,7 @@ export class Scene {
       const angle = random() * Math.PI * 2;
       const [x, y] = ring(0.12 + random() * 0.8, angle);
       const size = 0.7 + random() * 1.6;
-      place(rocks, i, x, y, ground(x, y) - size * 0.3, random() * Math.PI, size * 1.2, size, size * 0.7);
+      place(rocks, i, x, y, bareGround(x, y) - size * 0.3, random() * Math.PI, size * 1.2, size, size * 0.7);
     }
 
     // clumps of weed in the shallows, every blade under the water, the tallest reaching to just below it
@@ -260,7 +266,7 @@ export class Scene {
           y = cy + (random() - 0.5) * 1.6;
         const room = bedDepth(x, y) - 0.25;
         const tall = Math.max(0, room * (0.5 + random() * 0.5));
-        place(blades, c * BLADES + b, x, y, ground(x, y), random() * Math.PI, 0.18, 0.5, tall);
+        place(blades, c * BLADES + b, x, y, bareGround(x, y), random() * Math.PI, 0.18, 0.5, tall);
       }
     }
 
@@ -288,15 +294,35 @@ export class Scene {
     // the cliff's face is bare rock, and a placement the draws stood with a corner of its footprint on it is moved onto
     // the plateau behind, from a stream of the cliff's own, after the draws: every other is exactly where it would have
     // been, none is lost, and the counts are the content's
-    const spare = seeded(CLIFF.seed + 1);
+    // what the cabin or the deck turned away is moved from a stream of its own, so the cliff's are where they were
+    const spareCliff = seeded(CLIFF.seed + 1);
+    const spareForCabin = seeded(CLIFF.seed + 2);
+    // a pebble the draws stood on the jetty's shore end slides along the shore to the nearest bank beside it, at the same
+    // distance from the water: it is one pebble still, and the stream is not touched
+    const alongShore = (make: (x: number, y: number) => KitPlacement, drawn: KitPlacement): KitPlacement => {
+      const free = (p: KitPlacement) => footprint(p).every(([x, y]) => clearOfCabin(x, y));
+      if (free(drawn)) return drawn;
+      const angle = Math.atan2(drawn.y, drawn.x / STRETCH);
+      const k = Math.hypot(drawn.x / STRETCH, drawn.y) / shoreRadius(angle);
+      for (let n = 1; n <= SLIDE_TRIES; n++)
+        for (const sign of [1, -1]) {
+          const [x, y] = ring(k, angle + sign * n * SLIDE_STEP);
+          const moved = make(x, y);
+          if (free(moved)) return moved;
+        }
+      return drawn;
+    };
     const onPlateau = (
       make: (x: number, y: number) => Placement,
       drawn: Placement,
       [lo, hi]: readonly [number, number],
       near = false,
     ) => {
-      const clear = (p: Placement) => footprint(p).every(([x, y]) => !onFace(x, y) && !onFall(x, y));
+      const offCliff = (p: Placement) => footprint(p).every(([x, y]) => !onFace(x, y) && !onFall(x, y));
+      const clear = (p: Placement) => offCliff(p) && footprint(p).every(([x, y]) => clearOfCabin(x, y));
       if (clear(drawn)) return drawn;
+      // the cliff's own turned away keep their stream; those only the cabin or the deck turned away take the other
+      const spare = offCliff(drawn) ? spareForCabin : spareCliff;
       let moved = drawn;
       for (let tries = 0; tries < PLATEAU_TRIES; tries++) {
         const angle = CLIFF.middle + (spare() * 2 - 1) * (CLIFF.half - CLIFF.edge - 0.05);
@@ -315,15 +341,16 @@ export class Scene {
       const model = pick(pebbles);
       const yaw = random() * Math.PI * 2;
       const scale = lerp(SCENERY.pebbles.scale, random());
-      out.push({
+      const stone = (x: number, y: number): KitPlacement => ({
         model,
         kind: 'pebble',
         x,
         y,
-        z: ground(x, y) - SCENERY.pebbles.sunk * model.bounds.max[2] * scale,
+        z: bareGround(x, y) - SCENERY.pebbles.sunk * model.bounds.max[2] * scale,
         yaw,
         scale,
       });
+      out.push(alongShore(stone, stone(x, y)));
     }
 
     // a tree is three draws, a pick, a turn and a height, as the kit's were, so the clumps drawn after them are where
@@ -349,14 +376,14 @@ export class Scene {
       const [x, y] = ring(1 + (SCENERY.clumps.reach - 1) * u * u, angle);
       const yaw = random() * Math.PI * 2;
       const scale = lerp(spec.scale, random());
-      const placed: Placement = { model, kind: 'clump', x, y, z: ground(x, y), yaw, scale };
+      const placed: Placement = { model, kind: 'clump', x, y, z: bareGround(x, y), yaw, scale };
       if (
         !footprint(placed).every(
           ([fx, fy]) => !inside(fx, fy, 0) && Math.hypot(fx - ANGLER.x, fy - ANGLER.y) >= SCENERY.clumps.clear,
         )
       )
         continue;
-      out.push(onPlateau((x, y) => ({ ...placed, x, y, z: ground(x, y) }), placed, [1.5, 2.5], true));
+      out.push(onPlateau((x, y) => ({ ...placed, x, y, z: bareGround(x, y) }), placed, [1.5, 2.5], true));
       made++;
     }
 
@@ -475,6 +502,11 @@ export function sceneryFigures(placements: Placement[]): SceneryFigures {
   let cards = 0;
   for (const model of placed) for (const part of model.parts) if (part.layer > 0) cards++;
   return { models: placed.size + variants.size, placements: placements.length, triangles, cards };
+}
+
+/** Whether a point is clear of the cabin's roof and the jetty's deck, and the keep-back round them. */
+function clearOfCabin(x: number, y: number): boolean {
+  return cabinGap(x, y) >= CABIN.clear && jettyGap(x, y) >= CABIN.clear;
 }
 
 /** The corners of a placement's footprint on the ground, after its yaw and scale, and its middle. */

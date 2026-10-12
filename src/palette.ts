@@ -29,6 +29,17 @@ export const PALETTE = {
   boulder: [0.22, 0.22, 0.21] as Colour,
   /** The cliff's rock, a cool dark grey-blue, darker than the boulders so it stands behind the lake as a wall and does not glare. */
   cliff: [0.15, 0.165, 0.2] as Colour,
+  /**
+   * The cabin on the north-east bank and the jetty before it, first guesses from the mock the user chose: cream walls, a
+   * blue roof, a stone chimney, a brown door, a window lit warm (it glows), weathered planks and darker posts.
+   */
+  cabinWall: [0.82, 0.76, 0.62] as Colour,
+  cabinRoof: [0.2, 0.42, 0.62] as Colour,
+  cabinChimney: [0.5, 0.45, 0.42] as Colour,
+  cabinDoor: [0.4, 0.26, 0.14] as Colour,
+  cabinWindow: [1, 0.85, 0.45] as Colour,
+  deck: [0.5, 0.36, 0.22] as Colour,
+  post: [0.4, 0.3, 0.18] as Colour,
   /** The waterfalls' water, a pale blue-white, and the foam where it lands. */
   fallWater: [0.7, 0.86, 0.95] as Colour,
   foam: [0.96, 0.99, 1] as Colour,

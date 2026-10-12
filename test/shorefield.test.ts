@@ -1,10 +1,10 @@
 /** The lake's shore field: how far each point of the water is from the shore or a boulder, for the foam's lines. */
 import { describe, expect, it } from 'vitest';
-import { BOULDERS, STRETCH, inside, shoreRadius } from '../src/lake';
+import { BOULDERS, JETTY, STRETCH, inside, shoreRadius } from '../src/lake';
 import { SHORE_FIELD_SIZE, distanceTransform, shoreField } from '../src/shorefield';
 import { seeded } from '../src/random';
 
-/** The distance to the nearest land, worked out by hand: the closest of many points along the shore and round each boulder. */
+/** The distance to the nearest land, worked out by hand: the closest of many points along the shore, round each boulder and along the deck's edges. */
 function byHand(x: number, y: number): number {
   let best = Infinity;
   for (let k = 0; k < 4000; k++) {
@@ -13,6 +13,23 @@ function byHand(x: number, y: number): number {
     best = Math.min(best, Math.hypot(Math.cos(a) * r * STRETCH - x, Math.sin(a) * r - y));
   }
   for (const b of BOULDERS) best = Math.min(best, Math.hypot(x - b.x, y - b.y) - b.radius);
+  // the jetty's deck, as many points along its edges worked out afresh from its content
+  const r = JETTY.k * shoreRadius(JETTY.angle);
+  const sx = Math.cos(JETTY.angle) * r * STRETCH,
+    sy = Math.sin(JETTY.angle) * r;
+  const l = Math.hypot(sx, sy);
+  const ix = -sx / l,
+    iy = -sy / l;
+  for (let k = 0; k <= 200; k++) {
+    const u = (k / 200) * JETTY.length;
+    for (const v of [-JETTY.width / 2, JETTY.width / 2])
+      best = Math.min(best, Math.hypot(sx + ix * u - iy * v - x, sy + iy * u + ix * v - y));
+  }
+  for (let k = 0; k <= 20; k++) {
+    const v = (k / 20 - 0.5) * JETTY.width;
+    for (const u of [0, JETTY.length])
+      best = Math.min(best, Math.hypot(sx + ix * u - iy * v - x, sy + iy * u + ix * v - y));
+  }
   return best;
 }
 
@@ -68,6 +85,33 @@ describe('the shore field', () => {
     for (const b of BOULDERS) {
       expect(at(b.x, b.y)).toBe(0);
       expect(at(b.x, b.y + b.radius + 1)).toBeLessThan(1.5);
+    }
+  });
+
+  it('rings the jetty’s deck: nought on it, the distance to its edge beside it and past its end', () => {
+    const f = shoreField();
+    const at = (x: number, y: number) => {
+      const i = Math.floor(((x - f.min[0]) / (f.max[0] - f.min[0])) * f.size),
+        j = Math.floor(((y - f.min[1]) / (f.max[1] - f.min[1])) * f.size);
+      return f.distances[j * f.size + i];
+    };
+    const r = JETTY.k * shoreRadius(JETTY.angle);
+    const sx = Math.cos(JETTY.angle) * r * STRETCH,
+      sy = Math.sin(JETTY.angle) * r;
+    const l = Math.hypot(sx, sy);
+    const ix = -sx / l,
+      iy = -sy / l;
+    const onDeck = (u: number, v: number): [number, number] => [sx + ix * u - iy * v, sy + iy * u + ix * v];
+    const texel = Math.hypot((f.max[0] - f.min[0]) / f.size, (f.max[1] - f.min[1]) / f.size);
+    expect(at(...onDeck(6, 0))).toBe(0);
+    expect(at(...onDeck(10, 0.8))).toBe(0);
+    for (const [u, v, away] of [
+      [7, JETTY.width / 2 + 1, 1],
+      [9, -(JETTY.width / 2 + 2), 2],
+      [JETTY.length + 1.5, 0, 1.5],
+    ] as const) {
+      const [x, y] = onDeck(u, v);
+      expect(Math.abs(at(x, y) - away), `${away} out from the deck`).toBeLessThanOrEqual(texel);
     }
   });
 });

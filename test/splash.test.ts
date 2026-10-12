@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { SPLASH_CAPACITY, inside, shoreRadius } from '../src/lake';
+import { DECK, SPLASH_CAPACITY, inside, jettyGap, shoreRadius } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, settle } from './helpers';
@@ -43,6 +43,23 @@ describe('a pebble dropped on the water', () => {
     expect(game.drop(0, 0, -1)).toBe(false);
     expect(game.splashes.count).toBe(0);
     expect(told).toEqual([]);
+  });
+
+  it('is refused on the jetty’s deck, and lands beside it', () => {
+    const { game, told } = lake();
+    // a point on the deck: a way in from its start along its middle line
+    const x = DECK.x + DECK.inward[0] * 6,
+      y = DECK.y + DECK.inward[1] * 6;
+    expect(inside(x, y)).toBe(false);
+    expect(game.drop(x, y)).toBe(false);
+    expect(game.splashes.count).toBe(0);
+    expect(told).toEqual([]);
+    // and a drop somewhere near it finds the water, never the planks
+    for (let k = 0; k < 40; k++) {
+      expect(game.dropNear(x, y)).toBe(true);
+      const i = (game.splashes.next + SPLASH_CAPACITY - 1) % SPLASH_CAPACITY;
+      expect(jettyGap(game.splashes.x[i], game.splashes.y[i]), `splash ${k}`).toBeGreaterThan(0);
+    }
   });
 
   it('lands on the water near a point when dropped somewhere, the same places from the same seed', () => {

@@ -18,7 +18,9 @@ import {
   inShore,
   inside,
   inward,
+  jettyGap,
   nearestBoulder,
+  nearestOnDeck,
 } from './lake';
 import type { Random } from './random';
 
@@ -31,6 +33,8 @@ const LOOK = 5;
 const TURN_BACK = 2.5;
 /** How near a boulder a fish's look ahead may come before it turns away from it, in world units from its waterline. */
 const BOULDER_LOOK = 1.5;
+/** And the same from the jetty's deck, whose edge a fish turns from as from a boulder's waterline. */
+const JETTY_LOOK = 1.5;
 /** How fast a fish eases to the depth it is after, a share of the gap a second. */
 const SINK = 0.4;
 
@@ -92,6 +96,10 @@ export class School {
       else if (boulderGap(ax, ay) < BOULDER_LOOK) {
         const b = nearestBoulder(ax, ay);
         away = Math.atan2(y - b.y, x - b.x);
+      } else if (jettyGap(ax, ay) < JETTY_LOOK) {
+        // from the nearest point of the deck, so a fish at its end turns off along it and one at its side turns off across
+        const [dx, dy] = nearestOnDeck(ax, ay);
+        away = Math.atan2(y - dy, x - dx);
       }
       if (!Number.isNaN(away)) {
         const off = Math.atan2(Math.sin(away - heading), Math.cos(away - heading));
@@ -155,7 +163,7 @@ export function steerTo(
 }
 
 /**
- * Whether a step from (`x`, `y`) to (`nx`, `ny`), which comes within half a unit of the shore or a boulder, is still in
+ * Whether a step from (`x`, `y`) to (`nx`, `ny`), which comes within half a unit of the shore, a boulder or the deck, is still in
  * the water and goes away from whichever it is near without coming nearer the other. Only asked when the plain test
  * fails, which is seldom, so a step in open water pays for none of it.
  */
@@ -163,7 +171,9 @@ function awayFromLand(x: number, y: number, nx: number, ny: number): boolean {
   if (!inside(nx, ny)) return false;
   const gap = boulderGap(nx, ny);
   const offBoulder = gap > 0.5 || gap > boulderGap(x, y);
-  return offBoulder && (inShore(nx, ny, 0.5) || inward(nx, ny) > inward(x, y));
+  const jetty = jettyGap(nx, ny);
+  const offJetty = jetty > 0.5 || jetty > jettyGap(x, y);
+  return offBoulder && offJetty && (inShore(nx, ny, 0.5) || inward(nx, ny) > inward(x, y));
 }
 
 /** How deep a fish may swim at a point: below the surface and above the bed, the gap halved where it is shallow. */

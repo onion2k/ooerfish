@@ -13,14 +13,17 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import {
   ANGLER,
   BANK_TOP,
+  CABIN,
   CLIFF,
   NOTCHES,
   SCENERY,
   STRETCH,
-  ground,
+  bareGround,
+  cabinGap,
   groundUnder,
   inShore,
   inside,
+  jettyGap,
   onFace,
   onFall,
   shoreRadius,
@@ -147,12 +150,17 @@ describe('the banks', () => {
   it('keep the pebbles and the clumps exactly where the kit’s trees left them (the draws they come from are untouched)', () => {
     // the ones outside the cliff's sector; the cliff turns some inside it away after the draws, and raises the rest
     const rows = placements
-      .filter((p): p is Exclude<Placement, TreePlacement> => !isTree(p) && !underCliff(p.x, p.y))
+      .filter(
+        (p): p is Exclude<Placement, TreePlacement> => !isTree(p) && !underCliff(p.x, p.y) && jettyGap(p.x, p.y) > 3,
+      )
       .map((p) => [p.model.name, p.kind, p.x, p.y, p.z, p.yaw, p.scale]);
-    expect(rows).toHaveLength(121);
-    // taken from the placements as they were before the cliff (sha256 of the JSON)
+    // 121 as they were, less the two clumps the cabin turned away onto the plateau and the three pebbles near the deck
+    // (two of them slid along the shore off its end): the dump of every placement before and after differs in those four
+    // and no other
+    expect(rows).toHaveLength(116);
+    // pinned (sha256 of the JSON)
     expect(createHash('sha256').update(JSON.stringify(rows)).digest('hex')).toBe(
-      '7a8fc5297330de6f223faf013086e53671c10ba35a64d1fa27ce9f34a2f559ae',
+      '2639ff5385daea430551a48a9a7f1423114dc75c7adb2ae51ebd874ed1211958',
     );
   });
 
@@ -218,8 +226,8 @@ describe('the banks', () => {
   it('keep every placement on the ground, a pebble sunk by the share content allows and nothing else', () => {
     for (const p of placements) {
       const sunk = p.kind === 'pebble' ? SCENERY.pebbles.sunk * p.model.bounds.max[2] * p.scale : 0;
-      expect(p.z, label(p)).toBeGreaterThanOrEqual(ground(p.x, p.y) - sunk - 1e-9);
-      expect(p.z, label(p)).toBeLessThanOrEqual(ground(p.x, p.y) + 1e-9);
+      expect(p.z, label(p)).toBeGreaterThanOrEqual(bareGround(p.x, p.y) - sunk - 1e-9);
+      expect(p.z, label(p)).toBeLessThanOrEqual(bareGround(p.x, p.y) + 1e-9);
     }
   });
 
@@ -435,7 +443,7 @@ describe('the woodland', () => {
       for (const [x, y] of footprint(p)) expect(inside(x, y, 0), label(p)).toBe(false);
       for (const [x, y] of footprint(p)) expect(Math.hypot(x - ANGLER.x, y - ANGLER.y)).toBeGreaterThanOrEqual(5);
       expect(topOf(p)).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
-      expect(p.z).toBe(ground(p.x, p.y));
+      expect(p.z).toBe(bareGround(p.x, p.y));
     }
   });
 
@@ -542,7 +550,7 @@ describe('the cliff in the scene', () => {
     const up = trees.filter((p) => p.z > CLIFF.height - 1);
     expect(up.length).toBeGreaterThan(8);
     for (const p of up) {
-      expect(p.z).toBe(ground(p.x, p.y));
+      expect(p.z).toBe(bareGround(p.x, p.y));
       expect(p.z + p.height).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
     }
   });
@@ -554,5 +562,31 @@ describe('the cliff in the scene', () => {
     expect(inSector.length).toBeGreaterThan(30);
     for (const p of inSector) for (const [x, y] of footprint(p)) expect(onFace(x, y), label(p)).toBe(false);
     expect(of('clump').filter((p) => underCliff(p.x, p.y)).length).toBeGreaterThan(5);
+  });
+});
+
+describe('the cabin and the jetty in the scene', () => {
+  it('stand no tree, clump or pebble on the deck or within the cabin’s keep-back, any corner of its footprint included', () => {
+    for (const p of placements)
+      for (const [x, y] of footprint(p)) {
+        expect(jettyGap(x, y), label(p)).toBeGreaterThanOrEqual(CABIN.clear);
+        expect(cabinGap(x, y), label(p)).toBeGreaterThanOrEqual(CABIN.clear);
+      }
+  });
+
+  it('lose none to it: the counts are content’s, and a pebble slid off the deck stays at its distance from the water', () => {
+    expect(trees).toHaveLength(236);
+    expect(of('clump')).toHaveLength(SCENERY.clumps.count);
+    expect(of('pebble')).toHaveLength(70);
+    for (const p of of('pebble')) {
+      const a = Math.atan2(p.y, p.x / STRETCH);
+      const k = Math.hypot(p.x / STRETCH, p.y) / shoreRadius(a);
+      expect(k, label(p)).toBeGreaterThanOrEqual(1.005 - 1e-9);
+      expect(k, label(p)).toBeLessThanOrEqual(1.025 + 1e-9);
+    }
+  });
+
+  it('keep the deck’s shore end bare of the old stones too, which the kit’s pebbles stand in for', () => {
+    for (const p of of('pebble')) expect(jettyGap(p.x, p.y), label(p)).toBeGreaterThanOrEqual(CABIN.clear);
   });
 });

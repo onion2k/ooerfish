@@ -1,23 +1,32 @@
 /** The lake's shape, as content: its shore, its bed and its banks, and the sums the rest are built on. */
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { PALETTE } from '../src/palette';
 import {
   BANK_TOP,
   BANK_RISE,
   BOULDERS,
+  CABIN,
+  CABIN_AT,
   CLIFF,
+  DECK,
+  JETTY,
   NOTCHES,
   STRETCH,
   channel,
   cliffRise,
+  deckFrame,
   onFace,
   onFall,
   MAX_DEPTH,
   SHORE_POINTS,
   bedDepth,
   boulderGap,
+  cabinGap,
+  bareGround,
   ground,
   groundUnder,
+  jettyGap,
   inShore,
   inside,
   nearestBoulder,
@@ -242,3 +251,153 @@ describe('the cliff behind the north bank', () => {
 function inwardOf(x: number, y: number): number {
   return 1 - Math.hypot(x / STRETCH, y) / shoreRadius(angleOf(x, y));
 }
+
+/**
+ * A point on the jetty's deck worked out afresh from its content: `u` along it from where it starts, `v` across from its
+ * middle line (positive to the left of the way in), in the lake's own stretched frame.
+ */
+function onDeck(u: number, v: number): [number, number] {
+  const [sx, sy] = at(JETTY.k, JETTY.angle);
+  const l = Math.hypot(sx, sy);
+  const ix = -sx / l,
+    iy = -sy / l;
+  return [sx + ix * u - iy * v, sy + iy * u + ix * v];
+}
+
+describe('the jetty out over the water', () => {
+  it('is a bit of bank in the water, as a boulder is: no water on the deck, water beside it and at its end', () => {
+    for (const u of [0.5, 3, 6.5, 10, 12.5])
+      for (const v of [-1.2, 0, 1.2]) {
+        const [x, y] = onDeck(u, v);
+        expect(inside(x, y), `on the deck, ${u} along and ${v} across`).toBe(false);
+        expect(jettyGap(x, y), `the gap, ${u} along and ${v} across`).toBeLessThan(0);
+      }
+    // beside it, at a metre and more, is water (the first of it is beyond the shore), and a margin is counted from the edge
+    for (const u of [6, 9, 12]) {
+      const [x, y] = onDeck(u, JETTY.width / 2 + 0.3);
+      expect(inside(x, y), `beside it at ${u}`).toBe(true);
+      expect(inside(x, y, 0.5), `beside it at ${u}, a margin of half a unit`).toBe(false);
+      expect(jettyGap(x, y)).toBeCloseTo(0.3, 6);
+      const [fx, fy] = onDeck(u, -(JETTY.width / 2 + 1.5));
+      expect(inside(fx, fy, 1), `a metre and a half beside it at ${u}, a margin of one`).toBe(true);
+    }
+    const [ex, ey] = onDeck(JETTY.length + 0.3, 0);
+    expect(inside(ex, ey), 'just past its end').toBe(true);
+    expect(jettyGap(ex, ey)).toBeCloseTo(0.3, 6);
+    expect(inside(ex, ey, 0.5), 'its end, a margin of half a unit').toBe(false);
+    // off a corner the gap is the distance to the corner and not to a side
+    const [cx, cy] = onDeck(JETTY.length + 1.2, JETTY.width / 2 + 1.6);
+    expect(jettyGap(cx, cy)).toBeCloseTo(2, 6);
+  });
+
+  it('runs from the bank out over the water toward the lake’s middle, and ends well inside it', () => {
+    const [sx, sy] = onDeck(0, 0),
+      [ex, ey] = onDeck(JETTY.length, 0);
+    expect(inShore(sx, sy), 'its start is on the bank').toBe(false);
+    expect(inShore(ex, ey, 5), 'its end is out over the water').toBe(true);
+    // the posts stand under the deck, not beyond it
+    for (const along of JETTY.posts.along) {
+      for (const side of [-1, 1]) {
+        const [x, y] = onDeck(along, side * JETTY.posts.side);
+        expect(jettyGap(x, y), `a post at ${along}`).toBeLessThanOrEqual(-JETTY.posts.size / 2 + 1e-9);
+      }
+    }
+  });
+
+  it('has the planks for its ground, at its height, and the bed and the water run on under it as they were', () => {
+    for (const u of [1, 6.5, 12])
+      for (const v of [-1, 0, 1]) {
+        const [x, y] = onDeck(u, v);
+        expect(ground(x, y), `the deck at ${u},${v}`).toBe(JETTY.top);
+        // the ground without it, and the bed, are what they were: the bed is still drawn, and fish below see it
+        expect(bareGround(x, y)).toBeLessThan(JETTY.top);
+        expect(bareGround(x, y)).toBe(inShore(x, y) ? -bedDepth(x, y) : groundUnder(x, y));
+        expect(groundUnder(x, y)).toBeLessThanOrEqual(0.1);
+      }
+    // and beside it the ground is the bed, which is under the water
+    const [x, y] = onDeck(8, JETTY.width / 2 + 1);
+    expect(ground(x, y)).toBeLessThan(0);
+    expect(ground(x, y)).toBe(bareGround(x, y));
+    expect(bedDepth(...onDeck(8, 0))).toBeGreaterThan(0.5);
+  });
+
+  it('is out of reach of the angler, so no cast of theirs or a test’s lands on it', async () => {
+    const { flight } = await import('../src/cast');
+    let nearest = Infinity;
+    for (let a = 0; a < 360; a++)
+      for (let p = 1; p <= 40; p++) {
+        const f = flight((a / 360) * Math.PI * 2, p / 40);
+        nearest = Math.min(nearest, jettyGap(f.landing[0], f.landing[1]));
+      }
+    expect(nearest, 'the nearest any cast lands to the deck').toBeGreaterThan(5);
+  });
+});
+
+describe('the cabin on the north-east bank', () => {
+  it('stands on dry bank behind the jetty, its door to the lake, well clear of the water and the cliff', () => {
+    // its middle is at the content's place, in the direction of the jetty's angle, on the lake's ring
+    const [mx, my] = at(CABIN.k, CABIN.angle);
+    expect(CABIN_AT.x).toBeCloseTo(mx, 9);
+    expect(CABIN_AT.y).toBeCloseTo(my, 9);
+    // its door faces the lake's middle
+    expect(CABIN_AT.inward[0] * -CABIN_AT.x + CABIN_AT.inward[1] * -CABIN_AT.y).toBeGreaterThan(0);
+    // every corner of the roof, and a unit round it, is on the bank, a good way from the shore and out of the cliff's reach
+    const reach = (e: number): [number, number][] => {
+      const ha = CABIN.body.along / 2 + CABIN.roof.overhang + e,
+        hi = CABIN.body.across / 2 + CABIN.roof.overhang + e;
+      return [
+        [ha, hi],
+        [ha, -hi],
+        [-ha, hi],
+        [-ha, -hi],
+      ].map(([a, i]) => [
+        CABIN_AT.x + CABIN_AT.along[0] * a + CABIN_AT.inward[0] * i,
+        CABIN_AT.y + CABIN_AT.along[1] * a + CABIN_AT.inward[1] * i,
+      ]);
+    };
+    for (const [x, y] of reach(1)) {
+      expect(inShore(x, y, -3), 'a corner is dry, a good way from the shore').toBe(false);
+      expect(cliffRise(x, y), 'a corner is out of the cliff').toBe(0);
+      expect(onFace(x, y)).toBe(false);
+    }
+    // the roof outline is the gap's edge: a corner is at nought, a unit past it a unit away
+    for (const [x, y] of reach(0)) expect(cabinGap(x, y)).toBeCloseTo(0, 6);
+    for (const [x, y] of reach(1)) expect(cabinGap(x, y)).toBeCloseTo(Math.SQRT2, 6);
+    // the jetty comes from the shore in front of it, along the line through its middle, and starts clear of its roof
+    const [u, v] = deckFrame(CABIN_AT.x, CABIN_AT.y);
+    expect(Math.abs(v), 'the cabin is in line with the jetty').toBeLessThan(1e-9);
+    expect(u, 'and behind its start').toBeLessThan(0);
+    expect(cabinGap(DECK.x, DECK.y), 'the deck starts clear of the roof').toBeGreaterThan(CABIN.clear);
+  });
+
+  it('has its door, window and chimney on its body and roof, and the roof wider than the walls', () => {
+    const { body, roof, door, window, chimney } = CABIN;
+    expect(door.width).toBeLessThan(body.along);
+    expect(door.high).toBeLessThan(body.high);
+    // the window clear of the door, within the wall and under the eaves
+    expect(window.along - window.width / 2).toBeGreaterThan(door.width / 2);
+    expect(window.along + window.width / 2).toBeLessThan(body.along / 2);
+    expect(window.sill + window.high).toBeLessThan(body.high);
+    // the chimney within the ridge's length, and the roof overhanging every wall
+    expect(Math.abs(chimney.along) + chimney.size / 2).toBeLessThan(body.along / 2 + roof.overhang);
+    expect(roof.overhang).toBeGreaterThan(0);
+    expect(roof.pitch).toBeGreaterThan(0);
+    expect(roof.pitch).toBeLessThan(Math.PI / 2);
+  });
+});
+
+describe('the cabin’s and the jetty’s colours', () => {
+  it('are seven colours of the palette, each channel in range, none the same as another', () => {
+    const names = ['cabinWall', 'cabinRoof', 'cabinChimney', 'cabinDoor', 'cabinWindow', 'deck', 'post'] as const;
+    const seen = new Set<string>();
+    for (const n of names) {
+      expect(PALETTE[n], n).toHaveLength(3);
+      for (const c of PALETTE[n]) {
+        expect(c).toBeGreaterThanOrEqual(0);
+        expect(c).toBeLessThanOrEqual(1);
+      }
+      seen.add(PALETTE[n].join());
+    }
+    expect(seen.size).toBe(names.length);
+  });
+});
