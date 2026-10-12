@@ -104,3 +104,20 @@ export function did(seen: Seen, share: readonly [number, number]): boolean {
   const busy = seen.busy / seen.frames;
   return busy >= share[0] && busy <= share[1];
 }
+
+/**
+ * A reader of whether the school moved since it was last asked: true when any fish's x changed, false for a school
+ * stilled whole, which is timed for nothing. Reading one fish was too narrow: a fish that turns about at a wall for a
+ * frame stands still in it, and the school does not.
+ */
+export function swimming(school: { count: number; x: ArrayLike<number> }): () => boolean {
+  const was = Array.from({ length: school.count }, (_, i) => school.x[i]);
+  return () => {
+    let moved = false;
+    for (let i = 0; i < school.count; i++) {
+      if (school.x[i] !== was[i]) moved = true;
+      was[i] = school.x[i];
+    }
+    return moved;
+  };
+}

@@ -31,7 +31,7 @@ import { Game } from '../src/game';
 import { FISH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
-import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, type Seen } from './benching';
+import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, swimming, type Seen } from './benching';
 
 const BASELINE = 'scripts/bench-baseline.json';
 /** How many times each scenario is run: four let a slow moment through often enough to wobble the figure by a tenth. */
@@ -63,17 +63,6 @@ export function settled(seed: number): Game {
   return game;
 }
 
-/** Whether a step moved any fish: a school that has stopped swimming is timed for nothing. */
-function swimming(game: Game): () => boolean {
-  let was = game.fish.x[0];
-  return () => {
-    const now = game.fish.x[0];
-    const moved = now !== was;
-    was = now;
-    return moved;
-  };
-}
-
 /** Whether a step had the lure in the air or in the water: a lake where nothing is cast is timed for nothing here. */
 function fishing(game: Game): () => boolean {
   return () => game.lure.phase === 'flying' || game.lure.phase === 'sinking';
@@ -88,7 +77,7 @@ const SCENARIOS: Scenario[] = [
     busy: [1, 1],
     setup: () => {
       const game = settled(1);
-      return { game, frame: () => game.step(DT), busy: swimming(game) };
+      return { game, frame: () => game.step(DT), busy: swimming(game.fish) };
     },
   },
   {
@@ -137,7 +126,7 @@ const SCENARIOS: Scenario[] = [
     setup: () => {
       const game = settled(1);
       game.fish.fill(FISH_CAPACITY, game.random);
-      return { game, frame: () => game.step(DT), busy: swimming(game) };
+      return { game, frame: () => game.step(DT), busy: swimming(game.fish) };
     },
   },
 ];

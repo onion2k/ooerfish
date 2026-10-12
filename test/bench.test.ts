@@ -6,7 +6,7 @@
  * run of it showing.
  */
 import { describe, expect, it } from 'vitest';
-import { AGREE, TOLERANCE, agreed, bestRatio, did, judge } from '../scripts/benching';
+import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, swimming } from '../scripts/benching';
 
 describe('the bench', () => {
   it('holds a figure both ways, faster as much as slower', () => {
@@ -84,3 +84,25 @@ function fake(times: number[]): () => number {
   let k = 0;
   return () => times[k++];
 }
+
+describe('whether the school is swimming', () => {
+  it('is while any fish moves, and not when none does', () => {
+    // a fish that turns about at a wall for a frame stands still in it; the school is not stilled for that
+    const school = { count: 3, x: new Float64Array([1, 2, 3]) };
+    const busy = swimming(school);
+    expect(busy(), 'nothing has moved since it was looked at').toBe(false);
+    school.x[2] = 3.1;
+    expect(busy(), 'only the last fish moved').toBe(true);
+    school.x[0] = 1.1;
+    school.x[1] = 2.1;
+    school.x[2] = 3.2;
+    expect(busy(), 'all moved').toBe(true);
+    school.x[1] = 2.2;
+    expect(busy(), 'one moved, two stand still').toBe(true);
+    expect(busy(), 'none moved').toBe(false);
+    // only the fish in the lake count: one beyond the count that moves is not swimming
+    const few = swimming({ count: 2, x: school.x });
+    school.x[2] = 10;
+    expect(few()).toBe(false);
+  });
+});
