@@ -38,7 +38,10 @@ const TOLERANCE = { maxDiffPixels: GRASS_WOBBLE, threshold: 0.02 };
 /** The corners that count the milliseconds and tell how to look round, the look or cast button, and the lab's panel: not the look. */
 async function hideOverlays(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel', 'modeButton', 'boot']) document.getElementById(id)!.hidden = true;
+    for (const id of ['stats', 'help', 'labPanel', 'modeButton']) document.getElementById(id)!.hidden = true;
+    // the boot cover's own display rule beats the hidden attribute, and its fade runs on the wall clock, so a picture
+    // taken right after boot could catch its text fading: it is taken off the page.
+    document.getElementById('boot')!.style.display = 'none';
   });
 }
 
