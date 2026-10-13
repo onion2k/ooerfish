@@ -17,20 +17,37 @@ import { PALETTE, mix, type Colour } from './palette';
 /**
  * ooergolf's clean toy: edges at four samples a pixel, the toon bands eased
  * over a narrow width, the shade a cool colour and not a grey, a warm rim,
- * the sky's light from above and a bounce from the grass below.
+ * the sky's light from above and a bounce from the grass below. Since the
+ * painted edge it is a deeper, cooler shade with a dim cool fill and a
+ * stronger rim, the values the experiments' best frames used (E of
+ * `docs/specs/painted-experiments.md`): a matte chalk lip needs a face dark
+ * enough to stand against, and the old fill lit a grey to about 200 of 255.
  */
 export const TOY = {
   antialias: 'msaa',
   bandSoftness: 0.06,
-  shadeColour: [0.36, 0.55, 0.66] as Colour,
-  rim: 0.2,
+  shadeColour: [0.13, 0.19, 0.34] as Colour,
+  rim: 0.4,
   rimColour: [1, 0.95, 0.85] as Colour,
   rimWidth: 0.18,
-  skyLight: [0.55, 0.7, 0.92] as Colour,
-  groundLight: [0.4, 0.45, 0.2] as Colour,
+  skyLight: [0.2, 0.25, 0.42] as Colour,
+  groundLight: [0.15, 0.17, 0.13] as Colour,
+  // the package holds form to three, as it does for ooergolf, which asks for four: what is asked is kept
   form: 4,
   shadowSoftness: 1.5,
   waterShadow: true,
+} as const;
+
+/**
+ * The corners' shade: the renderer's screen-space occlusion at a heavy hand, over twelve units, tinted fully toward the
+ * shade colour and taken by the direct light by a quarter, so the creases under the rocks, the cabin and the trees go
+ * deep and cool and not grey. The page's economy has the pass on, as the package's full economy does.
+ */
+export const OCCLUSION = {
+  occlusion: 4,
+  occlusionRadius: 12,
+  occlusionTint: 1,
+  occlusionDirect: 0.25,
 } as const;
 
 /** The painted edge's three sets, which a mesh names by its `set`: the boulders' chalk, the timber's lip and the cliff's. */
@@ -183,15 +200,13 @@ export function skyImage(time: TimeOfDay): EnvImage {
 /** The environments baked so far, one a time of day: four at the most, made the first time each is drawn. */
 const baked = new Map<string, Environment>();
 
-/** Put the look on `renderer` at a time of day, and resolve once the pipelines it asks for are compiled. */
-export async function light(
-  renderer: GameRenderer,
-  ctx: Gpu,
-  time: TimeOfDay,
-  paint: 'on' | 'off' = 'on',
-): Promise<void> {
-  renderer.look = {
-    ...renderer.look,
+/**
+ * What the look sets on the renderer at a time of day: the sun, the exposure, the toon shading with its shade, rim and
+ * corners, the fill scaled by the time's `ambient` (the shade and the occlusion are the same at every time), and the
+ * paint sets. A function of its arguments, so a test can read what the renderer is handed without a renderer.
+ */
+export function lookFor(time: TimeOfDay, paint: 'on' | 'off' = 'on') {
+  return {
     sunDir: time.sun,
     // toon light is at a colour's full strength, so the sun is bright and the colours are shown straight
     sunColour: time.sunColour,
@@ -199,12 +214,23 @@ export async function light(
     ambient: time.ambient,
     background: time.horizon,
     sky: { zenith: time.zenith, horizon: time.horizon, height: 0.25 },
-    shading: 'toon',
+    shading: 'toon' as const,
     ...TOY,
+    ...OCCLUSION,
     skyLight: mix([0, 0, 0], TOY.skyLight, time.ambient),
     groundLight: mix([0, 0, 0], TOY.groundLight, time.ambient),
     paint: paintFor(paint),
   };
+}
+
+/** Put the look on `renderer` at a time of day, and resolve once the pipelines it asks for are compiled. */
+export async function light(
+  renderer: GameRenderer,
+  ctx: Gpu,
+  time: TimeOfDay,
+  paint: 'on' | 'off' = 'on',
+): Promise<void> {
+  renderer.look = { ...renderer.look, ...lookFor(time, paint) };
   renderer.post = { ...renderer.post, vignette: 0, grain: 0, tone: 'soft' };
   let env = baked.get(time.name);
   if (!env) {

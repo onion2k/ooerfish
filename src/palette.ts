@@ -25,16 +25,24 @@ export const PALETTE = {
   stone: [0.24, 0.24, 0.22] as Colour,
   /** The rocks on the lake's bed, cooler than the bank's stones for lying under blue water. */
   bedRock: [0.3, 0.33, 0.36] as Colour,
-  /** The boulders standing in the water, a cooler grey than the bank's stones. */
-  boulder: [0.22, 0.22, 0.21] as Colour,
+  /**
+   * The boulders standing in the water, a cooler grey than the bank's stones and dark: a matte chalk lip needs a face
+   * darker than it, and the experiments measured the old 0.22 lighting to about 200 of 255, which left the chalk no
+   * room (13 October 2026, chosen by the user from the sheet).
+   */
+  boulder: [0.12, 0.12, 0.115] as Colour,
   /** The pale chalk the painted edge strokes a rock's ridges with: a warm stone, the package's own for rock. */
   chalk: [0.62, 0.55, 0.42] as Colour,
   /** The cliff's chalk, a quarter cooler than the boulders', so the wall's ridges read as the same stone in its shade. */
   chalkCool: [0.49, 0.55, 0.55] as Colour,
   /** The timber's lip, a warm faint tan, the lamplight on a cut edge of wood. */
   chalkWarm: [0.8, 0.66, 0.48] as Colour,
-  /** The cliff's rock, a cool dark grey-blue, darker than the boulders so it stands behind the lake as a wall and does not glare. */
-  cliff: [0.15, 0.165, 0.2] as Colour,
+  /**
+   * The cliff's rock, a cool dark grey-blue, so it stands behind the lake as a wall and does not glare, and dark for the
+   * same reason as the boulders: the chalk of its ridges needs a face to stand against. The wall's steep face sheet
+   * reads this colour too, so it darkens with the lumps, which the user saw and chose.
+   */
+  cliff: [0.11, 0.12, 0.145] as Colour,
   /**
    * The cabin on the north-east bank and the jetty before it, first guesses from the mock the user chose: cream walls, a
    * blue roof, a stone chimney, a brown door, a window lit warm (it glows), weathered planks and darker posts.
@@ -106,11 +114,15 @@ export const PALETTE = {
   duskZenith: [0.2, 0.15, 0.42] as Colour,
   duskHorizon: [0.98, 0.5, 0.34] as Colour,
 
-  /** The sun's light at each time of day; the night's is the moon's. */
-  moonlight: [0.28, 0.34, 0.55] as Colour,
-  dawnlight: [2.2, 1.65, 1.25] as Colour,
-  daylight: [2.6, 2.45, 2.2] as Colour,
-  dusklight: [2.2, 1.35, 0.95] as Colour,
+  /**
+   * The sun's light at each time of day; the night's is the moon's. The day's was (2.6, 2.45, 2.2) and is now warmer, as
+   * the experiments' light wants (2.9, 2.5, 1.9), which is each channel times 1.115, 1.020 and 0.864; the other times
+   * moved by the same factors, so the dawn, the dusk and the moon are each as much warmer as the day.
+   */
+  moonlight: [0.3123, 0.3469, 0.475] as Colour,
+  dawnlight: [2.4538, 1.6837, 1.0795] as Colour,
+  daylight: [2.9, 2.5, 1.9] as Colour,
+  dusklight: [2.4538, 1.3776, 0.8205] as Colour,
 } as const;
 
 /** A colour part of the way from one to another; at nought and one, exactly the one or the other. */

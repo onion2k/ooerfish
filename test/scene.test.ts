@@ -83,8 +83,8 @@ const BANKS = 1 + N_BOULDERS + 2;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups now), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts)
-    expect(hashGroups(new Scene().static())).toBe('38:67f358cf');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups now), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved
+    expect(hashGroups(new Scene().static())).toBe('38:9a992af2');
   });
 });
 

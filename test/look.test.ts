@@ -8,7 +8,9 @@ import {
   ROCK_PAINT,
   SKY_SIZE,
   TIMES,
+  TOY,
   WOOD_PAINT,
+  lookFor,
   nearestTime,
   paintFor,
   skyImage,
@@ -93,5 +95,62 @@ describe('the paint sets', () => {
     expect(off[2].gate).toBe(CLIFF_PAINT.gate);
     expect(ROCK_PAINT.light).toBe(PAINT_DEFAULT.light);
     expect(ROCK_PAINT.light).toBeGreaterThan(0);
+  });
+});
+
+describe('the light the renderer is handed', () => {
+  const day = lookFor(timeNamed('day'));
+
+  it('has the deep cool shade, the cool fill, the stronger rim and the corners shaded, as the painted edge wants', () => {
+    expect(day.shadeColour).toEqual([0.13, 0.19, 0.34]);
+    expect(day.skyLight).toEqual([0.2, 0.25, 0.42]);
+    expect(day.groundLight).toEqual([0.15, 0.17, 0.13]);
+    expect(day.rim).toBe(0.4);
+    expect(day).toMatchObject({ occlusion: 4, occlusionRadius: 12, occlusionTint: 1, occlusionDirect: 0.25 });
+    // the package holds form to three and the look asks four, as ooergolf's does: the asking is the content
+    expect(TOY.form).toBe(4);
+  });
+
+  it('scales the fill by each time’s ambient, so night’s is the day’s times night’s ambient', () => {
+    const night = timeNamed('night');
+    const dark = lookFor(night);
+    for (let c = 0; c < 3; c++) {
+      expect(dark.skyLight[c]).toBeCloseTo(day.skyLight[c] * night.ambient, 10);
+      expect(dark.groundLight[c]).toBeCloseTo(day.groundLight[c] * night.ambient, 10);
+    }
+    // the shade and the occlusion are the look's own, the same at every time
+    expect(dark.shadeColour).toEqual(day.shadeColour);
+    expect(dark.occlusion).toBe(day.occlusion);
+  });
+
+  it('hands over each time’s sun as the palette has it, the day’s warmer than it was and the others moved alike', () => {
+    for (const t of TIMES) expect(lookFor(t).sunColour, t.name).toEqual(t.sunColour);
+    expect(PALETTE.daylight).toEqual([2.9, 2.5, 1.9]);
+    // the day moved by these factors per channel, and dawn and dusk moved by the same, from 2.2, 1.65, 1.25 and 2.2, 1.35, 0.95
+    const f = [2.9 / 2.6, 2.5 / 2.45, 1.9 / 2.2];
+    const was: Record<string, number[]> = {
+      dawnlight: [2.2, 1.65, 1.25],
+      dusklight: [2.2, 1.35, 0.95],
+      moonlight: [0.28, 0.34, 0.55],
+    };
+    for (const [name, from] of Object.entries(was))
+      for (let c = 0; c < 3; c++)
+        expect((PALETTE as Record<string, readonly number[]>)[name][c], `${name} ${c}`).toBeCloseTo(from[c] * f[c], 4);
+  });
+
+  it('carries the paint sets at every time, and none when the paint is off', () => {
+    for (const t of TIMES) expect(lookFor(t).paint).toBe(PAINT);
+    expect(lookFor(timeNamed('day'), 'off').paint).toEqual(paintFor('off'));
+  });
+});
+
+describe('the rocks’ colours', () => {
+  it('are a matte face darker than the chalk that strokes it: the boulders’ and the cliff’s', () => {
+    expect(PALETTE.boulder).toEqual([0.12, 0.12, 0.115]);
+    expect(PALETTE.cliff).toEqual([0.11, 0.12, 0.145]);
+    for (let c = 0; c < 3; c++) {
+      expect(PALETTE.boulder[c]).toBeLessThan(PALETTE.chalk[c] / 3);
+      expect(PALETTE.cliff[c]).toBeLessThan(PALETTE.chalkCool[c] / 3);
+    }
   });
 });
