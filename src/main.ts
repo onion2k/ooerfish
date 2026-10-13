@@ -21,7 +21,7 @@ import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
 import { buildPanel } from './lab';
 import { VIEWS, WATER_PACE } from './lake';
-import { light, timeNamed } from './look';
+import { light, paintFor, timeNamed } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
@@ -208,12 +208,14 @@ async function main() {
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
       game.setTimeOfDay(time.at);
-      await light(renderer, ctx, time);
+      await light(renderer, ctx, time, settings.paint);
     }
     // how clear the water is: a uniform, so written on every change for nothing
     renderer.look = {
       ...renderer.look,
       clear: style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
+      // the rocks' paint on or off: sets in a uniform, so written on every change and nothing recompiles
+      paint: paintFor(settings.paint),
     };
     // a view picked puts the camera there even when it is the view already, so it is the way back from being turned away
     if (!was || was.view !== settings.view || viewPicked) {

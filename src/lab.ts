@@ -47,7 +47,7 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
   act.append(actLegend, pebble, reel);
   const buttons = new Map<string, HTMLButtonElement>();
 
-  const group = (key: 'time' | 'view' | 'caustics', title: string, choices: [string, string][]) => {
+  const group = (key: 'time' | 'view' | 'caustics' | 'paint', title: string, choices: [string, string][]) => {
     const field = document.createElement('fieldset');
     const legend = document.createElement('legend');
     legend.textContent = title;
@@ -95,6 +95,11 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
   group('caustics', 'Caustics', [
     ['on', 'On'],
     ['off', 'Off'],
+  ]);
+  // the paint's choices are not called On and Off, which the caustics' already are
+  group('paint', 'Paint', [
+    ['on', 'Painted'],
+    ['off', 'Plain'],
   ]);
   root.append(act);
 

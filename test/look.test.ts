@@ -1,6 +1,19 @@
 /** The times of day as data, and the sky each is mirrored from. */
 import { describe, expect, it } from 'vitest';
-import { SKY_SIZE, TIMES, nearestTime, skyImage, timeNamed } from '../src/look';
+import { PAINT_DEFAULT } from 'artshape-render/game/paint';
+import { PALETTE } from '../src/palette';
+import {
+  CLIFF_PAINT,
+  PAINT,
+  ROCK_PAINT,
+  SKY_SIZE,
+  TIMES,
+  WOOD_PAINT,
+  nearestTime,
+  paintFor,
+  skyImage,
+  timeNamed,
+} from '../src/look';
 
 describe('the times of day', () => {
   it('are night, dawn, day and dusk, round the clock in that order', () => {
@@ -48,5 +61,37 @@ describe('the times of day', () => {
       seen.add(top.join());
     }
     expect(seen.size, 'four skies, not one').toBe(4);
+  });
+});
+
+describe('the paint sets', () => {
+  it('are the rock’s, the wood’s and the cliff’s, in the order the meshes name them by set', () => {
+    expect(PAINT).toEqual([ROCK_PAINT, WOOD_PAINT, CLIFF_PAINT]);
+  });
+
+  it('take their chalk from the palette, the rock’s the package’s own recipe with it', () => {
+    expect(ROCK_PAINT).toEqual({ ...PAINT_DEFAULT, lightColour: PALETTE.chalk });
+    expect(CLIFF_PAINT.lightColour).toEqual(PALETTE.chalkCool);
+    expect(CLIFF_PAINT).toEqual({ ...ROCK_PAINT, widthFacet: 0.06, gate: 0.45, lightColour: PALETTE.chalkCool });
+    expect(WOOD_PAINT.lightColour).toEqual(PALETTE.chalkWarm);
+    expect(WOOD_PAINT).toMatchObject({ light: 0.5, widthFacet: 0.05, gate: 0.5, markValue: 0, markEnd: 0, markHue: 0 });
+  });
+
+  it('are the sets themselves with the paint on, and have every light and dark at nought with it off', () => {
+    expect(paintFor('on')).toBe(PAINT);
+    const off = paintFor('off');
+    expect(off).toHaveLength(PAINT.length);
+    for (const set of off) {
+      expect(set.light).toBe(0);
+      expect(set.dark).toBe(0);
+    }
+    // a set that darkens as well is let go of too: the sets carry no dark today, so one is made for the test
+    const darker = paintFor('off', [{ ...ROCK_PAINT, dark: 0.5 }]);
+    expect(darker[0].dark).toBe(0);
+    expect(darker[0].light).toBe(0);
+    // what is not the light is left as it was, and the sets themselves are not written over
+    expect(off[2].gate).toBe(CLIFF_PAINT.gate);
+    expect(ROCK_PAINT.light).toBe(PAINT_DEFAULT.light);
+    expect(ROCK_PAINT.light).toBeGreaterThan(0);
   });
 });

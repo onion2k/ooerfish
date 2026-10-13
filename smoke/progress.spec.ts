@@ -27,7 +27,7 @@ test('the scenery is loaded at ready, and the banks wear the kit as content says
   await start(page, { seed: 1, paused: true });
   // the figures are worked out in node by test/scene.test.ts from the files on disk, and held equal here from the page
   const scenery = await page.evaluate(() => window.game!.scenery());
-  expect(scenery).toEqual({ models: 30, placements: 396, triangles: 90951, cards: 10 });
+  expect(scenery).toEqual({ models: 30, placements: 426, triangles: 92871, cards: 10 });
   expect(scenery.cards).toBeGreaterThan(0);
   await play(page, 60, 'a second with the banks dressed');
   expect(problems).toEqual([]);
@@ -53,7 +53,7 @@ test('the banks grow grass in the breeze on the full rung, and on the lean rung 
   // lean: the grass let go, and the woodland standing as it did
   await page.evaluate(() => window.game!.rung('lean'));
   expect(await page.evaluate(() => window.game!.rung())).toBe('lean');
-  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(396);
+  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(426);
   await play(page, 2, 'a frame of the lean rung');
   expect(await page.evaluate(() => window.game!.grass())).toEqual({ near: 0, far: 0 });
   const cheap = await page.evaluate(() => window.game!.measureFrame());
@@ -62,7 +62,7 @@ test('the banks grow grass in the breeze on the full rung, and on the lean rung 
 
   // and back: the grass grows again and the woodland stands
   await page.evaluate(() => window.game!.rung('full'));
-  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(396);
+  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(426);
   await play(page, 2, 'a frame of the full rung again');
   expect((await page.evaluate(() => window.game!.grass())).near).toBeGreaterThan(1000);
   expect(problems).toEqual([]);
@@ -76,7 +76,7 @@ test('the governor chooses a rung at boot when none is asked for, and an unknown
   const rung = await page.evaluate(() => window.game!.rung());
   expect(['full', 'lean']).toContain(rung);
   // the banks stand the same on either rung
-  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(396);
+  expect(await page.evaluate(() => window.game!.scenery().placements)).toBe(426);
   await play(page, 30, 'half a second on the rung chosen');
   expect(problems).toEqual([]);
 

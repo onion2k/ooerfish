@@ -91,6 +91,18 @@ export const BOULDER_DOMES = BOULDERS.map((b) => {
   return { x: b.x, y: b.y, base: -under, tall, wide: b.radius / Math.sqrt(1 - (under / tall) ** 2) };
 });
 
+/**
+ * The lake's rocks, the boulders and the cliff's lumps, as the faceted meshes the painted edge needs (`rocks.ts`).
+ * `rings` and `segments` cut each ball into 64 triangles, facets broad enough that one ridge is a stroke across a few
+ * of them and few enough that a boulder reads as a handful of cut planes; `give` is how far a point is pushed in at
+ * random, a fifth of its radius, so no two facets lie alike and the ridges have something to choose between;
+ * `floor` is a lump's bottom cut off at that share of its depth, so one sunk to its middle does not hang out of a steep
+ * wall (as the cliff's lumps always did); `spacing` is how far apart two chosen ridgelines stay, a share of the rock's
+ * radius, the package's own and the experiments' (a boulder's two or three lines do not crowd). First guesses, from the
+ * experiments' sheet, and to be tuned by looking.
+ */
+export const ROCKS = { rings: 5, segments: 8, give: 0.2, floor: -0.4, spacing: 0.4 } as const;
+
 /** How high the boulders stand at a point, the highest of them; minus infinity where none is. */
 function boulderTop(x: number, y: number): number {
   let top = -Infinity;

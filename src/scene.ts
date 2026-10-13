@@ -15,12 +15,10 @@
  * are the ones they always had, and tuning the dressing never moves them.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { at, built, lump } from 'artshape-render/mesh/lowpoly';
 import {
   ANGLER,
   BANK_RISE,
   BANK_TOP,
-  BOULDER_DOMES,
   CABIN,
   CLIFF,
   NOTCHES,
@@ -40,6 +38,7 @@ import {
 import { place } from './matrix';
 import { ball, box, sheet, splitBySlope } from './meshes';
 import { PALETTE } from './palette';
+import { boulderMeshes, cliffLumpMeshes } from './rocks';
 import { seeded } from './random';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeBounds, treeFor, type TreeKind } from './trees';
@@ -153,9 +152,6 @@ function treeAt(x: number, y: number, pick: number, turn: number, size: number):
   return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size) };
 }
 
-/** One lump of faceted rock, of a size of one, which every lump of the cliff is scaled from: a ball pushed in at random, its faces flat and its bottom cut off, so a lump sunk to its middle does not hang out of a steep wall. */
-const ROCK = built((b) => lump(b, at(0, 0, 0), seeded(5), 4, 8, [1, 1, 1], { give: 0.18, floor: -0.4 }));
-
 /** A lump of rock embedded in the cliff: where it is, which way it is turned, and its half-widths along the wall, out from it and up. */
 export interface CliffLump {
   where: 'crest' | 'foot' | 'face';
@@ -214,8 +210,8 @@ export function cliffLumps(): CliffLump[] {
 
 export class Scene {
   /**
-   * Everything the one seeded stream draws, in the order it always has: the stones, trees, bed rocks and weed, and
-   * the boulders. The stones' and trees' spots are kept for the kit, which stands its own models on them.
+   * Everything the one seeded stream draws, in the order it always has: the stones, trees, bed rocks and weed (the
+   * boulders are `rocks.ts`'s, from seeds of their own). The stones' and trees' spots are kept for the kit, which stands its own models on them.
    */
   private layout() {
     const random = seeded(SCENERY_SEED);
@@ -270,12 +266,7 @@ export class Scene {
       }
     }
 
-    // the boulders, each a ball stretched to its dome, its lower half in the bed: rings enough that the cap out of the
-    // water, a few of them at the top of a tall dome, is round and not the pole's cone
-    const boulders = new Float32Array(BOULDER_DOMES.length * 16);
-    BOULDER_DOMES.forEach((d, i) => place(boulders, i, d.x, d.y, d.base, i * 1.3, d.wide, d.wide, d.tall));
-
-    return { stones, trunks, puffs, rocks, blades, boulders, stoneSpots, treeSpots };
+    return { stones, trunks, puffs, rocks, blades, stoneSpots, treeSpots };
   }
 
   /**
@@ -405,25 +396,33 @@ export class Scene {
 
   /** What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. */
   static(kit?: Kit): GameGroup[] {
-    const { stones, trunks, puffs, rocks, blades, boulders } = this.layout();
+    const { stones, trunks, puffs, rocks, blades } = this.layout();
     // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
     // the sheets are the ground without the boulders, which are drawn on it as their own
     const bed = sheet(ring, groundUnder, 0, 1.04, 28, 160);
     // the banks, cut by slope: the grass where the ground is gentle, the rock where it leans past the rock slope
     const { steep, gentle } = splitBySlope(sheet(ring, groundUnder, 0, 0, bankRings(), BANK_SEGMENTS), CLIFF.rockSlope);
-    const lumps = cliffLumps();
-    const lumpMatrices = new Float32Array(lumps.length * 16);
-    lumps.forEach((l, i) => place(lumpMatrices, i, l.x, l.y, l.z, l.yaw, l.rx, l.ry, l.rz));
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
     const groups: GameGroup[] = [
       { mesh: bed, matrices: one, albedo: PALETTE.bed, roughness: 0.95 },
-      { mesh: ball(1, 16, 12), matrices: boulders, albedo: PALETTE.boulder, roughness: 0.8 },
+      // the boulders and the cliff's lumps are faceted rock with a painted edge, a group each at its own stretch
+      ...boulderMeshes().map(({ mesh, matrix }) => ({
+        mesh,
+        matrices: matrix,
+        albedo: PALETTE.boulder,
+        roughness: 0.8,
+      })),
       { mesh: ball(1, 3, 6), matrices: rocks, albedo: PALETTE.bedRock, roughness: 0.85 },
       { mesh: box(1, 1, 1), matrices: blades, albedo: PALETTE.weed, roughness: 0.8 },
       { mesh: gentle, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
       { mesh: steep, matrices: one, albedo: PALETTE.cliff, roughness: 0.92 },
-      { mesh: ROCK, matrices: lumpMatrices, albedo: PALETTE.cliff, roughness: 0.92 },
+      ...cliffLumpMeshes(cliffLumps()).map(({ mesh, matrix }) => ({
+        mesh,
+        matrices: matrix,
+        albedo: PALETTE.cliff,
+        roughness: 0.92,
+      })),
     ];
     if (!kit) {
       groups.push(
@@ -478,6 +477,7 @@ export class Scene {
 export interface SceneryFigures {
   /** Kit models and tree variants stood at least once. */
   models: number;
+  /** Placements of the kit's models and the trees, and of the rocks (a boulder or a cliff's lump, each its own mesh). */
   placements: number;
   /** Triangles drawn: each part's, once a placement. */
   triangles: number;
@@ -501,7 +501,10 @@ export function sceneryFigures(placements: Placement[]): SceneryFigures {
   }
   let cards = 0;
   for (const model of placed) for (const part of model.parts) if (part.layer > 0) cards++;
-  return { models: placed.size + variants.size, placements: placements.length, triangles, cards };
+  // the rocks, each a placement of a mesh of its own: the boulders in the water and the cliff's lumps
+  const rocks = [...boulderMeshes(), ...cliffLumpMeshes(cliffLumps())];
+  for (const rock of rocks) triangles += rock.mesh.indices.length / 3;
+  return { models: placed.size + variants.size, placements: placements.length + rocks.length, triangles, cards };
 }
 
 /** Whether a point is clear of the cabin's roof and the jetty's deck, and the keep-back round them. */

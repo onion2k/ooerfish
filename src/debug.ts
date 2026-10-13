@@ -8,8 +8,8 @@
  * `step` plays it on a frame at a time, exactly, drawing the last. `seed`
  * makes chance repeat. Anything that changes the game goes through here,
  * and `state`, `fish`, `settings` and `invariants` read it back. The lab's
- * controls are here too, doing what the panel's do (`dirt`, `time`, `view`
- * and `caustics`), and `mode` what the page's look or cast button does; each
+ * controls are here too, doing what the panel's do (`dirt`, `time`, `view`,
+ * `caustics` and `paint`), and `mode` what the page's look or cast button does; each
  * resolves once the frame it changes is ready to draw.
  *
  * The types are shared with the smoke tests, so a test that calls something
@@ -137,6 +137,8 @@ export interface GameApi {
   view(name: string): Promise<void>;
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
+  /** The rocks' painted edge, on or off: with it off the same rocks are drawn plain. */
+  paint(value: 'on' | 'off'): Promise<void>;
 
   /**
    * The page's mode: `look`, where a drag turns the camera in every view, or `cast`, where the camera is held at the
@@ -319,6 +321,7 @@ export function createApi(host: DebugHost): GameApi {
     time: (name) => host.change({ time: name as Settings['time'] }),
     view: (name) => host.change({ view: name as Settings['view'] }),
     caustics: (on) => host.change({ caustics: on }),
+    paint: (value) => host.change({ paint: value }),
     mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
 
     look: (x, y, view = {}) => host.look(x, y, view),

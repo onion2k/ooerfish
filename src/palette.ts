@@ -27,6 +27,12 @@ export const PALETTE = {
   bedRock: [0.3, 0.33, 0.36] as Colour,
   /** The boulders standing in the water, a cooler grey than the bank's stones. */
   boulder: [0.22, 0.22, 0.21] as Colour,
+  /** The pale chalk the painted edge strokes a rock's ridges with: a warm stone, the package's own for rock. */
+  chalk: [0.62, 0.55, 0.42] as Colour,
+  /** The cliff's chalk, a quarter cooler than the boulders', so the wall's ridges read as the same stone in its shade. */
+  chalkCool: [0.49, 0.55, 0.55] as Colour,
+  /** The timber's lip, a warm faint tan, the lamplight on a cut edge of wood. */
+  chalkWarm: [0.8, 0.66, 0.48] as Colour,
   /** The cliff's rock, a cool dark grey-blue, darker than the boulders so it stands behind the lake as a wall and does not glare. */
   cliff: [0.15, 0.165, 0.2] as Colour,
   /**

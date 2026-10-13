@@ -8,6 +8,7 @@
  * made from the same colours as the sky drawn behind it, so the reflection
  * of dusk is dusk's, and not the renderer's stock daylight.
  */
+import { PAINT_DEFAULT, type PaintSet } from 'artshape-render/game/paint';
 import type { GameRenderer } from 'artshape-render/game/renderer';
 import type { Gpu } from 'artshape-render/gpu/context';
 import { bakeEnvironment, type EnvImage, type Environment } from 'artshape-render/render/env';
@@ -31,6 +32,36 @@ export const TOY = {
   shadowSoftness: 1.5,
   waterShadow: true,
 } as const;
+
+/** The painted edge's three sets, which a mesh names by its `set`: the boulders' chalk, the timber's lip and the cliff's. */
+export const ROCK_PAINT: Required<PaintSet> = { ...PAINT_DEFAULT, lightColour: PALETTE.chalk };
+/** The cliff's wall reads from further off, so a bolder stroke from lower folds, in a cooler chalk. */
+export const CLIFF_PAINT: Required<PaintSet> = {
+  ...ROCK_PAINT,
+  widthFacet: 0.06,
+  gate: 0.45,
+  lightColour: PALETTE.chalkCool,
+};
+/** Timber's lip is faint and warm, with none of the rock's marks: a hand's flat brush on a rock, not on a board. */
+export const WOOD_PAINT: Required<PaintSet> = {
+  ...PAINT_DEFAULT,
+  lightColour: PALETTE.chalkWarm,
+  light: 0.5,
+  widthFacet: 0.05,
+  gate: 0.5,
+  markValue: 0,
+  markEnd: 0,
+  markHue: 0,
+};
+export const PAINT: Required<PaintSet>[] = [ROCK_PAINT, WOOD_PAINT, CLIFF_PAINT];
+
+/**
+ * The sets the look carries: `PAINT` with the paint on, and with it off every set's `light` and `dark` at nought, so the
+ * meshes stay painted and the build draws them plain, which lets the picture and the viewer compare in place.
+ */
+export function paintFor(paint: 'on' | 'off', sets: Required<PaintSet>[] = PAINT): Required<PaintSet>[] {
+  return paint === 'on' ? sets : sets.map((set) => ({ ...set, light: 0, dark: 0 }));
+}
 
 export interface TimeOfDay {
   name: 'night' | 'dawn' | 'day' | 'dusk';
@@ -153,7 +184,12 @@ export function skyImage(time: TimeOfDay): EnvImage {
 const baked = new Map<string, Environment>();
 
 /** Put the look on `renderer` at a time of day, and resolve once the pipelines it asks for are compiled. */
-export async function light(renderer: GameRenderer, ctx: Gpu, time: TimeOfDay): Promise<void> {
+export async function light(
+  renderer: GameRenderer,
+  ctx: Gpu,
+  time: TimeOfDay,
+  paint: 'on' | 'off' = 'on',
+): Promise<void> {
   renderer.look = {
     ...renderer.look,
     sunDir: time.sun,
@@ -167,6 +203,7 @@ export async function light(renderer: GameRenderer, ctx: Gpu, time: TimeOfDay): 
     ...TOY,
     skyLight: mix([0, 0, 0], TOY.skyLight, time.ambient),
     groundLight: mix([0, 0, 0], TOY.groundLight, time.ambient),
+    paint: paintFor(paint),
   };
   renderer.post = { ...renderer.post, vignette: 0, grain: 0, tone: 'soft' };
   let env = baked.get(time.name);

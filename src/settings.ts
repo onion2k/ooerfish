@@ -1,6 +1,6 @@
 /**
  * The lab's settings: how dirty the lake is, the time of day, where the
- * camera stands, and whether the water has caustics on its bed. They live in the address, so a
+ * camera stands, whether the water has caustics on its bed, and whether the rocks are painted. They live in the address, so a
  * link or a picture brings the same lake back, and nowhere else: they are the
  * viewer's, not the game's, and are never saved.
  *
@@ -17,9 +17,11 @@ export interface Settings {
   view: ViewName;
   /** Whether the water lights its bed with caustics. */
   caustics: 'on' | 'off';
+  /** Whether the rocks' ridges carry the painted edge: off draws the same rocks plain, to compare. */
+  paint: 'on' | 'off';
 }
 
-export const DEFAULTS: Settings = { dirt: 1, time: 'day', view: 'shore', caustics: 'on' };
+export const DEFAULTS: Settings = { dirt: 1, time: 'day', view: 'shore', caustics: 'on', paint: 'on' };
 
 /** What each setting may be, read from text as the address has it: the setting, or null for what is not known. */
 const CHECK: { [K in keyof Settings]: (text: string) => Settings[K] | null } = {
@@ -27,6 +29,7 @@ const CHECK: { [K in keyof Settings]: (text: string) => Settings[K] | null } = {
   time: (text) => TIMES.find((t) => t.name === text)?.name ?? null,
   view: (text) => (Object.hasOwn(VIEWS, text) ? (text as ViewName) : null),
   caustics: (text) => (text === 'on' || text === 'off' ? text : null),
+  paint: (text) => (text === 'on' || text === 'off' ? text : null),
 };
 
 /** The settings an address says, each one not known left at its default. */
@@ -58,5 +61,6 @@ export function writeSettings(settings: Settings, query: URLSearchParams): strin
   out.set('time', settings.time);
   out.set('view', settings.view);
   out.set('caustics', settings.caustics);
+  out.set('paint', settings.paint);
   return out.toString();
 }

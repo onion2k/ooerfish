@@ -97,6 +97,15 @@ test("works each of the lab's controls by mouse, and keeps them in the address",
   await pressed('On').click();
   await expect.poll(settings).toMatchObject({ caustics: 'on' });
 
+  // the rocks' paint taken off and put back: its buttons are not called On and Off, which the caustics' are
+  await expect(pressed('Painted')).toHaveAttribute('aria-pressed', 'true');
+  await pressed('Plain').click();
+  await expect.poll(settings).toMatchObject({ paint: 'off' });
+  await expect(pressed('Plain')).toHaveAttribute('aria-pressed', 'true');
+  expect(new URL(page.url()).searchParams.get('paint')).toBe('off');
+  await pressed('Painted').click();
+  await expect.poll(settings).toMatchObject({ paint: 'on' });
+
   await pressed('Overhead').click();
   await expect.poll(settings).toMatchObject({ view: 'overhead' });
   const high = await page.evaluate(() => window.game!.camera());
@@ -124,6 +133,7 @@ test('refuses what the address says that it does not know, and draws the default
     time: 'day',
     view: 'shore',
     caustics: 'on',
+    paint: 'on',
   });
   expect(problems).toEqual([]);
 });
@@ -154,6 +164,39 @@ test("turns see-through water's caustics on and off in what is drawn", async ({ 
   expect(pixelsApart(on, again, 0), 'caustics on, twice at the same time, drew differently').toBeLessThanOrEqual(
     GRASS_WOBBLE,
   );
+  expect(problems).toEqual([]);
+});
+
+test("turns the rocks' painted edge off and on in what is drawn, at the boulder by the shore", async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  await set(page, { dirt: 0, time: 'day', view: 'shore' }, 30);
+  await page.evaluate(() => {
+    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+  });
+  // the camera brought to the boulder at the shore's edge, near and from the side the Shore view looks over
+  await page.evaluate(() => window.game!.look(-13, -25.6, { azimuth: 0, polar: 1.3, radius: 9 }));
+  // a window on the boulder alone, so the cliff and the banks are not what is counted
+  const spot = (await page.evaluate(() => window.game!.project(-13, -25.6, 0.5)))!;
+  expect(spot, 'the boulder is on the screen').not.toBeNull();
+  const box = (await page.locator('#view').boundingBox())!;
+  const clip = { x: box.x + spot.x - 80, y: box.y + spot.y - 80, width: 160, height: 160 };
+  const shot = async (paint: 'on' | 'off') => {
+    await page.evaluate(async (p) => {
+      await window.game!.paint(p);
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    }, paint);
+    return page.screenshot({ clip, animations: 'disabled' });
+  };
+  const on = await shot('on');
+  const off = await shot('off');
+  const again = await shot('on');
+  expect(await page.evaluate(() => window.game!.settings().paint)).toBe('on');
+  // the chalk is a stroke of some hundreds of pixels on a boulder: a count over nought, here well over the grass's flicker
+  const apart = pixelsApart(on, off, 0);
+  console.log(`paint on against off at the boulder: ${apart} pixels apart`);
+  expect(apart, 'paint on and off drew the same boulder').toBeGreaterThan(GRASS_WOBBLE * 5);
+  expect(pixelsApart(on, again, 0), 'paint on, twice, drew differently').toBeLessThanOrEqual(GRASS_WOBBLE);
   expect(problems).toEqual([]);
 });
 

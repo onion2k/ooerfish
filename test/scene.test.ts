@@ -13,6 +13,7 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import {
   ANGLER,
   BANK_TOP,
+  BOULDER_DOMES,
   CABIN,
   CLIFF,
   NOTCHES,
@@ -72,13 +73,18 @@ function hashGroups(groups: GameGroup[]): string {
   return `${groups.length}:${h.toString(16)}`;
 }
 
-/** The first seven groups: the bed, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
-const GROUND = 7;
+/** The boulders and the cliff's lumps, each its own painted group: one to a dome and one to a lump. */
+const N_BOULDERS = BOULDER_DOMES.length;
+const N_LUMPS = cliffLumps().length;
+/** The ground's groups: the bed, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
+const GROUND = 1 + N_BOULDERS + 4 + N_LUMPS;
+/** Where the grassy banks are in them. */
+const BANKS = 1 + N_BOULDERS + 2;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape
-    expect(hashGroups(new Scene().static())).toBe('10:1315315c');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups now), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts)
+    expect(hashGroups(new Scene().static())).toBe('38:67f358cf');
   });
 });
 
@@ -102,7 +108,9 @@ describe('a scene with the kit', () => {
   });
 });
 
-const FIGURES = { models: 30, placements: 396, triangles: 90951, cards: 10 };
+/** The rocks, each its own mesh: four boulders and twenty-six lumps of 64 triangles (5 rings of 8 segments). */
+const ROCK_TRIANGLES = (N_BOULDERS + N_LUMPS) * 64;
+const FIGURES = { models: 30, placements: 396 + N_BOULDERS + N_LUMPS, triangles: 90951 + ROCK_TRIANGLES, cards: 10 };
 
 type TreePlacement = Extract<Placement, { kind: 'tree' }>;
 /** Whether a point is under the cliff's sector, in the lake's own frame. */
@@ -363,7 +371,7 @@ describe('the scenery figures the test API reports', () => {
   const stood = new Set(trees.map((p) => `${p.tree}${p.variant}`));
 
   it('count the models and tree variants placed, the placements, the triangles drawn and the card groups, from the placements', () => {
-    expect(figures.placements).toBe(placements.length);
+    expect(figures.placements).toBe(placements.length + N_BOULDERS + N_LUMPS);
     const kitModels = new Set(placements.flatMap((p) => ('model' in p ? [p.model.name] : [])));
     expect(figures.models).toBe(kitModels.size + stood.size);
     let triangles = 0,
@@ -373,7 +381,7 @@ describe('the scenery figures the test API reports', () => {
       else for (const part of p.model.parts) triangles += part.mesh.indices.length / 3;
     }
     for (const name of kitModels) for (const part of kit.models.get(name)!.parts) if (part.layer > 0) cards++;
-    expect(figures.triangles).toBe(triangles);
+    expect(figures.triangles).toBe(triangles + ROCK_TRIANGLES);
     expect(figures.cards).toBe(cards);
   });
 
@@ -478,15 +486,15 @@ describe('the cliff in the scene', () => {
   };
 
   it('draws the wall in rock: a face of the steep faces and the lumps along it, both in the cliff’s colour', () => {
-    expect(rock).toHaveLength(2);
-    expect(groups.slice(0, GROUND).filter((g) => g.albedo === PALETTE.cliff)).toHaveLength(2);
+    expect(rock).toHaveLength(1 + N_LUMPS);
+    expect(groups.slice(0, GROUND).filter((g) => g.albedo === PALETTE.cliff)).toHaveLength(1 + N_LUMPS);
     expect(PALETTE.cliff[2], 'a cool rock').toBeGreaterThan(PALETTE.cliff[0]);
     for (const c of PALETTE.cliff) expect(c).toBeLessThan(0.25);
   });
 
   it('cuts the banks by slope: no face of the grass is steeper than the rock slope, every face of the rock is', () => {
     const [face] = rock;
-    const banks = groups[4].mesh;
+    const banks = groups[BANKS].mesh;
     expect(face.mesh.indices.length / 3).toBeGreaterThan(200);
     for (let t = 0; t < face.mesh.indices.length / 3; t++)
       expect(slopeOf(face.mesh, t)).toBeGreaterThan(CLIFF.rockSlope);
@@ -499,7 +507,7 @@ describe('the cliff in the scene', () => {
       expect(Math.abs(Math.atan2(face.positions[i + 1], face.positions[i] / STRETCH) - CLIFF.middle)).toBeLessThan(
         CLIFF.half + 0.05,
       );
-    expect(groups[4].mesh.indices.length / 3).toBeGreaterThan(30_000);
+    expect(groups[BANKS].mesh.indices.length / 3).toBeGreaterThan(30_000);
   });
 
   it('stands the lumps along the crest and the foot, as many as content says, none across a fall’s channel', () => {
@@ -514,7 +522,14 @@ describe('the cliff in the scene', () => {
       // half sunk: its middle on the ground, so the lower half is in it
       if (l.where !== 'face') expect(l.z).toBeCloseTo(groundUnder(l.x, l.y), 6);
     }
-    expect(rock[1].matrices.length / 16).toBe(lumps.length);
+    expect(rock.slice(1)).toHaveLength(lumps.length);
+    // one placement to a group, at its lump
+    rock.slice(1).forEach((g, i) => {
+      expect(g.matrices.length).toBe(16);
+      expect([g.matrices[12], g.matrices[13], g.matrices[14]]).toEqual(
+        [lumps[i].x, lumps[i].y, lumps[i].z].map(Math.fround),
+      );
+    });
   });
 
   it('stands the foot lumps by the water and not in it, and the crest lumps on the crest', () => {
