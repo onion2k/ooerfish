@@ -1,5 +1,6 @@
 /** The cabin and the jetty as they are drawn: what groups they are, where they stand, and that they stay inside the sun's shadow. */
 import { describe, expect, it } from 'vitest';
+import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { cabinGroups, jettyGroups, postSpots } from '../src/cabin';
 import { CABIN, CABIN_AT, JETTY, bareGround, deckFrame, jettyGap } from '../src/lake';
 import { PALETTE } from '../src/palette';
@@ -212,5 +213,39 @@ describe('the jetty as drawn', () => {
       const near = v.filter((p) => Math.abs(p[0] - s.x) < JETTY.posts.size && Math.abs(p[1] - s.y) < JETTY.posts.size);
       expect(near.length, 'vertices at the post').toBeGreaterThan(8);
     }
+  });
+});
+
+describe('the timber’s painted edge', () => {
+  const cabin = cabinGroups(),
+    jetty = jettyGroups();
+  // the walls, roof, door, deck and posts are timber; the chimney is stone and the window is glass
+  const timber = [cabin[0], cabin[1], cabin[3], jetty[0], jetty[1]];
+  const plain = [cabin[2], cabin[4]];
+
+  it('is on the walls, the roof, the door, the deck and the posts, on set one by the gate, each vertex with its own', () => {
+    for (const g of timber) {
+      expect(g.mesh.paint, 'carries paint').toBeDefined();
+      const vertices = g.mesh.positions.length / 3;
+      expect(g.mesh.paint!.length).toBe(PAINT_STRIDE * vertices);
+      expect(g.mesh.indices.length).toBe(vertices);
+      for (let v = 0; v < vertices; v++) expect(g.mesh.paint![v * PAINT_STRIDE + 11]).toBe(1);
+    }
+  });
+
+  it('is not on the chimney or the window’s glass, which are drawn as they were', () => {
+    for (const g of plain) expect(g.mesh.paint).toBeUndefined();
+  });
+
+  it('is split, so that no triangle shares an index', () => {
+    for (const g of timber) expect(new Set(g.mesh.indices).size).toBe(g.mesh.indices.length);
+  });
+
+  it('is the same bytes every time it is built', () => {
+    const again = [...cabinGroups(), ...jettyGroups()];
+    [...cabin, ...jetty].forEach((g, i) => {
+      expect(again[i].mesh.positions).toEqual(g.mesh.positions);
+      expect(again[i].mesh.paint).toEqual(g.mesh.paint);
+    });
   });
 });

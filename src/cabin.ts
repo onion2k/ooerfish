@@ -9,8 +9,22 @@
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
 import { block, built, prism, type Place } from 'artshape-render/mesh/lowpoly';
+import { painted, split } from 'artshape-render/mesh/paint';
+import type { Mesh } from 'artshape-render/mesh/types';
 import { CABIN, CABIN_AT, DECK, JETTY, bareGround } from './lake';
 import { PALETTE } from './palette';
+
+/** The paint set the timber takes, the wood's faint warm lip (`WOOD_PAINT` is the second of the look's sets). */
+const WOOD = 1;
+
+/**
+ * A timber mesh with the painted edge: split so every triangle has its own vertices, and painted on the wood's set with
+ * the gate's choice, since a board has no ridges worth choosing between. Made once with the group it is in, never in a
+ * frame. Without it the eaves and the deck's rim would be as plain as the glass.
+ */
+function timber(mesh: Mesh) {
+  return painted(split(mesh), { set: WOOD, choice: 'gate' });
+}
 
 const ONE = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 /** How much the window glows from itself, as the fish glow: it is lit inside. */
@@ -35,7 +49,7 @@ function placeAt(origin: {
   ];
 }
 
-/** The cabin's drawn parts: five groups, the walls with their gables, the roof, the chimney, the door and the window. */
+/** The cabin's drawn parts: five groups, the walls with their gables, the roof, the chimney, the door and the window. The timber (all but the chimney's stone and the window's glass) carries the painted edge. */
 export function cabinGroups(): GameGroup[] {
   const { body, roof, chimney, door, window } = CABIN;
   const place = placeAt(CABIN_AT);
@@ -141,10 +155,10 @@ export function cabinGroups(): GameGroup[] {
     second: PALETTE.cabinWindow,
   });
   return [
-    { mesh: walls, matrices: ONE, albedo: PALETTE.cabinWall, roughness: 0.9 },
-    { mesh: panels, matrices: ONE, albedo: PALETTE.cabinRoof, roughness: 0.85 },
+    { mesh: timber(walls), matrices: ONE, albedo: PALETTE.cabinWall, roughness: 0.9 },
+    { mesh: timber(panels), matrices: ONE, albedo: PALETTE.cabinRoof, roughness: 0.85 },
     { mesh: stack, matrices: ONE, albedo: PALETTE.cabinChimney, roughness: 0.9 },
-    { mesh: doorway, matrices: ONE, albedo: PALETTE.cabinDoor, roughness: 0.9 },
+    { mesh: timber(doorway), matrices: ONE, albedo: PALETTE.cabinDoor, roughness: 0.9 },
     { mesh: pane, matrices: ONE, albedo: PALETTE.cabinWindow, roughness: 0.6, patterns: lit },
   ];
 }
@@ -170,7 +184,7 @@ export function postSpots(): PostSpot[] {
   return spots;
 }
 
-/** The jetty's drawn parts: the deck of planks, and the posts it stands on, all in one mesh. */
+/** The jetty's drawn parts: the deck of planks, and the posts it stands on, all in one mesh, both painted as timber. */
 export function jettyGroups(): GameGroup[] {
   const place = placeAt(DECK);
   const deck = built((b) =>
@@ -182,7 +196,7 @@ export function jettyGroups(): GameGroup[] {
       block(b, ([x, y, z]) => [s.x + x, s.y + y, z], -half, half, -half, half, s.foot, s.top);
   });
   return [
-    { mesh: deck, matrices: ONE, albedo: PALETTE.deck, roughness: 0.9 },
-    { mesh: posts, matrices: ONE, albedo: PALETTE.post, roughness: 0.9 },
+    { mesh: timber(deck), matrices: ONE, albedo: PALETTE.deck, roughness: 0.9 },
+    { mesh: timber(posts), matrices: ONE, albedo: PALETTE.post, roughness: 0.9 },
   ];
 }
