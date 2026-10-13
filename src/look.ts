@@ -20,7 +20,7 @@ import { PALETTE, mix, type Colour } from './palette';
  * the sky's light from above and a bounce from the grass below. Since the
  * painted edge it is a deeper, cooler shade with a dim cool fill and a
  * stronger rim, the values the experiments' best frames used (E of
- * `docs/specs/painted-experiments.md`): a matte chalk lip needs a face dark
+ * artshape-render's `docs/specs/painted-experiments.md`, E12): a matte chalk lip needs a face dark
  * enough to stand against, and the old fill lit a grey to about 200 of 255.
  */
 export const TOY = {
