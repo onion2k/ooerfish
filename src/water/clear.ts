@@ -56,6 +56,10 @@ export const CLEAR = {
   // the fine waves' lightening of the body: how much, and how steep a slope must be before it takes any (its colour is `PALETTE.rippleLight`)
   rippleAmount: 0.3,
   rippleCut: 0.4,
+  // the scene in the mirror (renderer v0.39.0): the falls, the rocks, the jetty and the cliff in the water as well as
+  // the sky, chosen from the sheets of 13 October 2026 (docs/crystal.md); the surface lies at nought, so the plane is the
+  // renderer's own, and the swells shift what is seen by this share of the screen, the figure those sheets were taken at
+  mirrorDistort: 0.08,
 } as const;
 
 /** The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. */
@@ -114,6 +118,8 @@ export const clear: WaterStyle = {
       mirrorTint: PALETTE.mirrorTint,
       mirrorNear: CLEAR.mirrorNear,
       mirror: CLEAR.mirror,
+      mirrorScene: true,
+      mirrorDistort: CLEAR.mirrorDistort,
       ripple: PALETTE.rippleLight,
       rippleAmount: CLEAR.rippleAmount,
       rippleCut: CLEAR.rippleCut,
