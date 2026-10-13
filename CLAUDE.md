@@ -129,6 +129,18 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   keep off it through the paths they already use; `groundUnder` is the ground
   without them, which the bed's sheet is drawn from. Colours live in
   `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
+- **The rocks:** `src/rocks.ts` makes the boulders and the cliff's lumps as
+  faceted rock, once, from seeds of their own (never the game's chance, and
+  one more rock moves no other): each is a lump cut by `lowpoly`, then
+  `split` and `painted`, one mesh to a dome and to a lump, placed at a scale
+  of one. `rockBudget` gives the ridgelines by world size (1, 2 or 3), `scene.ts`
+  `static()` takes the groups from it, and `game.scenery()` counts their
+  triangles. The paint sets (boulder chalk, wood, cliff) are in `look.ts`
+  beside `TOY`, and `lookFor(time, paint)` is what the renderer is handed.
+  The lab's `paint` control (`on`|`off`, `?paint=off`, `game.paint()`) draws
+  the same rocks plain, to compare. The paint is not gated by the rung. The
+  cabin and jetty timber take the wood's set. `docs/painted.md` is the plan
+  they were built from.
 - **The banks:** `src/scenery.ts` reads `public/scenery` (`readManifest`,
   `readKit`, `loadScenery`, refusing what it does not know by name) before
   `ready`, and hands the card masks to `renderer.setCardImages`.
@@ -249,6 +261,11 @@ What to copy the shape of, when building something new:
   hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
   the bench, read by `debug.ts`, and drawn (its glow, as a mesh) by
   `fishdraw.ts`.
+- **A painted edge on a solid:** the rocks (`src/rocks.ts`) and the cabin's
+  timber (`src/cabin.ts`): a mesh `split` and `painted` once with a `set`
+  named in `look.ts`'s `PAINT`, a test that it is painted and built the same
+  each time, and a picture; the paint turns off with `?paint=off`. See
+  `docs/painted.md`.
 - **A control on the lab:** a key in `Settings` with its check in `CHECK`
   (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
   `apply` (`main.ts`), a method on the test API, and a click in the controls
@@ -318,7 +335,8 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the rung:** full and lean, each time of day and view on each; the governor
   choosing at boot, forced by the address, and set through `game.rung()` while
   playing; lean has no grass drawn and the same placements
-- **the lab:** each time of day, each view, caustics on and off,
+- **the lab:** each time of day, each view, caustics on and off, the paint
+  on and off (`?paint=off`; `?paint=maybe` refused by name),
   the lake clear and sick; what the address says that is not known; and a
   pebble dropped on it, by a tap or the button, at the shore and off it
 - **the water:** above, on and under the surface; at the shore's edge; at
