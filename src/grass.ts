@@ -100,6 +100,6 @@ export const GRASS_OPTIONS: GrassOptions = { near: 36, mid: 110, far: 300 };
 
 /**
  * A slow breeze across the lake, a little north of east. The renderer's clock runs at the water's pace
- * (`WATER_PACE`, 0.4) so the gusts roll by slowly, which suits a calm lake; there is no second clock for the grass.
+ * (`WATER_PACE`, under one) so the gusts roll by slowly, which suits a calm lake; there is no second clock for the grass.
  */
 export const BREEZE: Wind = { direction: [1, 0.3], strength: 0.3, gustSize: 20, gustSpeed: 4 };

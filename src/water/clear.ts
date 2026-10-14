@@ -25,8 +25,11 @@ import { AT_ORIGIN, surface } from './surface';
  * sick lake keeps; the caustics' strength when clean and what share of it a sick lake keeps; and the foam's depth.
  */
 export const CLEAR = {
-  scale: 2.4,
-  speed: 0.12,
+  // the flow finer and quicker than the calm pond's first finish (2.4 cells at 0.12), chosen from the films of 14 October
+  // (docs/crystal.md, part 12): at that it wobbled in place and nothing crawled near the camera; at 3.5 and 0.2 the near
+  // water has a visible crawl and the reflection breaks up more, and the calm look is kept
+  scale: 3.5,
+  speed: 0.2,
   steepness: 0.3,
   clarity: 0.8,
   sickClarity: 0.25,
@@ -50,6 +53,10 @@ export const CLEAR = {
   crestAmount: 0,
   // the sparkles: three in ten of the lattice's cells may (from above that is three big soft stars and not a lattice of hard dots), how nearly a wave must catch the glint, how bright by day, and how big
   sparkles: 0.3,
+  // the cut was filmed from 0.45 to 0.98 over five seconds of clear-day (docs/crystal.md, part 12b) to stop the star
+  // that sits blinking near the camera: each star is pinned to a point of the renderer's lattice and lights as the
+  // fine waves there come round to face the glint, so a higher cut only makes it fewer and smaller (ten returns at
+  // 0.45, three at 0.9, two at 0.98) and none under one stops it; it is kept as chosen until the user picks
   sparkleCut: 0.45,
   sparkleBright: 24,
   sparkleSize: 9,
@@ -67,11 +74,17 @@ export const CLEAR = {
   mirrorDistort: 0.08,
 } as const;
 
-/** The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. */
+/**
+ * The four short, low swells, a centimetre or so high, from four ways, the longest the highest: too small to crest. The
+ * renderer draws four at most, so the metre's swell from -0.5 radians, outside the others' spread of 1.2 to 2.1, took
+ * the 1.5 m swell's slot (part 12b), its height the others' share of its length so its slope is theirs. Its steepness is
+ * 0.12 and not the 0.15 it replaced so that the four add up to under one: past that the surface folds over itself where
+ * their crests meet, and the first four added up to 1.01.
+ */
 export const CLEAR_WAVES: readonly GerstnerWave[] = [
   { direction: 1.2, wavelength: 3, amplitude: 0.012, steepness: 0.38 },
   { direction: 2.1, wavelength: 2, amplitude: 0.008, steepness: 0.38 },
-  { direction: 0.6, wavelength: 1.5, amplitude: 0.005, steepness: 0.15 },
+  { direction: -0.5, wavelength: 1, amplitude: 0.004, steepness: 0.12 },
   { direction: 1.7, wavelength: 4, amplitude: 0.012, steepness: 0.1 },
 ];
 

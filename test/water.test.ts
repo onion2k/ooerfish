@@ -2,6 +2,7 @@
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { FLOW_CLEAR } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
+import { WATER_PACE } from '../src/lake';
 import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
 import { CLEAR, CLEAR_WAVES } from '../src/water/clear';
@@ -38,6 +39,12 @@ describe('the ways of drawing the water', () => {
   });
 });
 
+/**
+ * The sparkles' cut: filmed from 0.45 to 0.98 over clear-day (docs/crystal.md, part 12b), no cut under one stops a star
+ * coming back in its place, so it is kept as it was chosen until the user picks from the films.
+ */
+const SPARKLE_CUT = 0.45;
+
 describe('the see-through water', () => {
   const clear = STYLES[0];
 
@@ -72,6 +79,28 @@ describe('the see-through water', () => {
     expect(bright('dusk')).toBeGreaterThan(bright('night'));
     expect(bright('night')).toBeLessThan(bright('day') * 0.25);
     expect(at('day').sparkles).toBeGreaterThan(0);
+  });
+
+  it('moves at the pace and finish chosen from the films of 14 October: a gentle pulse and a more broken reflection', () => {
+    // part 12's recommended setting (docs/crystal.md), which kept the calm look and gave it some visible crawl
+    expect(WATER_PACE).toBe(0.6);
+    expect(CLEAR.speed).toBe(0.2);
+    expect(CLEAR.scale).toBe(3.5);
+    // the 1.5 m swell gave its slot (the renderer draws four at most) to one of a metre from outside the others' spread
+    expect(CLEAR_WAVES).toEqual([
+      { direction: 1.2, wavelength: 3, amplitude: 0.012, steepness: 0.38 },
+      { direction: 2.1, wavelength: 2, amplitude: 0.008, steepness: 0.38 },
+      { direction: -0.5, wavelength: 1, amplitude: 0.004, steepness: 0.12 },
+      { direction: 1.7, wavelength: 4, amplitude: 0.012, steepness: 0.1 },
+    ]);
+    // kept, since no cut under one stops a star blinking in its place (see SPARKLE_CUT)
+    expect(CLEAR.sparkleCut).toBe(SPARKLE_CUT);
+    expect(clear.clear(0, true, timeNamed('day')).sparkleCut).toBe(SPARKLE_CUT);
+  });
+
+  it('swells no steeper, all added, than one, or the surface folds over itself where the crests meet', () => {
+    const sum = CLEAR_WAVES.reduce((s, w) => s + w.steepness, 0);
+    expect(sum).toBeLessThan(1);
   });
 
   it('swells, by the waves it says it has, and hands the same to the renderer', () => {
@@ -127,9 +156,9 @@ describe('the see-through water', () => {
     expect(PALETTE.rippleLight).toEqual([0.28, 0.52, 0.88]);
     expect(look.rippleAmount).toBe(0.3);
     expect(look.rippleCut).toBe(0.4);
-    // the flow is fine, slow and gently tilted: 2.4 cells, a tenth of a unit a second
+    // the flow is fine, slow and gently tilted: 3.5 cells, a fifth of a unit a second
     const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
-    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([2.4, 0.12, 0.3]);
+    expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([3.5, 0.2, 0.3]);
     // the water is a darker, richer blue than a turquoise: blue over green over red in the shallows, near and deep
     for (const c of [PALETTE.clearShallow, PALETTE.clearNear, PALETTE.clearDeep]) {
       expect(c[2]).toBeGreaterThan(c[1]);

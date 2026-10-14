@@ -498,9 +498,12 @@ export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as c
 /**
  * The water is drawn at this share of the game's clock, so a pond is calm: its swells, ripples, caustics, foam and
  * sparkles all move at it, and what floats on it (the bobber, a splash's rings) is read at it too. It is content, with
- * the lake's other figures, and `main.ts` is what hands it to the renderer and to `surfaceOf`.
+ * the lake's other figures, and `main.ts` is what hands it to the renderer and to `surfaceOf`. It was 0.4, and filmed
+ * beside the reference's water (docs/crystal.md, part 10) ours changed between frames a thirtieth as much; at 0.6 the
+ * pond is still calm but is seen to move. The renderer's clock runs at it, so the breeze in the grass is quicker by as
+ * much; the falls divide it back out and keep their own speed.
  */
-export const WATER_PACE = 0.4;
+export const WATER_PACE = 0.6;
 
 /** How many fish swim in the lab's lake, and the most a lake may ever hold, which fixes the pools. */
 export const FISH_COUNT = 6;

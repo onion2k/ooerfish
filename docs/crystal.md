@@ -394,7 +394,7 @@ and a finer surface as part 13.
       at for the smear the option was built to put right, and the pass as
       part 9's with the perf gate deferred. Half a day (_guess_).
 
-- [ ] **Part 12b: the recommended motion landed** (ooerfish). `WATER_PACE`
+- [x] **Part 12b: the recommended motion landed** (done 14 Oct, but for the sparkles' cut: see its record below) (ooerfish). `WATER_PACE`
       0.6; `CLEAR.speed` 0.2 and `CLEAR.scale` 3.5; in `CLEAR_WAVES` the
       1.5 m swell replaced by one of 1 m from -0.5 rad (the renderer draws
       four at most), steepnesses still under one; and `CLEAR.sparkleCut`
@@ -404,6 +404,19 @@ and a finer surface as part 13.
       look pictures move through `/gate-moved`, every one looked at; the
       pass as part 9's, the perf gate deferred while the machine is busy.
       Half a day (_guess_).
+
+**Part 12b's sparkles (14 Oct):** the cut was filmed at 0.45, 0.5, 0.55, 0.6,
+0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95 and 0.98 over five seconds of `clear-day`
+(`/tmp/crystal/sparkle/`), and no cut under one stops the star near the camera
+coming back in its place: each star is pinned to a point of the renderer's
+lattice and lights as the fine waves there come round to face the glint, and
+a higher cut only makes it fewer and smaller (ten returns at 0.45, three at
+0.9, two at 0.98, 128 frames apart). The cut is kept at 0.45 for the user to
+pick from the films; what would stop it is in the renderer (a star that
+moves with the flow, or a cell lit once and then resting), not a figure here.
+The four swells' steepnesses added up to 1.01 before this part, over the one
+at which the renderer's surface folds, so the metre's swell is 0.12 and not
+the 0.15 it replaced, and the four add to 0.98.
 
 - [ ] **Part 13: a finer water surface** (ooerfish). `SURFACE` in `lake.ts`
       (rings, segments) read by `surface()` in `src/water/surface.ts`, so
