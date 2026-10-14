@@ -22,17 +22,25 @@ Read this first on picking the work up.
 - **Released and pushed:** artshape-render v0.39.0, v0.40.0 and v0.41.0
   (the detail layer, part 11) and v0.41.1 (the same with its perf
   figures, pushed on the evening of 14 Oct). ooerfish is pinned at v0.41.1
-  and the detail layer is taken in (part 11c, on its branch until the user
-  merges); the blinking sparkle is written up as part 14.
-- **Perf figures deferred.** Draw Things held the GPU all of 13 and 14
-  October, so no perf baseline was written: ooerfish's `npm run check` is
-  red on its perf gate (the bundle's bytes moved for the knee and line, and
-  the frame is untimed), and the package's `standard clear shallows` and
-  `standard clear detail` scenes have no figure. On a quiet machine: in
-  ooerfish `npm run perf`, read it, and write only the figures that moved
-  with their reason; in artshape-render `npm run perf:gpu`, edit the two
-  keys in by hand (the update script rewrites the whole record), commit as
-  "the perf figures taken on a quiet machine", tag v0.41.1, push.
+  and the detail layer is taken in (part 11c, merged to main); the
+  blinking sparkle is written up as part 14.
+- **Perf figures taken** (14 Oct, evening, Draw Things off the GPU). In
+  the package `standard clear shallows` reads 0.71 ms and `standard clear
+detail` 0.73 against the standard clear water's 0.71, written in by hand
+  and committed and tagged as v0.41.1, pushed; every other scene held. In
+  ooerfish the gate was already green, the bundle's bytes having been
+  written as 12b and 13 landed, and three runs read the frame at 3.25 to
+  3.28 ms and the boot at 699 to 700 against a baseline of 2.95 and 537
+  written at the shade's and the cabin's commits. Timed in turn, with the
+  renderer held at v0.40.0 throughout: the code before the mirror 2.86 ms
+  and 633 ms, part 13's parent 3.02 and 666, head 3.28 and 700. So the
+  frame's third of a millisecond is the mirror, the bed's bands and the
+  motion (0.16) and the finer surface (0.25, near the 0.31 part 13
+  reported), and the boot's rise is the day's drift for the most part
+  (about 95 ms, the pre-mirror code booting slower today than the cabin's
+  commit did) with about 30 ms each from those parts and from the finer
+  surface. `smoke/perf-baseline.json` was written to 3.28 and 700, and
+  then by part 11c to 3.54, 759 and 114,362 bytes (its record says why).
 - **Parts 12b and 13 landed** (14 Oct, after the pause note was first
   written): the recommended motion with a metre's swell at steepness 0.12
   (the sum of four under one), and a surface fine to a spacing of 0.5
@@ -43,16 +51,17 @@ Read this first on picking the work up.
   the glint, so no cut under one stops it; the fix belongs in
   artshape-render (a star that drifts with the flow, or a cell that rests
   once lit) and is a package item to write up. The short-swell film is at
-  `/tmp/crystal/surface/` and **the user has not yet picked** between the
-  recommended swells and the 0.6 m swell from 2.9 rad; the slices there
-  are the evidence that crests now cross the near water.
-- **Part 11c is built** (its record below) and waits to be merged; after
-  it the swell the user picks from part 13's film lands with its pictures
-  through `/gate-moved` and the pass.
+  `/tmp/crystal/surface/`, and on the evening of 14 Oct **the user picked
+  the recommended swells** over the 0.6 m swell from 2.9 rad, so the
+  committed figures stand and part 13 is done; the slices there are the
+  evidence that crests now cross the near water.
+- **Part 11c is built and merged** (its record below), pinning v0.41.1.
+  Next is part 14, the sparkle, in the package.
 - **Decisions the user has made** are in each part's record and are not
   reopened: the mirror alone from part 0; the sand ring; knee 0.4, line
   0.08, caustics 0.36; the detail layer at 8 px and 1.0; the recommended
-  motion with the blinking sparkle put right; a finer surface.
+  motion with the blinking sparkle put right; a finer surface; the
+  recommended swells kept over the short one.
 - **The sheets, films and reports** of every experiment are under
   `/tmp/crystal/` (sheets, lake, shallows, film, detail, detail-film,
   motion) and the package's `docs/specs/clear-water/`.
@@ -450,7 +459,7 @@ The four swells' steepnesses added up to 1.01 before this part, over the one
 at which the renderer's surface folds, so the metre's swell is 0.12 and not
 the 0.15 it replaced, and the four add to 0.98.
 
-- [ ] **Part 13: a finer water surface** (the sheet done 14 Oct, the fallback taken; the swell filmed and waiting on the user's pick: see its record below) (ooerfish). `SURFACE` in `lake.ts`
+- [x] **Part 13: a finer water surface** (done 14 Oct: the fallback taken, and the user chose the recommended swells from the film: see its record below) (ooerfish). `SURFACE` in `lake.ts`
       (rings, segments) read by `surface()` in `src/water/surface.ts`, so
       the greatest distance between neighbouring corners of the surface,
       measured by a test over the whole sheet, is under `SURFACE.spacing`
@@ -467,6 +476,12 @@ the 0.15 it replaced, and the four add to 0.98.
       recommended with a 0.6 m swell from 2.9 rad in place of the 2 m one,
       side by side with the slices, for the user to pick; the swell that is
       picked lands as figures with its pictures. One to two days (_guess_).
+
+**Part 13's swell (14 Oct, evening):** from the side-by-side films and the
+slices, **the user chose the recommended swells**, so the figures of part 12b
+stand and nothing lands for the pick. The short swell was finer on the near
+water (a spread of 1.6 levels against 1.8, and a swing of 8.3 against 10.4
+on `clear-day`), and was not preferred.
 
 **Part 13's sheet (14 Oct):** fine all over, packed as it was, the sheet needs 240
 rings by 1,100 segments (528,000 triangles against 6,144) to keep every edge
