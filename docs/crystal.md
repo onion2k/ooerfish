@@ -221,7 +221,7 @@ from the reference. Every judgement so far was a still; and the fine waves
 fade themselves out past a few pixels, so the surface has no small-scale
 normal where the eye looks, which is why part 3 changed nothing.
 
-- [ ] **Part 10: the lake seen moving** (ooerfish, a kept tool). `npm run film` with `--scene`, `--seconds` and `--out`: headless
+- [x] **Part 10: the lake seen moving** (done 14 Oct) (ooerfish, a kept tool). `npm run film` with `--scene`, `--seconds` and `--out`: headless
       Playwright through `start()` and `set()` as the look pictures are
       taken, then one screenshot per stepped frame at the game's fixed
       step (`game.step(1)` each, never a timeout), the frames written as
@@ -238,6 +238,29 @@ normal where the eye looks, which is why part 3 changed nothing.
       travel, the caustics' crawl, the reflection's shimmer, the sparkles)
       and what to change in `CLEAR`, `CLEAR_WAVES` and `WATER_PACE`. Half
       a day (_guess_).
+
+      **What the film found (14 Oct):** in a patch of near water between
+      frames a thirtieth of a second apart, ours changes by a mean of 0.24
+      levels of luma and the demo's by 7.8, about thirty times more.
+      Nothing in ours is seen to travel across the screen; the swells show
+      as whole rows brightening together, and a slice of one pixel row per
+      frame has no slants, where the demo's is full of them. The caustics
+      are soft blobs that wobble in place. The mirror moves most of
+      anything in our water, the falls' reflections bending in a few broad
+      zigzags with no fine shimmer; the demo's reflections break into fine
+      glints. Our sparkles are one soft star now and then; the demo's
+      shallows are thick with small changing glints. The foam line holds
+      still. Recommended, not made, each a taste the user decides: `WATER_PACE`
+      0.4 to about 0.6; `CLEAR.speed` 0.12 toward 0.2 and `CLEAR.scale` 2.4
+      up, for some visible crawl near the camera (part 11 decides whether
+      it holds far off); one or two shorter swells in `CLEAR_WAVES`, half
+      a metre to a metre, from directions outside the present spread, so
+      something travels, which also moves the bobber and the rings; the
+      sparkles denser and smaller (`sparkles` 0.3 toward 0.6, `sparkleSize`
+      9 toward 4, `sparkleCut` lower), against the choice of three big
+      soft stars recorded in `CLEAR`; `mirrorDistort` left alone, since the
+      coarse bends are the missing fine normal. The demo was captured at
+      about 21 a second on a busy GPU, and these settings were not filmed.
 
 - [ ] **Part 11: a surface that holds its detail** (artshape-render, an
       experiment then an option). The question: can a detail layer whose
