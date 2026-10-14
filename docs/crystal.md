@@ -262,7 +262,7 @@ normal where the eye looks, which is why part 3 changed nothing.
       coarse bends are the missing fine normal. The demo was captured at
       about 21 a second on a busy GPU, and these settings were not filmed.
 
-- [ ] **Part 11: a surface that holds its detail** (artshape-render, an
+- [ ] **Part 11: a surface that holds its detail** (experiment done 14 Oct; see its record below) (artshape-render, an
       experiment then an option). The question: can a detail layer whose
       scale is chosen per pixel from the screen-space derivative of the
       world position (so it is always a few pixels wide, near and far,
@@ -285,6 +285,49 @@ normal where the eye looks, which is why part 3 changed nothing.
       with tests, the golden, a perf scene and a spec, then a release
       and a take-in with its pictures. Two days for the experiment, one
       for the part (_guess_).
+
+**Part 11's experiment (14 Oct, `docs/specs/clear-water/detail-experiment.md`
+in the package's `detail` worktree):** the layer as specified shows nothing
+at any setting, because the renderer's fine waves fade themselves out
+below nine to twenty pixels whatever scale they are read at; a variant B
+that lowers that fade so the finest wave is one cell across is what the
+sheets show. A cell of 8 pixels at an amount of 1.0 breaks the reflections
+into short wavy bands that re-form from frame to frame and puts a fine
+ripple on the near water; 4 pixels is grain, 16 and anything at 0.3 is
+faint; overhead nothing changes. Shimmer on the far water (pixels changing
+more than four levels between frames, exact run to run, checked against a
+planted fault): plain 1,093 a frame, 8 px at 1.0 1,297, the worst 1,393.
+Cost about 0.2 ms at any setting. No seam at the lattice's doubling. A real
+option needs the scale taken from the position before the swells move it
+(the swells facet it otherwise) and a fleck where the bend lands on a post
+at the waterline put right. **The user chose to film it in the game before
+deciding** (part 11b), and part 12 alongside.
+
+- [ ] **Part 11b: the detail layer filmed in the game.** A throwaway
+      ooerfish worktree linked to the package's `detail` worktree, the flag
+      read from the address, and `npm run film` over five seconds of
+      `clear-day`, `half-boat` and `cast-sinking` at plain, 8 px at 1.0 and
+      4 px at 1.0, side by side with plain, with the far-water shimmer
+      counted in the game as the experiment counted it. The user judges
+      whether a fifth more change reads as moving water or as fizz. If it
+      reads as water, part 11 is built as the option with the two fixes;
+      if not, it is dropped. Half a day (_guess_).
+
+- [ ] **Part 12: the water's motion, filmed at three settings.** From the
+      film's recommendations, three settings of `CLEAR`, `CLEAR_WAVES` and
+      `WATER_PACE`, read from the address in a throwaway worktree: calm (as
+      now); recommended (`WATER_PACE` 0.6, `CLEAR.speed` 0.2, `CLEAR.scale`
+      3.5, one swell of a metre added from a direction outside the present
+      spread, sparkles as now); livelier (`WATER_PACE` 0.8, `speed` 0.25,
+      `scale` 4, two short swells, sparkles 0.6 at size 4 and a lower cut).
+      Filmed over five seconds in `clear-day`, `half-boat` and
+      `cast-sinking` (the bobber and the rings ride the swells, so the
+      added swell's effect on them is seen), side by side, with the same
+      per-frame change measure as the film's notes, for the user to pick.
+      The pace also drives the breeze and the falls, which is said beside
+      the pictures. Whatever is picked lands as figures in `lake.ts` and
+      `src/water/clear.ts` with the pictures through `/gate-moved` and the
+      pass. Half a day for the sheet (_guess_).
 
 ## Out of scope
 
