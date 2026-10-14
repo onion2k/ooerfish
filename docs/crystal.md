@@ -20,9 +20,10 @@ Read this first on picking the work up.
   line (8, v0.40.0) with the figures of part 9, the film tool (10), and
   the plan's records. `git log` from `b59aa0e` shows the commits.
 - **Released and pushed:** artshape-render v0.39.0, v0.40.0 and v0.41.0
-  (the detail layer, part 11). ooerfish is pinned at v0.41.0 and the
-  detail layer is taken in (part 11c, on its branch until the user
-  merges).
+  (the detail layer, part 11) and v0.41.1 (the same with its perf
+  figures, pushed on the evening of 14 Oct). ooerfish is pinned at v0.41.1
+  and the detail layer is taken in (part 11c, on its branch until the user
+  merges); the blinking sparkle is written up as part 14.
 - **Perf figures deferred.** Draw Things held the GPU all of 13 and 14
   October, so no perf baseline was written: ooerfish's `npm run check` is
   red on its perf gate (the bundle's bytes moved for the knee and line, and
@@ -482,6 +483,33 @@ the far shore too, where a cell is a pixel or two; a sheet fine only in a
 patch would be cheaper, and would need its edge stitched. `sheet()` packs its
 rings toward its inner edge, which for the water is the middle and not the
 shore.
+
+## After the detail layer: a sparkle that moves with the water
+
+Found 14 October 2026 by part 12b's films, and written up here as the
+package item the pause notes call for.
+
+- [ ] **Part 14: a sparkle that is not pinned to the lattice**
+      (artshape-render). Each of the clear water's sparkles is a star pinned
+      to a point of the renderer's lattice that lights as the fine waves
+      there come round to face the glint, so a star near the camera returns
+      in its place every few seconds and reads as a blink; `sparkleCut` only
+      makes it fewer and smaller (ten returns in five seconds at 0.45, three
+      at 0.9, two at 0.98, 128 frames apart) and no cut under one stops it.
+      Two ways to put it right, to be sheeted and filmed in the package
+      before one is chosen: a star that drifts with the flow, its cell's
+      point carried by the water's own motion so a glint that returns
+      returns somewhere else; or a cell that rests once lit, keeping a
+      per-cell phase so a star that has just shone cannot shine again for a
+      while. Either is an option of `look.clear` whose default is the old
+      (a water that names neither draws as v0.41.1 does, to the pixel), with
+      its spec in `docs/specs/clear-water/`, a GPU test that a star lit in a
+      cell is not lit there again within the rest, the golden, a perf scene
+      and the usual release. Then taken in here with a pin bump of its own,
+      `CLEAR.sparkleCut` reconsidered from 0.45 with the fix in (it was kept
+      there only because no cut helped), and five seconds of `clear-day`
+      filmed to show no star returning in its place. One to two days
+      (_guess_).
 
 ## Out of scope
 
