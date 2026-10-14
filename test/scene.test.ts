@@ -47,6 +47,7 @@ import {
 } from '../src/scene';
 import { seeded } from '../src/random';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeFor } from '../src/trees';
+import { surface } from '../src/water/surface';
 import { newGame } from './helpers';
 
 const kit: Kit = readKit(
@@ -236,10 +237,21 @@ describe('the bed', () => {
 const ROCK_TRIANGLES = (N_BOULDERS + N_LUMPS) * 64;
 /** The bed's bands: the one sheet's 28 rings of 160 segments, and a ring more at each of the five cuts between six bands. */
 const BED_TRIANGLES = (28 + BANDS - 1) * 160 * 2;
+/**
+ * The water's surface: the old coarse 24 rings by 128 segments, fine within reach of the Shore view's camera (85 rings by
+ * 303 angles in all), built from `SURFACE` by `surfaceLayout`.
+ */
+const SURFACE_TRIANGLES = 85 * 303 * 2;
+/**
+ * The most triangles the water's surface may take. Fine all over it was 528,000 and cost 0.9 ms a frame; fine near the
+ * camera it is 51,510 and cost 0.3 ms, and the ceiling is set a little over that, where a reach grown or a spacing made
+ * finer would pass it and have its cost timed again.
+ */
+const SURFACE_CEILING = 60_000;
 const FIGURES = {
   models: 30,
   placements: 396 + N_BOULDERS + N_LUMPS,
-  triangles: 90951 + ROCK_TRIANGLES + BED_TRIANGLES,
+  triangles: 90951 + ROCK_TRIANGLES + BED_TRIANGLES + SURFACE_TRIANGLES,
   cards: 10,
 };
 
@@ -513,8 +525,16 @@ describe('the scenery figures the test API reports', () => {
     }
     for (const name of kitModels) for (const part of kit.models.get(name)!.parts) if (part.layer > 0) cards++;
     for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
+    triangles += surface().indices.length / 3;
     expect(figures.triangles).toBe(triangles + ROCK_TRIANGLES);
     expect(figures.cards).toBe(cards);
+  });
+
+  it("count the water's surface, which takes no more triangles than its ceiling and more than the old coarse sheet", () => {
+    const water = surface().indices.length / 3;
+    expect(water).toBe(SURFACE_TRIANGLES);
+    expect(water).toBeLessThanOrEqual(SURFACE_CEILING);
+    expect(water).toBeGreaterThan(24 * 128 * 2);
   });
 
   it('agree with the groups the scene hands the renderer, one group a card part of each kit model placed', () => {

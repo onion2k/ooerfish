@@ -130,3 +130,25 @@ export const PICTURES: [string, Scene][] = [
   ['sick-night', { dirt: 1, time: 'night', view: 'shore' }],
   ['half-overhead', { dirt: 0.5, time: 'day', view: 'overhead' }],
 ];
+
+/**
+ * The cast the look pictures and the film throw from the shore by day: the lab a little dirty, settled this many
+ * frames, the cast's angle and power (into the water ahead and a little left), and the frames until it is landed and
+ * sinking under its bobber.
+ */
+export const CAST_SHOT = {
+  scene: { dirt: 0.2, time: 'day', view: 'shore' } as Scene,
+  settle: 60,
+  angle: Math.PI / 2 + 0.2,
+  power: 0.7,
+  sinking: 175,
+} as const;
+
+/** The lab put at the cast's scene, the cast thrown, and the game stepped until it is landed and sinking. */
+export async function castSinking(page: Page) {
+  await set(page, CAST_SHOT.scene, CAST_SHOT.settle);
+  await page.evaluate((c) => {
+    window.game!.cast(c.angle, c.power);
+    window.game!.step(c.sinking);
+  }, CAST_SHOT);
+}

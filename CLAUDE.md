@@ -194,7 +194,10 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   of day, with its finish in `CLEAR` and `CLEAR_WAVES`: its `waves` are the
   style's own, which the bobber and the rings ride through
   `src/water/swell.ts`, and its foam lines come from `src/shorefield.ts`, the
-  distance to the shore or a boulder, made once at boot. `src/fishdraw.ts`
+  distance to the shore or a boulder, made once at boot. The surface's mesh is `src/water/surface.ts`: as coarse
+  as it was over most of the lake and fine within `SURFACE.near` of the Shore
+  view's camera, so a short swell is drawn travelling there (`SURFACE` in
+  `lake.ts`, its triangles counted by `game.scenery()` under a ceiling). `src/fishdraw.ts`
   draws each fish as a mesh glowing under the water (`FLOW_GLOW`), which the
   water shows; there is no glow drawn on the surface.
 - **The cast:** `src/cast.ts` is its flight as sums (an arc from the rod's tip

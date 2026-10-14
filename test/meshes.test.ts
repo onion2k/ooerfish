@@ -46,6 +46,27 @@ describe('a sheet laid out in rings', () => {
       expect(Math.hypot(m.positions[o], m.positions[o + 1])).toBeCloseTo(k, 6);
     });
   });
+
+  it('is the same sheet when handed its angles evenly as a list as when handed their count', () => {
+    const even = Array.from({ length: 9 }, (_, j) => (j / 8) * Math.PI * 2);
+    const counted = sheet(point, flat, 1, 3, 4, 8),
+      listed = sheet(point, flat, 1, 3, 4, even);
+    expect(Array.from(listed.positions)).toEqual(Array.from(counted.positions));
+    expect(Array.from(listed.indices)).toEqual(Array.from(counted.indices));
+    listed.uvs.forEach((u, i) => expect(u).toBeCloseTo(counted.uvs[i], 6));
+  });
+
+  it('puts its corners at exactly the angles it is told when handed a list of them, closing the ring', () => {
+    const angles = [0, 0.1, 0.2, 0.3, Math.PI, Math.PI * 2];
+    const m = sheet(point, flat, 0, 0, [1, 2], angles);
+    expect(m.positions.length / 3).toBe(2 * 6);
+    expect(tris(m)).toBe(1 * 5 * 2);
+    angles.forEach((a, j) => {
+      const o = (6 + j) * 3;
+      expect(Math.atan2(m.positions[o + 1], m.positions[o])).toBeCloseTo(Math.atan2(Math.sin(a), Math.cos(a)), 6);
+      expect(Math.hypot(m.positions[o], m.positions[o + 1])).toBeCloseTo(2, 6);
+    });
+  });
 });
 
 describe('a mesh split by slope', () => {

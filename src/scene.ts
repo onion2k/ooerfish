@@ -43,6 +43,7 @@ import type { Mesh } from 'artshape-render/mesh/types';
 import { PALETTE, mix, type Colour } from './palette';
 import { boulderMeshes, cliffLumpMeshes } from './rocks';
 import { seeded } from './random';
+import { surface } from './water/surface';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeBounds, treeFor, type TreeKind } from './trees';
 
@@ -560,7 +561,7 @@ export interface SceneryFigures {
   models: number;
   /** Placements of the kit's models and the trees, and of the rocks (a boulder or a cliff's lump, each its own mesh). */
   placements: number;
-  /** Triangles drawn: each part's, once a placement, and the bed's bands'. */
+  /** Triangles drawn: each part's, once a placement, the bed's bands' and the water's surface's. */
   triangles: number;
   /** Groups drawn as cut cards. */
   cards: number;
@@ -587,6 +588,8 @@ export function sceneryFigures(placements: Placement[]): SceneryFigures {
   for (const rock of rocks) triangles += rock.mesh.indices.length / 3;
   // the bed's bands, drawn once each and counted with the rest, so a band given rings of its own shows in the figure
   for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
+  // the water's surface, drawn once, so a sheet made finer shows in the figure and is held under its ceiling
+  triangles += surface().indices.length / 3;
   return { models: placed.size + variants.size, placements: placements.length + rocks.length, triangles, cards };
 }
 

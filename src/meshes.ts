@@ -114,7 +114,9 @@ export function disc(radius: number, segments = 24): Mesh {
  * where the ring `k` of the way out is at an angle, and `height(x, y)` how
  * high the sheet is there. Rings run from `from` to `to`, so a sheet can be a
  * disc or a band. `rings` is either how many (packed toward the inner edge) or the rings' own distances, each of the
- * way out as `point` counts it, for a sheet that wants them fine in one place and coarse elsewhere. Its normals are the height's own slope, taken across a
+ * way out as `point` counts it, for a sheet that wants them fine in one place and coarse elsewhere; `segments` is
+ * likewise how many, evenly round, or the angles' own list from nought to a whole turn, for a sheet that wants its
+ * corners close together on one side only. Its normals are the height's own slope, taken across a
  * small step, so neighbouring sheets of the same height meet with no seam.
  */
 export function sheet(
@@ -123,28 +125,38 @@ export function sheet(
   from: number,
   to: number,
   rings: number | readonly number[],
-  segments: number,
+  segments: number | readonly number[],
 ): Mesh {
   const b = new MeshBuilder();
   const e = 0.05;
   const count = typeof rings === 'number' ? rings : rings.length - 1;
+  const round = typeof segments === 'number' ? segments : segments.length - 1;
   for (let i = 0; i <= count; i++) {
     // rings packed toward the inner edge, where a sheet bends most: the shore
     const k = typeof rings === 'number' ? from + (to - from) * (i / rings) ** 1.5 : rings[i];
-    for (let j = 0; j <= segments; j++) {
-      const angle = (j / segments) * Math.PI * 2;
+    for (let j = 0; j <= round; j++) {
+      const angle = typeof segments === 'number' ? (j / segments) * Math.PI * 2 : segments[j];
       const [x, y] = point(k, angle);
       const z = height(x, y);
       const dx = (height(x + e, y) - height(x - e, y)) / (2 * e),
         dy = (height(x, y + e) - height(x, y - e)) / (2 * e);
       const l = Math.hypot(dx, dy, 1);
-      b.vertex(x, y, z, -dx / l, -dy / l, 1 / l, j / segments, k);
+      b.vertex(
+        x,
+        y,
+        z,
+        -dx / l,
+        -dy / l,
+        1 / l,
+        typeof segments === 'number' ? j / segments : angle / (Math.PI * 2),
+        k,
+      );
     }
   }
   for (let i = 0; i < count; i++)
-    for (let j = 0; j < segments; j++) {
-      const a = i * (segments + 1) + j;
-      b.quad(a, a + 1, a + segments + 2, a + segments + 1);
+    for (let j = 0; j < round; j++) {
+      const a = i * (round + 1) + j;
+      b.quad(a, a + 1, a + round + 2, a + round + 1);
     }
   return b.build();
 }

@@ -14,7 +14,8 @@
  * `ffmpeg` is on the machine, an MP4 at the game's sixty frames a second and
  * a GIF as well.
  *
- * The scenes are the look pictures' names and `standard`. The film runs its
+ * The scenes are the look pictures' names, `standard`, and `cast-sinking`,
+ * the cast picture's, played to its moment as the look spec plays it. The film runs its
  * own dev server, on `--port` or `FILM_PORT` (5211 unless said), so it never
  * meets the main checkout's on 5204 or the smoke's on 5205. It is a tool and
  * not a gate: nothing is held to what it films, and it is for looking at.
@@ -26,10 +27,15 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { PNG } from 'pngjs';
-import { PICTURES, STANDARD, hideOverlays, set, start, watch, type Scene } from '../smoke/game';
+import { PICTURES, STANDARD, castSinking, hideOverlays, set, start, watch, type Scene } from '../smoke/game';
 import { FPS, frameCount, parseFilmArgs, shrinkInto, stripFrames, stripLayout } from './filming';
 
 const SCENES: [string, Scene][] = [['standard', STANDARD], ...PICTURES];
+/**
+ * The scenes made by playing and not only by setting the lab: the look picture's cast landed and sinking under its
+ * bobber, so the bobber and its rings are filmed riding the swells.
+ */
+const PLAYED = ['cast-sinking'];
 /** The frames stepped before filming, as the look pictures are taken: the fish and the water well on. */
 const SETTLE = 180;
 /** The seed the look pictures are taken from, so a film's first frame is the picture's. */
@@ -40,11 +46,9 @@ const frameName = (f: number) => `frame-${String(f).padStart(4, '0')}.png`;
 async function main() {
   let options;
   try {
-    options = parseFilmArgs(
-      process.argv.slice(2),
-      SCENES.map(([name]) => name),
-      { port: Number(process.env.FILM_PORT ?? 5211) },
-    );
+    options = parseFilmArgs(process.argv.slice(2), [...SCENES.map(([name]) => name), ...PLAYED], {
+      port: Number(process.env.FILM_PORT ?? 5211),
+    });
   } catch (e) {
     console.error(`film: ${(e as Error).message}`);
     process.exit(2);
@@ -67,7 +71,8 @@ async function main() {
     const page = await context.newPage();
     problems = watch(page);
     await start(page, { seed: SEED, paused: true });
-    await set(page, SCENES.find(([name]) => name === scene)![1], SETTLE);
+    if (scene === 'cast-sinking') await castSinking(page);
+    else await set(page, SCENES.find(([name]) => name === scene)![1], SETTLE);
     await hideOverlays(page);
     const view = page.locator('#view');
     console.log(`film: ${scene}, ${frames} frames (${seconds} s at ${FPS} a second) into ${out}`);

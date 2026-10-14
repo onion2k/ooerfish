@@ -418,7 +418,7 @@ The four swells' steepnesses added up to 1.01 before this part, over the one
 at which the renderer's surface folds, so the metre's swell is 0.12 and not
 the 0.15 it replaced, and the four add to 0.98.
 
-- [ ] **Part 13: a finer water surface** (ooerfish). `SURFACE` in `lake.ts`
+- [ ] **Part 13: a finer water surface** (the sheet done 14 Oct, the fallback taken; the swell filmed and waiting on the user's pick: see its record below) (ooerfish). `SURFACE` in `lake.ts`
       (rings, segments) read by `surface()` in `src/water/surface.ts`, so
       the greatest distance between neighbouring corners of the surface,
       measured by a test over the whole sheet, is under `SURFACE.spacing`
@@ -435,6 +435,22 @@ the 0.15 it replaced, and the four add to 0.98.
       recommended with a 0.6 m swell from 2.9 rad in place of the 2 m one,
       side by side with the slices, for the user to pick; the swell that is
       picked lands as figures with its pictures. One to two days (_guess_).
+
+**Part 13's sheet (14 Oct):** fine all over, packed as it was, the sheet needs 240
+rings by 1,100 segments (528,000 triangles against 6,144) to keep every edge
+under half a unit, the diagonals setting it, and timed in turn with the
+coarse one it cost 0.88 ms at the standard scene on the full rung, 0.85 on the
+lean and 0.57 from the boat. So the fallback was taken: `SURFACE.near` of 40
+from the Shore view's camera's place on the ground (the water from the south
+shore to sixteen units in), with a margin of a coarse cell, made fine by fine
+rings that run all round and fine angles that run all the way in, one sheet
+with no corner in the middle of another's edge. It is 51,510 triangles and
+cost 0.31 ms on full, 0.27 on lean, 0.09 and 0.07 from the boat, whose own
+near water is still coarse. A reach of 50 cost 0.51. The fine rings run round
+the far shore too, where a cell is a pixel or two; a sheet fine only in a
+patch would be cheaper, and would need its edge stitched. `sheet()` packs its
+rings toward its inner edge, which for the water is the middle and not the
+shore.
 
 ## Out of scope
 

@@ -496,6 +496,18 @@ export const FIGHT = {
 export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
 
 /**
+ * The water's surface as a mesh: rings out from the middle to a little past the shore and segments round, as coarse as
+ * it is over most of the lake; the greatest distance in world units any two neighbouring corners may be apart within
+ * `near` of the Shore view's camera's place on the ground; and that reach. The swells are worked out only at the
+ * corners, so a swell shorter than about twice their spacing is not drawn travelling: the near water brightens and
+ * darkens all together at its beat instead (docs/crystal.md, part 12's films). At half a unit, a swell of a metre has
+ * two corners a crest. The whole sheet that fine cost 0.9 ms a frame at the standard scene, timed in turn with the
+ * coarse one, and the budget's rule for that is a sheet fine only near the camera: a reach of 40 is the water from the
+ * south shore to sixteen units in, and cost 0.3 ms.
+ */
+export const SURFACE = { rings: 24, segments: 128, spacing: 0.5, near: 40 } as const;
+
+/**
  * The water is drawn at this share of the game's clock, so a pond is calm: its swells, ripples, caustics, foam and
  * sparkles all move at it, and what floats on it (the bobber, a splash's rings) is read at it too. It is content, with
  * the lake's other figures, and `main.ts` is what hands it to the renderer and to `surfaceOf`. It was 0.4, and filmed

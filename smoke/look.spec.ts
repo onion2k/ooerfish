@@ -18,7 +18,7 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test } from '@playwright/test';
-import { PICTURES, STANDARD, hideOverlays, set, start, watch } from './game';
+import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /**
@@ -73,14 +73,17 @@ test.describe('what it looks like', () => {
       const problems = watch(page);
       await start(page, { seed: 11, paused: true });
       // a cast landing on a bank lands off to the side, out of the Shore view's frame: it is pictured from overhead
-      await set(page, { dirt: 0.2, time: 'day', view: name === 'aim-bank' ? 'overhead' : 'shore' }, 60);
-      await page.evaluate((what) => {
-        const g = window.game!;
-        if (what === 'aim water') g.aim({ angle: Math.PI / 2 + 0.2, power: 0.7 });
-        if (what === 'aim bank') g.aim({ angle: 0.3, power: 0.85 });
-        if (what === 'flight' || what === 'sinking') g.cast(Math.PI / 2 + 0.2, 0.7);
-        g.step(what === 'sinking' ? 175 : what === 'flight' ? 25 : 1);
-      }, act);
+      await set(page, { ...CAST_SHOT.scene, view: name === 'aim-bank' ? 'overhead' : 'shore' }, CAST_SHOT.settle);
+      await page.evaluate(
+        ([what, c]) => {
+          const g = window.game!;
+          if (what === 'aim water') g.aim({ angle: c.angle, power: c.power });
+          if (what === 'aim bank') g.aim({ angle: 0.3, power: 0.85 });
+          if (what === 'flight' || what === 'sinking') g.cast(c.angle, c.power);
+          g.step(what === 'sinking' ? c.sinking : what === 'flight' ? 25 : 1);
+        },
+        [act, CAST_SHOT] as const,
+      );
       await hideOverlays(page);
       await expect(page.locator('#view')).toHaveScreenshot(`cast-${name}.png`, TOLERANCE);
       expect(problems).toEqual([]);
