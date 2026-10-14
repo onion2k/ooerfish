@@ -82,6 +82,7 @@ looked into.
     npm run perf           boot, frame and download held to smoke/perf-baseline.json and the budget
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
+    npm run film -- --scene <name> --seconds <n>  a scene filmed a stepped frame at a time, for looking at, not a gate
     npm run kit -- <dir>   a folder of .glb into public/scenery (see below)
     npm run kit:prune -- <kind> ...  models of those kinds out of public/scenery, no GLBs needed
 
@@ -282,8 +283,14 @@ What to copy the shape of, when building something new:
   A tree is not one of these: its generator seeds are in `trees.ts`, its
   heights and the woodland's count in `SCENERY`, and it is placed by `scene.ts`
   and held by `test/scene.test.ts` and `test/trees.test.ts` all the same.
-- **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the bench
-  (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`). Each has
+- **Tools:** the fuzzer (`scripts/fuzzer.ts`), the bench
+  (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`) and the
+  film (`scripts/film.ts`, its arithmetic in `scripts/filming.ts`): a
+  scene of the look pictures, or `standard`, seeded and paused as they
+  are, then a picture after each fixed step, into
+  `node_modules/.cache/film/<scene>/` as frames, a strip of every eighth,
+  and an MP4 and a GIF where `ffmpeg` is; its own dev server is on
+  `--port` or `FILM_PORT` (5211). Nothing is held to the film. Each has
   unit tests of its own working parts. The bench passed a frame made thirty
   times slower until it was made to fail one on purpose: a gate is trusted
   once it has been seen to fail what it is for.
