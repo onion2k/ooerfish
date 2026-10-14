@@ -262,7 +262,7 @@ normal where the eye looks, which is why part 3 changed nothing.
       coarse bends are the missing fine normal. The demo was captured at
       about 21 a second on a busy GPU, and these settings were not filmed.
 
-- [ ] **Part 11: a surface that holds its detail** (experiment done 14 Oct; see its record below) (artshape-render, an
+- [ ] **Part 11: a surface that holds its detail** (experiment done 14 Oct, filmed in the game 14 Oct, chosen to build at 8 px and 1.0; see its record below) (artshape-render, an
       experiment then an option). The question: can a detail layer whose
       scale is chosen per pixel from the screen-space derivative of the
       world position (so it is always a few pixels wide, near and far,
@@ -303,7 +303,7 @@ option needs the scale taken from the position before the swells move it
 at the waterline put right. **The user chose to film it in the game before
 deciding** (part 11b), and part 12 alongside.
 
-- [ ] **Part 11b: the detail layer filmed in the game.** A throwaway
+- [x] **Part 11b: the detail layer filmed in the game.** (done 14 Oct: at 8 px the reflections break into bands that drift and re-form and the far water reads as moving water, with 7% more change and no more flicker; 4 px is grain; a purple-red smear at the bobber's waterline is a fault the option must put right; the user chose to build it) A throwaway
       ooerfish worktree linked to the package's `detail` worktree, the flag
       read from the address, and `npm run film` over five seconds of
       `clear-day`, `half-boat` and `cast-sinking` at plain, 8 px at 1.0 and
@@ -313,7 +313,7 @@ deciding** (part 11b), and part 12 alongside.
       reads as water, part 11 is built as the option with the two fixes;
       if not, it is dropped. Half a day (_guess_).
 
-- [ ] **Part 12: the water's motion, filmed at three settings.** From the
+- [x] **Part 12: the water's motion, filmed at three settings.** (filmed 14 Oct; see the record and part 12b below) From the
       film's recommendations, three settings of `CLEAR`, `CLEAR_WAVES` and
       `WATER_PACE`, read from the address in a throwaway worktree: calm (as
       now); recommended (`WATER_PACE` 0.6, `CLEAR.speed` 0.2, `CLEAR.scale`
@@ -328,6 +328,49 @@ deciding** (part 11b), and part 12 alongside.
       the pictures. Whatever is picked lands as figures in `lake.ts` and
       `src/water/clear.ts` with the pictures through `/gate-moved` and the
       pass. Half a day for the sheet (_guess_).
+
+**Part 12's films (14 Oct):** no setting makes anything travel across the
+near water. The swells are worked out only at the surface mesh's corners,
+about 1.5 to 2 units apart (24 rings by 128 segments, `src/water/surface.ts`),
+and every swell short enough to be seen travelling is shorter than that, so
+the near patch brightens and darkens together at the swell's rhythm (25,
+19 and 74 frames measured against 25, 19 and 76 predicted). Travel shows
+only in the far mirror's drifting bands. Recommended keeps calm's look and
+adds a gentle pulse and a more broken reflection; lively reads as fizz (three
+sparkles blinking in fixed places, glints jumping between frames). The
+bobber's ride is under two pixels at every setting; the pace speeds the
+breeze but not the falls, which divide it back out. **The user chose:** the
+recommended figures landed now with the fixed blinking sparkle put right,
+and a finer surface as part 13.
+
+- [ ] **Part 12b: the recommended motion landed** (ooerfish). `WATER_PACE`
+      0.6; `CLEAR.speed` 0.2 and `CLEAR.scale` 3.5; in `CLEAR_WAVES` the
+      1.5 m swell replaced by one of 1 m from -0.5 rad (the renderer draws
+      four at most), steepnesses still under one; and `CLEAR.sparkleCut`
+      raised until no sparkle sits blinking in one place over five seconds
+      of `clear-day` (filmed to check; the figure is what the film says).
+      `test/water.test.ts` holds the new figures and the swells' sum; the
+      look pictures move through `/gate-moved`, every one looked at; the
+      pass as part 9's, the perf gate deferred while the machine is busy.
+      Half a day (_guess_).
+
+- [ ] **Part 13: a finer water surface** (ooerfish). `SURFACE` in `lake.ts`
+      (rings, segments) read by `surface()` in `src/water/surface.ts`, so
+      the greatest distance between neighbouring corners of the surface,
+      measured by a test over the whole sheet, is under `SURFACE.spacing`
+      (first guess 0.5 units, so a swell of a metre is drawn by at least
+      two corners a crest); the rings packed toward the shore as they are,
+      and `game.scenery()` counting the surface's triangles under a named
+      ceiling. The cost: the water's own perf test and the frame at
+      `STANDARD` and from the boat, timed in turn with the parent, within
+      the 8 ms budget on both rungs; if the finer sheet costs more than
+      half a millisecond, a sheet finer only within `SURFACE.near` units of
+      the camera's shore view is the fallback, and the report says which.
+      Then the short swells filmed again with the film tool, five seconds of
+      `clear-day`, `half-boat` and `cast-sinking`, recommended against
+      recommended with a 0.6 m swell from 2.9 rad in place of the 2 m one,
+      side by side with the slices, for the user to pick; the swell that is
+      picked lands as figures with its pictures. One to two days (_guess_).
 
 ## Out of scope
 
