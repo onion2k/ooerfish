@@ -17,8 +17,8 @@
  * A failure leaves the picture, what was drawn and the difference in
  * `test-results/`. Look at all three before deciding which is right.
  */
-import { expect, test, type Page } from '@playwright/test';
-import { STANDARD, set, start, watch, type Scene } from './game';
+import { expect, test } from '@playwright/test';
+import { PICTURES, STANDARD, hideOverlays, set, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /**
@@ -34,26 +34,6 @@ import { GRASS_WOBBLE, pixelsApart } from './judging';
  * holds the gate to a button still fails it.
  */
 const TOLERANCE = { maxDiffPixels: GRASS_WOBBLE, threshold: 0.02 };
-
-/** The corners that count the milliseconds and tell how to look round, the look or cast button, and the lab's panel: not the look. */
-async function hideOverlays(page: Page) {
-  await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel', 'modeButton']) document.getElementById(id)!.hidden = true;
-    // the boot cover's own display rule beats the hidden attribute, and its fade runs on the wall clock, so a picture
-    // taken right after boot could catch its text fading: it is taken off the page.
-    document.getElementById('boot')!.style.display = 'none';
-  });
-}
-
-/** Every picture of the lake, by name: dirty and clean by day, dirty at dusk and night, and from the boat and overhead. */
-const PICTURES: [string, Scene][] = [
-  ['sick-day', { dirt: 1, time: 'day', view: 'shore' }],
-  ['clear-day', { dirt: 0, time: 'day', view: 'shore' }],
-  ['sick-dusk', { dirt: 1, time: 'dusk', view: 'shore' }],
-  ['half-boat', { dirt: 0.5, time: 'day', view: 'boat' }],
-  ['sick-night', { dirt: 1, time: 'night', view: 'shore' }],
-  ['half-overhead', { dirt: 0.5, time: 'day', view: 'overhead' }],
-];
 
 test.describe('what it looks like', () => {
   for (const [name, scene] of PICTURES)
