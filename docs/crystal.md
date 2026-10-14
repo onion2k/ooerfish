@@ -262,7 +262,7 @@ normal where the eye looks, which is why part 3 changed nothing.
       coarse bends are the missing fine normal. The demo was captured at
       about 21 a second on a busy GPU, and these settings were not filmed.
 
-- [ ] **Part 11: a surface that holds its detail** (experiment done 14 Oct, filmed in the game 14 Oct, chosen to build at 8 px and 1.0; see its record below) (artshape-render, an
+- [x] **Part 11: a surface that holds its detail** (built 14 Oct, artshape-render v0.41.0: `detailPixels`, `detailAmount`; the scale from the still surface through the lens; the bend and the mirror's read falling back to plain's beside a thing in the water, which keeps the mirror's depth; shimmer held under 1.15 times plain; about 0.2 ms; its perf figure waits on a quiet machine) (artshape-render, an
       experiment then an option). The question: can a detail layer whose
       scale is chosen per pixel from the screen-space derivative of the
       world position (so it is always a few pixels wide, near and far,
@@ -342,6 +342,15 @@ bobber's ride is under two pixels at every setting; the pace speeds the
 breeze but not the falls, which divide it back out. **The user chose:** the
 recommended figures landed now with the fixed blinking sparkle put right,
 and a finer surface as part 13.
+
+- [ ] **Part 11c: the detail layer taken in** (ooerfish, after parts 12b
+      and 13 land, since they move the same pictures). The pin to v0.41.0,
+      a commit of its own; then `CLEAR.detailPixels` 8 and `detailAmount`
+      1 asked for in `src/water/clear.ts`, the water test holding them,
+      the look pictures through `/gate-moved`, every one looked at, five
+      seconds of `cast-sinking` filmed and the bobber's waterline looked
+      at for the smear the option was built to put right, and the pass as
+      part 9's with the perf gate deferred. Half a day (_guess_).
 
 - [ ] **Part 12b: the recommended motion landed** (ooerfish). `WATER_PACE`
       0.6; `CLEAR.speed` 0.2 and `CLEAR.scale` 3.5; in `CLEAR_WAVES` the
