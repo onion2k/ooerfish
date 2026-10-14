@@ -20,8 +20,9 @@ Read this first on picking the work up.
   line (8, v0.40.0) with the figures of part 9, the film tool (10), and
   the plan's records. `git log` from `b59aa0e` shows the commits.
 - **Released and pushed:** artshape-render v0.39.0, v0.40.0 and v0.41.0
-  (the detail layer, part 11). ooerfish is pinned at v0.40.0; the detail
-  layer is not yet taken in (part 11c).
+  (the detail layer, part 11). ooerfish is pinned at v0.41.0 and the
+  detail layer is taken in (part 11c, on its branch until the user
+  merges).
 - **Perf figures deferred.** Draw Things held the GPU all of 13 and 14
   October, so no perf baseline was written: ooerfish's `npm run check` is
   red on its perf gate (the bundle's bytes moved for the knee and line, and
@@ -44,10 +45,9 @@ Read this first on picking the work up.
   `/tmp/crystal/surface/` and **the user has not yet picked** between the
   recommended swells and the 0.6 m swell from 2.9 rad; the slices there
   are the evidence that crests now cross the near water.
-- **Then part 11c,** the detail layer taken in (its box below), and after
-  it the swell the user picks from part 13's film. Each lands with its
-  pictures through `/gate-moved` and the pass without perf until the
-  machine is quiet.
+- **Part 11c is built** (its record below) and waits to be merged; after
+  it the swell the user picks from part 13's film lands with its pictures
+  through `/gate-moved` and the pass.
 - **Decisions the user has made** are in each part's record and are not
   reopened: the mirror alone from part 0; the sand ring; knee 0.4, line
   0.08, caustics 0.36; the detail layer at 8 px and 1.0; the recommended
@@ -388,7 +388,7 @@ breeze but not the falls, which divide it back out. **The user chose:** the
 recommended figures landed now with the fixed blinking sparkle put right,
 and a finer surface as part 13.
 
-- [ ] **Part 11c: the detail layer taken in** (ooerfish, after parts 12b
+- [x] **Part 11c: the detail layer taken in** (done 14 Oct, in two commits on `claude/crystal-11c-ec229f`: the pin, then the figures; see its record below) (ooerfish, after parts 12b
       and 13 land, since they move the same pictures). The pin to v0.41.0,
       a commit of its own; then `CLEAR.detailPixels` 8 and `detailAmount`
       1 asked for in `src/water/clear.ts`, the water test holding them,
@@ -396,6 +396,34 @@ and a finer surface as part 13.
       seconds of `cast-sinking` filmed and the bobber's waterline looked
       at for the smear the option was built to put right, and the pass as
       part 9's with the perf gate deferred. Half a day (_guess_).
+
+**Part 11c's take-in (14 Oct):** the pin moved to v0.41.0 in a commit of
+its own and the lake drew as before, to the pixel; then `CLEAR.detailPixels`
+8 and `detailAmount` 1, held by `test/water.test.ts`. All sixteen look
+pictures moved, each looked at: the change is on the water only, a fine
+ripple over the whole surface and the falls' reflections broken into wavy
+bands, 0.3% of the pixels overhead and 12% from the shore of the sick lake;
+nothing off the water moved and no seam shows where the fine surface meets
+the coarse. Five seconds of `cast-sinking` filmed, the bobber's waterline
+magnified at eight frames: the reflection's band passes behind the bobber
+and the purple-red smear of part 11b is gone. The cost, timed in turn over
+four rounds at the standard scene: the parent 3.48 ms, the pin alone 3.52
+(within the wobble), the layer 3.80, so about 0.3 ms, a little over the
+package's 0.2. The perf baseline is written again for the frame (2.95 to
+3.54, the layer's 0.3 and the 0.3 of parts 12b and 13 that main's own
+baseline, uncommitted, already carries as 3.28), the bundle (112,064 to
+114,362 gzipped bytes: 2,273 the renderer's shader, 25 the two options) and
+the boot (537 to 759, which is within the tolerance of main's 700: the
+figure is what this evening read). The rung test held the lean rung to
+four fifths of the full frame, and the grass is 0.7 ms of a frame that the
+water now makes 3.5, so the layer's cost on both rungs tipped it (0.78 at
+the parent, 0.81 after); it now holds the saving as milliseconds,
+`GRASS_SAVING_MS` 0.35 with the measurement beside it, and was seen to fail
+a lean frame that saved nothing. Nothing in the game's logic changed, so
+the fuzzer, determinism, leaks, bench and pace gates ran as they were; the
+bench read the fish's step 16% over its baseline once in the full check and
+12% alone, at the parent and the change alike, so that is the machine's
+evening and not the change's. `npm run fuzz -- --seeds 1-24` broke no rule.
 
 - [x] **Part 12b: the recommended motion landed** (done 14 Oct, but for the sparkles' cut: see its record below) (ooerfish). `WATER_PACE`
       0.6; `CLEAR.speed` 0.2 and `CLEAR.scale` 3.5; in `CLEAR_WAVES` the

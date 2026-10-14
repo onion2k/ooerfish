@@ -98,6 +98,18 @@ describe('the see-through water', () => {
     expect(clear.clear(0, true, timeNamed('day')).sparkleCut).toBe(SPARKLE_CUT);
   });
 
+  it('holds its detail near and far: a layer whose cell is eight pixels on the screen, added in full', () => {
+    // part 11c (docs/crystal.md): chosen from the films of 14 October, where 8 px at 1.0 broke the reflections into
+    // bands that drift and re-form and made the far water read as moving water; 4 px was grain and 16 px faint
+    expect(CLEAR.detailPixels).toBe(8);
+    expect(CLEAR.detailAmount).toBe(1);
+    for (const dirt of [0, 1]) {
+      const look = clear.clear(dirt, true, timeNamed('day'));
+      expect(look.detailPixels, `at contamination ${dirt}`).toBe(8);
+      expect(look.detailAmount, `at contamination ${dirt}`).toBe(1);
+    }
+  });
+
   it('swells no steeper, all added, than one, or the surface folds over itself where the crests meet', () => {
     const sum = CLEAR_WAVES.reduce((s, w) => s + w.steepness, 0);
     expect(sum).toBeLessThan(1);

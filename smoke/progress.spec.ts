@@ -33,6 +33,16 @@ test('the scenery is loaded at ready, and the banks wear the kit as content says
   expect(problems).toEqual([]);
 });
 
+/**
+ * How much cheaper a frame of the lean rung must be than one of the full: the grass's own cost, and not a share of
+ * the frame, since every feature on the water costs the same on both rungs and dilutes the share. The grass was
+ * measured at 0.67 to 0.72 ms over nine runs at the standard scene on 14 October 2026 (the detail layer's take-in,
+ * docs/crystal.md part 11c), at the parent commit and after it alike; the woodland, which stands on both rungs,
+ * costs 0.1; and a frame wobbles by 0.15 (smoke/judging.ts). Half the grass is over the wobble and well over the
+ * woodland, so a lean rung that let no grass go would be caught.
+ */
+const GRASS_SAVING_MS = 0.35;
+
 test('the banks grow grass in the breeze on the full rung, and on the lean rung the grass is let go and the woodland stands', async ({
   page,
 }) => {
@@ -58,7 +68,7 @@ test('the banks grow grass in the breeze on the full rung, and on the lean rung 
   expect(await page.evaluate(() => window.game!.grass())).toEqual({ near: 0, far: 0 });
   const cheap = await page.evaluate(() => window.game!.measureFrame());
   console.log(`lean ${cheap.toFixed(3)} ms against full ${dear.toFixed(3)} ms`);
-  expect(cheap, 'the lean rung is cheaper than the full').toBeLessThan(dear * 0.8);
+  expect(dear - cheap, 'the lean rung is cheaper than the full by the grass').toBeGreaterThan(GRASS_SAVING_MS);
 
   // and back: the grass grows again and the woodland stands
   await page.evaluate(() => window.game!.rung('full'));

@@ -22,7 +22,8 @@ import { AT_ORIGIN, surface } from './surface';
 
 /**
  * The flow's scale (cells to a world unit), speed and tilt; how clear the water is when clean and how much of that a
- * sick lake keeps; the caustics' strength when clean and what share of it a sick lake keeps; and the foam's depth.
+ * sick lake keeps; the caustics' strength when clean and what share of it a sick lake keeps; the foam's depth; and the
+ * detail layer's cell and amount.
  */
 export const CLEAR = {
   // the flow finer and quicker than the calm pond's first finish (2.4 cells at 0.12), chosen from the films of 14 October
@@ -68,6 +69,12 @@ export const CLEAR = {
   // the fine waves' lightening of the body: how much, and how steep a slope must be before it takes any (its colour is `PALETTE.rippleLight`)
   rippleAmount: 0.3,
   rippleCut: 0.4,
+  // the detail layer (renderer v0.41.0): the fine waves read once more at a scale that makes their finest wave this many
+  // pixels across, near and far alike, so the surface keeps a small-scale normal where the eye looks, and all of its
+  // slope added. Chosen from the films of 14 October 2026 (docs/crystal.md, part 11b): at 8 px the reflections break
+  // into bands that drift and re-form and the far water reads as moving water; 4 px was grain, 16 px and 0.3 faint
+  detailPixels: 8,
+  detailAmount: 1,
   // the scene in the mirror (renderer v0.39.0): the falls, the rocks, the jetty and the cliff in the water as well as
   // the sky, chosen from the sheets of 13 October 2026 (docs/crystal.md); the surface lies at nought, so the plane is the
   // renderer's own, and the swells shift what is seen by this share of the screen, the figure those sheets were taken at
@@ -143,6 +150,8 @@ export const clear: WaterStyle = {
       ripple: PALETTE.rippleLight,
       rippleAmount: CLEAR.rippleAmount,
       rippleCut: CLEAR.rippleCut,
+      detailPixels: CLEAR.detailPixels,
+      detailAmount: CLEAR.detailAmount,
     };
   },
 };
