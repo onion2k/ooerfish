@@ -113,7 +113,11 @@ describe('the see-through water', () => {
     expect(look.mirror).toBe(1.2);
     expect(look.nearDistance).toBe(45);
     expect(look.clarity).toBe(0.8);
-    expect(look.caustics).toBe(0.12);
+    // the shallows chosen from the sheets of 14 October: a knee of half a clarity, a line half the renderer's width at
+    // three times the strength it had, so a crisp net of light on the sand ring and not a wash
+    expect(look.clearKnee).toBe(0.4);
+    expect(look.causticLine).toBe(0.08);
+    expect(look.caustics).toBe(0.36);
     expect(look.crestAmount).toBe(0);
     expect(look.sparkleSize).toBe(9);
     expect(look.sparkles).toBe(0.3);

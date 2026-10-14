@@ -30,7 +30,12 @@ export const CLEAR = {
   steepness: 0.3,
   clarity: 0.8,
   sickClarity: 0.25,
-  caustics: 0.12,
+  // a knee of half a clarity under which nothing is lost, so the sand shallows read bright and the caustics reach them,
+  // and a caustic line half the renderer's width at three times the strength it had, a crisp net on the sand and not
+  // a wash: the sheets of 14 October (docs/crystal.md, part 9); at 0.06 the line broke into dashes from overhead
+  knee: 0.4,
+  causticLine: 0.08,
+  caustics: 0.36,
   sickCaustics: 0.5,
   // with the shore field, the foam is one bold line this wide round every shore and boulder (the second line is none),
   // and its edge is crisp, a fiftieth of its width, as an ink line is; the renderer's soft default read as a haze. The
@@ -99,6 +104,8 @@ export const clear: WaterStyle = {
     const k = held(contamination);
     return {
       clarity: CLEAR.clarity * (1 - (1 - CLEAR.sickClarity) * k),
+      clearKnee: CLEAR.knee,
+      causticLine: CLEAR.causticLine,
       foamWidth: CLEAR.foamWidth,
       foamSoft: CLEAR.foamSoft,
       foamGap: CLEAR.foamGap,

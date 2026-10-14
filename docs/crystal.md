@@ -156,6 +156,113 @@ then `test:gpu` and `perf:gpu`, pass before a part is ticked.
       boat. `npm run check` green, `npm run fuzz -- --seeds 1-24` clean.
       One day.
 
+## After the mirror: the bed, and the shallows' options revived
+
+Pictured on 14 October 2026 with the mirror in: a sand-coloured bed in the
+outer quarter of the lake gave the pale rim that reads as clear shallows,
+from overhead most of all, with the slate kept in the deep; the whole bed
+sand lost the deep; pale stone was a quieter sand. **The user chose the
+sand ring.** With a pale bed, part 0's knee and crisper caustic line are
+worth building after all, since on the lab's sand they worked and on the
+slate they could not show. Parts 7 and 8 share nothing and are built side
+by side; part 9 follows both.
+
+- [x] **Part 7: the sand ring** (done 14 Oct) (ooerfish). The bed coloured by its depth:
+      `PALETTE.sand` (first guess 0.62, 0.56, 0.4, the hack's) where the
+      water is shallower than `BED_SHALLOWS.depth` (world units, first
+      guess the depth at three quarters of the shore radius), `PALETTE.bed`
+      where deeper than `depth + blend`, and mixed between, in
+      `BED_SHALLOWS.bands` bands (first guess 6). Since a group has one
+      colour, the bed sheet in `Scene.static()` (`scene.ts`) becomes one
+      sheet per band, cut by radius with the sheet helper as the hack did, each band's colour mixed by the depth at
+      its middle radius, and the sand reaching past the shore to the bank
+      as the hack's did (`1.04`), so a strip of beach shows inside the foam
+      line. The figures are content in `lake.ts` and `palette.ts`. Tests in
+      `test/scene.test.ts`: the bands cover the bed once with no gap or
+      overlap at their radii; the shallowest band is the sand and the
+      deepest the slate, the middle ones between, monotone; the triangle
+      count is within a named ceiling; the placement is the same from the
+      same seed. `game.scenery()` counts the bands' triangles. The look
+      pictures move and are written again through `/gate-moved`, every one
+      looked at, with the inner edge seen to blend and not step from
+      overhead; the frame at `STANDARD` before and after. No lab control.
+      One day (_guess_).
+
+- [x] **Part 8: the shallows' options** (done 14 Oct, artshape-render v0.40.0; its perf figure waits on a quiet machine) (artshape-render, from v0.39.0, as
+      options whose defaults draw v0.39.0 to the pixel, held by the golden).
+      `ClearWater.clearKnee` (a depth of water, world units, through which
+      nothing is lost to the deep colour; nought as today, a millimetre
+      default as the others) and `causticLine` (a line's width as a share of
+      a caustic cell, 0.16 as today, the constant `CAUSTIC_LINE` made a
+      field). Both ride in the two free words of `foamOpt` in `ClearFrame`,
+      packed by `foamUniform`, so no struct grows. The knee is
+      `exp2(-max(through - knee, 0) / lasts)` in the absorption, and the
+      same knee on the caustics' fade. Tests: `clear.test.ts` resolves,
+      refuses NaN, turns the millimetre default; a GPU test reads the
+      shallow box unchanged in colour with a knee past its depth and the
+      deep box darker than it, and a pixel row across the caustics with a
+      higher contrast at a narrower line; the golden green; a perf scene
+      `standard clear shallows` with both on. README and a spec
+      `docs/specs/clear-water/shallows.md`. Then a release, v0.40.0. One
+      day (_guess_).
+
+- [x] **Part 9: taken in, and the figures chosen.** (done 14 Oct: knee 0.4, line 0.08, caustics 0.36; the pass ran without its perf gate, the machine being at other work, and the perf baseline is to be written on a quiet one) The pin to v0.40.0 (a
+      commit of its own), then a sheet on the real lake with the sand ring
+      in: the knee at nought, a quarter and a half of a clarity, and the
+      line at 0.16, 0.08 and 0.06 with the caustics' strength at one and
+      three times, from the shore, the boat and overhead. The user chooses;
+      the figures go into `CLEAR`, the pictures move through `/gate-moved`,
+      and the pass runs as part 6's did.
+
+## After the shallows: seen moving, and a surface that holds its detail
+
+Chosen 14 October 2026 from the ranking of what still separates the lake
+from the reference. Every judgement so far was a still; and the fine waves
+fade themselves out past a few pixels, so the surface has no small-scale
+normal where the eye looks, which is why part 3 changed nothing.
+
+- [ ] **Part 10: the lake seen moving** (ooerfish, a kept tool). `npm run film` with `--scene`, `--seconds` and `--out`: headless
+      Playwright through `start()` and `set()` as the look pictures are
+      taken, then one screenshot per stepped frame at the game's fixed
+      step (`game.step(1)` each, never a timeout), the frames written as
+      PNGs and, where `ffmpeg` is on the machine, an MP4 and a GIF beside
+      them; without it, a filmstrip PNG of every eighth frame. The scenes
+      are the look pictures' names plus `STANDARD`. `scripts/film.ts`
+      with its arithmetic (which frames go on the strip, the strip's
+      layout) in a pure module with unit tests; the Playwright part shares
+      `smoke/game.ts`. It is a tool, not a gate: nothing is held to it.
+      Its first use is a capture of `clear-day` and `half-boat` over five
+      seconds beside a capture of the reference's demo at
+      https://threejswaterpro.com/ over the same five seconds, for the
+      user to look at, with notes on what differs in motion (the swells'
+      travel, the caustics' crawl, the reflection's shimmer, the sparkles)
+      and what to change in `CLEAR`, `CLEAR_WAVES` and `WATER_PACE`. Half
+      a day (_guess_).
+
+- [ ] **Part 11: a surface that holds its detail** (artshape-render, an
+      experiment then an option). The question: can a detail layer whose
+      scale is chosen per pixel from the screen-space derivative of the
+      world position (so it is always a few pixels wide, near and far,
+      and never fades out) give the surface a small-scale normal that
+      breaks up the mirror and wobbles the bed as the reference's does,
+      without shimmer? The experiment, in a worktree from the `shallows`
+      branch, under a temporary flag in `CLEAR_FRAGMENT`: a `waterSlope`
+      read at a scale of `detailPixels / perPixel` (the layer's cell this
+      many pixels across, blended between the two nearest powers of two
+      of the lattice as the sparkles do, so the scale is continuous as
+      the camera moves), its slope added to the normal at
+      `detailAmount` and to the mirror's and the bend's reads, never the
+      height. Pictured on the package's pond and the lab lake (the
+      `crystalscene` of part 0, rebuilt from its report) at cells of 4, 8
+      and 16 pixels and amounts of 0.3, 0.6 and 1.0, still and over
+      sixty stepped frames (shimmer is a change between frames at the
+      same place, measured as pixels moved more than a few levels),
+      with the cost. The sheet decides; if the user picks one, the part
+      is `ClearWater.detailPixels` and `detailAmount` (nought as today),
+      with tests, the golden, a perf scene and a spec, then a release
+      and a take-in with its pictures. Two days for the experiment, one
+      for the part (_guess_).
+
 ## Out of scope
 
 The sky, the fog, tone mapping and bloom (tuning them is a part of its
