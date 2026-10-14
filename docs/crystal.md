@@ -31,16 +31,19 @@ Read this first on picking the work up.
   with their reason; in artshape-render `npm run perf:gpu`, edit the two
   keys in by hand (the update script rewrites the whole record), commit as
   "the perf figures taken on a quiet machine", tag v0.41.1, push.
-- **An agent was at work when this paused,** in the worktree
-  `~/projects/ooerfish-move` (branch `motion` from `a836f6d`), building
-  part 12b then part 13 as two commits on that branch, with the finer
-  surface's film at `/tmp/crystal/surface/`. On picking up: look at that
-  worktree's `git log` and status; if both commits are there and the
-  films exist, check them against their boxes below, rebase onto main,
-  merge, and put the film to the user to pick the short swell; if it
-  stopped partway, read the worktree's state before anything else. The
-  throwaway `~/projects/ooerfish-motion` (branch `motion-film`) holds the
-  hack the agent read the figures from and can go once part 12b lands.
+- **Parts 12b and 13 landed** (14 Oct, after the pause note was first
+  written): the recommended motion with a metre's swell at steepness 0.12
+  (the sum of four under one), and a surface fine to a spacing of 0.5
+  within 40 units of the shore camera (51,510 triangles, +0.31 ms at the
+  standard scene timed in turn; fine everywhere would have been 528,000
+  triangles and +0.88 ms). The blinking sparkle is **not** fixed: a star is
+  pinned to a lattice point and relights whenever the fine waves there face
+  the glint, so no cut under one stops it; the fix belongs in
+  artshape-render (a star that drifts with the flow, or a cell that rests
+  once lit) and is a package item to write up. The short-swell film is at
+  `/tmp/crystal/surface/` and **the user has not yet picked** between the
+  recommended swells and the 0.6 m swell from 2.9 rad; the slices there
+  are the evidence that crests now cross the near water.
 - **Then part 11c,** the detail layer taken in (its box below), and after
   it the swell the user picks from part 13's film. Each lands with its
   pictures through `/gate-moved` and the pass without perf until the
