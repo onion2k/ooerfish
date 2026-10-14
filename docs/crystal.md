@@ -11,6 +11,48 @@ moves the pin and turns the options on. Anything marked _guess_ was not
 measured. The taste decisions are the user's, made from the sheets in
 part 0, and are not made here.
 
+## Where this stands (paused 14 October 2026)
+
+Read this first on picking the work up.
+
+- **Landed on ooerfish main, none of it pushed:** the mirror (part 4,
+  renderer v0.39.0), the sand ring (7), the shallows' knee and caustic
+  line (8, v0.40.0) with the figures of part 9, the film tool (10), and
+  the plan's records. `git log` from `b59aa0e` shows the commits.
+- **Released and pushed:** artshape-render v0.39.0, v0.40.0 and v0.41.0
+  (the detail layer, part 11). ooerfish is pinned at v0.40.0; the detail
+  layer is not yet taken in (part 11c).
+- **Perf figures deferred.** Draw Things held the GPU all of 13 and 14
+  October, so no perf baseline was written: ooerfish's `npm run check` is
+  red on its perf gate (the bundle's bytes moved for the knee and line, and
+  the frame is untimed), and the package's `standard clear shallows` and
+  `standard clear detail` scenes have no figure. On a quiet machine: in
+  ooerfish `npm run perf`, read it, and write only the figures that moved
+  with their reason; in artshape-render `npm run perf:gpu`, edit the two
+  keys in by hand (the update script rewrites the whole record), commit as
+  "the perf figures taken on a quiet machine", tag v0.41.1, push.
+- **An agent was at work when this paused,** in the worktree
+  `~/projects/ooerfish-move` (branch `motion` from `a836f6d`), building
+  part 12b then part 13 as two commits on that branch, with the finer
+  surface's film at `/tmp/crystal/surface/`. On picking up: look at that
+  worktree's `git log` and status; if both commits are there and the
+  films exist, check them against their boxes below, rebase onto main,
+  merge, and put the film to the user to pick the short swell; if it
+  stopped partway, read the worktree's state before anything else. The
+  throwaway `~/projects/ooerfish-motion` (branch `motion-film`) holds the
+  hack the agent read the figures from and can go once part 12b lands.
+- **Then part 11c,** the detail layer taken in (its box below), and after
+  it the swell the user picks from part 13's film. Each lands with its
+  pictures through `/gate-moved` and the pass without perf until the
+  machine is quiet.
+- **Decisions the user has made** are in each part's record and are not
+  reopened: the mirror alone from part 0; the sand ring; knee 0.4, line
+  0.08, caustics 0.36; the detail layer at 8 px and 1.0; the recommended
+  motion with the blinking sparkle put right; a finer surface.
+- **The sheets, films and reports** of every experiment are under
+  `/tmp/crystal/` (sheets, lake, shallows, film, detail, detail-film,
+  motion) and the package's `docs/specs/clear-water/`.
+
 ## Aim
 
 The lake seen into as the user's reference is, the shallows of
