@@ -19,6 +19,7 @@ import {
   ANGLER,
   BANK_RISE,
   BANK_TOP,
+  BED_SHALLOWS,
   CABIN,
   CLIFF,
   NOTCHES,
@@ -27,6 +28,7 @@ import {
   STRETCH,
   bareGround,
   bedDepth,
+  bowlDepthAt,
   cabinGap,
   groundUnder,
   inside,
@@ -37,7 +39,8 @@ import {
 } from './lake';
 import { place } from './matrix';
 import { ball, box, sheet, splitBySlope } from './meshes';
-import { PALETTE } from './palette';
+import type { Mesh } from 'artshape-render/mesh/types';
+import { PALETTE, mix, type Colour } from './palette';
 import { boulderMeshes, cliffLumpMeshes } from './rocks';
 import { seeded } from './random';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
@@ -134,6 +137,84 @@ const lerp = (range: readonly [number, number], k: number) => range[0] + (range[
 function ring(k: number, angle: number): [number, number] {
   const r = k * shoreRadius(angle);
   return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
+}
+
+/** A band of the bed: from and to which shares of the shore's distance it reaches, and the colour it is drawn in. */
+export interface BedCut {
+  from: number;
+  to: number;
+  colour: Colour;
+}
+
+/** A band of the bed with the sheet it is drawn as. */
+export interface BedBand extends BedCut {
+  mesh: Mesh;
+}
+
+/** How many rings and segments the bed was drawn in as one sheet; the bands keep its rings and add one at each cut. */
+const BED_RINGS = 28;
+const BED_SEGMENTS = 160;
+
+/** How far out from the middle, as a share of the shore's distance, the bowl is a depth deep: the bowl only shallows outward. */
+function shareAtDepth(depth: number): number {
+  let deep = 0,
+    shallow = 1;
+  for (let i = 0; i < 60; i++) {
+    const mid = (deep + shallow) / 2;
+    if (bowlDepthAt(mid) > depth) deep = mid;
+    else shallow = mid;
+  }
+  return (deep + shallow) / 2;
+}
+
+/**
+ * Where the bed is cut into its bands and the colour of each: the slate out to where the water is the blend deeper
+ * than the shallows' depth, the bands between cut evenly by radius from there to the shallows' depth, and the sand
+ * from there out past the shore to the beach. Each takes the colour of the depth at its middle radius, so the
+ * slate and the sand fall out of the same rule as the blend. Fewer than two bands could not hold both, and is refused.
+ */
+export function bedCuts(
+  shallows: { depth: number; blend: number; bands: number; beach: number } = BED_SHALLOWS,
+  sand: Colour = PALETTE.sand,
+  slate: Colour = PALETTE.bed,
+): BedCut[] {
+  const { depth, blend, bands, beach } = shallows;
+  if (!Number.isInteger(bands) || bands < 2) throw new Error(`the bed needs two bands at least, not ${bands}`);
+  const deep = shareAtDepth(depth + blend),
+    shallow = shareAtDepth(depth);
+  const edges = [0, deep];
+  for (let i = 1; i < bands - 2; i++) edges.push(deep + ((shallow - deep) * i) / (bands - 2));
+  // with only the two, the slate meets the sand at the shallows' depth itself
+  if (bands === 2) edges[1] = shallow;
+  else edges.push(shallow);
+  edges.push(beach);
+  const cuts: BedCut[] = [];
+  for (let i = 0; i < bands; i++) {
+    const t = Math.min(1, Math.max(0, (bowlDepthAt((edges[i] + edges[i + 1]) / 2) - depth) / blend));
+    cuts.push({ from: edges[i], to: edges[i + 1], colour: mix(sand, slate, t) });
+  }
+  return cuts;
+}
+
+let bands: BedBand[] | undefined;
+
+/**
+ * The bed's bands as sheets, made once: each the ground without the boulders between its radii, on the rings the one
+ * sheet had and a ring at each cut, so the bed is the shape it was and neighbouring bands meet on the same ring.
+ */
+export function bedBands(): readonly BedBand[] {
+  bands ??= bedCuts().map((cut) => {
+    const { beach } = BED_SHALLOWS;
+    const rings = [cut.from];
+    for (let i = 1; i < BED_RINGS; i++) {
+      // the one sheet's rings, packed toward the middle as `sheet` packs them
+      const k = beach * (i / BED_RINGS) ** 1.5;
+      if (k > cut.from && k < cut.to) rings.push(k);
+    }
+    rings.push(cut.to);
+    return { ...cut, mesh: sheet(ring, groundUnder, 0, 0, rings, BED_SEGMENTS) };
+  });
+  return bands;
 }
 
 /**
@@ -397,15 +478,15 @@ export class Scene {
   /** What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. */
   static(kit?: Kit): GameGroup[] {
     const { stones, trunks, puffs, rocks, blades } = this.layout();
-    // the bed and the banks, one height in two sheets of two colours, meeting under the water at the shore
-    // the sheets are the ground without the boulders, which are drawn on it as their own
-    const bed = sheet(ring, groundUnder, 0, 1.04, 28, 160);
+    // the bed and the banks, one height in sheets of their own colours, meeting under the water at the shore: the bed's
+    // bands from the slate of the deep to the sand of the shallows, and the banks; the sheets are the ground without
+    // the boulders, which are drawn on it as their own
     // the banks, cut by slope: the grass where the ground is gentle, the rock where it leans past the rock slope
     const { steep, gentle } = splitBySlope(sheet(ring, groundUnder, 0, 0, bankRings(), BANK_SEGMENTS), CLIFF.rockSlope);
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
     const groups: GameGroup[] = [
-      { mesh: bed, matrices: one, albedo: PALETTE.bed, roughness: 0.95 },
+      ...bedBands().map((band) => ({ mesh: band.mesh, matrices: one, albedo: band.colour, roughness: 0.95 })),
       // the boulders and the cliff's lumps are faceted rock with a painted edge, a group each at its own stretch
       ...boulderMeshes().map(({ mesh, matrix }) => ({
         mesh,
@@ -479,7 +560,7 @@ export interface SceneryFigures {
   models: number;
   /** Placements of the kit's models and the trees, and of the rocks (a boulder or a cliff's lump, each its own mesh). */
   placements: number;
-  /** Triangles drawn: each part's, once a placement. */
+  /** Triangles drawn: each part's, once a placement, and the bed's bands'. */
   triangles: number;
   /** Groups drawn as cut cards. */
   cards: number;
@@ -504,6 +585,8 @@ export function sceneryFigures(placements: Placement[]): SceneryFigures {
   // the rocks, each a placement of a mesh of its own: the boulders in the water and the cliff's lumps
   const rocks = [...boulderMeshes(), ...cliffLumpMeshes(cliffLumps())];
   for (const rock of rocks) triangles += rock.mesh.indices.length / 3;
+  // the bed's bands, drawn once each and counted with the rest, so a band given rings of its own shows in the figure
+  for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
   return { models: placed.size + variants.size, placements: placements.length + rocks.length, triangles, cards };
 }
 

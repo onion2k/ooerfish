@@ -21,6 +21,11 @@ export const PALETTE = {
   bladeTip: [0.085, 0.25, 0.05] as Colour,
   /** The lake's bed, under the water: a dark slate, so that the shallows seen through the water stay blue and not grey (a dark earth bed had greyed them). */
   bed: [0.035, 0.06, 0.11] as Colour,
+  /**
+   * The bed in the shallows, a pale sand where the slate gives way (`BED_SHALLOWS` in `lake.ts`): a pale rim under the
+   * water that reads as clear shallows, from overhead most of all, and a strip of beach inside the foam line.
+   */
+  sand: [0.62, 0.56, 0.4] as Colour,
   /** The stones that line the shore, a dark neutral grey. */
   stone: [0.24, 0.24, 0.22] as Colour,
   /** The rocks on the lake's bed, cooler than the bank's stones for lying under blue water. */

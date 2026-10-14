@@ -72,11 +72,29 @@ export const BOULDERS: readonly { x: number; y: number; radius: number; rise: nu
 
 /** The bowl's depth under a point, as though nothing stood in it. */
 function bowlDepth(x: number, y: number): number {
-  const k = inward(x, y);
+  return bowlDepthAt(1 - inward(x, y));
+}
+
+/**
+ * How deep the bowl is at a share of the way out from the middle to the shore, the same all round: nought on the shore
+ * and past it. The bed is coloured by its depth, and its bands are cut by radius, so the scene asks this of a radius.
+ */
+export function bowlDepthAt(out: number): number {
+  const k = 1 - out;
   if (k <= 0) return 0;
   // a bowl with a gentle shelf at the edge, so the shallows are wide enough to see
   return MAX_DEPTH * (1 - (1 - k) * (1 - k)) * Math.min(1, k * 4);
 }
+
+/**
+ * The bed's colour by its depth, as content: the sand where the water is shallower than `depth` (world units), the
+ * slate where it is deeper than `depth + blend`, and mixed between. The renderer gives a group one colour, so the bed
+ * is drawn in `bands` sheets cut by radius, the slate of the deep the first and the sand the last, each mixed by the
+ * depth at its middle; the bands between them blend the edge that a single cut showed as a hard line from overhead.
+ * `depth` is the bed's at three quarters of the way out, where the pictured sand ring began, and the sand reaches on
+ * past the shore to `beach` (a share of the shore's distance), so a strip of beach shows inside the foam line.
+ */
+export const BED_SHALLOWS = { depth: 2.625, blend: 1.5, bands: 6, beach: 1.04 } as const;
 
 /** How far a boulder's dome goes into the bed under its middle, so its flank stands out of the bed all round on a slope. */
 const BOULDER_SUNK = 1;

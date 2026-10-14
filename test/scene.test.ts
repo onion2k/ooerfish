@@ -13,6 +13,7 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import {
   ANGLER,
   BANK_TOP,
+  BED_SHALLOWS,
   BOULDER_DOMES,
   CABIN,
   CLIFF,
@@ -20,6 +21,7 @@ import {
   SCENERY,
   STRETCH,
   bareGround,
+  bowlDepthAt,
   cabinGap,
   groundUnder,
   inShore,
@@ -35,6 +37,8 @@ import {
   DRESSING_SEED,
   SHADOW_BOX,
   Scene,
+  bedBands,
+  bedCuts,
   cliffLumps,
   footprint,
   sceneryFigures,
@@ -76,15 +80,17 @@ function hashGroups(groups: GameGroup[]): string {
 /** The boulders and the cliff's lumps, each its own painted group: one to a dome and one to a lump. */
 const N_BOULDERS = BOULDER_DOMES.length;
 const N_LUMPS = cliffLumps().length;
-/** The ground's groups: the bed, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
-const GROUND = 1 + N_BOULDERS + 4 + N_LUMPS;
+/** The bed's bands, a sheet and a group each, from the slate of the deep out to the sand of the shallows. */
+const BANDS = BED_SHALLOWS.bands;
+/** The ground's groups: the bed's bands, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
+const GROUND = BANDS + N_BOULDERS + 4 + N_LUMPS;
 /** Where the grassy banks are in them. */
-const BANKS = 1 + N_BOULDERS + 2;
+const BANKS = BANDS + N_BOULDERS + 2;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups now), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved
-    expect(hashGroups(new Scene().static())).toBe('38:9a992af2');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups then), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved; and on 14 October 2026 the bed's one slate sheet became six bands from the slate to the sand (43 groups now), on the rings it had and one more at each cut
+    expect(hashGroups(new Scene().static())).toBe('43:b7f44306');
   });
 });
 
@@ -108,9 +114,134 @@ describe('a scene with the kit', () => {
   });
 });
 
+/**
+ * The most triangles the bed's bands may take together. The one sheet they replace was 28 rings of 160 segments, 8,960
+ * triangles; each cut between two bands adds a ring of 320 at most, so six bands come to 10,560, and the ceiling is
+ * set a little over that, where a band given rings of its own and not the sheet's would pass it.
+ */
+const BED_CEILING = 11_000;
+
+describe('the bed', () => {
+  const bands = bedBands();
+  const sand = PALETTE.sand,
+    slate = PALETTE.bed;
+  /** How far a colour is from the slate toward the sand, channel by channel, nought the slate and one the sand. */
+  const toward = (c: readonly number[]) => c.map((v, i) => (v - slate[i]) / (sand[i] - slate[i]));
+  /** The bed's depth at a share of the way out to the shore, read off the ground the sheet is drawn from. */
+  const depthAt = (k: number) => -groundUnder(k * shoreRadius(0) * STRETCH, 0);
+
+  it('is cut into the bands content says, from the middle out past the shore to the beach, each from where the last ended', () => {
+    expect(bands).toHaveLength(BANDS);
+    expect(bands[0].from).toBe(0);
+    expect(bands[BANDS - 1].to).toBe(BED_SHALLOWS.beach);
+    expect(BED_SHALLOWS.beach, 'the sand reaches past the shore onto the bank').toBeGreaterThan(1);
+    for (let i = 0; i < BANDS; i++) {
+      expect(bands[i].to).toBeGreaterThan(bands[i].from);
+      if (i > 0) expect(bands[i].from, `band ${i} starts where band ${i - 1} ended`).toBe(bands[i - 1].to);
+    }
+  });
+
+  it('draws each band as a sheet from its inner radius to its outer, sharing its edge ring with its neighbour to the bit', () => {
+    const ring = (b: (typeof bands)[number], k: number) => {
+      const out: number[] = [];
+      for (let v = 0; v < b.mesh.uvs.length / 2; v++)
+        if (b.mesh.uvs[v * 2 + 1] === k) out.push(...b.mesh.positions.subarray(v * 3, v * 3 + 3));
+      return out;
+    };
+    for (let i = 0; i < BANDS; i++) {
+      const vs = Array.from({ length: bands[i].mesh.uvs.length / 2 }, (_, v) => bands[i].mesh.uvs[v * 2 + 1]);
+      expect(Math.min(...vs)).toBe(Math.fround(bands[i].from));
+      expect(Math.max(...vs)).toBe(Math.fround(bands[i].to));
+      if (i > 0) {
+        const edge = Math.fround(bands[i].from);
+        const inner = ring(bands[i], edge);
+        expect(inner.length, `band ${i} has its inner ring`).toBeGreaterThan(0);
+        expect(inner, `no gap or overlap between bands ${i - 1} and ${i}`).toEqual(ring(bands[i - 1], edge));
+      }
+    }
+  });
+
+  it('is the sand in the shallowest band and the slate in the deepest, the bands between in between and in order', () => {
+    expect(bands[BANDS - 1].colour).toEqual(sand);
+    expect(bands[0].colour).toEqual(slate);
+    for (let i = 1; i < BANDS - 1; i++)
+      for (const t of toward(bands[i].colour)) {
+        expect(t, `band ${i} is past the slate`).toBeGreaterThan(0);
+        expect(t, `band ${i} is short of the sand`).toBeLessThan(1);
+      }
+    for (let i = 1; i < BANDS; i++) {
+      const [a, b] = [toward(bands[i - 1].colour), toward(bands[i].colour)];
+      for (let c = 0; c < 3; c++) {
+        expect(b[c], `band ${i} is sandier than band ${i - 1}`).toBeGreaterThan(a[c]);
+        // a blend and not a step: no one edge carries much more than its share of the change, as the hack's one cut did
+        expect(b[c] - a[c], `the step into band ${i}`).toBeLessThanOrEqual(1.5 / (BANDS - 1));
+      }
+    }
+  });
+
+  it('colours each band by the depth at its middle radius: sand shallower than the shallows’ depth, slate past the blend', () => {
+    const { depth, blend } = BED_SHALLOWS;
+    expect(depth, 'the shallows’ depth is the bed’s at three quarters of the way out').toBeCloseTo(
+      bowlDepthAt(0.75),
+      6,
+    );
+    for (const b of bands) {
+      const t = Math.min(1, Math.max(0, (depthAt((b.from + b.to) / 2) - depth) / blend));
+      for (let c = 0; c < 3; c++) expect(b.colour[c]).toBeCloseTo(sand[c] + (slate[c] - sand[c]) * t, 6);
+    }
+    // the sand begins where the water is the shallows' depth, and the slate where it is the blend deeper
+    expect(depthAt(bands[BANDS - 1].from)).toBeCloseTo(depth, 4);
+    expect(depthAt(bands[0].to)).toBeCloseTo(depth + blend, 4);
+  });
+
+  it('cuts by depth whatever the figures: two bands are the sand and the slate meeting at the depth, and no more', () => {
+    const two = bedCuts({ ...BED_SHALLOWS, bands: 2 }, sand, slate);
+    expect(two.map((b) => b.colour)).toEqual([slate, sand]);
+    expect(depthAt(two[0].to)).toBeCloseTo(BED_SHALLOWS.depth, 4);
+    // one band could not hold both the sand and the slate, and a part of a band is no band
+    for (const bands of [1, 0, 2.5]) expect(() => bedCuts({ ...BED_SHALLOWS, bands })).toThrow(/two bands at least/);
+  });
+
+  it('takes no more triangles than its ceiling, and no fewer than the one sheet it replaced', () => {
+    const triangles = bands.reduce((n, b) => n + b.mesh.indices.length / 3, 0);
+    expect(triangles).toBeLessThanOrEqual(BED_CEILING);
+    expect(triangles).toBeGreaterThanOrEqual(8960);
+  });
+
+  it('is handed to the renderer as the first groups, a band each in its colour, the same on two builds whatever the seed', () => {
+    const first = new Scene().static(kit);
+    newGame(1);
+    newGame(99);
+    const random = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('the bed asked Math.random');
+    });
+    try {
+      const again = new Scene().static(kit);
+      for (let i = 0; i < BANDS; i++) {
+        expect(first[i].mesh).toBe(bands[i].mesh);
+        expect(first[i].albedo).toEqual(bands[i].colour);
+        expect(again[i].mesh).toEqual(first[i].mesh);
+        expect(again[i].albedo).toEqual(first[i].albedo);
+      }
+      expect(hashGroups(again.slice(0, BANDS))).toBe(hashGroups(first.slice(0, BANDS)));
+      // the bands' sheets are made once, before the spy, so the cuts and colours are worked out again under it
+      expect(bedCuts()).toEqual(bands.map(({ from, to, colour }) => ({ from, to, colour })));
+    } finally {
+      random.mockRestore();
+    }
+  });
+});
+
 /** The rocks, each its own mesh: four boulders and twenty-six lumps of 64 triangles (5 rings of 8 segments). */
 const ROCK_TRIANGLES = (N_BOULDERS + N_LUMPS) * 64;
-const FIGURES = { models: 30, placements: 396 + N_BOULDERS + N_LUMPS, triangles: 90951 + ROCK_TRIANGLES, cards: 10 };
+/** The bed's bands: the one sheet's 28 rings of 160 segments, and a ring more at each of the five cuts between six bands. */
+const BED_TRIANGLES = (28 + BANDS - 1) * 160 * 2;
+const FIGURES = {
+  models: 30,
+  placements: 396 + N_BOULDERS + N_LUMPS,
+  triangles: 90951 + ROCK_TRIANGLES + BED_TRIANGLES,
+  cards: 10,
+};
 
 type TreePlacement = Extract<Placement, { kind: 'tree' }>;
 /** Whether a point is under the cliff's sector, in the lake's own frame. */
@@ -370,7 +501,7 @@ describe('the scenery figures the test API reports', () => {
   const figures = sceneryFigures(placements);
   const stood = new Set(trees.map((p) => `${p.tree}${p.variant}`));
 
-  it('count the models and tree variants placed, the placements, the triangles drawn and the card groups, from the placements', () => {
+  it('count the models and tree variants placed, the placements, the triangles drawn (the bed’s bands among them) and the card groups, from the placements', () => {
     expect(figures.placements).toBe(placements.length + N_BOULDERS + N_LUMPS);
     const kitModels = new Set(placements.flatMap((p) => ('model' in p ? [p.model.name] : [])));
     expect(figures.models).toBe(kitModels.size + stood.size);
@@ -381,6 +512,7 @@ describe('the scenery figures the test API reports', () => {
       else for (const part of p.model.parts) triangles += part.mesh.indices.length / 3;
     }
     for (const name of kitModels) for (const part of kit.models.get(name)!.parts) if (part.layer > 0) cards++;
+    for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
     expect(figures.triangles).toBe(triangles + ROCK_TRIANGLES);
     expect(figures.cards).toBe(cards);
   });

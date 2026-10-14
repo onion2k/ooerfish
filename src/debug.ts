@@ -160,7 +160,7 @@ export interface GameApi {
    * booted needs. A test that measures scene after scene may ask for less after the first.
    */
   measureFrame(warm?: number): Promise<number>;
-  /** What stands on the banks, in figures: the kit models and tree variants placed, the placements, the triangles drawn and the cards. */
+  /** What stands on the banks, in figures: the kit models and tree variants placed, the placements, the triangles drawn (the bed’s bands among them) and the cards. */
   scenery(): SceneryFigures;
   /**
    * The rung the page is drawn on: `full`, with the banks' grass, or `lean`, without it. With a

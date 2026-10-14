@@ -127,7 +127,11 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   counted from it as from the shore), `ground` is its dome, and `bedDepth`
   shallows over its flank, so the fish, splashes, rings, casts and invariants
   keep off it through the paths they already use; `groundUnder` is the ground
-  without them, which the bed's sheet is drawn from. Colours live in
+  without them, which the bed's sheet is drawn from. The bed is coloured by its
+  depth (`BED_SHALLOWS`): the sand (`PALETTE.sand`) in the shallows and out past
+  the shore as a beach, the slate (`PALETTE.bed`) in the deep, and bands of a
+  colour each between, since a group has one colour; `bedBands()` in `scene.ts`
+  makes them once, on the one sheet's rings, and `game.scenery()` counts them. Colours live in
   `src/palette.ts`, the times of day and the toon look in `src/look.ts`.
 - **The rocks:** `src/rocks.ts` makes the boulders and the cliff's lumps as
   faceted rock, once, from seeds of their own (never the game's chance, and

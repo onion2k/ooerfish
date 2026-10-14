@@ -27,7 +27,7 @@ test('the scenery is loaded at ready, and the banks wear the kit as content says
   await start(page, { seed: 1, paused: true });
   // the figures are worked out in node by test/scene.test.ts from the files on disk, and held equal here from the page
   const scenery = await page.evaluate(() => window.game!.scenery());
-  expect(scenery).toEqual({ models: 30, placements: 426, triangles: 92871, cards: 10 });
+  expect(scenery).toEqual({ models: 30, placements: 426, triangles: 103431, cards: 10 });
   expect(scenery.cards).toBeGreaterThan(0);
   await play(page, 60, 'a second with the banks dressed');
   expect(problems).toEqual([]);
