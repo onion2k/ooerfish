@@ -4,7 +4,8 @@
  *
  * The time is a number and not before the start. Every fish is a number,
  * in the water, below the surface and above the bed, and there are no more
- * than a lake holds. The levers are within nought and one. There
+ * than a lake holds; and every joint of its body as it is drawn is below the
+ * surface and above the bed too. The levers are within nought and one. There
  * are no more splashes than the pool holds, each on the water, none landed
  * after now, every number a number.
  *
@@ -12,7 +13,11 @@
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
 import type { Game } from './game';
-import { FIGHT, FISHING, FISH_CAPACITY, SPLASH_CAPACITY, bedDepth, ground, inside } from './lake';
+import { FIGHT, FISHING, FISH_CAPACITY, SPLASH_CAPACITY, SWIM, bedDepth, ground, inside } from './lake';
+import { poseFish } from './swim';
+
+/** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
+const spine = new Float64Array((SWIM.segments.length + 1) * 3);
 
 /** How many broken rules of one sort are reported before the rest are only counted. */
 const EACH = 3;
@@ -40,6 +45,28 @@ export function checkInvariants(game: Game): string[] {
     else if (depth >= bedDepth(x, y)) wrong.push(`${at}: fish ${i} is under the bed`);
   }
   report(wrong);
+
+  // every joint of a swimming fish's body as it is drawn, nose to tail, under the surface and over the bed
+  const bent: string[] = [];
+  for (let i = 0; i < Math.min(fish.count, FISH_CAPACITY); i++) {
+    if (![fish.x[i], fish.y[i], fish.depth[i]].every(Number.isFinite)) continue;
+    if (![fish.phase[i], fish.turn[i], fish.rise[i], fish.pace[i], fish.vigour[i]].every(Number.isFinite)) {
+      bent.push(`fish ${i}'s stroke is not a number`);
+      continue;
+    }
+    poseFish(spine, SWIM, fish, i, bedDepth);
+    for (let k = 0; k < spine.length; k += 3) {
+      const jx = spine[k],
+        jy = spine[k + 1],
+        jz = spine[k + 2];
+      const where = `fish ${i}'s joint ${k / 3} at ${jx.toFixed(1)},${jy.toFixed(1)}, ${(-jz).toFixed(2)} down`;
+      if (jz >= 0) bent.push(`${where}: out of the water`);
+      else if (inside(jx, jy) && -jz >= bedDepth(jx, jy)) bent.push(`${where}: under the bed`);
+      else continue;
+      break;
+    }
+  }
+  report(bent);
 
   const { splashes } = game;
   if (!Number.isInteger(splashes.count) || splashes.count < 0 || splashes.count > SPLASH_CAPACITY)

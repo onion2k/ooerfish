@@ -499,6 +499,49 @@ export const FIGHT = {
 export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
 
 /**
+ * A fish's body and its stroke, the chunky toy chosen from the mock sheet with the subtle stroke. The body, nose to
+ * tail: each segment's length and its half-width and half-height at its back, after the nose's own; then the tail fin,
+ * standing up at the end of the stalk (its length, its half-span, and how deep its fork is cut as a share of its
+ * length); and the dorsal fin on the first body segment (from its front, its length and its height above the back).
+ * Length and girth are `FISH_BODY`'s, 1.7 by 0.6 by 0.55, so the bite, the hang and the pictures frame it as before.
+ * `top` is how far the dorsal fin's tip stands above the spine, which a fish drawn in the shallows is kept under.
+ *
+ * The stroke is a perch's, a carangiform wave: its swing at the tail a share of the length (`amp`), dying toward the
+ * nose to `floor` of it; its wavelength in body lengths; how far a fish goes in a beat, in body lengths (`stride`), and
+ * how often it beats standing still (`idle`, a second); how much of its turn it bends into (1 is the arc it swims);
+ * the most it turns, in radians a second, and how fast its bend eases to the turn; how much it pitches nose down a unit
+ * a second it sinks, and the most; how fast its rise and its pace are eased; how much harder a hooked fish beats while
+ * it pulls, and how fast that eases; and how a landed fish flaps on the line, beats a second and the swing's share.
+ */
+export const SWIM = {
+  nose: [0.1, 0.1] as const,
+  segments: [
+    [0.47, 0.3, 0.275],
+    [0.35, 0.29, 0.265],
+    [0.28, 0.2, 0.19],
+    [0.19, 0.09, 0.1],
+  ] as const,
+  tail: { length: 0.41, span: 0.4, notch: 0.3 },
+  dorsal: { from: 0.04, length: 0.28, height: 0.15 },
+  top: 0.45,
+  amp: 0.13,
+  floor: 0.04,
+  wavelength: 1,
+  stride: 0.7,
+  idle: 0.3,
+  bend: 1,
+  maxTurn: 3,
+  turnEase: 5,
+  pitch: 0.4,
+  maxPitch: 0.3,
+  ease: 3,
+  hooked: 2.2,
+  vigourEase: 3,
+  flap: 1.2,
+  flapAmp: 0.22,
+} as const;
+
+/**
  * The water's surface as a mesh: rings out from the middle to a little past the shore and segments round, as coarse as
  * it is over most of the lake; the greatest distance in world units any two neighbouring corners may be apart within
  * `near` of the Shore view's camera's place on the ground; and that reach. The swells are worked out only at the

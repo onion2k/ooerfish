@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
-import { DECK } from '../src/lake';
+import { depthRange } from '../src/fish';
+import { DECK, bedDepth, inside } from '../src/lake';
 import { newGame, settle } from './helpers';
 
 describe('what must always hold', () => {
@@ -55,5 +56,25 @@ describe('what must always hold', () => {
     const { game } = newGame();
     game.fish.held = 2;
     expect(checkInvariants(game).join('\n')).toMatch(/no fish is at the lure, but the school holds fish 2/);
+  });
+
+  it('reports a fish whose body, as it is drawn, stays in the water however it pitches, and reports a stroke that is not a number', () => {
+    const { game } = newGame();
+    settle(game, 30);
+    expect(checkInvariants(game)).toEqual([]);
+    game.fish.phase[1] = Number.NaN;
+    expect(checkInvariants(game).join('\n')).toMatch(/fish 1's stroke is not a number/);
+    game.fish.phase[1] = 0;
+    // a fish sinking fast in the shallows, where a pitch as steep as it may have in the deep would lift its tail out
+    let x = 0;
+    while (!(bedDepth(x, 0) < 0.5 && inside(x, 0))) x += 0.05;
+    game.fish.x[0] = x;
+    game.fish.y[0] = 0;
+    game.fish.heading[0] = 0;
+    game.fish.depth[0] = depthRange(x, 0)[0];
+    game.fish.rise[0] = -10;
+    expect(checkInvariants(game)).toEqual([]);
+    game.fish.rise[0] = 10;
+    expect(checkInvariants(game)).toEqual([]);
   });
 });

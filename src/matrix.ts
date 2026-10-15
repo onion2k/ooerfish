@@ -35,3 +35,52 @@ export function place(
   out[o + 14] = z;
   out[o + 15] = 1;
 }
+
+/**
+ * A placement with no stretch whose own X lies along (`fx`, `fy`, `fz`) and whose own Y lies as near (`lx`, `ly`,
+ * `lz`) as is square to it, at (`px`, `py`, `pz`): a segment of a fish laid along its spine, its left to the fish's
+ * left. Its own Z, the back, is X across Y.
+ */
+export function frame(
+  out: Float32Array,
+  i: number,
+  px: number,
+  py: number,
+  pz: number,
+  fx: number,
+  fy: number,
+  fz: number,
+  lx: number,
+  ly: number,
+  lz: number,
+) {
+  const o = i * 16;
+  const f = Math.hypot(fx, fy, fz) || 1;
+  fx /= f;
+  fy /= f;
+  fz /= f;
+  const d = lx * fx + ly * fy + lz * fz;
+  let yx = lx - d * fx,
+    yy = ly - d * fy,
+    yz = lz - d * fz;
+  const l = Math.hypot(yx, yy, yz) || 1;
+  yx /= l;
+  yy /= l;
+  yz /= l;
+  out[o] = fx;
+  out[o + 1] = fy;
+  out[o + 2] = fz;
+  out[o + 3] = 0;
+  out[o + 4] = yx;
+  out[o + 5] = yy;
+  out[o + 6] = yz;
+  out[o + 7] = 0;
+  out[o + 8] = fy * yz - fz * yy;
+  out[o + 9] = fz * yx - fx * yz;
+  out[o + 10] = fx * yy - fy * yx;
+  out[o + 11] = 0;
+  out[o + 12] = px;
+  out[o + 13] = py;
+  out[o + 14] = pz;
+  out[o + 15] = 1;
+}

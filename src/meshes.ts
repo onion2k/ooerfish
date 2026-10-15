@@ -8,7 +8,7 @@
  */
 import { MeshBuilder, type Mesh } from 'artshape-render/mesh/types';
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 
 /** One flat-shaded quad, wound counter-clockwise seen from the normal. */
 function face(b: MeshBuilder, p0: V3, p1: V3, p2: V3, p3: V3) {
@@ -207,4 +207,43 @@ export function splitBySlope(mesh: Mesh, minSlope: number): { steep: Mesh; gentl
     return out;
   };
   return { steep: cut(halves[0]), gentle: cut(halves[1]) };
+}
+
+/**
+ * A segment of a fish's body: a flat-shaded loft from an ellipse `front` (its half-width and half-height) at the origin
+ * back along -X to an ellipse `back` at `-length`, with `sides` faces round, closed at both ends so a joint bent open
+ * shows the glow of the next segment's end and not a hole.
+ */
+export function loft(
+  length: number,
+  front: readonly [number, number],
+  back: readonly [number, number],
+  sides = 6,
+): Mesh {
+  const b = new MeshBuilder();
+  // a flat on the back and one on the belly, so the fish sits level and does not look like a stood-up hexagon
+  const ring = (x: number, [w, h]: readonly [number, number], j: number): V3 => {
+    const a = (j / sides) * Math.PI * 2 + Math.PI / sides;
+    return [x, Math.cos(a) * w, Math.sin(a) * h];
+  };
+  for (let j = 0; j < sides; j++) {
+    const f0 = ring(0, front, j),
+      f1 = ring(0, front, j + 1),
+      b0 = ring(-length, back, j),
+      b1 = ring(-length, back, j + 1);
+    face(b, f0, b0, b1, f1);
+    tri(b, [0, 0, 0], f0, f1);
+    tri(b, [-length, 0, 0], b1, b0);
+  }
+  return b.build();
+}
+
+/** A flat fin, a fan from its first corner, seen from either side: each triangle twice, wound both ways. */
+export function fin(corners: readonly V3[]): Mesh {
+  const b = new MeshBuilder();
+  for (let k = 1; k < corners.length - 1; k++) {
+    tri(b, corners[0], corners[k], corners[k + 1]);
+    tri(b, corners[0], corners[k + 1], corners[k]);
+  }
+  return b.build();
 }

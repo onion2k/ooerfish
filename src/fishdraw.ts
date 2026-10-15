@@ -1,57 +1,135 @@
 /**
- * The fish as they are drawn: a low-poly body each, glowing in the glow's
- * green with a light of its own (the renderer's `FLOW_GLOW`), placed where the
- * school is, under the water by its depth, its nose the way it swims. The water is
+ * The fish as they are drawn: a chain of low-poly segments each, head, body, stalk and tail fin, with a fin on its
+ * back, glowing in the glow's green with a light of their own (the renderer's `FLOW_GLOW`). Each segment is laid along
+ * the spine `swim.ts` poses from the school's stroke, so a fish flexes as it swims and bends into its turns; the
+ * renderer has no skinning, and without the chain a fish is one stiff shape sliding through the water. The water is
  * seen through, so they are seen, dimmed and tinted by the water over them.
  *
- * One group, its pool sized once at the most a lake holds, written each frame.
+ * A group a part, each pool sized once at the most a lake holds, written each frame.
  */
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
 import type { School } from './fish';
-import { FISH_CAPACITY } from './lake';
-import { place } from './matrix';
-import { ball } from './meshes';
+import { FISH_CAPACITY, SWIM, bedDepth } from './lake';
+import { frame } from './matrix';
+import { fin, loft } from './meshes';
 import { PALETTE } from './palette';
+import { bodyLength, pose, poseFish } from './swim';
 
 /** A fish's length, width and height, in world units, and how brightly its own light glows. */
 export const FISH_BODY = { length: 1.7, width: 0.6, height: 0.55, glow: 1.4 } as const;
 
-export class FishDraw {
-  readonly matrices = new Float32Array(FISH_CAPACITY * 16);
+const SEGS = SWIM.segments.length;
+const JOINTS = SEGS + 1;
 
-  /** The group, handed to the renderer once: its placements written by `write`, as many live as it says. */
-  group(): GameGroup {
-    const patterns = new Float32Array(FISH_CAPACITY * PATTERN_STRIDE);
-    for (let i = 0; i < FISH_CAPACITY; i++)
-      packFlow(patterns, i * PATTERN_STRIDE, {
-        kind: FLOW_GLOW,
-        scale: 0,
-        speed: 0,
-        glow: FISH_BODY.glow,
-        second: PALETTE.glow,
-      });
-    return { mesh: ball(0.5, 4, 7), matrices: this.matrices, count: 0, albedo: PALETTE.glow, roughness: 0.6, patterns };
+/** The parts a fish is drawn in, a group each, in the order of `groups`: its segments nose first, then its fins. */
+export const FISH_PARTS: readonly string[] = [
+  'head',
+  ...Array.from({ length: SEGS - 2 }, () => 'body'),
+  'stalk',
+  'tail',
+  'dorsal',
+];
+/** The fins glow a little less than the body, so a fish reads as a body with fins and not one shape. */
+const FIN_GLOW = 0.7;
+
+export class FishDraw {
+  /** Each part's placements, sixteen floats a fish. */
+  readonly matrices: readonly Float32Array[] = FISH_PARTS.map(() => new Float32Array(FISH_CAPACITY * 16));
+  /** The spine of the fish being written, and of each fish as the last frame posed it, for the test API. */
+  readonly joints = new Float64Array(FISH_CAPACITY * JOINTS * 3);
+  private readonly spine = new Float64Array(JOINTS * 3);
+
+  /** The groups, handed to the renderer once: their placements written by `write`, as many live as it says. */
+  groups(): GameGroup[] {
+    const meshes = [];
+    let front: readonly [number, number] = SWIM.nose;
+    for (const [length, w, h] of SWIM.segments) {
+      meshes.push(loft(length, front, [w, h]));
+      front = [w, h];
+    }
+    const { length: tl, span, notch } = SWIM.tail;
+    meshes.push(
+      fin([
+        [0, 0, 0],
+        [-tl, 0, span],
+        [-tl * (1 - notch), 0, 0],
+        [-tl, 0, -span],
+      ]),
+    );
+    const { from, length: dl, height } = SWIM.dorsal;
+    const back = SWIM.segments[1][2] * 0.92;
+    meshes.push(
+      fin([
+        [-from, 0, back],
+        [-from - dl * 0.35, 0, back + height],
+        [-from - dl, 0, back],
+      ]),
+    );
+    return meshes.map((mesh, p) => {
+      const glow = p >= SEGS ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow;
+      const patterns = new Float32Array(FISH_CAPACITY * PATTERN_STRIDE);
+      for (let i = 0; i < FISH_CAPACITY; i++)
+        packFlow(patterns, i * PATTERN_STRIDE, { kind: FLOW_GLOW, scale: 0, speed: 0, glow, second: PALETTE.glow });
+      return { mesh, matrices: this.matrices[p], count: 0, albedo: PALETTE.glow, roughness: 0.6, patterns };
+    });
   }
 
-  /** Every fish where it is now, but fish `hung`, hanging nose up at `at`, landed and shown off; says how many are placed. */
-  write(fish: School, hung = -1, at: ArrayLike<number> = [0, 0, 0]): number {
+  /**
+   * Every fish where it is now, posed by its stroke; but fish `hung`, landed and shown off, hanging nose up with its
+   * middle at `at` and flapping by the game's clock `t`. Says how many are placed, which every group draws.
+   */
+  write(fish: School, hung = -1, at: ArrayLike<number> = [0, 0, 0], t = 0): number {
     const n = Math.min(fish.count, FISH_CAPACITY);
-    for (let i = 0; i < n; i++)
+    const j = this.spine;
+    for (let i = 0; i < n; i++) {
       if (i === hung)
-        place(this.matrices, i, at[0], at[1], at[2], 0, FISH_BODY.height, FISH_BODY.width, FISH_BODY.length);
-      else
-        place(
-          this.matrices,
-          i,
-          fish.x[i],
-          fish.y[i],
-          -fish.depth[i],
+        pose(
+          j,
+          SWIM,
+          at[0],
+          at[1],
+          at[2],
           fish.heading[i],
-          FISH_BODY.length,
-          FISH_BODY.width,
-          FISH_BODY.height,
+          Math.PI / 2,
+          0,
+          t * SWIM.flap * Math.PI * 2,
+          SWIM.flapAmp,
+          bodyLength(SWIM) / 2,
         );
+      else poseFish(j, SWIM, fish, i, bedDepth);
+      this.joints.set(j, i * JOINTS * 3);
+      const lx = -Math.sin(fish.heading[i]),
+        ly = Math.cos(fish.heading[i]);
+      for (let p = 0; p < SEGS; p++) {
+        const a = p * 3,
+          b = a + 3;
+        frame(
+          this.matrices[p],
+          i,
+          j[a],
+          j[a + 1],
+          j[a + 2],
+          j[a] - j[b],
+          j[a + 1] - j[b + 1],
+          j[a + 2] - j[b + 2],
+          lx,
+          ly,
+          0,
+        );
+      }
+      // the tail fin carries on the stalk's line from its end, and the dorsal rides the first body segment
+      const tail = this.matrices[SEGS],
+        stalk = this.matrices[SEGS - 1],
+        o = i * 16,
+        e = SEGS * 3;
+      tail.set(stalk.subarray(o, o + 12), o);
+      tail[o + 12] = j[e];
+      tail[o + 13] = j[e + 1];
+      tail[o + 14] = j[e + 2];
+      tail[o + 15] = 1;
+      this.matrices[SEGS + 1].set(this.matrices[1].subarray(o, o + 16), o);
+    }
     return n;
   }
 }

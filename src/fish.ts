@@ -2,8 +2,10 @@
  * The fish of a lake, a school of them in fixed arrays: where each is, how
  * deep, which way it is heading and how fast. Each wanders by the seeded
  * chance it is handed, turns back from the shore before it reaches it, and
- * keeps between the surface and the bed. No more than they are here: the
- * bite, the lure and fleeing are the fishing's, and come with it.
+ * keeps between the surface and the bed; and each keeps its stroke, how it
+ * beats, bends and tilts, from how it moved, for the drawing to pose its body
+ * by. No more than they are here: the bite, the lure and fleeing are the
+ * fishing's, and come with it.
  *
  * Sized once, at the most a lake can hold, so nothing is made while it
  * swims, and a lake with more fish than that is told so by `fill`.
@@ -13,6 +15,7 @@ import {
   FISH_CAPACITY,
   FISH_SHALLOWEST,
   FISH_SHORE,
+  SWIM,
   bedDepth,
   boulderGap,
   inShore,
@@ -23,6 +26,11 @@ import {
   nearestOnDeck,
 } from './lake';
 import type { Random } from './random';
+
+/** A whole turn, which a beat is and a heading wraps at. */
+const TURN = Math.PI * 2;
+/** A fish's length, nose to tail, which a beat's stride is counted in. */
+const FISH_BODY_LENGTH = SWIM.tail.length + SWIM.segments.reduce((sum, s) => sum + s[0], 0);
 
 /** How fast a fish swims, the least and the most, in world units a second. */
 const SPEED: readonly [number, number] = [1.2, 2.8];
@@ -47,6 +55,20 @@ export class School {
   readonly speed = new Float64Array(FISH_CAPACITY);
   /** The depth each is easing toward, as a share of the water under it, so a fish keeps to a depth of its own. */
   readonly keeps = new Float64Array(FISH_CAPACITY);
+  /**
+   * The stroke, which only the drawing reads: where each fish is in its beat, in radians; how fast it is turning,
+   * eased, in radians a second; how fast it is rising, eased; how fast it is going, eased; and how hard it beats, one
+   * for swimming. Kept from how each fish actually moved since the last stroke, from where it was then.
+   */
+  readonly phase = new Float64Array(FISH_CAPACITY);
+  readonly turn = new Float64Array(FISH_CAPACITY);
+  readonly rise = new Float64Array(FISH_CAPACITY);
+  readonly pace = new Float64Array(FISH_CAPACITY);
+  readonly vigour = new Float64Array(FISH_CAPACITY).fill(1);
+  private readonly lastX = new Float64Array(FISH_CAPACITY);
+  private readonly lastY = new Float64Array(FISH_CAPACITY);
+  private readonly lastHeading = new Float64Array(FISH_CAPACITY);
+  private readonly lastDepth = new Float64Array(FISH_CAPACITY);
   count = 0;
   /** The fish the bite is steering, which the wander leaves alone; minus one for none. */
   held = -1;
@@ -79,6 +101,51 @@ export class School {
     this.speed[i] = SPEED[0] + random() * (SPEED[1] - SPEED[0]);
     this.keeps[i] = 0.2 + random() * 0.5;
     this.depth[i] = depthRange(x, y)[1] * this.keeps[i];
+    // a beat of its own, by its place in the school and not by chance, so the stream the seed gives is not moved
+    this.phase[i] = (i * 2.399963) % (Math.PI * 2);
+    this.turn[i] = this.rise[i] = this.pace[i] = 0;
+    this.vigour[i] = 1;
+    this.lastX[i] = x;
+    this.lastY[i] = y;
+    this.lastHeading[i] = this.heading[i];
+    this.lastDepth[i] = this.depth[i];
+  }
+
+  /**
+   * Every fish's stroke on by `dt`, from how it moved since the last: after everything that moves a fish has had its
+   * step, the wander, the bite and the fight alike. Fish `hooked`, while it is `pulling`, beats harder.
+   */
+  stroke(dt: number, hooked = -1, pulling = false) {
+    // a step of no time, as a pause takes, moves nothing: a beat counted over it would be a division by nought
+    if (!(dt > 0)) return;
+    const ease = Math.min(1, SWIM.ease * dt),
+      turnEase = Math.min(1, SWIM.turnEase * dt),
+      vigourEase = Math.min(1, SWIM.vigourEase * dt);
+    const length = FISH_BODY_LENGTH;
+    for (let i = 0; i < this.count; i++) {
+      const mx = this.x[i] - this.lastX[i],
+        my = this.y[i] - this.lastY[i];
+      const moved = Math.sqrt(mx * mx + my * my);
+      // headings are kept within a half turn either way, so a change is brought back within one by a whole turn
+      let dh = this.heading[i] - this.lastHeading[i];
+      if (dh > Math.PI) dh -= TURN;
+      else if (dh < -Math.PI) dh += TURN;
+      // a turn about at the shore is a step's half turn: it is held to the most a fish bends to, not read as a spin
+      const turning = Math.max(-SWIM.maxTurn, Math.min(SWIM.maxTurn, dh / dt));
+      this.turn[i] += (turning - this.turn[i]) * turnEase;
+      this.rise[i] += ((this.lastDepth[i] - this.depth[i]) / dt - this.rise[i]) * ease;
+      this.pace[i] += (moved / dt - this.pace[i]) * ease;
+      const want = i === hooked && pulling ? SWIM.hooked : 1;
+      this.vigour[i] += (want - this.vigour[i]) * vigourEase;
+      // a beat each stride's worth of water, and a slow one standing still, quicker the harder it beats
+      const beats = (SWIM.idle + moved / dt / (SWIM.stride * length)) * this.vigour[i];
+      const phase = this.phase[i] + beats * TURN * dt;
+      this.phase[i] = phase >= TURN ? phase - TURN : phase;
+      this.lastX[i] = this.x[i];
+      this.lastY[i] = this.y[i];
+      this.lastHeading[i] = this.heading[i];
+      this.lastDepth[i] = this.depth[i];
+    }
   }
 
   /** Every fish on by `dt` seconds. */

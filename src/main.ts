@@ -16,11 +16,11 @@ import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { aimFrom } from './aim';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
-import { FishDraw } from './fishdraw';
+import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
 import { buildPanel } from './lab';
-import { SPLASH_CAPACITY, VIEWS, WATER_PACE } from './lake';
+import { SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE } from './lake';
 import { light, paintFor, timeNamed } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
@@ -175,7 +175,7 @@ async function main() {
   let settings: Settings = readSettings(query);
   /** The one way the water is drawn; another would be chosen here. */
   const style = STYLES[0];
-  /** The fish as they are drawn, and which of the dynamic groups they are. */
+  /** The fish as they are drawn, and the first of the dynamic groups they are, a part each. */
   const fish = new FishDraw();
   let fishSlot = 1;
   /**
@@ -209,7 +209,7 @@ async function main() {
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      renderer.setDynamic([...water, fish.group(), ...casting.groups()]);
+      renderer.setDynamic([...water, ...fish.groups(), ...casting.groups()]);
     }
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
@@ -402,11 +402,12 @@ async function main() {
     // the cast first, which says where a landed fish hangs; then the fish, that one hanging there
     const drawn = casting.write(game, aim);
     const hung = drawn.hung ? game.bite.fish : -1;
-    renderer.move(fishSlot, fish.matrices, fish.write(game.fish, hung, casting.hang));
+    const swimming = fish.write(game.fish, hung, casting.hang, game.t);
+    for (let p = 0; p < FISH_PARTS.length; p++) renderer.move(fishSlot + p, fish.matrices[p], swimming);
     rippling = rippleData(game.splashes, game.t, rippleLife, ripples);
     renderer.setRings(ripples, rippling);
     // the cast's groups after the fish's, each as many as are live
-    const c = fishSlot + 1;
+    const c = fishSlot + FISH_PARTS.length;
     // the rod, then the line in each of its colours (all of it in one), then the rest, in the order of `groups`
     let g = c;
     renderer.move(g++, casting.rod, drawn.rod);
@@ -541,6 +542,12 @@ async function main() {
     },
     grass: () => renderer.grassDrawn(),
     ripples: () => ripples.subarray(0, rippling * RIPPLE_FLOATS),
+    fishPose: (i) => {
+      const n = (SWIM.segments.length + 1) * 3;
+      return Number.isInteger(i) && i >= 0 && i < game.fish.count
+        ? fish.joints.slice(i * n, i * n + n)
+        : new Float64Array(0);
+    },
     settings: () => ({ ...settings }),
     change: (next) => change(next),
     mode: () => mode,

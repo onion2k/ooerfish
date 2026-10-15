@@ -68,6 +68,12 @@ export function hashGame(game: Game): string {
     eat(fish.heading[i]);
     eat(fish.speed[i]);
     eat(fish.keeps[i]);
+    // the stroke too, which only the drawing reads, so a picture of a fish is held to the seed as its place is
+    eat(fish.phase[i]);
+    eat(fish.turn[i]);
+    eat(fish.rise[i]);
+    eat(fish.pace[i]);
+    eat(fish.vigour[i]);
   }
   const { splashes } = game;
   eat(splashes.count);

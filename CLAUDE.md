@@ -198,8 +198,21 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   as it was over most of the lake and fine within `SURFACE.near` of the Shore
   view's camera, so a short swell is drawn travelling there (`SURFACE` in
   `lake.ts`, its triangles counted by `game.scenery()` under a ceiling). `src/fishdraw.ts`
-  draws each fish as a mesh glowing under the water (`FLOW_GLOW`), which the
+  draws each fish glowing under the water (`FLOW_GLOW`), which the
   water shows; there is no glow drawn on the surface.
+- **The fish's bodies:** the renderer has no skinning, so a fish is a chain of
+  rigid segments (head, two body, stalk, then the tail and dorsal fins), a
+  group a part (`FISH_PARTS`), laid along a spine. `src/swim.ts` poses the
+  spine (pure sums): a carangiform wave growing to the tail, an arc into the
+  turn, a pitch as it rises, each joint a segment's length from the last, and
+  lifted or held clear of a bed that rises under the body. The school keeps the
+  stroke (`phase`, `turn`, `rise`, `pace`, `vigour`) in `School.stroke`, run once
+  at the end of `Game.step` from how each fish actually moved, so the wander,
+  the bite and the fight all swim it; it draws no chance. A hooked fish pulling
+  beats harder; a landed one hangs nose up and flaps by the game's clock. The
+  figures are `SWIM` in `lake.ts`, the chunky toy and subtle stroke chosen from a
+  mock; `game.fishPose(i)` reads the spine the last frame drew, and the
+  invariants hold every joint in the water.
 - **The cast:** `src/cast.ts` is its flight as sums (an arc from the rod's tip
   that lands where it first meets the water or the bank), shared by the
   preview, so the preview is the flight to the bit; `src/lure.ts` is the lure
@@ -272,8 +285,8 @@ What to copy the shape of, when building something new:
 - **A thing in the lake:** the fish. Its numbers are content in `lake.ts`,
   it moves in `fish.ts` stepped by `game.ts`, is held by `invariants.ts`,
   hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
-  the bench, read by `debug.ts`, and drawn (its glow, as a mesh) by
-  `fishdraw.ts`.
+  the bench, read by `debug.ts`, posed by `swim.ts` and drawn (a chain of
+  glowing segments) by `fishdraw.ts`.
 - **A painted edge on a solid:** the rocks (`src/rocks.ts`) and the cabin's
   timber (`src/cabin.ts`): a mesh `split` and `painted` once with a `set`
   named in `look.ts`'s `PAINT`, a test that it is painted and built the same

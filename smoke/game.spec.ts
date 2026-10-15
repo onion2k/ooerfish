@@ -438,6 +438,42 @@ test('looks round by default, and casts only once switched to, by the button or 
   expect(problems).toEqual([]);
 });
 
+test('draws each fish as a body that flexes as it swims, its head where the fish is, a hooked one too', async ({
+  page,
+}) => {
+  await start(page, { seed: 1, paused: true });
+  const g = () => page.evaluate(() => ({ fish: window.game!.fish(), pose: window.game!.fishPose(0) }));
+  await page.evaluate(() => window.game!.step(60));
+  const a = await g();
+  expect(a.pose.length, 'a nose, the joints between segments and the stalk’s end').toBe(5);
+  // the head's back, the second joint, is where the school has the fish, under the water
+  expect(a.pose[1][0]).toBeCloseTo(a.fish[0].x, 3);
+  expect(a.pose[1][1]).toBeCloseTo(a.fish[0].y, 3);
+  for (const [, , z] of a.pose) expect(z).toBeLessThan(0);
+  // how far the stalk's end lies to the side of the line from the head's back to the nose, through a beat
+  const swing = async (frames: number, i = 0) => {
+    let most = 0;
+    for (let f = 0; f < frames; f++) {
+      const pose = await page.evaluate((k) => {
+        window.game!.step(1);
+        return window.game!.fishPose(k);
+      }, i);
+      const [n, h, e] = [pose[0], pose[1], pose[4]];
+      const fx = n[0] - h[0],
+        fy = n[1] - h[1];
+      most = Math.max(most, Math.abs((fx * (e[1] - h[1]) - fy * (e[0] - h[0])) / Math.hypot(fx, fy)));
+    }
+    return most;
+  };
+  const calm = await swing(40);
+  expect(calm, 'the tail swings as it swims').toBeGreaterThan(0.02);
+  expect(await page.evaluate(() => window.game!.fishTo('fight'))).toBe(true);
+  const fought = await page.evaluate(() => window.game!.fishing().fish);
+  // played on, it flexes still; that it beats harder is the unit tests', since the fight's steering bends it too
+  expect(await swing(60, fought)).toBeGreaterThan(0.02);
+  expect(await page.evaluate(() => window.game!.fishPose(99))).toEqual([]);
+});
+
 test('puts the camera where each view says', async ({ page }) => {
   await start(page, { seed: 1, paused: true });
   for (const [view, near] of [

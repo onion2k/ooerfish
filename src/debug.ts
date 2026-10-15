@@ -176,6 +176,11 @@ export interface GameApi {
    * once a splash's ripples are over, and none until a frame has been drawn since it landed.
    */
   ripples(): { x: number; y: number; age: number; size: number }[];
+  /**
+   * Fish `i`'s spine as the last frame drawn posed it, nose to the end of its tail's stalk, a point a joint: how its
+   * body is bent by its stroke and its turn. Empty for a fish the lake does not have.
+   */
+  fishPose(i: number): [number, number, number][];
 }
 
 /** What the page gives the API that is not the game's: time, the camera and the renderer. */
@@ -205,6 +210,8 @@ export interface DebugHost {
   grass(): Promise<{ near: number; far: number }>;
   /** The ripples the last frame handed the water, four floats each. */
   ripples(): Float32Array;
+  /** Fish `i`'s spine as the last frame posed it, three floats a joint; empty for none. */
+  fishPose(i: number): Float64Array;
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
@@ -346,6 +353,10 @@ export function createApi(host: DebugHost): GameApi {
         age: d[i * 4 + 2],
         size: d[i * 4 + 3],
       }));
+    },
+    fishPose(i) {
+      const d = host.fishPose(i);
+      return Array.from({ length: d.length / 3 }, (_, k) => [d[k * 3], d[k * 3 + 1], d[k * 3 + 2]]);
     },
   };
 }

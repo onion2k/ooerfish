@@ -63,6 +63,24 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
+  // the fish nearer than the shore stands, on the clean lake: each body flexed along its stroke from head to tail fin,
+  // its back fin up, by day and at night, when its own glow is what shows it. Any nearer and the surface's refraction
+  // breaks a fish into pieces, which is the water and says nothing of the fish
+  for (const time of ['day', 'night'] as const)
+    test(`fish-swimming-${time}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { ...STANDARD, dirt: 0, time }, 180);
+      await page.evaluate(() => {
+        const [fish] = window.game!.fish();
+        window.game!.look(fish.x, fish.y, { polar: 1, radius: 28 });
+        window.game!.step(0);
+      });
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`fish-swimming-${time}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
   // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
   // bobber
   for (const [name, act] of [

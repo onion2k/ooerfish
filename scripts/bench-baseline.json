@@ -1,22 +1,22 @@
 {
   "the lab's fish swimming": {
-    "relative": 0.00009703242302707343,
-    "ms": 0.0016,
-    "ref": 16.5
+    "relative": 0.00011004961908354965,
+    "ms": 0.00169,
+    "ref": 15.3
   },
   "casting and sinking": {
-    "relative": 0.00011536087262142906,
-    "ms": 0.00183,
-    "ref": 15.8
+    "relative": 0.00011996373825311491,
+    "ms": 0.00185,
+    "ref": 15.4
   },
   "a fish fought and landed": {
-    "relative": 0.00010242421746143525,
-    "ms": 0.0016,
-    "ref": 15.6
+    "relative": 0.0001140146588677084,
+    "ms": 0.00171,
+    "ref": 15
   },
   "a lake as full of fish as it can hold": {
-    "relative": 0.0005432904524245708,
-    "ms": 0.00846,
-    "ref": 15.6
+    "relative": 0.0005787538876339269,
+    "ms": 0.00889,
+    "ref": 15.4
   }
 }

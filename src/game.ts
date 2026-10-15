@@ -95,6 +95,8 @@ export class Game {
     if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
     this.bite.step(this.t, dt, this.fish, this.lure, this.random);
     if (this.bite.phase === 'hooked') this.fight(dt);
+    // the stroke last, once every fish has moved for the step however it was moved
+    this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
   }
 
   /** The player strikes: a fish biting is hooked, one nibbling lets go, and with none at the lure it is twitched. */
