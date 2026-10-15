@@ -56,6 +56,24 @@ detail` 0.73 against the standard clear water's 0.71, written in by hand
   committed figures stand and part 13 is done; the slices there are the
   evidence that crests now cross the near water.
 - **Part 11c is built and merged** (its record below), pinning v0.41.1.
+- **Part 14's take-in is half done** (14 Oct, late; stopped at the usage
+  limit). The package released v0.42.0 (`sparkleDrift`; the user chose the
+  drift at half a unit a second there). In ooerfish the pin to v0.42.0 is
+  committed on its own (0912623) and the figures are on the branch
+  `crystal-14`, one commit on main, since they are not yet to the
+  definition of done: `CLEAR.sparkleDrift` 0.5 along the main swell,
+  `sparkles` 0.15, held by a test in `test/water.test.ts` that was seen
+  failing first; check:quick is green there and the look gate is not run. Films of five seconds of `clear-day` are in the
+  session's scratchpad, with a tracker (`stars.mjs`) that counts stars as
+  the pixels where two deterministic films differ: the drift is proved to
+  reach the game (frames at a drift of nought and of 0.5 differ by up to
+  935 pixels), but the tracker finds only one to three stars near the
+  camera in five seconds either way, so it cannot yet show the blink gone;
+  the 12b blink was seen at the coarse surface and may be gone with part 13. The cut was filmed at 0.4 (85 stars against 78 at 0.45) and left at
+  0.45. Still to do: a film that shows the near stars (or a scene where
+  they are), the look pictures through `/gate-moved`, the pass with
+  `npm run fuzz -- --seeds 1-24`, the perf baseline for the pin's bytes,
+  the record under part 14's box, and the figures' commit.
   Next is part 14, the sparkle, in the package.
 - **Decisions the user has made** are in each part's record and are not
   reopened: the mirror alone from part 0; the sand ring; knee 0.4, line
