@@ -77,12 +77,12 @@ export const PALETTE = {
   mushroom: [0.72, 0.55, 0.36] as Colour,
 
   /** The see-through water's shallows and deep, clear (a flat saturated blue) and as sick as it gets. */
-  clearShallow: [0.08, 0.36, 0.7] as Colour,
-  clearDeep: [0.06, 0.26, 0.52] as Colour,
+  clearShallow: [0.05, 0.4, 0.78] as Colour,
+  clearDeep: [0.02, 0.16, 0.45] as Colour,
   sickShallow: [0.55, 0.82, 0.3] as Colour,
   sickDeep: [0.07, 0.22, 0.03] as Colour,
   /** What the see-through water lightens toward by the camera, clear and sick, and toward on its swells' crests. */
-  clearNear: [0.015, 0.09, 0.3] as Colour,
+  clearNear: [0.01, 0.05, 0.2] as Colour,
   sickNear: [0.4, 0.7, 0.2] as Colour,
   crest: [0.8, 0.97, 1] as Colour,
   /** What the see-through water multiplies the sky it mirrors by: a soft blue, so the reflection is the water's own colour lightened and not the sky's plain pale blue. */

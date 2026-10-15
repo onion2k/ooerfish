@@ -168,7 +168,7 @@ describe('the see-through water', () => {
     expect(look.mirrorNear, 'the mirror is not kept near the camera').toBe(0);
     expect(look.mirror).toBe(1.2);
     expect(look.nearDistance).toBe(45);
-    expect(look.clarity).toBe(0.8);
+    expect(look.clarity).toBe(0.6);
     // the shallows chosen from the sheets of 14 October: a knee of half a clarity, a line half the renderer's width at
     // three times the strength it had, so a crisp net of light on the sand ring and not a wash
     expect(look.clearKnee).toBe(0.4);
@@ -191,9 +191,9 @@ describe('the see-through water', () => {
       expect(c[2]).toBeGreaterThan(c[1]);
       expect(c[1]).toBeGreaterThan(c[0]);
     }
-    expect(PALETTE.clearDeep).toEqual([0.06, 0.26, 0.52]);
-    expect(PALETTE.clearNear).toEqual([0.015, 0.09, 0.3]);
-    expect(PALETTE.clearShallow).toEqual([0.08, 0.36, 0.7]);
+    expect(PALETTE.clearDeep).toEqual([0.02, 0.16, 0.45]);
+    expect(PALETTE.clearNear).toEqual([0.01, 0.05, 0.2]);
+    expect(PALETTE.clearShallow).toEqual([0.05, 0.4, 0.78]);
     // and the bed is a dark slate, which keeps the shallows blue seen through them
     expect(PALETTE.bed).toEqual([0.035, 0.06, 0.11]);
   });
