@@ -28,6 +28,17 @@ describe('the times of day', () => {
     expect(timeNamed('teatime').name).toBe('day');
   });
 
+  it('stand the dawn and dusk suns low ahead of the angler, north over the lake, so the sun lies in a lane across the water, and keep the day sun behind', () => {
+    // docs/crystal-2.md part 3: the lane shows only where the camera looks toward the sun, and from the Shore view on
+    // the south bank that is north; chosen by the user from the stills of 15 October 2026, with the day sun kept where
+    // it stood so the cliff, which faces the angler, stays lit by day
+    expect(timeNamed('dawn').sun).toEqual([0.45, 0.8, 0.35]);
+    expect(timeNamed('dusk').sun).toEqual([-0.45, 0.8, 0.3]);
+    expect(timeNamed('day').sun).toEqual([0.45, -0.5, 0.74]);
+    for (const name of ['dawn', 'dusk']) expect(timeNamed(name).sun[1], name).toBeGreaterThan(0);
+    expect(timeNamed('day').sun[1]).toBeLessThan(0);
+  });
+
   it('are found from a time of day, the nearest round the clock', () => {
     expect(nearestTime(0.5).name).toBe('day');
     expect(nearestTime(0.7).name).toBe('dusk');

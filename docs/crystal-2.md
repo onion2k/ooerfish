@@ -294,7 +294,7 @@ test`, `npm run test:gpu` and `npm run perf:gpu` green. Left uncommitted on the 
       the pass, with the perf gate (a palette costs nothing, and the frame
       is held to that). A branch of its own, left uncommitted for the user's go, not merged. A few
       hours (_guess_).
-- [ ] **Part 3: the options taken in** (ooerfish, after parts 1b and 2).
+- [x] **Part 3: the options taken in** (done 15 Oct: see its record below) (ooerfish, after parts 1b and 2).
       The pin to v0.43.0 in a commit of its own; then `CLEAR.sunLane` 0.6
       and `sunLaneWidth` 60, `causticGlow` at what the game's films say
       between 0.3 and 0.6 with `causticScale` at twice the default, and
@@ -303,6 +303,31 @@ test`, `npm run test:gpu` and `npm run perf:gpu` green. Left uncommitted on the 
       north, for the user to pick where the sun stands; the pick lands as
       figures in `look.ts`. The pictures through `/gate-moved`, the pass,
       the perf figures before and after. One to two days (_guess_).
+
+**Part 3's take-in (15 Oct):** the pin to v0.43.0 in a commit of its own,
+every look picture holding to the pixel. Stills of the clean lake from the
+Shore view at dawn, day and dusk, with the lane at 0.6 and power 60, the
+glow, the doubled cell and the grain on, the sun at four placements: where
+it stood, to the side, north and high, north and low. The lane shows only
+with the sun ahead of the angler, and then the cliff, which faces the
+angler, falls into shade; north and low gave a whole field of glints by day
+and pink lanes at dawn and dusk, at the cost of a backlit cliff all day.
+**The user chose** the day sun where it stood and dawn's and dusk's moved
+north and low, `[0.45, 0.8, 0.35]` and `[-0.45, 0.8, 0.3]`, so the lanes
+come at the ends of the day and the cliff stays lit by day. The glow was
+settled at 0.45, the middle of the sheet's range, from the overhead still:
+a crisp net on the sand ring, not overpowering. `CLEAR.sunLane` 0.6,
+`sunLaneWidth` 60, `causticGlow` 0.45, `causticScale` 3 (twice the
+renderer's 1.5 units at 100 mm a unit), `foamGrain` 0.3, held by
+`test/water.test.ts`, and the suns by `test/look.test.ts`, both seen failing
+first. Sixteen look pictures moved, each looked at: the dusk pair a field of
+pink glints across the west of the water, and on the sick lake a gold
+sheen; the rest the crisper caustic net and the frayed foam, on the water
+only. The download moved from 114,608 to 115,379 gzipped bytes, 58 of them
+the figures and the rest the renderer's shader with the pin, whose own
+commit left the download gate red; the frame read 3.64 ms against 3.54,
+within tolerance; every other gate held and twenty-four fuzz seeds broke
+no rule. Not looked at: the lane at night, whose moon stands where it did.
 
 ## Out of scope
 

@@ -84,6 +84,15 @@ export const CLEAR = {
   // the sky, chosen from the sheets of 13 October 2026 (docs/crystal.md); the surface lies at nought, so the plane is the
   // renderer's own, and the swells shift what is seen by this share of the screen, the figure those sheets were taken at
   mirrorDistort: 0.08,
+  // round two (renderer v0.43.0, docs/crystal-2.md), chosen by the user from its sheet: the sun's lane, a specular lobe
+  // toward the true sun of this strength and power, seen where the camera looks toward the sun, so dawn's and dusk's
+  // suns stand ahead of the angler for it; the caustics' own light on the sand, with their cell at twice the
+  // renderer's 1.5 units, a calmer net; and the foam's white holed by a finer noise, so the line frays like froth
+  sunLane: 0.6,
+  sunLaneWidth: 60,
+  causticGlow: 0.45,
+  causticScale: 3,
+  foamGrain: 0.3,
 } as const;
 
 /**
@@ -161,6 +170,11 @@ export const clear: WaterStyle = {
       rippleCut: CLEAR.rippleCut,
       detailPixels: CLEAR.detailPixels,
       detailAmount: CLEAR.detailAmount,
+      sunLane: CLEAR.sunLane,
+      sunLaneWidth: CLEAR.sunLaneWidth,
+      causticGlow: CLEAR.causticGlow,
+      causticScale: CLEAR.causticScale,
+      foamGrain: CLEAR.foamGrain,
     };
   },
 };

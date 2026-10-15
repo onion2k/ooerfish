@@ -125,6 +125,25 @@ describe('the see-through water', () => {
     }
   });
 
+  it('lays a lane of sunlight on the water, lights its caustics on the sand, and holes its foam, as chosen from round two', () => {
+    // docs/crystal-2.md: the sun's lane at 0.6 and a power of 60, the caustic glow at 0.45 (between the 0.3 and 0.6 the
+    // sheet gave, settled from the game's own stills) with the cell at twice the default 1.5 units, and the foam's
+    // grain at 0.3; the same clean and sick, since the glow follows the caustics' own strength
+    expect(CLEAR.sunLane).toBe(0.6);
+    expect(CLEAR.sunLaneWidth).toBe(60);
+    expect(CLEAR.causticGlow).toBe(0.45);
+    expect(CLEAR.causticScale).toBe(3);
+    expect(CLEAR.foamGrain).toBe(0.3);
+    for (const dirt of [0, 1]) {
+      const look = clear.clear(dirt, true, timeNamed('day'));
+      expect(look.sunLane, `at contamination ${dirt}`).toBe(0.6);
+      expect(look.sunLaneWidth, `at contamination ${dirt}`).toBe(60);
+      expect(look.causticGlow, `at contamination ${dirt}`).toBe(0.45);
+      expect(look.causticScale, `at contamination ${dirt}`).toBe(3);
+      expect(look.foamGrain, `at contamination ${dirt}`).toBe(0.3);
+    }
+  });
+
   it('swells no steeper, all added, than one, or the surface folds over itself where the crests meet', () => {
     const sum = CLEAR_WAVES.reduce((s, w) => s + w.steepness, 0);
     expect(sum).toBeLessThan(1);

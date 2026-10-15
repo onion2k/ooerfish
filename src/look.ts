@@ -115,7 +115,8 @@ export const TIMES: readonly TimeOfDay[] = [
     at: 0.25,
     zenith: PALETTE.dawnZenith,
     horizon: PALETTE.dawnHorizon,
-    sun: [0.9, -0.25, 0.35],
+    // low ahead of the angler, north over the lake, so the sun lies in a lane across the water (docs/crystal-2.md)
+    sun: [0.45, 0.8, 0.35],
     sunColour: PALETTE.dawnlight,
     ambient: 0.75,
     glitter: 0.6,
@@ -137,7 +138,8 @@ export const TIMES: readonly TimeOfDay[] = [
     at: 0.75,
     zenith: PALETTE.duskZenith,
     horizon: PALETTE.duskHorizon,
-    sun: [-0.9, 0.2, 0.3],
+    // low ahead of the angler, north over the lake, as dawn's is, mirrored to the west
+    sun: [-0.45, 0.8, 0.3],
     sunColour: PALETTE.dusklight,
     ambient: 0.65,
     glitter: 0.5,
