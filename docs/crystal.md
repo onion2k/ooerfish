@@ -56,30 +56,18 @@ detail` 0.73 against the standard clear water's 0.71, written in by hand
   committed figures stand and part 13 is done; the slices there are the
   evidence that crests now cross the near water.
 - **Part 11c is built and merged** (its record below), pinning v0.41.1.
-- **Part 14's take-in is half done** (14 Oct, late; stopped at the usage
-  limit). The package released v0.42.0 (`sparkleDrift`; the user chose the
-  drift at half a unit a second there). In ooerfish the pin to v0.42.0 is
-  committed on its own (0912623) and the figures are on the branch
-  `crystal-14`, one commit on main, since they are not yet to the
-  definition of done: `CLEAR.sparkleDrift` 0.5 along the main swell,
-  `sparkles` 0.15, held by a test in `test/water.test.ts` that was seen
-  failing first; check:quick is green there and the look gate is not run. Films of five seconds of `clear-day` are in the
-  session's scratchpad, with a tracker (`stars.mjs`) that counts stars as
-  the pixels where two deterministic films differ: the drift is proved to
-  reach the game (frames at a drift of nought and of 0.5 differ by up to
-  935 pixels), but the tracker finds only one to three stars near the
-  camera in five seconds either way, so it cannot yet show the blink gone;
-  the 12b blink was seen at the coarse surface and may be gone with part 13. The cut was filmed at 0.4 (85 stars against 78 at 0.45) and left at
-  0.45. Still to do: a film that shows the near stars (or a scene where
-  they are), the look pictures through `/gate-moved`, the pass with
-  `npm run fuzz -- --seeds 1-24`, the perf baseline for the pin's bytes,
-  the record under part 14's box, and the figures' commit.
-  Next is part 14, the sparkle, in the package.
+- **Part 14 is done** (15 Oct; its record below): the pin at v0.42.0, the
+  sparkles drifting along the main swell at half a unit a second and
+  halved, the pictures written and looked at, the pass green with the
+  bench read again on a quiet machine, and the perf baseline written for
+  the download alone. Nothing of the crystal plan is open: the sparkle was
+  its last item.
 - **Decisions the user has made** are in each part's record and are not
   reopened: the mirror alone from part 0; the sand ring; knee 0.4, line
   0.08, caustics 0.36; the detail layer at 8 px and 1.0; the recommended
   motion with the blinking sparkle put right; a finer surface; the
-  recommended swells kept over the short one.
+  recommended swells kept over the short one; the sparkles' drift over a
+  resting cell, at half a unit a second.
 - **The sheets, films and reports** of every experiment are under
   `/tmp/crystal/` (sheets, lake, shallows, film, detail, detail-film,
   motion) and the package's `docs/specs/clear-water/`.
@@ -522,7 +510,7 @@ shore.
 Found 14 October 2026 by part 12b's films, and written up here as the
 package item the pause notes call for.
 
-- [ ] **Part 14: a sparkle that is not pinned to the lattice**
+- [x] **Part 14: a sparkle that is not pinned to the lattice** (done 14 and 15 Oct: the drift built and released as artshape-render v0.42.0, the user choosing it over a resting cell from the package's films, and taken in here at half a unit a second from the game's own: see its record below)
       (artshape-render). Each of the clear water's sparkles is a star pinned
       to a point of the renderer's lattice that lights as the fine waves
       there come round to face the glint, so a star near the camera returns
@@ -543,6 +531,42 @@ package item the pause notes call for.
       there only because no cut helped), and five seconds of `clear-day`
       filmed to show no star returning in its place. One to two days
       (_guess_).
+
+**Part 14's take-in (15 Oct):** the pin to v0.42.0 in a commit of its own,
+then `CLEAR.sparkleDrift` 0.5 along the main swell (the first of
+`CLEAR_WAVES`, so the way is said once) and `sparkles` 0.15, since a drifting
+lattice shows about twice the stars; held by `test/water.test.ts`, seen
+failing first. The game's stars could not be counted by shape alone (the
+falls' reflections and the foam read as stars), so five seconds of
+`clear-day` were filmed with the sparkles off as the reference, and a star
+is a blob brighter than that reference by forty levels over the water,
+tracked as the package's test tracks them (within four pixels is the same
+star; lit again after 0.4 s dark is a return in its place; lit again three
+times or more is a blinker). The drift filmed at four settings, the
+sparkles at 0.15 and the cut at 0.45 throughout:
+
+| drift, units a clock second | stars | places lit again | returns | blinkers | lit pixels a frame |
+| --------------------------: | ----: | ---------------: | ------: | -------: | -----------------: |
+|                           0 |    80 |               40 |      54 |        4 |                 55 |
+|                         0.5 |    75 |               34 |      44 |        0 |                 48 |
+|                         1.0 |    69 |               11 |      12 |        0 |                 27 |
+|                         1.5 |    66 |               11 |      13 |        0 |                 23 |
+
+Every star is in the middle and far water from the shore view, none within
+the near third of the screen, pinned or drifting, so the blink of part 12b
+(a star near the camera, ten returns at the coarse surface) is no longer
+there to see; the fine surface of part 13 changed where the glint is caught.
+At 0.5 the blinkers are gone and the stars keep their light; at 1.0 and 1.5
+the light halves, as a star passes through the glint too fast to swell, for
+little fewer returns. Far off a third of a unit a second is two or three
+pixels, so a far star's second lighting still reads as the same place, and
+the places lit again fall by only a sixth; nothing short of a drift that
+dims the stars would change that, and 0.5 stands. The cut was filmed at 0.4
+with the drift in (85 stars against 78) and stays at 0.45. Twelve look
+pictures moved, each looked at: the stars themselves, and from overhead the
+lattice's two big soft stars standing in other cells; the six by night and
+on the phone held, the moon lighting hardly any. The tracker is
+`stars.mjs` in the session's scratchpad and the films under it, not kept.
 
 ## Out of scope
 

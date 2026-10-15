@@ -98,6 +98,21 @@ describe('the see-through water', () => {
     expect(clear.clear(0, true, timeNamed('day')).sparkleCut).toBe(SPARKLE_CUT);
   });
 
+  it('carries its sparkles along the main swell at half a unit a second, and asks for half as many', () => {
+    // part 14 (docs/crystal.md): the user chose the drift at half a unit a second from the package's films, so a glint
+    // that comes round again comes round somewhere else; a drifting lattice shows about twice the stars, so half as many
+    // are asked for; the way is the main swell's, said once in CLEAR_WAVES
+    expect(CLEAR.sparkleDrift).toBe(0.5);
+    expect(CLEAR.sparkles).toBe(0.15);
+    const main = CLEAR_WAVES[0];
+    for (const dirt of [0, 1]) {
+      const look = clear.clear(dirt, true, timeNamed('day'));
+      expect(look.sparkleDrift![0], `at contamination ${dirt}`).toBeCloseTo(Math.cos(main.direction) * 0.5, 6);
+      expect(look.sparkleDrift![1], `at contamination ${dirt}`).toBeCloseTo(Math.sin(main.direction) * 0.5, 6);
+      expect(look.sparkles, `at contamination ${dirt}`).toBe(0.15);
+    }
+  });
+
   it('holds its detail near and far: a layer whose cell is eight pixels on the screen, added in full', () => {
     // part 11c (docs/crystal.md): chosen from the films of 14 October, where 8 px at 1.0 broke the reflections into
     // bands that drift and re-form and made the far water read as moving water; 4 px was grain and 16 px faint
@@ -161,7 +176,7 @@ describe('the see-through water', () => {
     expect(look.caustics).toBe(0.36);
     expect(look.crestAmount).toBe(0);
     expect(look.sparkleSize).toBe(9);
-    expect(look.sparkles).toBe(0.3);
+    expect(look.sparkles).toBe(0.15);
     expect(look.sparkleBright).toBe(24);
     // the fine waves' slopes lift the body toward a lighter blue, painted and not mirrored
     expect(look.ripple).toEqual(PALETTE.rippleLight);

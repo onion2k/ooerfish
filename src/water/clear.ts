@@ -52,8 +52,8 @@ export const CLEAR = {
   // the near colour's reach from the camera, so the far water is lighter than the near, and how much of the crest colour the swells' tops take (none)
   nearDistance: 45,
   crestAmount: 0,
-  // the sparkles: three in ten of the lattice's cells may (from above that is three big soft stars and not a lattice of hard dots), how nearly a wave must catch the glint, how bright by day, and how big
-  sparkles: 0.3,
+  // the sparkles: three in twenty of the lattice's cells may (from above that is a few big soft stars and not a lattice of hard dots; it was three in ten with the lattice pinned, and a drifting one shows about twice the stars), how nearly a wave must catch the glint, how bright by day, and how big
+  sparkles: 0.15,
   // the cut was filmed from 0.45 to 0.98 over five seconds of clear-day (docs/crystal.md, part 12b) to stop the star
   // that sits blinking near the camera: each star is pinned to a point of the renderer's lattice and lights as the
   // fine waves there come round to face the glint, so a higher cut only makes it fewer and smaller (ten returns at
@@ -61,6 +61,11 @@ export const CLEAR = {
   sparkleCut: 0.45,
   sparkleBright: 24,
   sparkleSize: 9,
+  // the sparkles' lattice carried along the main swell (the first of CLEAR_WAVES) at this many units a second of the
+  // renderer's clock (renderer v0.42.0), so a glint that comes round again at a star's point comes round somewhere else
+  // and no star blinks in its place; chosen by the user at half a unit from the package's films of 14 October 2026
+  // (docs/crystal.md, part 14), where pinned stars lit again in sixteen places over five seconds and drifting ones in three
+  sparkleDrift: 0.5,
   // a sick lake keeps this share of the sparkles' brightness
   sickSparkles: 0.5,
   // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
@@ -142,6 +147,10 @@ export const clear: WaterStyle = {
       sparkleCut: CLEAR.sparkleCut,
       sparkleBright: CLEAR.sparkleBright * time.glitter * (1 - (1 - CLEAR.sickSparkles) * k),
       sparkleSize: CLEAR.sparkleSize,
+      sparkleDrift: [
+        Math.cos(CLEAR_WAVES[0].direction) * CLEAR.sparkleDrift,
+        Math.sin(CLEAR_WAVES[0].direction) * CLEAR.sparkleDrift,
+      ],
       mirrorTint: PALETTE.mirrorTint,
       mirrorNear: CLEAR.mirrorNear,
       mirror: CLEAR.mirror,
