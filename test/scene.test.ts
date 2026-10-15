@@ -17,11 +17,11 @@ import {
   BOULDER_DOMES,
   CABIN,
   CLIFF,
+  MAX_DEPTH,
   NOTCHES,
   SCENERY,
   STRETCH,
   bareGround,
-  bowlDepthAt,
   cabinGap,
   groundUnder,
   inShore,
@@ -90,8 +90,8 @@ const BANKS = BANDS + N_BOULDERS + 2;
 
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
-    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups then), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved; and on 14 October 2026 the bed's one slate sheet became six bands from the slate to the sand (43 groups now), on the rings it had and one more at each cut
-    expect(hashGroups(new Scene().static())).toBe('43:b7f44306');
+    // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups then), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved; and on 14 October 2026 the bed's one slate sheet became six bands from the slate to the sand (43 groups now), on the rings it had and one more at each cut; and on 15 October 2026 the sand reached under the whole lake (docs/crystal-2.md, part 4), so the bands were cut evenly from the middle and coloured from the sand to a darkened sand, and not the slate
+    expect(hashGroups(new Scene().static())).toBe('43:1d2fc54');
   });
 });
 
@@ -162,9 +162,12 @@ describe('the bed', () => {
     }
   });
 
-  it('is the sand in the shallowest band and the slate in the deepest, the bands between in between and in order', () => {
+  it('is the sand in the shallowest band and darker toward the middle, the bands in order, and never the slate where the blend reaches past the deepest', () => {
     expect(bands[BANDS - 1].colour).toEqual(sand);
-    expect(bands[0].colour).toEqual(slate);
+    // the sand reaches under the whole lake (part 4 of docs/crystal-2.md): the blend toward the slate ends past the
+    // deepest point, so the middle is a darkened sand and the slate is not reached
+    expect(BED_SHALLOWS.depth + BED_SHALLOWS.blend, 'the blend ends past the deepest').toBeGreaterThan(MAX_DEPTH);
+    for (const t of toward(bands[0].colour)) expect(t, 'the middle is short of the slate').toBeGreaterThan(0.25);
     for (let i = 1; i < BANDS - 1; i++)
       for (const t of toward(bands[i].colour)) {
         expect(t, `band ${i} is past the slate`).toBeGreaterThan(0);
@@ -182,23 +185,34 @@ describe('the bed', () => {
 
   it('colours each band by the depth at its middle radius: sand shallower than the shallows’ depth, slate past the blend', () => {
     const { depth, blend } = BED_SHALLOWS;
-    expect(depth, 'the shallows’ depth is the bed’s at three quarters of the way out').toBeCloseTo(
-      bowlDepthAt(0.75),
-      6,
-    );
     for (const b of bands) {
       const t = Math.min(1, Math.max(0, (depthAt((b.from + b.to) / 2) - depth) / blend));
       for (let c = 0; c < 3; c++) expect(b.colour[c]).toBeCloseTo(sand[c] + (slate[c] - sand[c]) * t, 6);
     }
-    // the sand begins where the water is the shallows' depth, and the slate where it is the blend deeper
+    // the sand begins where the water is the shallows' depth
     expect(depthAt(bands[BANDS - 1].from)).toBeCloseTo(depth, 4);
-    expect(depthAt(bands[0].to)).toBeCloseTo(depth + blend, 4);
+  });
+
+  it('cuts the bands evenly from the middle, none empty, when the blend reaches past the deepest, and from the slate’s edge when it does not', () => {
+    // past the deepest there is no water deep enough for the slate, so the first cut is at the middle itself, and a
+    // band from nought to nought would draw nothing: the bands are cut evenly from the middle to the shallows' depth
+    const past = bedCuts({ ...BED_SHALLOWS, depth: 5.5, blend: 1.5 }, sand, slate);
+    expect(past).toHaveLength(BED_SHALLOWS.bands);
+    for (const b of past) expect(b.to, `${b.from} to ${b.to}`).toBeGreaterThan(b.from);
+    const widths = past.slice(0, -1).map((b) => b.to - b.from);
+    for (const w of widths) expect(w).toBeCloseTo(widths[0], 10);
+    expect(depthAt(past[past.length - 1].from)).toBeCloseTo(5.5, 4);
+    // short of the deepest, as the bed was before, the slate is the deepest band, ending where the blend does
+    const short = bedCuts({ ...BED_SHALLOWS, depth: 2.625, blend: 1.5 }, sand, slate);
+    expect(short[0].colour).toEqual(slate);
+    expect(depthAt(short[0].to)).toBeCloseTo(4.125, 4);
+    expect(depthAt(short[short.length - 1].from)).toBeCloseTo(2.625, 4);
   });
 
   it('cuts by depth whatever the figures: two bands are the sand and the slate meeting at the depth, and no more', () => {
-    const two = bedCuts({ ...BED_SHALLOWS, bands: 2 }, sand, slate);
+    const two = bedCuts({ ...BED_SHALLOWS, depth: 2.625, bands: 2 }, sand, slate);
     expect(two.map((b) => b.colour)).toEqual([slate, sand]);
-    expect(depthAt(two[0].to)).toBeCloseTo(BED_SHALLOWS.depth, 4);
+    expect(depthAt(two[0].to)).toBeCloseTo(2.625, 4);
     // one band could not hold both the sand and the slate, and a part of a band is no band
     for (const bands of [1, 0, 2.5]) expect(() => bedCuts({ ...BED_SHALLOWS, bands })).toThrow(/two bands at least/);
   });

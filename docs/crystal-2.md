@@ -329,6 +329,46 @@ commit left the download gate red; the frame read 3.64 ms against 3.54,
 within tolerance; every other gate held and twenty-four fuzz seeds broke
 no rule. Not looked at: the lane at night, whose moon stands where it did.
 
+- [x] **Part 4: the cured lake crystal clear** (ooerfish, 15 Oct). Asked
+      for after part 3: the water was still opaque and not the bright,
+      sunny water of the reference. Built from a sheet of the game's own
+      lake, the user picking its fifth row.
+
+**Part 4's record (15 Oct):** what made the cured lake opaque was the
+game's own figures, not the renderer's. The bed was a near-black slate
+under everything deeper than 2.6 units, and clear water over a black bed
+reads as dark water. The clarity of 0.6 lost red light within a fifth of a
+unit and blue within one, so past the shallows only the water's own colour
+was seen. That colour was navy, darker still by the camera, and the sky's
+mirror at 1.2 covered the far water from the shore. Part 2's saturated
+palette, recommended from round two's sheet, lowered the clarity and
+darkened the colours, and so pulled the wrong way; it is undone here.
+
+A sheet of six, each building on the last, from the Shore view, overhead,
+the boat and the sick lake: clarity 3 alone and the sand under the whole
+lake each helped from overhead and left the shore view navy; the turquoise
+colours with half the mirror were the jump; clarity 6 on top was crystal
+clear, the sand seen through to the middle; and the slate kept at clarity 6
+left the middle a darker teal. **The user chose the fifth:**
+`PALETTE.clearShallow` (0.1, 0.62, 0.72), `clearDeep` (0.04, 0.42, 0.62),
+`clearNear` the shallows' own colour, `CLEAR.clarity` 6, `mirror` 0.6, and
+`BED_SHALLOWS.depth` 5.5, so the blend toward the slate ends past the
+deepest point and the middle is a darkened sand. The sick lake's clarity
+became a figure of its own, 0.15, the murk it had, rather than a share of
+the clean one's, so the cured lake grows clearer without the sick one
+following; the sick colours are untouched.
+
+At a depth of 5.5 the bed's cut rule made a first band from nought to
+4 × 10⁻¹⁹, an empty slate band that passed the test that each band starts
+where the last ended. `bedCuts` now asks of the depth against `MAX_DEPTH`
+whether the slate is reached, and when it is not, cuts the bands evenly from
+the middle; a test holds both cases, and the old condition, on the share,
+was seen failing it. The scene's hash moved with the bed's colours and
+rings. Sixteen look pictures moved, each looked at: the cured lake bright
+turquoise over sand from every view and time, the weed, rocks and fish seen
+through it, the dusk lane still on it; the sick lake the same murky green,
+a little flatter where the mirror lightened it.
+
 ## Out of scope
 
 The ocean's whitecaps and open swell, foam from breaking waves, the

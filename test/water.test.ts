@@ -64,6 +64,10 @@ describe('the see-through water', () => {
       was = now;
     }
     expect(at(1)).toBeGreaterThan(0);
+    // the sick lake's clarity is its own figure and not a share of the clean one's, so the cured lake can be made
+    // clearer without clearing the sick: the 0.15 it has been since 14 October (docs/crystal-2.md, part 4)
+    expect(at(1)).toBeCloseTo(CLEAR.sickClarity, 10);
+    expect(CLEAR.sickClarity).toBe(0.15);
   });
 
   it('has caustics when they are asked for, and none when they are not', () => {
@@ -185,9 +189,11 @@ describe('the see-through water', () => {
     const look = clear.clear(0, true, timeNamed('day'));
     expect(look.mirrorTint).toEqual([0.35, 0.62, 0.92]);
     expect(look.mirrorNear, 'the mirror is not kept near the camera').toBe(0);
-    expect(look.mirror).toBe(1.2);
+    // half the mirror it had, so the bright bed is seen through the far water and not the sky (part 4)
+    expect(look.mirror).toBe(0.6);
     expect(look.nearDistance).toBe(45);
-    expect(look.clarity).toBe(0.6);
+    // crystal clear when cured: light lasts ten times as far as it did, so the sand is seen through to the middle (part 4)
+    expect(look.clarity).toBe(6);
     // the shallows chosen from the sheets of 14 October: a knee of half a clarity, a line half the renderer's width at
     // three times the strength it had, so a crisp net of light on the sand ring and not a wash
     expect(look.clearKnee).toBe(0.4);
@@ -205,15 +211,18 @@ describe('the see-through water', () => {
     // the flow is fine, slow and gently tilted: 3.5 cells, a fifth of a unit a second
     const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
     expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([3.5, 0.2, 0.3]);
-    // the water is a darker, richer blue than a turquoise: blue over green over red in the shallows, near and deep
+    // the water is a bright turquoise when cured (part 4, chosen from the sheet of 15 October over the saturated blue of
+    // part 2, which darkened it): blue over green over red, near and deep, and green near the blue
     for (const c of [PALETTE.clearShallow, PALETTE.clearNear, PALETTE.clearDeep]) {
       expect(c[2]).toBeGreaterThan(c[1]);
       expect(c[1]).toBeGreaterThan(c[0]);
+      expect(c[1] / c[2], 'turquoise, not navy').toBeGreaterThan(0.6);
     }
-    expect(PALETTE.clearDeep).toEqual([0.02, 0.16, 0.45]);
-    expect(PALETTE.clearNear).toEqual([0.01, 0.05, 0.2]);
-    expect(PALETTE.clearShallow).toEqual([0.05, 0.4, 0.78]);
-    // and the bed is a dark slate, which keeps the shallows blue seen through them
+    expect(PALETTE.clearDeep).toEqual([0.04, 0.42, 0.62]);
+    expect(PALETTE.clearShallow).toEqual([0.1, 0.62, 0.72]);
+    // the water by the camera is the shallows' own colour, so the water at the feet is not darkened
+    expect(PALETTE.clearNear).toEqual(PALETTE.clearShallow);
+    // the slate is still the bed's deepest colour, which a bed whose sand reaches past the deepest never shows
     expect(PALETTE.bed).toEqual([0.035, 0.06, 0.11]);
   });
 

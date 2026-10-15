@@ -16,6 +16,7 @@
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
 import {
+  MAX_DEPTH,
   ANGLER,
   BANK_RISE,
   BANK_TOP,
@@ -171,7 +172,8 @@ function shareAtDepth(depth: number): number {
 /**
  * Where the bed is cut into its bands and the colour of each: the slate out to where the water is the blend deeper
  * than the shallows' depth, the bands between cut evenly by radius from there to the shallows' depth, and the sand
- * from there out past the shore to the beach. Each takes the colour of the depth at its middle radius, so the
+ * from there out past the shore to the beach; where the blend reaches past the deepest point, the bands are cut evenly
+ * from the middle and the deepest is a darkened sand. Each takes the colour of the depth at its middle radius, so the
  * slate and the sand fall out of the same rule as the blend. Fewer than two bands could not hold both, and is refused.
  */
 export function bedCuts(
@@ -183,11 +185,20 @@ export function bedCuts(
   if (!Number.isInteger(bands) || bands < 2) throw new Error(`the bed needs two bands at least, not ${bands}`);
   const deep = shareAtDepth(depth + blend),
     shallow = shareAtDepth(depth);
-  const edges = [0, deep];
-  for (let i = 1; i < bands - 2; i++) edges.push(deep + ((shallow - deep) * i) / (bands - 2));
-  // with only the two, the slate meets the sand at the shallows' depth itself
-  if (bands === 2) edges[1] = shallow;
-  else edges.push(shallow);
+  const edges = [0];
+  // asked of the depth and not of the share, which at the deepest point comes out a hair over nought and not nought
+  if (depth + blend < MAX_DEPTH) {
+    edges.push(deep);
+    for (let i = 1; i < bands - 2; i++) edges.push(deep + ((shallow - deep) * i) / (bands - 2));
+    // with only the two, the slate meets the sand at the shallows' depth itself
+    if (bands === 2) edges[1] = shallow;
+    else edges.push(shallow);
+  } else {
+    // the blend reaches past the deepest point, so no water is deep enough for the slate and its band would run from
+    // the middle to the middle and draw nothing: the bands are cut evenly from the middle to the shallows' depth instead
+    for (let i = 1; i < bands - 1; i++) edges.push((shallow * i) / (bands - 1));
+    edges.push(shallow);
+  }
   edges.push(beach);
   const cuts: BedCut[] = [];
   for (let i = 0; i < bands; i++) {

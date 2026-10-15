@@ -94,7 +94,10 @@ export function bowlDepthAt(out: number): number {
  * `depth` is the bed's at three quarters of the way out, where the pictured sand ring began, and the sand reaches on
  * past the shore to `beach` (a share of the shore's distance), so a strip of beach shows inside the foam line.
  */
-export const BED_SHALLOWS = { depth: 2.625, blend: 1.5, bands: 6, beach: 1.04 } as const;
+// the sand under the whole lake, as the clear water wants (docs/crystal-2.md, part 4): the blend toward the slate would
+// end at 7, past the deepest 6, so the middle is a darkened sand and the slate is never reached; it was 2.625, with
+// the slate under the deep half, which read as dark, opaque water even through clear water
+export const BED_SHALLOWS = { depth: 5.5, blend: 1.5, bands: 6, beach: 1.04 } as const;
 
 /** How far a boulder's dome goes into the bed under its middle, so its flank stands out of the bed all round on a slope. */
 const BOULDER_SUNK = 1;

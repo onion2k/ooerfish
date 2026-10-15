@@ -8,7 +8,7 @@
  * Its finish is the pond tuned against the user's reference (an Unreal cartoon water) on 11 October 2026: a flat,
  * saturated blue near the camera with faint, soft ripples on it, a lighter blue far off, swells too low and short to
  * crest, one thin line of foam round every shore and boulder from the lake's shore field (which the page hands the
- * renderer), and three or so big soft glints. The water is clear (a clarity of 0.6, so the deep middle reads a richer, darker blue from above), so the bed, the weed and the fish glowing
+ * renderer), and three or so big soft glints. The water is crystal clear when cured (a clarity of 6, over sand to the middle, so it reads a bright turquoise and the bed shows through), so the bed, the weed and the fish glowing
  * among them are seen in it. The sky it mirrors is tinted (renderer v0.32.0) but no longer kept near the camera: the flow is finer and gentler (2.4 cells, a tilt of 0.3), and its detail is painted into the body, the
  * fine waves' slopes lifting the water toward a lighter blue (v0.33.0's ripple colour) as the reference's streaks are,
  * and not shown through the mirror. The pace the water moves at is `WATER_PACE`'s, in `lake.ts`.
@@ -32,8 +32,8 @@ export const CLEAR = {
   scale: 3.5,
   speed: 0.2,
   steepness: 0.3,
-  clarity: 0.6,
-  sickClarity: 0.25,
+  clarity: 6,
+  sickClarity: 0.15,
   // a knee of half a clarity under which nothing is lost, so the sand shallows read bright and the caustics reach them,
   // and a caustic line half the renderer's width at three times the strength it had, a crisp net on the sand and not
   // a wash: the sheets of 14 October (docs/crystal.md, part 9); at 0.06 the line broke into dashes from overhead
@@ -70,7 +70,7 @@ export const CLEAR = {
   sickSparkles: 0.5,
   // the sky's mirror: the share of it the camera keeps near, and its strength against the renderer's own (its tint is `PALETTE.mirrorTint`)
   mirrorNear: 0,
-  mirror: 1.2,
+  mirror: 0.6,
   // the fine waves' lightening of the body: how much, and how steep a slope must be before it takes any (its colour is `PALETTE.rippleLight`)
   rippleAmount: 0.3,
   rippleCut: 0.4,
@@ -137,7 +137,8 @@ export const clear: WaterStyle = {
   clear(contamination, caustics, time) {
     const k = held(contamination);
     return {
-      clarity: CLEAR.clarity * (1 - (1 - CLEAR.sickClarity) * k),
+      // from the cured lake's clarity to the sick one's, its own figure, so the cured can be made clearer alone
+      clarity: CLEAR.clarity + (CLEAR.sickClarity - CLEAR.clarity) * k,
       clearKnee: CLEAR.knee,
       causticLine: CLEAR.causticLine,
       foamWidth: CLEAR.foamWidth,
