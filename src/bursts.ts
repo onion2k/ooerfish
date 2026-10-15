@@ -5,8 +5,13 @@
 import type { Emit } from 'artshape-render/game/particles';
 import { PALETTE, mix } from './palette';
 
-/** A pebble's splash: how many droplets, how fast up and how far out they go, how long they last and how big they are. */
-export const SPLASH_BURST = { count: 100, up: 26, spread: 5.5, life: 0.9, size: 0.22 } as const;
+/**
+ * A pebble's splash: how many droplets, how fast up and how far out they go, how long they last and how big they are.
+ * Fewer, lower and finer than the burst of the white rings' day (a hundred, 26 up), chosen with the ripples in the
+ * water from the sheet of 15 October 2026 (docs/splash.md): with the water itself seen to move, a fountain of big
+ * droplets read as too much for a small lure and a pebble.
+ */
+export const SPLASH_BURST = { count: 35, up: 15.6, spread: 2.75, life: 0.7, size: 0.12 } as const;
 
 /** The droplets of a splash of `size` at (x, y), at a contamination from clear (0) to sick (1). */
 export function splashBurst(x: number, y: number, size: number, contamination: number): Emit {

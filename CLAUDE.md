@@ -192,7 +192,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   line. It is `clear.ts`, the renderer's clear water (from v0.29.0), whose
   `look.clear` follows the contamination, the caustics setting and the time
   of day, with its finish in `CLEAR` and `CLEAR_WAVES`: its `waves` are the
-  style's own, which the bobber and the rings ride through
+  style's own, which the bobber rides through
   `src/water/swell.ts`, and its foam lines come from `src/shorefield.ts`, the
   distance to the shore or a boulder, made once at boot. The surface's mesh is `src/water/surface.ts`: as coarse
   as it was over most of the lake and fine within `SURFACE.near` of the Shore
@@ -235,9 +235,14 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
 - **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
   filled by `Game.drop` and `Game.dropNear`, which refuse what is off the
   water and tell of a splash through `GameEvents.splashed`. Their picture is
-  `src/ripples.ts` (a ring's radius and width at an age, pure),
-  `src/ripplesdraw.ts` (the rings as flat pieces, none over the bank) and
-  `splashBurst` in `src/bursts.ts` (the droplets, emitted on the event).
+  the water's own: `src/ripples.ts` (`rippleData`, pure) writes each live
+  splash as x, y, age and size into an array sized once, `main.ts` hands it
+  to `renderer.setRings` every frame, and the renderer's clear water (from
+  v0.44.0) carries each out as a train of ripples in its normal, bending the
+  bed, the light and the mirror, never the height; the ring's figures are
+  `CLEAR.ring*` in `src/water/clear.ts` and nothing is painted on the water
+  (`docs/splash.md`). `game.ripples()` reads what the last frame handed over.
+  `splashBurst` in `src/bursts.ts` is the droplets, emitted on the event.
   `src/pick.ts` turns a tap on the screen into the point on the water.
 - `src/settings.ts` reads the lab's settings (the dirt, the time, the view,
   and the water's caustics) from the address and refuses
@@ -289,7 +294,8 @@ What to copy the shape of, when building something new:
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`), the bench
   (`scripts/bench.ts`, its arithmetic in `scripts/benching.ts`) and the
   film (`scripts/film.ts`, its arithmetic in `scripts/filming.ts`): a
-  scene of the look pictures, or `standard`, seeded and paused as they
+  scene of the look pictures, `standard`, or `cast-sinking` or `splash`
+  played to their moment, seeded and paused as they
   are, then a picture after each fixed step, into
   `node_modules/.cache/film/<scene>/` as frames, a strip of every eighth,
   and an MP4 and a GIF where `ffmpeg` is; its own dev server is on

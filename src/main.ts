@@ -20,14 +20,14 @@ import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
 import { buildPanel } from './lab';
-import { VIEWS, WATER_PACE } from './lake';
+import { SPLASH_CAPACITY, VIEWS, WATER_PACE } from './lake';
 import { light, paintFor, timeNamed } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
-import { RippleDraw } from './ripplesdraw';
+import { RIPPLE_FLOATS, rippleData } from './ripples';
 import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
 import { loadScenery } from './scenery';
 import { changed, readSettings, writeSettings, type Settings } from './settings';
@@ -178,8 +178,14 @@ async function main() {
   /** The fish as they are drawn, and which of the dynamic groups they are. */
   const fish = new FishDraw();
   let fishSlot = 1;
-  /** The ripples' rings, drawn as the group after the fish's; then the cast's, the angler to the preview. */
-  const ripples = new RippleDraw();
+  /**
+   * The splashes' ripples handed to the water each frame, which carries them out across itself as rings in its own
+   * surface, and how many the last frame handed; and how long the water's ripples last, which its look says.
+   */
+  const ripples = new Float32Array(SPLASH_CAPACITY * RIPPLE_FLOATS);
+  let rippling = 0;
+  let rippleLife = 0;
+  /** The cast's groups, after the fish's: the angler to the preview. */
   const casting = new CastDraw();
   /** What a cast is being aimed at, while one is: the preview is drawn from it. */
   let aim: Aim | null = null;
@@ -202,8 +208,8 @@ async function main() {
       const water = style.groups(game.contamination);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
-      casting.surface = ripples.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      renderer.setDynamic([...water, fish.group(), ripples.group(), ...casting.groups()]);
+      casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
+      renderer.setDynamic([...water, fish.group(), ...casting.groups()]);
     }
     if (!was || was.time !== settings.time) {
       const time = timeNamed(settings.time);
@@ -211,9 +217,11 @@ async function main() {
       await light(renderer, ctx, time, settings.paint);
     }
     // how clear the water is: a uniform, so written on every change for nothing
+    const water = style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time));
+    rippleLife = water.ringLife ?? 0;
     renderer.look = {
       ...renderer.look,
-      clear: style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time)),
+      clear: water,
       // the rocks' paint on or off: sets in a uniform, so written on every change and nothing recompiles
       paint: paintFor(settings.paint),
     };
@@ -389,15 +397,16 @@ async function main() {
   panel.show(settings);
   await apply(null);
 
-  /** Each frame: the fish where they are, glowing under the water, and the cast and the rings on it. */
+  /** Each frame: the fish where they are, glowing under the water, the splashes' ripples in it, and the cast. */
   const writeFrame = () => {
     // the cast first, which says where a landed fish hangs; then the fish, that one hanging there
     const drawn = casting.write(game, aim);
     const hung = drawn.hung ? game.bite.fish : -1;
     renderer.move(fishSlot, fish.matrices, fish.write(game.fish, hung, casting.hang));
-    renderer.move(fishSlot + 1, ripples.matrices, ripples.write(game.splashes, game.t));
-    // the cast's groups after the ripples', each as many as are live
-    const c = fishSlot + 2;
+    rippling = rippleData(game.splashes, game.t, rippleLife, ripples);
+    renderer.setRings(ripples, rippling);
+    // the cast's groups after the fish's, each as many as are live
+    const c = fishSlot + 1;
     // the rod, then the line in each of its colours (all of it in one), then the rest, in the order of `groups`
     let g = c;
     renderer.move(g++, casting.rod, drawn.rod);
@@ -531,6 +540,7 @@ async function main() {
       await renderer.prepare();
     },
     grass: () => renderer.grassDrawn(),
+    ripples: () => ripples.subarray(0, rippling * RIPPLE_FLOATS),
     settings: () => ({ ...settings }),
     change: (next) => change(next),
     mode: () => mode,

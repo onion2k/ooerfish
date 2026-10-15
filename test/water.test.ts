@@ -129,6 +129,35 @@ describe('the see-through water', () => {
     }
   });
 
+  it('carries a splash out across the water as rings of ripples in its own surface, as chosen from the sheet of 15 October', () => {
+    // docs/splash.md, direction B: no rings painted; each splash a train of ripples half a unit from crest to crest, out
+    // at three units a second, in a train half a unit long that grows 0.6 a second, gone by three and a half seconds,
+    // tilting the normal by 2.5 of a slope, and never finer than six pixels; the same clean and sick
+    expect(CLEAR.ringStrength).toBe(2.5);
+    expect(CLEAR.ringWavelength).toBe(0.5);
+    expect(CLEAR.ringSpeed).toBe(3);
+    expect(CLEAR.ringTrain).toBe(0.5);
+    expect(CLEAR.ringGrowth).toBe(0.6);
+    expect(CLEAR.ringLife).toBe(3.5);
+    expect(CLEAR.ringPixels).toBe(6);
+    for (const dirt of [0, 1])
+      for (const time of ['dawn', 'day', 'dusk', 'night'] as const) {
+        const look = clear.clear(dirt, true, timeNamed(time));
+        expect(
+          [
+            look.ringStrength,
+            look.ringWavelength,
+            look.ringSpeed,
+            look.ringTrain,
+            look.ringGrowth,
+            look.ringLife,
+            look.ringPixels,
+          ],
+          `at contamination ${dirt} at ${time}`,
+        ).toEqual([2.5, 0.5, 3, 0.5, 0.6, 3.5, 6]);
+      }
+  });
+
   it('lays a lane of sunlight on the water, lights its caustics on the sand, and holes its foam, as chosen from round two', () => {
     // docs/crystal-2.md: the sun's lane at 0.6 and a power of 60, the caustic glow at 0.45 (between the 0.3 and 0.6 the
     // sheet gave, settled from the game's own stills) with the cell at twice the default 1.5 units, and the foam's

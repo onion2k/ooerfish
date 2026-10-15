@@ -171,6 +171,11 @@ export interface GameApi {
   rung(to: Rung): Promise<void>;
   /** The blades of grass the last frame drew, near and far, read back from the GPU: none on the lean rung. */
   grass(): Promise<{ near: number; far: number }>;
+  /**
+   * The splashes' ripples the last frame drawn handed to the water, where each landed, how long ago and how big: none
+   * once a splash's ripples are over, and none until a frame has been drawn since it landed.
+   */
+  ripples(): { x: number; y: number; age: number; size: number }[];
 }
 
 /** What the page gives the API that is not the game's: time, the camera and the renderer. */
@@ -198,6 +203,8 @@ export interface DebugHost {
   rung(): Rung;
   setRung(to: Rung): Promise<void>;
   grass(): Promise<{ near: number; far: number }>;
+  /** The ripples the last frame handed the water, four floats each. */
+  ripples(): Float32Array;
   settings(): Settings;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
@@ -331,5 +338,14 @@ export function createApi(host: DebugHost): GameApi {
     scenery: () => host.scenery(),
     rung: ((to?: Rung) => (to === undefined ? host.rung() : host.setRung(to))) as GameApi['rung'],
     grass: () => host.grass(),
+    ripples() {
+      const d = host.ripples();
+      return Array.from({ length: d.length / 4 }, (_, i) => ({
+        x: d[i * 4],
+        y: d[i * 4 + 1],
+        age: d[i * 4 + 2],
+        size: d[i * 4 + 3],
+      }));
+    },
   };
 }

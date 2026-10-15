@@ -1,7 +1,7 @@
 /**
- * Where the water stands, for what floats on it: the bobber and a splash's rings ride the very swells the renderer
+ * Where the water stands, for what floats on it: the bobber rides the very swells the renderer
  * draws, by the renderer's own sum, at the water's clock (which the renderer is handed each frame, `waterClock` of the
- * game's). Without this they would lie on still water while the drawn surface rose over them and fell away under them,
+ * game's). Without this it would lie on still water while the drawn surface rose over it and fell away under it,
  * and if the two clocks were worked out in two places they would drift apart the day one was changed.
  */
 import { GRAVITY_MM, heightAt, type GerstnerWave } from 'artshape-render/game/waves';

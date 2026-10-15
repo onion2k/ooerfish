@@ -144,6 +144,30 @@ export const CAST_SHOT = {
   sinking: 175,
 } as const;
 
+/**
+ * The splash the look pictures and the film take from the boat: the lab a little dirty by day, settled this many frames,
+ * a pebble dropped in front of the boat, and the frames after it the picture is taken at, a third of a second, its
+ * droplets fallen back and its first ripples going out.
+ */
+export const SPLASH_SHOT = {
+  scene: { dirt: 0.3, time: 'day', view: 'boat' } as Scene,
+  settle: 60,
+  at: [8, 6] as [number, number],
+  after: 20,
+} as const;
+
+/** The lab put at the splash's scene, or `scene` over it, the pebble dropped and the game stepped `after` frames. */
+export async function splashing(page: Page, scene: Partial<Scene> = {}, after: number = SPLASH_SHOT.after) {
+  await set(page, { ...SPLASH_SHOT.scene, ...scene }, SPLASH_SHOT.settle);
+  await page.evaluate(
+    ([at, n]) => {
+      window.game!.drop(at[0], at[1]);
+      window.game!.step(n);
+    },
+    [SPLASH_SHOT.at, after] as const,
+  );
+}
+
 /** The lab put at the cast's scene, the cast thrown, and the game stepped until it is landed and sinking. */
 export async function castSinking(page: Page) {
   await set(page, CAST_SHOT.scene, CAST_SHOT.settle);

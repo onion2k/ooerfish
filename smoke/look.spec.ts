@@ -18,7 +18,7 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test } from '@playwright/test';
-import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, start, watch } from './game';
+import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /**
@@ -46,20 +46,22 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
-  // a pebble a third of a second after it landed in front of the boat: its droplets in the air and its first rings
-  // spreading
-  test('splash', async ({ page }) => {
-    const problems = watch(page);
-    await start(page, { seed: 11, paused: true });
-    await set(page, { dirt: 0.3, time: 'day', view: 'boat' }, 60);
-    await page.evaluate(() => {
-      window.game!.drop(8, 6);
-      window.game!.step(20);
+  // a pebble a third of a second after it landed in front of the boat: its fine droplets fallen back and its first
+  // ripples going out in the water's own surface, bending the bed and the mirror and painting nothing; on the sick lake, whose
+  // murk shows the ring only by its light and its mirror; and at night, when the mirror is all it has
+  for (const [name, scene] of [
+    ['splash', {}],
+    ['splash-sick', { dirt: 1 }],
+    ['splash-night', { dirt: 0, time: 'night' }],
+  ] as const)
+    test(name, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await splashing(page, scene);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
     });
-    await hideOverlays(page);
-    await expect(page.locator('#view')).toHaveScreenshot('splash.png', TOLERANCE);
-    expect(problems).toEqual([]);
-  });
 
   // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
   // bobber
@@ -165,6 +167,23 @@ test.describe('on a phone', () => {
       (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
     });
     await expect(page).toHaveScreenshot('phone.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // a pebble dropped from the phone's view, as its button does, half a second on: the ripples at a phone's width
+  test('a splash from the phone', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, view: 'phone' }, 60);
+    await page.evaluate(() => {
+      window.game!.drop(0, 4);
+      window.game!.step(30);
+    });
+    await page.evaluate(() => {
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page).toHaveScreenshot('phone-splash.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
 

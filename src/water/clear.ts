@@ -93,6 +93,18 @@ export const CLEAR = {
   causticGlow: 0.45,
   causticScale: 3,
   foamGrain: 0.3,
+  // the splashes (renderer v0.44.0, docs/splash.md), chosen by the user from the sheet of 15 October 2026 (direction B):
+  // no rings painted on the water; each splash a train of ripples in its own surface, half a unit from crest to crest
+  // for a pebble, going out at three units a second in a train half a unit long that grows 0.6 a second, gone by three
+  // and a half seconds, tilting the normal by 2.5 of a slope so the mirror and the bed waver as it passes, and never
+  // finer than six pixels, so a lure's rings read from the shore sixty units off
+  ringStrength: 2.5,
+  ringWavelength: 0.5,
+  ringSpeed: 3,
+  ringTrain: 0.5,
+  ringGrowth: 0.6,
+  ringLife: 3.5,
+  ringPixels: 6,
 } as const;
 
 /**
@@ -176,6 +188,13 @@ export const clear: WaterStyle = {
       causticGlow: CLEAR.causticGlow,
       causticScale: CLEAR.causticScale,
       foamGrain: CLEAR.foamGrain,
+      ringStrength: CLEAR.ringStrength,
+      ringWavelength: CLEAR.ringWavelength,
+      ringSpeed: CLEAR.ringSpeed,
+      ringTrain: CLEAR.ringTrain,
+      ringGrowth: CLEAR.ringGrowth,
+      ringLife: CLEAR.ringLife,
+      ringPixels: CLEAR.ringPixels,
     };
   },
 };

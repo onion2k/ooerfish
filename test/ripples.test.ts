@@ -1,99 +1,64 @@
-/** A splash's picture: its rings over their life, the pieces they are drawn with, and its droplets. */
+/**
+ * A splash's ripples as the water is handed them, and its droplets. The rings are drawn by the renderer's clear water,
+ * in the water's own normal; the game hands it, each frame, where each splash landed, how long ago and how big. Without
+ * this a splash could be handed over late or twice, live on past the ripples' life, or be lost when the pool is full.
+ */
+import { RING_FLOATS, RING_SLOTS } from 'artshape-render/game/clear';
 import { describe, expect, it } from 'vitest';
 import { splashBurst } from '../src/bursts';
-import { SPLASH_CAPACITY, SPLASH_LASTS, inside, shoreRadius } from '../src/lake';
-import { RINGS, ringAt } from '../src/ripples';
-import { PIECES, RippleDraw } from '../src/ripplesdraw';
+import { SPLASH_CAPACITY } from '../src/lake';
+import { RIPPLE_FLOATS, rippleData } from '../src/ripples';
 import { Splashes } from '../src/splash';
 
-describe("a splash's rings", () => {
-  it('are a few, each starting a little after the one before', () => {
-    expect(RINGS.count).toBeGreaterThanOrEqual(2);
-    expect(RINGS.count).toBeLessThanOrEqual(3);
-    for (let k = 1; k < RINGS.count; k++) {
-      expect(ringAt(k * RINGS.gap - 0.01, k), `ring ${k} before its start`).toBe(null);
-      expect(ringAt(k * RINGS.gap + 0.01, k), `ring ${k} after its start`).not.toBe(null);
-    }
+const LIFE = 3.5;
+
+describe("a splash's ripples, as the water is handed them", () => {
+  it('fit the slots the renderer draws, four floats each as it reads them: the pool is no bigger than its slots', () => {
+    expect(RIPPLE_FLOATS).toBe(RING_FLOATS);
+    expect(SPLASH_CAPACITY).toBeLessThanOrEqual(RING_SLOTS);
   });
 
-  it('grow outward and thin as they go, and are gone by the end of the splash', () => {
-    for (let k = 0; k < RINGS.count; k++) {
-      let was = { radius: 0, width: Infinity };
-      for (let age = k * RINGS.gap; age < SPLASH_LASTS; age += 0.02) {
-        const ring = ringAt(age, k);
-        if (!ring) break;
-        expect(ring.radius, `ring ${k} at ${age.toFixed(2)}`).toBeGreaterThan(was.radius);
-        expect(ring.width).toBeLessThan(was.width);
-        expect(ring.width).toBeGreaterThan(0);
-        was = ring;
-      }
-      expect(ringAt(SPLASH_LASTS, k), `ring ${k} at the end`).toBe(null);
-      expect(ringAt(-0.1, k), `ring ${k} before the splash`).toBe(null);
-    }
+  it("are where each splash landed, how long ago and how big, in the pool's order", () => {
+    const splashes = new Splashes();
+    splashes.add(1, 2, 0, 1);
+    splashes.add(-3, 4, 0.5, 0.6);
+    const out = new Float32Array(SPLASH_CAPACITY * RIPPLE_FLOATS);
+    expect(rippleData(splashes, 1, LIFE, out)).toBe(2);
+    expect([...out.subarray(0, 8)]).toEqual([1, 2, 1, 1, -3, 4, 0.5, Math.fround(0.6)]);
   });
 
-  it('are bigger for a bigger splash', () => {
-    const small = ringAt(0.5, 0, 1)!,
-      big = ringAt(0.5, 0, 2)!;
-    expect(big.radius).toBeGreaterThan(small.radius);
-    expect(big.width).toBeGreaterThan(small.width);
-  });
-});
-
-describe('the pieces the rings are drawn with', () => {
-  it('are one group, sized once for every ring of every splash the pool holds', () => {
-    const draw = new RippleDraw();
-    const g = draw.group();
-    expect(g.matrices.length).toBe(SPLASH_CAPACITY * RINGS.count * PIECES * 16);
-    expect(g.count).toBe(0);
+  it('leave out a splash whose ripples are over, and hand the next in its place', () => {
+    const splashes = new Splashes();
+    splashes.add(1, 1, 0, 1);
+    splashes.add(2, 2, 3, 1);
+    const out = new Float32Array(SPLASH_CAPACITY * RIPPLE_FLOATS);
+    expect(rippleData(splashes, 3.4, LIFE, out), 'both live').toBe(2);
+    expect(rippleData(splashes, LIFE, LIFE, out), 'the first over at its life').toBe(1);
+    expect([...out.subarray(0, 4)]).toEqual([2, 2, Math.fround(LIFE - 3), 1]);
+    expect(rippleData(splashes, 3 + LIFE + 0.01, LIFE, out), 'none once both are over').toBe(0);
   });
 
-  it('are as many as the live rings have, on the water and just above it, and none once the splash is over', () => {
+  it("are every splash of a full pool, the newest in the oldest's slot", () => {
+    const splashes = new Splashes();
+    for (let i = 0; i < SPLASH_CAPACITY + 1; i++) splashes.add(i, 0, i * 0.01, 1);
+    const out = new Float32Array(SPLASH_CAPACITY * RIPPLE_FLOATS);
+    const t = SPLASH_CAPACITY * 0.01 + 0.1;
+    expect(rippleData(splashes, t, LIFE, out)).toBe(SPLASH_CAPACITY);
+    const xs = Array.from({ length: SPLASH_CAPACITY }, (_, i) => out[i * RIPPLE_FLOATS]);
+    expect(
+      xs.sort((a, b) => a - b),
+      'the first replaced by the thirteenth',
+    ).toEqual(Array.from({ length: SPLASH_CAPACITY }, (_, i) => i + 1));
+  });
+
+  it('are written into the array they are handed, and nothing is made', () => {
     const splashes = new Splashes();
     splashes.add(0, 0, 0, 1);
-    const draw = new RippleDraw();
-    // half a second in: every ring that has started is wholly on the water, at the middle of the lake
-    const live = Array.from({ length: RINGS.count }, (_, k) => ringAt(0.5, k)).filter(Boolean).length;
-    expect(draw.write(splashes, 0.5)).toBe(live * PIECES);
-    for (let i = 0; i < live * PIECES; i++) {
-      const m = draw.matrices.subarray(i * 16, i * 16 + 16);
-      expect(inside(m[12], m[13]), `piece ${i}`).toBe(true);
-      expect(m[14], 'just above the water').toBeGreaterThan(0);
-      expect(m[14]).toBeLessThan(0.1);
-    }
-    expect(draw.write(splashes, SPLASH_LASTS + 0.1), 'none once it is over').toBe(0);
-  });
-
-  it('ride the swells: each piece as far above the water as it is drawn there, where the water stands', () => {
-    const splashes = new Splashes();
-    splashes.add(0, 0, 0, 1);
-    const flat = new RippleDraw(),
-      swelling = new RippleDraw();
-    swelling.surface = (x, y, t) => 0.2 * Math.sin(x + 2 * y + t);
-    const n = flat.write(splashes, 0.5);
-    expect(swelling.write(splashes, 0.5)).toBe(n);
-    for (let i = 0; i < n; i++) {
-      const [x, y] = [swelling.matrices[i * 16 + 12], swelling.matrices[i * 16 + 13]];
-      expect(swelling.matrices[i * 16 + 14] - flat.matrices[i * 16 + 14], `piece ${i}`).toBeCloseTo(
-        0.2 * Math.sin(x + 2 * y + 0.5),
-        5,
-      );
-    }
-  });
-
-  it('are cut at the shore: a splash at the edge draws only the pieces over the water', () => {
-    const splashes = new Splashes();
-    const north = shoreRadius(Math.PI / 2);
-    splashes.add(0, north - 1, 0, 1);
-    const draw = new RippleDraw();
-    const n = draw.write(splashes, 1.2);
-    expect(n).toBeGreaterThan(0);
-    const live = Array.from({ length: RINGS.count }, (_, k) => ringAt(1.2, k)).filter(Boolean).length;
-    expect(n, 'fewer than every piece of every live ring').toBeLessThan(live * PIECES);
-    for (let i = 0; i < n; i++) {
-      const m = draw.matrices.subarray(i * 16, i * 16 + 16);
-      expect(inside(m[12], m[13]), `piece ${i} on the water`).toBe(true);
-    }
+    const out = new Float32Array(SPLASH_CAPACITY * RIPPLE_FLOATS).fill(9);
+    rippleData(splashes, 0.25, LIFE, out);
+    expect(out[2]).toBe(0.25);
+    // what is past the count is not read, and is left alone
+    expect(out[4]).toBe(9);
   });
 });
 

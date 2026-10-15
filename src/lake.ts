@@ -512,7 +512,7 @@ export const SURFACE = { rings: 24, segments: 128, spacing: 0.5, near: 40 } as c
 
 /**
  * The water is drawn at this share of the game's clock, so a pond is calm: its swells, ripples, caustics, foam and
- * sparkles all move at it, and what floats on it (the bobber, a splash's rings) is read at it too. It is content, with
+ * sparkles all move at it, and what floats on it (the bobber) is read at it too. It is content, with
  * the lake's other figures, and `main.ts` is what hands it to the renderer and to `surfaceOf`. It was 0.4, and filmed
  * beside the reference's water (docs/crystal.md, part 10) ours changed between frames a thirtieth as much; at 0.6 the
  * pond is still calm but is seen to move. The renderer's clock runs at it, so the breeze in the grass is quicker by as
@@ -553,11 +553,10 @@ export const VIEWS: Record<'shore' | 'boat' | 'overhead' | 'phone', View> = {
 export type ViewName = keyof typeof VIEWS;
 
 /**
- * How many splashes may be live on a lake at once, which fixes the pool and what is drawn of it; how long one
- * lasts, in seconds; and how far from the point asked a pebble dropped somewhere may land.
+ * How many splashes may be live on a lake at once, which fixes the pool and what is drawn of it (how long one is seen
+ * is the water's, `CLEAR.ringLife`); and how far from the point asked a pebble dropped somewhere may land.
  */
 export const SPLASH_CAPACITY = 12;
-export const SPLASH_LASTS = 2.2;
 export const DROP_NEAR = 8;
 
 /**

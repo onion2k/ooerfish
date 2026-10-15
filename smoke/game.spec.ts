@@ -212,6 +212,12 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   expect(tapped.length, 'a tap drops one').toBe(1);
   expect(Math.hypot(tapped[0].x - 4, tapped[0].y + 6), 'where it was tapped').toBeLessThan(0.5);
   expect(await page.evaluate(() => window.game!.events())).toContain('splashed 4.0,-6.0');
+  // and the water is handed its ripples by the next frame drawn, and not before
+  const ripples = async () => {
+    await page.evaluate(() => window.game!.step(0));
+    return page.evaluate(() => window.game!.ripples());
+  };
+  expect(await ripples(), "the tap's ripples handed to the water").toHaveLength(1);
 
   // a drag across the water, from overhead, turns the camera, and drops nothing
   await page.evaluate(() => window.game!.view('overhead'));
@@ -224,6 +230,7 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   // the panel's button drops one near what the camera looks at
   await page.getByRole('button', { name: 'Drop a pebble' }).click();
   expect((await splashes()).length, 'the button drops one').toBe(2);
+  expect(await ripples(), 'and its ripples too').toHaveLength(2);
   expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -256,6 +263,10 @@ test('casts by a drag back in cast mode, to where its preview said, and not othe
     1e-6,
   );
   expect((await page.evaluate(() => window.game!.events())).length, 'a splash').toBe(1);
+  const handed = await page.evaluate(() => window.game!.ripples());
+  expect(handed, 'its ripples handed to the water').toHaveLength(1);
+  expect(Math.hypot(handed[0].x - preview.x, handed[0].y - preview.y), 'where it landed').toBeLessThan(1e-4);
+  expect(handed[0].size, "a lure's, smaller than a pebble's").toBeLessThan(1);
   await expect(page.locator('#castLine')).toContainText('sinking');
 
   // reeled in, it is ready to cast again

@@ -7,6 +7,13 @@
 import { describe, expect, it } from 'vitest';
 import { MIST, SPLASH_BURST, mist, splashBurst } from '../src/bursts';
 
+describe("a splash's droplets", () => {
+  it('are the finer burst chosen with the ripples in the water (docs/splash.md): fewer, lower, smaller and shorter', () => {
+    // the burst before them was a hundred, 26 up, 5.5 out, 0.9 s and 0.22 across: a third, 0.6, a half, 0.7 s and 0.55
+    expect(SPLASH_BURST).toEqual({ count: 35, up: 15.6, spread: 2.75, life: 0.7, size: 0.12 });
+  });
+});
+
 describe('the mist at the foot of a fall', () => {
   const m = mist(4, 31, 0, -1);
 
@@ -23,8 +30,10 @@ describe('the mist at the foot of a fall', () => {
   it('is a few small, short-lived, translucent white droplets that die falling back into the water', () => {
     expect(m.count).toBeGreaterThanOrEqual(3);
     expect(m.count).toBeLessThan(SPLASH_BURST.count);
-    expect(m.size).toBeLessThan(SPLASH_BURST.size * 2);
-    expect(m.life).toBeLessThanOrEqual(SPLASH_BURST.life + 1e-9);
+    // small and short-lived in their own right: the splash's droplets, which they were once held under, are now finer
+    // than a mist's (docs/splash.md), and the pool's share is held by the count above and the room test below
+    expect(m.size).toBeLessThan(0.5);
+    expect(m.life).toBeLessThanOrEqual(1);
     for (const c of m.colour) expect(c).toBeGreaterThan(0.85);
     expect(m.alpha).toBeGreaterThan(0);
     expect(m.alpha).toBeLessThan(1);

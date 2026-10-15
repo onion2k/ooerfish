@@ -89,8 +89,7 @@ export const PALETTE = {
   mirrorTint: [0.35, 0.62, 0.92] as Colour,
   /** The lighter blue the see-through water's fine waves lift its body toward by their slopes: the painted streaks of the reference, whatever the sky is. */
   rippleLight: [0.28, 0.52, 0.88] as Colour,
-  /** A ripple's ring on the water, and a splash's droplets, clean and sick. */
-  ripple: [0.82, 0.94, 1] as Colour,
+  /** A splash's droplets, clean and sick. */
   clearSplash: [0.93, 0.98, 1] as Colour,
   sickSplash: [0.86, 1, 0.68] as Colour,
   /** The rod and its line. */

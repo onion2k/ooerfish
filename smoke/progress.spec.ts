@@ -116,17 +116,44 @@ test("the lake's time runs while it is played, and stands still while it is paus
   expect(problems).toEqual([]);
 });
 
-test("a pebble splashes, its rings spread and are gone by the splash's end", async ({ page }) => {
+test('a pebble splashes, and its ripples are handed to the water as they age, until they are over', async ({
+  page,
+}) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
+  const ripples = () => page.evaluate(() => window.game!.ripples());
+  expect(await ripples(), 'none before anything lands').toEqual([]);
   expect(await page.evaluate(() => window.game!.drop(2, 3))).toBe(true);
   await play(page, 30, 'half a second of a splash');
   const live = await page.evaluate(() => window.game!.splashes());
   expect(live.length).toBe(1);
   expect(live[0].age).toBeCloseTo(0.5, 5);
-  await play(page, 150, 'the splash over');
-  expect((await page.evaluate(() => window.game!.splashes()))[0].age).toBeGreaterThan(2.2);
+  // the frame drawn last handed the water this splash, half a second old, a pebble's size
+  const handed = await ripples();
+  expect(handed).toHaveLength(1);
+  expect([handed[0].x, handed[0].y, handed[0].size]).toEqual([2, 3, 1]);
+  expect(handed[0].age).toBeCloseTo(0.5, 5);
+  await play(page, 150, 'three seconds of a splash');
+  expect((await ripples())[0].age, 'still rippling at three seconds').toBeCloseTo(3, 5);
+  await play(page, 31, 'the ripples over');
+  expect((await page.evaluate(() => window.game!.splashes()))[0].age).toBeGreaterThan(3.5);
+  expect(await ripples(), 'none handed once they are over').toEqual([]);
   expect(await page.evaluate(() => window.game!.events())).toEqual(['splashed 2.0,3.0']);
+  expect(problems).toEqual([]);
+});
+
+test('a cast onto the bank lies there and hands the water no ripples; one onto the water does', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  // the look pictures' cast at the bank, off to the east of the Shore view
+  expect(await page.evaluate(() => window.game!.cast(0.3, 0.85))).toBe(true);
+  await play(page, 180, 'the cast flown out and landed');
+  expect((await page.evaluate(() => window.game!.lure())).phase).toBe('lying');
+  expect(await page.evaluate(() => window.game!.ripples()), 'no ripples from the bank').toEqual([]);
+  await page.evaluate(() => window.game!.reelIn());
+  expect(await page.evaluate(() => window.game!.cast(Math.PI / 2 + 0.2, 0.7))).toBe(true);
+  await play(page, 180, 'the cast flown out and sinking');
+  expect(await page.evaluate(() => window.game!.ripples()), "the water's ripples").toHaveLength(1);
   expect(problems).toEqual([]);
 });
 
