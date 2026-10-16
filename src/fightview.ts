@@ -8,6 +8,7 @@
  * stow.
  */
 import type { Game } from './game';
+import type { GestureEvent } from './gesture';
 import { FIGHT, PERCH } from './lake';
 import { PALETTE, type Colour } from './palette';
 
@@ -56,25 +57,25 @@ export class FightView {
     private readonly el: FightElements,
     private readonly game: () => Game,
     private readonly toScreen: ToScreen,
+    gesture: (e: GestureEvent) => void,
   ) {
     const { button, card } = el;
     el.zone.style.height = per(FIGHT.width);
     el.fish.style.fill = css(PALETTE.glow);
     el.fish.style.filter = `drop-shadow(0 0 4px ${css(PALETTE.glow)})`;
-    // the button strikes when pressed, and while a fish is on, reels for as long as it is held
+    // the button strikes when pressed, and while a fish is on, reels for as long as it is held: the rules are
+    // gesture.ts's, and the pointer capture is the page's
     button.addEventListener('pointerdown', (e) => {
       button.setPointerCapture(e.pointerId);
-      const g = this.game();
-      if (g.bite.phase !== 'hooked') g.strike();
-      if (g.bite.phase === 'hooked') g.reel(true);
+      gesture({ type: 'press', source: 'button', repeat: false });
     });
-    const letGo = () => this.game().reel(false);
+    const letGo = () => gesture({ type: 'release', source: 'button' });
     button.addEventListener('pointerup', letGo);
     button.addEventListener('pointercancel', letGo);
     button.addEventListener('lostpointercapture', letGo);
     // by the keyboard it strikes once a press; space held anywhere reels, which the page handles
     button.addEventListener('click', (e) => {
-      if (e.detail === 0 && this.game().bite.phase !== 'hooked') this.game().strike();
+      if (e.detail === 0) gesture({ type: 'activate', source: 'button' });
     });
     card.addEventListener('click', () => {
       this.game().stow();

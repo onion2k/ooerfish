@@ -14,7 +14,7 @@ import { cabinGroups, jettyGroups } from './cabin';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
-import { aimFrom } from './aim';
+import { Gesture, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
@@ -43,9 +43,6 @@ const LIGHT_CAPACITY = 16,
   EFFECT_CAPACITY = 0,
   // twelve splashes live at once, a hundred droplets each, with room to spare
   PARTICLE_CAPACITY = 2048;
-/** How far a pointer may move, in CSS pixels, and how long it may be down, in milliseconds, and still be a tap and not a drag. */
-const TAP_PX = 6,
-  TAP_MS = 400;
 /** How long what a strike did is said for, in seconds of game time. */
 const HEARD_FOR = 2;
 /** How many of the game's events the test API keeps, before the oldest go. */
@@ -286,70 +283,50 @@ async function main() {
     castLine.hidden = !text;
   }
 
-  // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
+  // the gesture rules are src/gesture.ts's; the page turns its events into theirs and does what is the page's own: the
+  // pointer capture, the camera and the picking of a point on the water
   const tapInverse = new Float32Array(16);
-  let down: { x: number; y: number; at: number } | null = null;
-  // and in cast mode a drag back aims a cast, its preview drawn as it goes, and letting go casts it
-  const casts = () => mode === 'cast';
-  const aimOf = (e: PointerEvent, from: { x: number; y: number }) => {
-    const box = canvas.getBoundingClientRect();
-    const heading = Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]);
-    return aimFrom(e.clientX - from.x, e.clientY - from.y, Math.min(box.width, box.height), heading);
-  };
-  // with a fish on, a hold on the water from the shore reels, for as long as it is held
-  let reelingByHold = false;
+  const gestures = new Gesture({
+    cast: (angle, power) => void game.cast(angle, power),
+    strike: () => void game.strike(),
+    reel: (on) => game.reel(on),
+    setAim: (to) => {
+      aim = to;
+    },
+    // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
+    pebble: (x, y) => {
+      cam.update();
+      if (!invertInto(tapInverse, cam.viewProjection)) return;
+      const box = canvas.getBoundingClientRect();
+      const at = waterPoint(tapInverse, ((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2);
+      if (at) game.drop(at[0], at[1]);
+    },
+    mode: () => mode,
+    bitePhase: () => game.bite.phase,
+    lurePhase: () => game.lure.phase,
+    view: () => {
+      const box = canvas.getBoundingClientRect();
+      return {
+        short: Math.min(box.width, box.height),
+        heading: Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]),
+      };
+    },
+  });
+  const pointer = (type: PointerGesture['type'], e: PointerEvent): PointerGesture => ({
+    type,
+    source: 'screen',
+    x: e.clientX,
+    y: e.clientY,
+    at: e.timeStamp,
+  });
   canvas.addEventListener('pointerdown', (e) => {
-    if (casts() && game.bite.phase === 'hooked') {
-      canvas.setPointerCapture(e.pointerId);
-      reelingByHold = true;
-      game.reel(true);
-      return;
-    }
-    down = { x: e.clientX, y: e.clientY, at: e.timeStamp };
-    if (casts()) canvas.setPointerCapture(e.pointerId);
+    // in cast mode the pointer is captured, so a drag or a hold that leaves the canvas still ends on it
+    if (mode === 'cast') canvas.setPointerCapture(e.pointerId);
+    gestures.handle(pointer('down', e));
   });
-  canvas.addEventListener('pointermove', (e) => {
-    if (down && casts()) aim = aimOf(e, down);
-  });
-  canvas.addEventListener('pointercancel', () => {
-    down = null;
-    aim = null;
-    if (reelingByHold) game.reel(false);
-    reelingByHold = false;
-  });
-  canvas.addEventListener('pointerup', (e) => {
-    if (reelingByHold) {
-      reelingByHold = false;
-      game.reel(false);
-      return;
-    }
-    const was = down;
-    down = null;
-    if (was && casts()) {
-      // let go inside the dead zone, the drag is taken back and nothing is cast
-      const to = aimOf(e, was);
-      aim = null;
-      if (to) {
-        game.cast(to.angle, to.power);
-        return;
-      }
-    }
-    if (!was || Math.hypot(e.clientX - was.x, e.clientY - was.y) > TAP_PX || e.timeStamp - was.at > TAP_MS) return;
-    // from the shore with the lure in the water, a tap strikes; anywhere else it drops a pebble where it was tapped
-    if (casts() && game.lure.phase === 'sinking') {
-      game.strike();
-      return;
-    }
-    cam.update();
-    if (!invertInto(tapInverse, cam.viewProjection)) return;
-    const box = canvas.getBoundingClientRect();
-    const at = waterPoint(
-      tapInverse,
-      ((e.clientX - box.left) / box.width) * 2 - 1,
-      1 - ((e.clientY - box.top) / box.height) * 2,
-    );
-    if (at) game.drop(at[0], at[1]);
-  });
+  canvas.addEventListener('pointermove', (e) => gestures.handle(pointer('move', e)));
+  canvas.addEventListener('pointercancel', (e) => gestures.handle(pointer('cancel', e)));
+  canvas.addEventListener('pointerup', (e) => gestures.handle(pointer('up', e)));
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the lab's own controls, where the key is only what it types or presses
   const onControl = (e: KeyboardEvent) =>
@@ -361,14 +338,13 @@ async function main() {
     }
     if (e.code !== 'Space' || onControl(e)) return;
     e.preventDefault();
-    if (game.bite.phase === 'hooked') game.reel(true);
-    else if (!e.repeat) game.strike();
+    gestures.handle({ type: 'press', source: 'key', repeat: e.repeat });
   });
   window.addEventListener('keyup', (e) => {
-    if (e.code === 'Space') game.reel(false);
+    if (e.code === 'Space') gestures.handle({ type: 'release', source: 'key' });
   });
   // a reel held when the page loses the focus is let go, or the zone would ride up unseen while the fish got away
-  window.addEventListener('blur', () => game.reel(false));
+  window.addEventListener('blur', () => gestures.handle({ type: 'blur' }));
   /** Where a point of the lake is on the screen, in the page's pixels, or null behind the camera. */
   function toScreen(x: number, y: number, z: number) {
     cam.update();
@@ -397,16 +373,14 @@ async function main() {
     },
     () => game,
     toScreen,
+    (e) => gestures.handle(e),
   );
 
   /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
   function showMode(to: Mode) {
     if (to !== 'cast') {
       // leaving cast drops an aim begun, and a reel held by the screen
-      aim = null;
-      down = null;
-      if (reelingByHold) game.reel(false);
-      reelingByHold = false;
+      gestures.handle({ type: 'left-cast' });
     }
     mode = to;
     orbit.enabled = orbits(mode);
