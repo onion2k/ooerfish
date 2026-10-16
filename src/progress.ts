@@ -4,10 +4,15 @@
  * a field a save does not have takes its default, and a field it has that
  * the game no longer knows is left alone.
  *
- * The lake lab keeps nothing yet, so the save has no fields. The first that
- * is kept gives it one, with a default, and a file in `test/saves`.
+ * What is kept so far is the cure: how many fish have been cured. The
+ * lake's contamination is worked out from the count and not kept itself, so
+ * a retuned step is applied to a save already written. A new field gets a
+ * default here and a file in `test/saves`.
  */
-export type Save = Record<string, never>;
+export interface Save {
+  /** How many fish have been landed and cured, from nought; the lake is clean once it reaches what the cure asks. */
+  cured: number;
+}
 
 /** Where the save is kept. */
 export interface SaveStore {
@@ -61,7 +66,7 @@ export function memoryStore(json: string | null = null): SaveStore & { json: str
   };
 }
 
-const fresh = (): Save => ({});
+const fresh = (): Save => ({ cured: 0 });
 
 export class Progress {
   readonly save: Save;
@@ -77,8 +82,11 @@ export class Progress {
     } catch {
       return;
     }
-    // a field is read here, each with its default, once the save has one; until then there is nothing to read
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return;
+    // each field is read as if anyone had written it: one that is not what it should be is taken for its default
+    const said = raw as Record<string, unknown>;
+    if (typeof said.cured === 'number' && Number.isSafeInteger(said.cured) && said.cured >= 0)
+      this.save.cured = said.cured;
   }
 
   persist() {

@@ -55,13 +55,6 @@
     backdrop-filter: blur(8px);
     pointer-events: none;
   }
-  #stats {
-    top: 16px;
-    right: 16px;
-    text-align: right;
-    color: var(--dim);
-    font-size: 12px;
-  }
   #castLine {
     bottom: 16px;
     left: 50%;
@@ -70,7 +63,7 @@
   }
   /* look or cast, always on the screen, above the hint that says what a drag does now, in a column so a hint of
      two or three lines pushes the button up and not under it; on a phone, where the hint is not, at the top left,
-     clear of the lab's panel at the foot and the Reel button at the right */
+     clear of the Reel button at the right */
   #hud {
     position: fixed;
     bottom: 16px;
@@ -118,60 +111,70 @@
   #boot p {
     color: var(--dim);
   }
-  #labPanel {
+  /* the pond: the glow gauge at the top left, a bar that empties as the lake is cleaned (the dark part covers the
+     glow that has gone, from the right), and the welcome and the line for a cure, centred at the top */
+  #pond {
     top: 16px;
     left: 16px;
-    max-width: 300px;
-    pointer-events: auto;
-    padding: 0;
-  }
-  #labPanel summary {
-    padding: 10px 14px;
-    cursor: pointer;
-    font-weight: 700;
-  }
-  #lab {
-    padding: 0 14px 12px;
-  }
-  #lab fieldset {
-    border: 0;
-    margin: 0 0 8px;
-    padding: 0;
-  }
-  #lab legend {
-    color: var(--dim);
-    font-size: 12px;
-    padding: 0 0 4px;
-  }
-  #lab button {
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink);
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 7px;
-    padding: 4px 9px;
-    margin: 0 4px 4px 0;
-    cursor: pointer;
-  }
-  #lab button[aria-pressed='true'] {
-    background: #e8f4ff;
-    color: #10202e;
-    border-color: #e8f4ff;
-  }
-  #lab button:focus-visible,
-  #lab input:focus-visible {
-    outline: 2px solid #9fd0ff;
-    outline-offset: 2px;
-  }
-  #lab input[type='range'] {
-    width: 100%;
-  }
-  #lab .ends {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  #pond[hidden] {
+    display: none;
+  }
+  #pondIcon {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    fill: #9fe04a;
+    stroke: #9fe04a;
+  }
+  #pond.clean #pondIcon {
+    fill: #5fd0ff;
+    stroke: #5fd0ff;
+  }
+  #pondBar {
+    position: relative;
+    width: 150px;
+    height: 10px;
+    margin-top: 2px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: linear-gradient(90deg, #5fd0ff, #6fe3a0 55%, #9fe04a);
+  }
+  #pondBarGone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 0;
+    background: rgba(14, 12, 20, 0.75);
+  }
+  #welcome,
+  #toast {
+    left: 50%;
+    top: 26px;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: 16px;
+  }
+  #welcome {
+    /* the lines of a sentence of this length are evened, so a word is not left alone on the second */
+    text-wrap: balance;
+    width: 520px;
+    max-width: calc(100% - 32px);
+  }
+  #welcome small {
     color: var(--dim);
-    font-size: 11px;
+    font-size: 14px;
+  }
+  #toast {
+    top: 80px;
+    white-space: nowrap;
+  }
+  #toast b {
+    color: #8fe3ff;
   }
   /* the fight: the bar beside the Reel button, upright, the zone the reel pushes up it and the fish darting on it,
      the meter beside it filling while the fish is in the zone, and words below so position is not all it says */
@@ -309,7 +312,7 @@
     outline-offset: 3px;
   }
   #bucket {
-    top: 72px;
+    top: 16px;
     right: 16px;
     font-size: 14px;
   }
@@ -325,37 +328,47 @@
     #catch {
       bottom: 160px;
     }
-    /* above the folded lab panel, which takes the foot of a phone's screen */
     #castLine {
       bottom: 76px;
       max-width: calc(100% - 32px);
     }
-    #bucket {
-      top: 16px;
-    }
-    #labPanel {
-      top: auto;
-      bottom: 16px;
-      left: 16px;
-      right: 16px;
-      max-width: none;
-    }
-    #help,
-    #stats {
+    #help {
       display: none;
     }
+    /* the pond's gauge takes the top left, so the Cast button stands under it, and the lines under that */
     #hud {
-      top: 16px;
+      top: 76px;
       bottom: auto;
+    }
+    #welcome,
+    #toast {
+      top: 134px;
+    }
+    #toast {
+      white-space: normal;
+      width: calc(100% - 32px);
     }
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
-<details class="panel" id="labPanel" open>
-  <summary>Lake lab</summary>
-  <div id="lab" hidden></div>
-</details>
-<div class="panel" id="stats" hidden></div>
+<div class="panel" id="pond" hidden>
+  <svg id="pondIcon" viewBox="-50 -50 100 100" aria-hidden="true">
+    <g fill="none" stroke-width="7">
+      <ellipse rx="44" ry="15" />
+      <ellipse rx="44" ry="15" transform="rotate(60)" />
+      <ellipse rx="44" ry="15" transform="rotate(-60)" />
+    </g>
+    <circle r="12" stroke="none" />
+  </svg>
+  <div>
+    <div id="pondName"></div>
+    <div id="pondBar"><div id="pondBarGone"></div></div>
+  </div>
+</div>
+<div class="panel" id="welcome" hidden>
+  Welcome home. The pond's fish are glowing: catch them to clean it up.<br /><small>press Cast, or C, to start</small>
+</div>
+<div class="panel" id="toast" hidden></div>
 <div class="panel" id="castLine" hidden></div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
@@ -373,7 +386,7 @@
 </div>
 <button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
 <button class="panel" id="catch" type="button" hidden>
-  <b id="catchName"></b><span id="catchWeight"></span><small>tap to put it in the bucket</small>
+  <b id="catchName"></b><span id="catchWeight"></span><small>tap to cure it and put it in the bucket</small>
 </button>
 <div class="panel" id="bucket" hidden></div>
 <div id="hud">

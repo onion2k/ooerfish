@@ -612,6 +612,33 @@ export const VIEWS: Record<'shore' | 'boat' | 'overhead' | 'phone', View> = {
 export type ViewName = keyof typeof VIEWS;
 
 /**
+ * Where the camera stands for a view on a screen of this aspect (width over height): the Shore view takes the phone's
+ * framing on a screen taller than it is wide, which the lake's whole width needs, and every other view stays as it is.
+ * An aspect that is no positive number is not a tall screen.
+ */
+export function framingFor(name: ViewName, aspect: number): View {
+  return name === 'shore' && aspect > 0 && aspect < 1 ? VIEWS.phone : VIEWS[name];
+}
+
+/**
+ * The cure: how many fish put in the bucket it takes to clean the lake, each lowering the contamination by a share of
+ * that (an estimate, twelve; `DESIGN.md` sizes the cure by the player's pace, so it is tuned once the game is played).
+ */
+export const CURE = { toClean: 12 } as const;
+
+/** How sick the lake is once `cured` fish have been cured: from sick (1) down a share a fish, to clean (0), where it stays. */
+export function contaminationAfter(cured: number): number {
+  return Math.max(0, 1 - cured / CURE.toClean);
+}
+
+/**
+ * The day's clock: how long a day is, in seconds of game time (an estimate, `DESIGN.md` sizes a day at twelve to
+ * fifteen minutes of play; tuned once it is played), and where in the day the game starts, at dawn. The clock runs on
+ * from there round past midnight, with no end of day until the day has one.
+ */
+export const CLOCK = { daySeconds: 720, startsAt: 0.25 } as const;
+
+/**
  * How many splashes may be live on a lake at once, which fixes the pool and what is drawn of it (how long one is seen
  * is the water's, `CLEAR.ringLife`); and how far from the point asked a pebble dropped somewhere may land.
  */
@@ -672,3 +699,6 @@ export const SCENERY = {
  * frame budget itself. A machine that draws the full rung inside the budget keeps it.
  */
 export const RUNG_DOWN_MS = 8;
+
+/** What the lake is called, on the glow gauge and in what is said when it is clean. */
+export const LAKE_NAME = 'Duck Pond';

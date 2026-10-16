@@ -241,8 +241,13 @@ Each stage is a feature, built and verified before the next, every gate green at
 2. **A fish:** its steering, the bite, the strike, the line's tension, landing it.
 3. **The cure and the aquarium,** and the lake's contamination with its water changing colour: the heart of
    the cosy loop.
+   _A first slice is in (16 Oct 2026): each fish put in the bucket is cured, lowering the Duck Pond's
+   contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The cabin, the
+   curing machine and the aquarium are not._
 4. **The journal and the junk treasures.**
 5. **The calendar:** the day, the cabin morning, the end of a day, sleeping through.
+   _A first slice is in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
+   dawn, day, dusk and night. The day's end, sleep, the cabin morning and saving the time are not._
 6. **The seasons, the moon and the weather.**
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.

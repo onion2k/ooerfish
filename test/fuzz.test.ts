@@ -23,7 +23,7 @@ describe('the fuzzer', () => {
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
     }
     for (const action of ['strike', 'reel', 'stow', 'angle']) expect(done[action], action).toBeGreaterThan(0);
-    for (const event of ['nibbled', 'bitten', 'hooked', 'missed', 'slipped', 'landed'])
+    for (const event of ['nibbled', 'bitten', 'hooked', 'missed', 'slipped', 'landed', 'cured'])
       expect(happened[event], event).toBeGreaterThan(0);
   });
 

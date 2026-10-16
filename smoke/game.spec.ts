@@ -65,76 +65,75 @@ test('a scenery file that will not load stops the boot, saying so, and no frame 
   expect(await page.evaluate(() => window.game?.ready ?? false)).toBe(false);
 });
 
-test("works each of the lab's controls by mouse, and keeps them in the address", async ({ page }) => {
+test('works each lever through the test API, with no panel on the page and nothing written to the address', async ({
+  page,
+}) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
+  const state = () => page.evaluate(() => window.game!.state());
   const settings = () => page.evaluate(() => window.game!.settings());
-  const pressed = (label: string) => page.getByRole('button', { name: label, exact: true });
+  const href = () => page.evaluate(() => location.href);
+  const url = await href();
 
-  // the lake has one water, so the panel has no choice of it
-  await expect(page.getByText('Water', { exact: true })).toHaveCount(0);
-  await expect(pressed('Open water')).toHaveCount(0);
+  // the lab is gone: no panel, no slider, no readout, and nothing on the page that is a button of the lab's
+  for (const id of ['labPanel', 'lab', 'stats', 'dirt', 'pebble', 'reel'])
+    await expect(page.locator(`#${id}`)).toHaveCount(0);
+  await expect(page.getByText('Lake lab')).toHaveCount(0);
 
-  // the slider dragged a quarter of the way from clear to sick, by the mouse, as a viewer does
-  const box = (await page.locator('#dirt').boundingBox())!;
-  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2, { steps: 8 });
-  await page.mouse.up();
-  await expect.poll(async () => (await settings()).dirt).toBeGreaterThan(0.15);
-  expect((await settings()).dirt).toBeLessThan(0.35);
-  expect((await page.evaluate(() => window.game!.state())).contamination).toBe((await settings()).dirt);
+  // the lake as dirty as that, which the cure will do and the slider did
+  await page.evaluate(() => window.game!.dirt(0.25));
+  expect((await state()).contamination).toBe(0.25);
+  // what is not a number is refused, and the lake left as it was
+  await page.evaluate(() => window.game!.dirt(Number.NaN));
+  expect((await state()).contamination).toBe(0.25);
 
-  await pressed('Dusk').click();
-  await expect.poll(settings).toMatchObject({ time: 'dusk' });
-  expect((await page.evaluate(() => window.game!.state())).timeOfDay).toBe(0.75);
+  // the clock put at a time, which the page is lit with; one not known is refused
+  await page.evaluate(() => window.game!.time('dusk'));
+  expect((await state()).timeOfDay).toBe(0.75);
+  expect(await page.evaluate(() => window.game!.time())).toBe('dusk');
+  await page.evaluate(() => window.game!.time('teatime'));
+  expect(await page.evaluate(() => window.game!.time())).toBe('dusk');
 
-  // the water's caustics turned off and on again
-  await pressed('Off').click();
-  await expect.poll(settings).toMatchObject({ caustics: 'off' });
-  await expect(pressed('Off')).toHaveAttribute('aria-pressed', 'true');
-  expect(new URL(page.url()).searchParams.get('caustics')).toBe('off');
-  await pressed('On').click();
-  await expect.poll(settings).toMatchObject({ caustics: 'on' });
+  // the caustics and the paint, off and on again, and the settings say so
+  await page.evaluate(() => window.game!.caustics('off'));
+  expect(await settings()).toMatchObject({ caustics: 'off' });
+  await page.evaluate(() => window.game!.caustics('on'));
+  await page.evaluate(() => window.game!.paint('off'));
+  expect(await settings()).toEqual({ caustics: 'on', paint: 'off' });
+  await page.evaluate(() => window.game!.paint('on'));
 
-  // the rocks' paint taken off and put back: its buttons are not called On and Off, which the caustics' are
-  await expect(pressed('Painted')).toHaveAttribute('aria-pressed', 'true');
-  await pressed('Plain').click();
-  await expect.poll(settings).toMatchObject({ paint: 'off' });
-  await expect(pressed('Plain')).toHaveAttribute('aria-pressed', 'true');
-  expect(new URL(page.url()).searchParams.get('paint')).toBe('off');
-  await pressed('Painted').click();
-  await expect.poll(settings).toMatchObject({ paint: 'on' });
+  // each view, the camera put there; one not known is refused
+  await page.evaluate(() => window.game!.view('overhead'));
+  expect(await page.evaluate(() => window.game!.view())).toBe('overhead');
+  expect(
+    (await page.evaluate(() => window.game!.camera())).position[2],
+    'overhead is high over the lake',
+  ).toBeGreaterThan(80);
+  await page.evaluate(() => window.game!.view('moon'));
+  expect(await page.evaluate(() => window.game!.view())).toBe('overhead');
 
-  await pressed('Overhead').click();
-  await expect.poll(settings).toMatchObject({ view: 'overhead' });
-  const high = await page.evaluate(() => window.game!.camera());
-  expect(high.position[2], 'overhead is high over the lake').toBeGreaterThan(80);
-
-  // the address says it all, and a reload of it brings the same lake back
-  const said = await settings();
-  const url = new URL(page.url());
-  expect(url.searchParams.has('water')).toBe(false);
-  expect(url.searchParams.get('time')).toBe('dusk');
-  expect(url.searchParams.get('view')).toBe('overhead');
+  // none of it is in the address, which is not written back, and a reload starts the game over
+  expect(await href(), 'the address is as it was').toBe(url);
+  // and it is only what the test asked for: no dirt, time or view written into it, at the boot or after
+  expect([...new URL(url).searchParams.keys()].sort()).toEqual(['paused', 'rung', 'seed']);
   await page.reload();
   await ready(page);
-  expect(await settings()).toEqual(said);
-  await expect(pressed('Dusk')).toHaveAttribute('aria-pressed', 'true');
+  expect((await state()).contamination).toBe(1);
   expect(problems).toEqual([]);
 });
 
-test('refuses what the address says that it does not know, and draws the defaults', async ({ page }) => {
+test('reads from the address only what it still holds, refusing the rest by name', async ({ page }) => {
   const problems = watch(page);
-  await page.goto('/?water=lava&dirt=lots&time=teatime&view=moon&paused=1');
+  // an address from the lab opens the game: its dirt, time and view are not read, and what is not known is refused
+  await page.goto('/?water=lava&dirt=0&time=night&view=boat&caustics=sometimes&paint=maybe&paused=1');
   await ready(page);
-  expect(await page.evaluate(() => window.game!.settings())).toEqual({
-    dirt: 1,
-    time: 'day',
-    view: 'shore',
-    caustics: 'on',
-    paint: 'on',
-  });
+  expect(await page.evaluate(() => window.game!.settings())).toEqual({ caustics: 'on', paint: 'on' });
+  expect((await page.evaluate(() => window.game!.state())).contamination, 'a lake as sick as it starts').toBe(1);
+  expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+  // and what it does hold is read
+  await page.goto('/?caustics=off&paint=off&paused=1');
+  await ready(page);
+  expect(await page.evaluate(() => window.game!.settings())).toEqual({ caustics: 'off', paint: 'off' });
   expect(problems).toEqual([]);
 });
 
@@ -142,9 +141,9 @@ test("turns see-through water's caustics on and off in what is drawn", async ({ 
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
   await set(page, { dirt: 0, time: 'day', view: 'boat' }, 30);
-  // the panel and the corners out of the picture: the panel's own buttons, drawn over the canvas, are not the water
+  // the hint out of the picture: it is drawn over the canvas, and is not the water
   await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+    document.getElementById('help')!.hidden = true;
   });
   // turned on or off, and drawn again by the paused page's own frames, which are of no time, so only the caustics can
   // differ: a step would draw a frame of a sixtieth, and move the renderer's post clock on with it
@@ -172,7 +171,7 @@ test("turns the rocks' painted edge off and on in what is drawn, at the boulder 
   await start(page, { seed: 1, paused: true });
   await set(page, { dirt: 0, time: 'day', view: 'shore' }, 30);
   await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel']) document.getElementById(id)!.hidden = true;
+    document.getElementById('help')!.hidden = true;
   });
   // the camera brought to the boulder at the shore's edge, near and from the side the Shore view looks over
   await page.evaluate(() => window.game!.look(-13, -25.6, { azimuth: 0, polar: 1.3, radius: 9 }));
@@ -200,7 +199,9 @@ test("turns the rocks' painted edge off and on in what is drawn, at the boulder 
   expect(problems).toEqual([]);
 });
 
-test('drops a pebble where the water is tapped, none for a drag, and one for the button', async ({ page }) => {
+test('drops a pebble where the water is tapped, none for a drag, and one near the camera by the API', async ({
+  page,
+}) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
   await page.evaluate(() => window.game!.view('shore'));
@@ -227,9 +228,9 @@ test('drops a pebble where the water is tapped, none for a drag, and one for the
   await page.mouse.up();
   expect((await splashes()).length, 'a drag drops none').toBe(1);
 
-  // the panel's button drops one near what the camera looks at
-  await page.getByRole('button', { name: 'Drop a pebble' }).click();
-  expect((await splashes()).length, 'the button drops one').toBe(2);
+  // a pebble dropped near what the camera looks at, which the panel's button used to do
+  expect(await page.evaluate(() => window.game!.dropNear())).toBe(true);
+  expect((await splashes()).length, 'and one near the camera').toBe(2);
   expect(await ripples(), 'and its ripples too').toHaveLength(2);
   expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
@@ -270,7 +271,7 @@ test('casts by a drag back in cast mode, to where its preview said, and not othe
   await expect(page.locator('#castLine')).toHaveText('waiting for a fish…');
 
   // reeled in, it is ready to cast again
-  await page.getByRole('button', { name: 'Reel in' }).click();
+  await page.evaluate(() => window.game!.reelIn());
   expect((await lure()).phase).toBe('ready');
 
   // a drag let go near where it began casts nothing, and drops nothing either
@@ -281,7 +282,7 @@ test('casts by a drag back in cast mode, to where its preview said, and not othe
   expect((await lure()).phase, 'taken back').toBe('ready');
   expect(await page.evaluate(() => window.game!.splashes()), 'no pebble').toHaveLength(1);
 
-  // a view picked from the panel is look mode: a drag from overhead turns the camera, and casts nothing
+  // a view picked is look mode: a drag from overhead turns the camera, and casts nothing
   await page.evaluate(() => window.game!.view('overhead'));
   expect(await page.evaluate(() => window.game!.mode())).toBe('look');
   const before = await page.evaluate(() => window.game!.camera().position);
@@ -335,9 +336,9 @@ test('strikes by a tap and reels by a hold in cast mode, and by the button from 
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await page.mouse.up();
   expect((await fishing()).reeling).toBe(false);
-  // a fish on: a cast is refused, and the panel's reel-in leaves it on the line
+  // a fish on: a cast is refused, and reeling in leaves it on the line
   expect(await page.evaluate(() => window.game!.cast(Math.PI / 2, 0.5))).toBe(false);
-  await page.getByRole('button', { name: 'Reel in' }).click();
+  await page.evaluate(() => window.game!.reelIn());
   expect((await fishing()).phase).toBe('hooked');
   expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
@@ -363,7 +364,7 @@ test('looks round by default, and casts only once switched to, by the button or 
 
   // look is the mode the page starts in, whatever the view: here the Shore view
   expect(await mode()).toBe('look');
-  expect((await api(() => window.game!.settings())).view).toBe('shore');
+  expect(await api(() => window.game!.view())).toBe('shore');
   await expect(button).toHaveText('Cast');
   await expect(page.locator('#help')).toContainText('drag to look round');
   const shore = await camera();
@@ -404,34 +405,34 @@ test('looks round by default, and casts only once switched to, by the button or 
   expect(await api(() => window.game!.splashes()), 'a tap drops a pebble, the lure sinking').toHaveLength(2);
   expect(await lure()).toBe(sinking);
 
-  // the key does nothing over the lab's controls, where it is only a letter
-  await page.getByRole('button', { name: 'Dusk', exact: true }).focus();
+  // the key does nothing over a button of the page's, where it is only a letter
+  await page.locator('#modeButton').focus();
   await page.keyboard.press('c');
   expect(await mode(), 'c over a control').toBe('look');
 
-  // a view picked on the panel in cast mode is look mode, and the camera goes where the view says
+  // a view picked in cast mode is look mode, and the camera goes where the view says
   await page.evaluate(() => (document.activeElement as HTMLElement).blur());
   await page.keyboard.press('c');
   expect(await mode()).toBe('cast');
-  await page.getByRole('button', { name: 'Overhead', exact: true }).click();
+  await api(() => window.game!.view('overhead'));
   expect(await mode(), 'a view picked').toBe('look');
   await expect(button).toHaveText('Cast');
   expect((await camera())[2], 'overhead is high').toBeGreaterThan(80);
   // the Shore view picked again puts the camera back, as it is the view's to do, and stays look
-  await page.getByRole('button', { name: 'Shore', exact: true }).click();
+  await api(() => window.game!.view('shore'));
   expect(await mode()).toBe('look');
   const back = await camera();
   back.forEach((v, k) => expect(v).toBeCloseTo(shore[k], 3));
   // and picked while it is the view already, it puts the camera back from wherever it was turned
   await drag(100, 20);
   expect(await camera()).not.toEqual(back);
-  await page.getByRole('button', { name: 'Shore', exact: true }).click();
+  await api(() => window.game!.view('shore'));
   (await camera()).forEach((v, k) => expect(v).toBeCloseTo(shore[k], 3));
 
   // the test API: the mode read and set, cast putting the camera at the shore
   await api(() => window.game!.view('boat'));
   await api(() => window.game!.mode('cast'));
-  expect((await api(() => window.game!.settings())).view, 'cast is the Shore view').toBe('shore');
+  expect(await api(() => window.game!.view()), 'cast is the Shore view').toBe('shore');
   await api(() => window.game!.mode('look'));
   expect(await mode()).toBe('look');
   expect(await api(() => window.game!.invariants())).toEqual([]);
@@ -498,13 +499,6 @@ test.describe('on a phone', () => {
     await expect(page.locator('#view')).toBeVisible();
     await info.attach('phone', { body: await page.screenshot(), contentType: 'image/png' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
-    // the lab's panel fits the screen open, and folds away by its title
-    const panel = (await page.locator('#labPanel').boundingBox())!;
-    expect(panel.x).toBeGreaterThanOrEqual(0);
-    expect(panel.x + panel.width).toBeLessThanOrEqual(400);
-    expect(panel.y).toBeGreaterThanOrEqual(0);
-    await page.getByText('Lake lab').tap();
-    await expect(page.locator('#lab')).toBeHidden();
     // and a tap on the water drops a pebble, as a click does
     await page.evaluate(() => window.game!.pause());
     const at = (await page.evaluate(() => window.game!.project(0, -2, 0)))!;
@@ -518,6 +512,53 @@ test.describe('on a phone', () => {
     expect(await page.evaluate(() => window.game!.mode())).toBe('cast');
     await touchDrag(page, { x: 200, y: 500 }, { x: 200, y: 640 });
     expect((await page.evaluate(() => window.game!.lure())).phase, 'a finger casts').toBe('flying');
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('on a tall screen', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  const away = async (page: Page) => {
+    const cam = await page.evaluate(() => window.game!.camera());
+    return { distance: Math.hypot(...cam.position.map((p, k) => p - cam.target[k])), target: cam.target };
+  };
+
+  test('the Shore view takes the phone framing by itself, at the start and in cast mode, and the rest stay as they are', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    // the start is the Shore view, framed for a phone: the phone's distance and where it looks
+    const first = await away(page);
+    expect(first.distance, 'the phone framing at the start').toBeCloseTo(105, 0);
+    expect(first.target[1]).toBeCloseTo(6, 1);
+    expect(await page.evaluate(() => window.game!.view()), 'still called the Shore view').toBe('shore');
+
+    // cast mode puts the camera at the shore, which is the phone framing here
+    await page.evaluate(() => window.game!.view('boat'));
+    expect((await away(page)).distance, 'the boat view is the boat view').toBeCloseTo(18, 0);
+    await page.evaluate(() => window.game!.mode('cast'));
+    expect((await away(page)).distance, 'cast mode on a tall screen').toBeCloseTo(105, 0);
+    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+    await page.evaluate(() => window.game!.mode('look'));
+
+    // the other views are as they are, on a tall screen too
+    for (const [view, distance] of [
+      ['overhead', 110],
+      ['phone', 105],
+      ['shore', 105],
+    ] as const) {
+      await page.evaluate((v) => window.game!.view(v), view);
+      expect((await away(page)).distance, view).toBeCloseTo(distance, 0);
+    }
+
+    // turned on its side, cast mode is framed for the wide screen again: the Shore view as a desk has it
+    await page.evaluate(() => window.game!.mode('cast'));
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect.poll(async () => (await away(page)).distance).toBeCloseTo(62, 0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(async () => (await away(page)).distance).toBeCloseTo(105, 0);
     expect(problems).toEqual([]);
   });
 });

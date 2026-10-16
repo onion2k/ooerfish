@@ -7,12 +7,15 @@ in. TypeScript, Vite, and WebGPU through
 [artshape-render](https://github.com/onion2k/artshape-render), with the
 physics from [artshape-physics](https://github.com/onion2k/artshape-physics).
 The README says what the game is; this file says how it is made. The house
-rules in `~/.claude/CLAUDE.md` apply too. For now the page is the **lake
-lab**: one pond, its water seen into (the lake is seen into as it is cleaned,
-which is what the game is about), with fish swimming under it and a panel for
-the contamination, the time of day, the view and the caustics. In it a fish can be cast for,
-hooked, played and landed (stages 1 and 2 of `DESIGN.md`'s order of work);
-nothing is saved yet, and the bucket is the session's until the cure comes.
+rules in `~/.claude/CLAUDE.md` apply too. The page is the game's first
+playable loop (`docs/game.md` is the plan it was built from): the Duck Pond,
+sick and glowing at dawn, its water seen into (the lake is seen into as it is
+cleaned, which is what the game is about), with fish swimming under it. A
+fish can be cast for, hooked, played and landed (stages 1 and 2 of
+`DESIGN.md`'s order of work), and **each fish put in the bucket is cured** and
+clears the pond a twelfth (the smallest slice of stage 3), kept in the save as
+a count; the day runs round from dawn (a first slice of stage 5). There is no
+panel: the old lake lab's levers are the test API's now.
 
 ## The factory
 
@@ -114,15 +117,45 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
 
 ## How the code is laid out
 
-- `src/game.ts` is the lake without the picture: its clock, its fish, and the
-  lab's two levers on it (contamination, time of day), a step at a time. It
-  knows nothing of the renderer or the page. `src/fish.ts` is the school.
-- `src/main.ts` is the page. It turns the lab's settings into the water, the
-  light and the camera, and the page's mode into what a drag does, and draws the frame. There is no game logic here.
+- `src/game.ts` is the lake without the picture: its clock (`timeOfDay` runs on
+  by game time, `CLOCK` in `lake.ts`: a day is 720 s, an estimate, from dawn,
+  round past midnight, held to [0, 1)), its fish, and the contamination, a step
+  at a time. It knows nothing of the renderer or the page. `src/fish.ts` is the
+  school.
+- **The cure:** `Game.stow` counts a fish cured (`progress.save.cured`, saved
+  at once, told as `GameEvents.cured`) and sets the contamination to the lesser
+  of where it is and `contaminationAfter(cured)`, `1 - cured / CURE.toClean`
+  floored at 0 (`CURE.toClean` is 12, an estimate), so nothing but the cure
+  lowers it and nothing but `setContamination` (the lever of the tests and the
+  fuzzer's start, counted in `game.levers`) raises it. The save keeps the count,
+  never the contamination, so a retuned step is applied to a save already
+  written; the invariants hold that it never rises by any other road and that
+  the count is a whole number. Fish still come after the twelfth, and are
+  counted.
+- `src/main.ts` is the page. It turns what the game says into the water (when
+  the contamination changes: `showWater`), the light (when the clock comes to
+  the next look: `showLight`, each frame comparing `nearestTime` to the look's
+  name and writing the uniforms, the four environments all baked once right
+  after the first frame is up, `bakeLooks`, about 35 ms that are not the boot's)
+  and the camera (when a view is picked: `setView`, the Shore view taking the
+  `phone` framing on a screen taller than wide, `framingFor` in `lake.ts`, and
+  again on a turn of the screen in cast mode), the page's mode into what a drag
+  does, and draws the frame. There is no game logic here. The look steps, it
+  does not fade; a blended sky needs two environments mixed in the renderer, a
+  package change.
+- `src/pondview.ts` is the pond on the screen, as `fightview.ts` is the fight:
+  the glow gauge (the lake's name, `LAKE_NAME`, and a bar that empties as it
+  cleans), the welcome line (until the first cast, and never to a player who has
+  cured a fish), the "Cured!" line for `HEARD_FOR` of game time and the "clean"
+  line at the twelfth. `pondWords` is the words as a pure function, tested without
+  a page; the view writes the page only where they change.
 - `src/debug.ts` is `window.game`, the test API: the clock, the fish, and the
-  lab's controls (`dirt`, `time`, `view`, `caustics`), each resolving once
-  its change is ready to draw, and the page's `mode`. `src/invariants.ts` lists the rules that must
-  always hold.
+  levers the lab's panel used to hold (`dirt`, `time`, `view`, `caustics`,
+  `paint`; `time()` and `view()` with no name say which look and view the page
+  is at, `clock(at)` puts the clock somewhere without lighting the page,
+  `looksBaked()` and `drawnDirt()` read the page's own state), each resolving
+  once its change is ready to draw, and the page's `mode`. `src/invariants.ts`
+  lists the rules that must always hold.
 - Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
   boulders, the fish count and capacity, and the named views. A boulder is a
   bit of bank in the water: `inside` is false within its waterline (a margin
@@ -143,7 +176,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   `static()` takes the groups from it, and `game.scenery()` counts their
   triangles. The paint sets (boulder chalk, wood, cliff) are in `look.ts`
   beside `TOY`, and `lookFor(time, paint)` is what the renderer is handed.
-  The lab's `paint` control (`on`|`off`, `?paint=off`, `game.paint()`) draws
+  The paint switch (`on`|`off`, `?paint=off`, `game.paint()`) draws
   the same rocks plain, to compare. The paint is not gated by the rung. The
   cabin and jetty timber take the wood's set. `docs/painted.md` is the plan
   they were built from.
@@ -227,10 +260,10 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   `main.ts` does it). It starts in look: the orbit is on in every view,
   Shore too, a drag turns the camera and a tap drops a pebble. Cast (the
   button, always on the screen and saying what it does next, or the C key,
-  not over the lab's controls) puts the camera at the Shore view, the view
-  setting becoming `shore`, turns the orbit off, and a drag back aims, letting
-  go casts and a tap with the lure sinking strikes. Picking a view, from the
-  panel or `game.view`, is look mode again, and puts the camera there even if
+  not over the page's buttons) puts the camera at the Shore view, the view
+  becoming `shore`, turns the orbit off, and a drag back aims, letting
+  go casts and a tap with the lure sinking strikes. Picking a view, through
+  `game.view`, is look mode again, and puts the camera there even if
   it is the view already. The mode is the page's and not a setting: it is not
   in the address, and `game.mode()` reads and sets it. The Game's `cast`,
   `aim` and the fuzzer do not go through it.
@@ -263,11 +296,14 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   (`docs/splash.md`). `game.ripples()` reads what the last frame handed over.
   `splashBurst` in `src/bursts.ts` is the droplets, emitted on the event.
   `src/pick.ts` turns a tap on the screen into the point on the water.
-- `src/settings.ts` reads the lab's settings (the dirt, the time, the view,
-  and the water's caustics) from the address and refuses
-  what it does not know; `src/lab.ts` is the panel. The save lives in
-  `progress.ts` and has no fields yet. Chance comes from `random.ts`, handed
-  in.
+- `src/settings.ts` reads the address, which holds only the viewer's and the
+  tests' switches, `caustics` and `paint` (beside `seed`, `paused` and `rung`,
+  read where they are used), and refuses what it does not know by name; it is
+  never written back, and an old link with `dirt=`, `time=` or `view=` still
+  opens the game, unread. The save lives in `progress.ts` and holds the count
+  cured (default 0; a count that is not a non-negative whole number is taken for
+  none; `test/saves/` has a file for each shape). Chance comes from `random.ts`,
+  handed in.
 - artshape-physics is a dependency with nothing using it: the lure and the
   bobber will be its bodies, through a `src/physics.ts` of the game's own.
 
@@ -286,7 +322,7 @@ What to copy the shape of, when building something new:
   would be a file beside it that makes the groups at a contamination and its
   `look.clear`, a line in `STYLES`, a unit test in `test/water.test.ts`, and
   pictures in `smoke/look.spec.ts`; it would also need a way to be chosen
-  (a `Settings` key, as a control on the lab below), since nothing chooses
+  (a `Settings` key, as a switch below), since nothing chooses
   between waters now.
 - **A thing in the lake:** the fish. Its numbers are content in `lake.ts`,
   it moves in `fish.ts` stepped by `game.ts`, is held by `invariants.ts`,
@@ -298,10 +334,14 @@ What to copy the shape of, when building something new:
   named in `look.ts`'s `PAINT`, a test that it is painted and built the same
   each time, and a picture; the paint turns off with `?paint=off`. See
   `docs/painted.md`.
-- **A control on the lab:** a key in `Settings` with its check in `CHECK`
-  (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
-  `apply` (`main.ts`), a method on the test API, and a click in the controls
-  test in `smoke/game.spec.ts`.
+- **A switch for the viewer or the tests:** a key in `Settings` with its check
+  in `CHECK` (`settings.ts`), what it changes in `setSettings`/`finish`
+  (`main.ts`), a method on the test API, and a line in the levers test in
+  `smoke/game.spec.ts`. It has no button: the lab's panel is gone.
+- **A line or gauge on the screen:** `pondview.ts`: its words a pure function
+  with a unit test, an element in `index.html` hidden until shown, a write only
+  on change, a stage in `smoke/progress.spec.ts` and a picture at a desk's and a
+  phone's width in `smoke/look.spec.ts` (`desk-pond-*`, `phone-pond-*`).
 - **A thing on the bank:** a plant or a stone: a model in
   `scripts/kit-sources.json` and its counts and scales in `SCENERY`
   (`lake.ts`; the grass a kind and a field in `grass.ts`), converted by
@@ -324,7 +364,7 @@ What to copy the shape of, when building something new:
   once it has been seen to fail what it is for.
 - **Test helpers:** `newGame(seed)` in `test/helpers.ts`, `memoryStore` in
   `src/progress.ts` for a save that is not the player's, and `set(page,
-scene)` in `smoke/game.ts` to put the lab in a scene.
+scene)` in `smoke/game.ts` to put the page in a scene.
 
 ## Rules for the code
 
@@ -335,7 +375,7 @@ scene)` in `smoke/game.ts` to put the lab in a scene.
   `Math.random` itself.
 - **Nothing is made each frame.** Pools are sized once and written into;
   the renderer's groups are fixed and `move` writes them. The water's groups
-  are handed over again only when the lab's contamination changes. A per-frame
+  are handed over again only when the contamination changes. A per-frame
   allocation is a frame-time bug and a garbage-collection stutter.
 - **Nothing is kept for ever.** A list, map or cache that is added to has to
   be emptied somewhere, and its ceiling named in `scripts/leaks.ts`.
@@ -374,10 +414,11 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the rung:** full and lean, each time of day and view on each; the governor
   choosing at boot, forced by the address, and set through `game.rung()` while
   playing; lean has no grass drawn and the same placements
-- **the lab:** each time of day, each view, caustics on and off, the paint
+- **the switches:** each time of day, each view, caustics on and off, the paint
   on and off (`?paint=off`; `?paint=maybe` refused by name),
-  the lake clear and sick; what the address says that is not known; and a
-  pebble dropped on it, by a tap or the button, at the shore and off it
+  the lake clear and sick; what the address says that is not known, and an old
+  `?dirt=` ignored; and a pebble dropped on it, by a tap or `game.dropNear`, at
+  the shore and off it
 - **the water:** above, on and under the surface; at the shore's edge; at
   the deepest and the shallowest; a lure or a fish never out of the lake
 - **the line:** cast (onto the water, onto the bank, at the shore's edge),
@@ -396,9 +437,9 @@ For anything new, check what it does, from `DESIGN.md`:
   festival day; and the year coming round again
 - **the real clock:** on and off, the same seed playing the same fish,
   weather and catches either way
-- **the lake's contamination:** only ever going down; a lake fully clean.
-  The lab's slider moves it both ways, as a lever for looking; the rule that
-  it never rises comes with the cure, and goes in the invariants then
+- **the lake's contamination:** only ever going down, by the cure; a lake fully
+  clean, and a fish after it. `game.dirt` moves it both ways, as a lever for the
+  pictures, and the invariants allow a rise only where that lever was set
 - **the cabin:** the curing machine, the aquarium at its ceiling, the
   shelves, a fish named and let go
 

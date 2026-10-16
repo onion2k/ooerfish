@@ -18,7 +18,7 @@ describe('what must stay bounded', () => {
       expect(Number.isFinite(now[key])).toBe(true);
       expect(Object.keys(WATCH), `a ceiling for ${key}`).toContain(key);
     }
-    expect(now['save bytes'], 'the empty save is two bytes, {}').toBe(2);
+    expect(now['save bytes'], 'a fresh save is {"cured":0}, eleven bytes').toBe(11);
   });
 
   it('knows a size that grows from one that wanders', () => {

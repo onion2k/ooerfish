@@ -225,7 +225,33 @@ export function lookFor(time: TimeOfDay, paint: 'on' | 'off' = 'on') {
   };
 }
 
-/** Put the look on `renderer` at a time of day, and resolve once the pipelines it asks for are compiled. */
+/** The environment of a time of day, baked the first time it is asked for (8 to 12 ms) and kept. */
+function environment(ctx: Gpu, time: TimeOfDay): Environment {
+  let env = baked.get(time.name);
+  if (!env) {
+    env = bakeEnvironment(ctx, 'daylight', { size: 128, mips: 6, image: skyImage(time) });
+    baked.set(time.name, env);
+  }
+  return env;
+}
+
+/**
+ * Every time of day's environment baked now, so that the light stepping in play is a uniform write and no hitch:
+ * the page does it once, right after its first frame is up and not before, to keep it off the boot figure.
+ */
+export function bakeLooks(ctx: Gpu): void {
+  for (const t of TIMES) environment(ctx, t);
+}
+
+/** How many times of day have their environment baked: nought before the first look, and four once they all are. */
+export function looksBaked(): number {
+  return baked.size;
+}
+
+/**
+ * Put the look on `renderer` at a time of day, and resolve once the pipelines it asks for are compiled. The look
+ * itself is set before the first wait, so a caller that does not wait has it for the next frame.
+ */
 export async function light(
   renderer: GameRenderer,
   ctx: Gpu,
@@ -234,11 +260,7 @@ export async function light(
 ): Promise<void> {
   renderer.look = { ...renderer.look, ...lookFor(time, paint) };
   renderer.post = { ...renderer.post, vignette: 0, grain: 0, tone: 'soft' };
-  let env = baked.get(time.name);
-  if (!env) {
-    env = bakeEnvironment(ctx, 'daylight', { size: 128, mips: 6, image: skyImage(time) });
-    baked.set(time.name, env);
-  }
+  const env = environment(ctx, time);
   renderer.setEnvironment(env.specular, env.brdf, env.mips);
   await renderer.prepare();
 }

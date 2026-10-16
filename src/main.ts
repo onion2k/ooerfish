@@ -1,8 +1,9 @@
 /**
- * The page: the lake drawn, and the lab's panel. Everything that happens at
- * the lake happens in `game.ts`; this draws the frame, on the game path of
- * artshape-render, and turns the panel's settings into the water, the light
- * and the camera they name. There is no game logic here.
+ * The page: the lake drawn. Everything that happens at the lake happens in
+ * `game.ts`; this draws the frame, on the game path of artshape-render, and
+ * turns what the game says into the water, the light and the camera: the water
+ * when the contamination changes, the light when the time does, the camera when
+ * a view is picked. There is no game logic here.
  */
 import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
@@ -19,9 +20,8 @@ import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
-import { buildPanel } from './lab';
-import { SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE } from './lake';
-import { light, paintFor, timeNamed } from './look';
+import { SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
+import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
 import { Progress } from './progress';
@@ -30,11 +30,12 @@ import { seeded } from './random';
 import { RIPPLE_FLOATS, rippleData } from './ripples';
 import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
 import { loadScenery } from './scenery';
-import { changed, readSettings, writeSettings, type Settings } from './settings';
+import { changed, readSettings, type Settings } from './settings';
 import { STYLES } from './water/styles';
 import { shoreField } from './shorefield';
 import { surfaceOf, waterClock } from './water/swell';
 import { FightView } from './fightview';
+import { PondView } from './pondview';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
@@ -54,9 +55,7 @@ const EVENTS_KEPT = 500;
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const boot = document.getElementById('boot')!;
 const bootMsg = document.getElementById('bootMsg')!;
-const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
-const lab = document.getElementById('lab')!;
 const castLine = document.getElementById('castLine')!;
 const modeButton = document.getElementById('modeButton')!;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
@@ -115,6 +114,12 @@ async function main() {
     },
     slipped: () => log('slipped'),
     landed: (kind, weight) => log(`landed ${kind} ${weight.toFixed(2)}`),
+    cured: (cured, toClean) => {
+      log(`cured ${cured}/${toClean}`);
+      // the water steps clearer at once, and the line says so; the gauge reads the save the game has just written
+      void showWater();
+      pond.cured(cured, toClean);
+    },
   };
   const game = new Game(new Progress(), { ...(seed !== null ? { random: seeded(+seed) } : {}), events });
 
@@ -187,8 +192,9 @@ async function main() {
   addEventListener('resize', resize);
   resize();
 
-  // ---- the lab's settings, and what each one changes ----
+  // ---- what the address holds, and what each change of the game's makes of the page ----
 
+  /** The caustics and the paint, from the address: the viewer's and the tests', never saved and never written back. */
   let settings: Settings = readSettings(query);
   /** The one way the water is drawn; another would be chosen here. */
   const style = STYLES[0];
@@ -217,47 +223,87 @@ async function main() {
     for (let i = 0; i < 400; i++) orbit.update();
     orbit.enabled = was;
   };
-  /** The water, the light and the camera made what the settings say, where they differ from `was`. */
-  async function apply(was: Settings | null, viewPicked = false) {
-    game.setContamination(settings.dirt);
-    if (!was || was.dirt !== settings.dirt) {
-      // the water's groups and the fish's handed over again: once a change, never once a frame
+  /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
+  let time: TimeOfDay = nearestTime(game.timeOfDay);
+  let viewName: ViewName = 'shore';
+  /** Whether the screen was taller than wide when the camera was last put at a view. */
+  let tall = false;
+  let watered: number | null = null;
+  /** The water's finish and the rocks' paint, at the contamination, the time and the settings as they stand: uniforms, so written on any change and nothing recompiles. */
+  function finish() {
+    const water = style.clear(game.contamination, settings.caustics === 'on', time);
+    rippleLife = water.ringLife ?? 0;
+    renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
+  }
+  /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination has changed, once a change and never once a frame. */
+  async function showWater() {
+    if (watered !== game.contamination) {
+      watered = game.contamination;
       const water = style.groups(game.contamination);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
       renderer.setDynamic([...water, ...fish.groups(), ...casting.groups()]);
     }
-    if (!was || was.time !== settings.time) {
-      const time = timeNamed(settings.time);
-      game.setTimeOfDay(time.at);
-      await light(renderer, ctx, time, settings.paint);
-    }
-    // how clear the water is: a uniform, so written on every change for nothing
-    const water = style.clear(game.contamination, settings.caustics === 'on', timeNamed(settings.time));
-    rippleLife = water.ringLife ?? 0;
-    renderer.look = {
-      ...renderer.look,
-      clear: water,
-      // the rocks' paint on or off: sets in a uniform, so written on every change and nothing recompiles
-      paint: paintFor(settings.paint),
-    };
-    // a view picked puts the camera there even when it is the view already, so it is the way back from being turned away
-    if (!was || was.view !== settings.view || viewPicked) {
-      const v = VIEWS[settings.view];
-      look(v.x, v.y, v);
-      aim = null;
-    }
+    finish();
+    await renderer.prepare();
+  }
+  /** The lake made as dirty as that, and the water drawn so. */
+  async function setDirt(v: number) {
+    game.setContamination(v);
+    await showWater();
+  }
+  /** The light of the time of that name, which the game's clock is put at; one not known is refused. */
+  async function setTime(name: string) {
+    const to = TIMES.find((t) => t.name === name);
+    if (!to) return;
+    game.setTimeOfDay(to.at);
+    await showLight(to);
+  }
+  /**
+   * The page lit as `to`: the look and the environment, and the water's finish with it, all set before the first wait,
+   * so a frame that does not wait draws it; resolving once the pipelines are compiled.
+   */
+  async function showLight(to: TimeOfDay) {
+    time = to;
+    const lit = light(renderer, ctx, to, settings.paint);
+    finish();
+    await lit;
+    await renderer.prepare();
+  }
+  /** The camera put at the view of that name, even when it is the view already, so it is the way back from being turned away; one not known is refused. */
+  async function setView(name: string, byMode = false) {
+    if (!Object.hasOwn(VIEWS, name)) return;
+    viewName = name as ViewName;
+    // a view picked, from the test API, is look mode unless it is the mode itself that picked it
+    if (!byMode) showMode(nextMode(mode, 'view').mode);
+    // the Shore view is framed for a phone on a screen taller than it is wide
+    const v = framingFor(viewName, width / height);
+    tall = height > width;
+    look(v.x, v.y, v);
+    aim = null;
     // look turns the camera by a drag in every view; cast holds it still behind the angler, where a drag aims
     orbit.enabled = orbits(mode);
     await renderer.prepare();
   }
+  // a screen turned on its side while the camera is held at the shore in cast mode is framed again, for the new shape;
+  // in look mode the camera is the player's to have turned, and is left where it is
+  addEventListener('resize', () => {
+    if (mode === 'cast' && viewName === 'shore' && tall !== height > width) void setView('shore', true);
+  });
+  /** The caustics or the paint changed, as the test API asks. */
+  async function setSettings(next: Partial<Settings>) {
+    const was = settings;
+    settings = changed(settings, next);
+    // the paint is in the look's sets, so a change of it lights the page again; the caustics only change the water's finish
+    if (was.paint !== settings.paint) await showLight(time);
+    else {
+      finish();
+      await renderer.prepare();
+    }
+  }
   /** Look, where a drag turns the camera, or cast, where it aims a cast: the page starts by looking. */
   let mode: Mode = 'look';
-  const panel = buildPanel(lab, (next) => void change(next), {
-    drop: () => game.dropNear(cam.target[0], cam.target[1]),
-    reelIn: () => game.reelIn(),
-  });
 
   /**
    * The line on the screen that says what the lure is doing and what to do: waiting, a nibble, the bite, a fish on, or
@@ -351,9 +397,9 @@ async function main() {
     if (at) game.drop(at[0], at[1]);
   });
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
-  // and cast. Neither over the lab's own controls, where the key is only what it types or presses
+  // and cast. Neither over the page's own buttons, where the key is only what it presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch, #modeButton') !== null;
+    e.target instanceof HTMLElement && e.target.closest('#catch, #modeButton') !== null;
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
@@ -399,6 +445,19 @@ async function main() {
     toScreen,
   );
 
+  const pond = new PondView(
+    {
+      gauge: byId('pond'),
+      name: byId('pondName'),
+      bar: byId('pondBar'),
+      gone: byId('pondBarGone'),
+      welcome: byId('welcome'),
+      toast: byId('toast'),
+    },
+    () => game,
+    HEARD_FOR,
+  );
+
   /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
   function showMode(to: Mode) {
     if (to !== 'cast') {
@@ -418,22 +477,13 @@ async function main() {
   async function setMode(event: ModeEvent) {
     const step = nextMode(mode, event);
     showMode(step.mode);
-    if (step.camera === 'shore') await change({ view: 'shore' }, true);
+    if (step.camera === 'shore') await setView('shore', true);
   }
   modeButton.addEventListener('click', () => void setMode('toggle'));
 
-  /** The settings changed; a view picked, from the panel or the test API, is look mode unless it is the mode itself that picked it. */
-  async function change(next: Partial<Settings>, byMode = false) {
-    const was = settings;
-    settings = changed(settings, next);
-    const picked = next.view !== undefined && Object.hasOwn(VIEWS, String(next.view));
-    if (picked && !byMode) showMode(nextMode(mode, 'view').mode);
-    panel.show(settings);
-    history.replaceState(null, '', `?${writeSettings(settings, new URLSearchParams(location.search))}`);
-    await apply(was, picked);
-  }
-  panel.show(settings);
-  await apply(null);
+  await setDirt(game.contamination);
+  await showLight(time);
+  await setView('shore', true);
 
   /** Each frame: the fish where they are, glowing under the water, the splashes' ripples in it, and the cast. */
   const writeFrame = () => {
@@ -457,6 +507,7 @@ async function main() {
     renderer.move(g, casting.ringBank, drawn.ringBank);
     showCast();
     fightView.show();
+    pond.show();
   };
 
   /** Whether a frame is being measured: the frame loop stands still while one is. */
@@ -503,18 +554,19 @@ async function main() {
     await renderer.prepare();
   }
   boot.classList.add('gone');
-  stats.hidden = false;
   help.hidden = false;
   modeButton.hidden = false;
-  lab.hidden = false;
 
   // ---- each frame ----
 
   let frames = 0;
-  let smoothed = 0;
   function simulate(dt: number) {
     frames++;
     game.step(dt);
+    // the day's clock has run on: when it has come to the next look, the page is lit as that, once, so a frame in
+    // play compares a name and nothing more; the environments are all baked, so this is a uniform write
+    const want = nearestTime(game.timeOfDay);
+    if (want !== time) void showLight(want);
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
@@ -525,10 +577,7 @@ async function main() {
     // the same frame
     renderer.time = waterClock(game.t, WATER_PACE);
     writeFrame();
-    const t = performance.now();
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);
-    smoothed += (performance.now() - t - smoothed) * 0.05;
-    if (frames % 30 === 0) stats.textContent = `${smoothed.toFixed(1)} ms`;
   }
 
   // ---- the test API, and the frame loop ----
@@ -578,7 +627,14 @@ async function main() {
         : new Float64Array(0);
     },
     settings: () => ({ ...settings }),
-    change: (next) => change(next),
+    setSettings,
+    setDirt,
+    setTime,
+    setView: (name) => setView(name),
+    looksBaked,
+    drawnDirt: () => watered,
+    time: () => time.name,
+    view: () => viewName,
     mode: () => mode,
     setMode: (to) => setMode(to),
   });
@@ -599,4 +655,6 @@ async function main() {
   ready = true;
   bootMs = performance.now();
   requestAnimationFrame(frame);
+  // the four looks are baked now that the page is up, about thirty milliseconds that are not the boot's
+  bakeLooks(ctx);
 }

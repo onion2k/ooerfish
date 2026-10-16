@@ -55,6 +55,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     missed: 0,
     slipped: 0,
     landed: 0,
+    cured: 0,
   };
   const count = (what: string) => () => {
     happened[what]++;
@@ -67,6 +68,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     missed: count('missed'),
     slipped: count('slipped'),
     landed: count('landed'),
+    cured: count('cured'),
   };
   const log: string[] = [];
   let frame = 0;
@@ -81,6 +83,13 @@ export function fuzz(seed: number, frames: number): FuzzResult {
   try {
     let store = memoryStore();
     let game = new Game(new Progress(store), { random: seeded(seed), events });
+    // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
+    // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
+    {
+      const start = random() < 0.25 ? [NaN, -1, 2, Infinity][Math.floor(random() * 4)] : random();
+      game.setContamination(start);
+      done['dirt'] = 1;
+    }
     // in an object, since the actions change it from inside closures the type checker cannot follow
     const page = { paused: false, watching: 0, careless: false, holding: false };
     let busy = 0;
@@ -111,16 +120,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       [
         2,
         () => {
-          // the lab's slider can be dragged anywhere, and the page hands on whatever it reads, so anything is tried
-          const v = random() < 0.25 ? [NaN, -1, 2, Infinity][Math.floor(random() * 4)] : random();
-          game.setContamination(v);
-          did('dirt');
-        },
-      ],
-      [
-        2,
-        () => {
-          // one of the lab's four times of day, or anywhere between, as the address may say
+          // one of the four times of day, or anywhere between, as the test API may say; the clock runs on from it
           game.setTimeOfDay(random() < 0.5 ? [0, 0.25, 0.5, 0.75][Math.floor(random() * 4)] : random() * 1.2 - 0.1);
           did('time');
         },
@@ -188,7 +188,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       [
         1,
         () => {
-          // the panel's button, near wherever the camera looks
+          // a pebble near wherever the camera looks
           game.dropNear(between(-40, 40), between(-30, 30));
           did('drop near');
         },

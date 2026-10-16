@@ -5,7 +5,7 @@
  * The time is a number and not before the start. Every fish is a number,
  * in the water, below the surface and above the bed, and there are no more
  * than a lake holds; and every joint of its body as it is drawn is below the
- * surface and above the bed too. The levers are within nought and one. There
+ * surface and above the bed too. The contamination is within nought and one and never rises but by the lever, the count cured is a whole number, and the time of day is in [0, 1). There
  * are no more splashes than the pool holds, each on the water, none landed
  * after now, every number a number.
  *
@@ -21,6 +21,9 @@ const spine = new Float64Array((SWIM.segments.length + 1) * 3);
 
 /** How many broken rules of one sort are reported before the rest are only counted. */
 const EACH = 3;
+
+/** What each game's contamination was when the rules were last asked, and how many times the lever had been set: a rise with the lever unmoved is a fault. */
+const seen = new WeakMap<Game, { contamination: number; levers: number }>();
 
 export function checkInvariants(game: Game): string[] {
   const out: string[] = [];
@@ -104,7 +107,14 @@ export function checkInvariants(game: Game): string[] {
   out.push(...fishingRules(game));
 
   if (!(game.contamination >= 0 && game.contamination <= 1)) out.push(`the contamination is ${game.contamination}`);
-  if (!(game.timeOfDay >= 0 && game.timeOfDay <= 1)) out.push(`the time of day is ${game.timeOfDay}`);
+  // it only ever goes down, the cure's doing: it rises only where the lever (the test API's, the fuzzer's start) was set
+  const was = seen.get(game);
+  if (was && was.levers === game.levers && game.contamination > was.contamination)
+    out.push(`the contamination rose from ${was.contamination} to ${game.contamination}, and no lever was set`);
+  seen.set(game, { contamination: game.contamination, levers: game.levers });
+  const { cured } = game.progress.save;
+  if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
+  if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }
 

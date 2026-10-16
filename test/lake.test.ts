@@ -34,6 +34,7 @@ import {
   nearestBoulder,
   shoreRadius,
   VIEWS,
+  framingFor,
 } from '../src/lake';
 
 describe('the lake', () => {
@@ -440,5 +441,20 @@ describe('the jetty’s gap, answered cheaply from far off', () => {
     expect(far, 'points checked').toBeGreaterThan(1000);
     // the widest margin a fish is placed in from the shore is six: well under what a far point answers
     expect(DECK_NEAR).toBeGreaterThan(6);
+  });
+});
+
+describe('the framing of a view for a screen', () => {
+  it('gives the Shore view the phone framing on a screen taller than it is wide, and every other view as it is', () => {
+    expect(framingFor('shore', 390 / 844)).toBe(VIEWS.phone);
+    expect(framingFor('shore', 1280 / 800)).toBe(VIEWS.shore);
+    // a square screen is not tall
+    expect(framingFor('shore', 1)).toBe(VIEWS.shore);
+    for (const name of ['boat', 'overhead', 'phone'] as const)
+      for (const aspect of [0.46, 1.6]) expect(framingFor(name, aspect), `${name} at ${aspect}`).toBe(VIEWS[name]);
+  });
+
+  it('is the Shore view as it is for an aspect that is no number', () => {
+    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor('shore', aspect)).toBe(VIEWS.shore);
   });
 });

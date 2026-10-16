@@ -17,20 +17,14 @@ go, let the lure sink, strike when the bobber dips, and reel with an eye on
 the line's tension. The catch goes home to the cabin's curing machine and
 into the aquarium, and the lake's water turns from green to blue.
 
-**Not yet.** Only the cast is built: the camera is moved by dragging, in
-every view; the "Cast" button, or the C key, puts it at the shore, where you
-drag back to aim (a dotted arc shows where the lure will land), let go to
-cast, and the lure splashes in and sinks under its bobber; "Reel in" brings
-it back, and "Look round" or C goes back to moving the camera. Otherwise
-the page is the **lake lab**:
-one pond, its water seen through to its bed, its rocks and weed and the fish
-glowing among them, as the lake is seen into while it is cleaned. Its panel
-switches how dirty the lake is, the time of day, where the camera stands and
-whether the water has caustics; a tap on the water, or the "Drop a pebble" button,
-drops a pebble that splashes and sends rings across it; and every setting is
-in the address, so a link brings the
-same lake back: `npm run dev`, then for instance
-`http://localhost:5204/?dirt=1&time=dusk&view=shore`.
+**Not yet, but it plays.** The page opens straight onto the sick Duck Pond at dawn, its water seen through
+to its bed, its rocks and weed and the glowing fish among them. "Cast" (or the C key) puts the camera at the
+shore, where you drag back to aim, let go to cast, tap to strike when the bobber dips and hold to reel a fish
+into the zone on the bar; tap the catch to put it in the bucket, which cures it and clears the pond a twelfth,
+kept in the save. The day runs round from dawn. A tap on the water drops a pebble that sends rings across it.
+There is no menu, cabin or aquarium yet: `docs/game.md` is the plan this slice was built from, `DESIGN.md`
+the rest. `npm run dev`, then `http://localhost:5204/`; `?seed=3&paused=1&caustics=off&paint=off` are for
+tests and comparing, and nothing about the game is in the address.
 
 ## What is here
 
@@ -61,8 +55,8 @@ the game's palette.
 
 ## Layout
 
-    src/game.ts        the lake without the picture: its clock, its fish, the lab's levers
-    src/main.ts        the page: the lab's settings into the water, the light and the camera
+    src/game.ts        the lake without the picture: its clock, its fish, the cure
+    src/main.ts        the page: the game's state into the water, the light and the camera
     src/mode.ts        look or cast: what a drag does, and the camera's part in switching
     src/debug.ts       window.game, the test API
     src/invariants.ts  what must always hold
@@ -75,11 +69,11 @@ the game's palette.
     src/castdraw.ts    the rod, the line, the bobber, the lure and the preview
     src/splash.ts      the splashes on the water; ripples.ts and ripplesdraw.ts their rings
     src/pick.ts        a tap on the screen, to the point on the water
-    src/lab.ts         the lab's panel; settings.ts reads and writes the address
+    src/pondview.ts    the glow gauge, the welcome and the cure's lines; settings.ts reads the address
     src/scene.ts       the bed and its rocks and weed, the banks, the stones and the trees
     src/trees.ts       the low-poly tree variants and their colours
     src/scenery.ts     loads the kit's plants and stones from public/scenery
     src/progress.ts    the save, and where it is kept
     scripts/           the gates, each with its baseline beside it
     test/              unit tests, and a corpus of every save shape
-    smoke/             Playwright: boots, works the panel, plays through, looks right
+    smoke/             Playwright: boots, plays through, looks right

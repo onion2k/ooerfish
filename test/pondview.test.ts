@@ -1,0 +1,185 @@
+/** The pond on the screen: the glow gauge, the welcome line, and the lines said when a fish is cured and when the pond is clean. */
+import { describe, expect, it } from 'vitest';
+import { CURE, LAKE_NAME, contaminationAfter } from '../src/lake';
+import { PondView, pondWords, type PondState } from '../src/pondview';
+import { DT, newGame } from './helpers';
+
+const state = (over: Partial<PondState> = {}): PondState => ({
+  cured: 0,
+  toClean: CURE.toClean,
+  cast: false,
+  toastCured: 0,
+  toastUntil: -Infinity,
+  t: 0,
+  ...over,
+});
+
+describe('what the pond says', () => {
+  it('welcomes a player who has cast nothing and cured nothing, and the gauge is full', () => {
+    const w = pondWords(state());
+    expect(w.welcome).toBe(true);
+    expect(w.glow).toBe(1);
+    expect(w.clean).toBe(false);
+    expect(w.toast).toBe(null);
+    expect(w.name).toBe(LAKE_NAME);
+    expect(LAKE_NAME).toBe('Duck Pond');
+  });
+
+  it('stops welcoming at the first cast, and never welcomes a player who has cured a fish', () => {
+    expect(pondWords(state({ cast: true })).welcome).toBe(false);
+    // a reload with fish already cured: the line is not shown again, though nothing has been cast this time
+    expect(pondWords(state({ cured: 1 })).welcome).toBe(false);
+  });
+
+  it('empties the gauge a twelfth a fish cured, to nothing at the twelfth and past it', () => {
+    for (const cured of [0, 1, 3, 11, 12, 13, 40]) {
+      const w = pondWords(state({ cured }));
+      expect(w.glow, `${cured} cured`).toBeCloseTo(contaminationAfter(cured), 12);
+      expect(w.clean, `${cured} cured`).toBe(cured >= CURE.toClean);
+    }
+    expect(pondWords(state({ cured: 12 })).glow).toBe(0);
+  });
+
+  it('says a fish was cured for a while after, in the words of the mock, and not after it', () => {
+    const said = (over: Partial<PondState>) => pondWords(state({ toastUntil: 2, ...over })).toast;
+    expect(said({ cured: 1, toastCured: 1, t: 1 })).toEqual({ lead: 'Cured!', bold: 'The pond clears a little.' });
+    expect(said({ cured: 1, toastCured: 1, t: 2 }), 'over at the time').toBe(null);
+    expect(said({ cured: 5, toastCured: 5, t: 0 })?.lead).toBe('Cured!');
+  });
+
+  it('says the pond is clean at the twelfth, and a fish after it only that the pond stays so', () => {
+    const at = (cured: number) => pondWords(state({ cured, toastCured: cured, toastUntil: 9, t: 1 })).toast;
+    expect(at(CURE.toClean)).toEqual({ lead: 'The Duck Pond is clean!', bold: 'Every fish is cured.' });
+    expect(at(CURE.toClean + 1)).toEqual({ lead: 'Cured!', bold: 'The pond stays clean.' });
+    expect(at(CURE.toClean - 1)?.lead).toBe('Cured!');
+  });
+});
+
+/** An element that counts how many times each thing on it was written, so a page not changed is seen to be left alone. */
+function stub() {
+  const writes: Record<string, number> = {};
+  const props: Record<string, unknown> = { hidden: true, textContent: '', innerHTML: '' };
+  const style: Record<string, string> = {};
+  const attrs: Record<string, string> = {};
+  const el = new Proxy(
+    {
+      style: new Proxy(style, {
+        set(t, k: string, v: string) {
+          if (t[k] !== v) writes[`style.${k}`] = (writes[`style.${k}`] ?? 0) + 1;
+          t[k] = v;
+          return true;
+        },
+      }),
+      attrs,
+      classes: new Set<string>(),
+      classList: {
+        toggle(name: string, on: boolean) {
+          writes.class = (writes.class || 0) + 1;
+          if (on) el.classes.add(name);
+          else el.classes.delete(name);
+        },
+      },
+      setAttribute(k: string, v: string) {
+        writes[`attr.${k}`] = (writes[`attr.${k}`] ?? 0) + 1;
+        attrs[k] = v;
+      },
+      writes,
+    },
+    {
+      get: (t, k: string) => (k in t ? (t as never)[k] : props[k]),
+      set(t, k: string, v) {
+        if (!(k in t)) {
+          writes[k] = (writes[k] ?? 0) + 1;
+          props[k] = v;
+          return true;
+        }
+        return false;
+      },
+    },
+  );
+  return el as unknown as HTMLElement & {
+    writes: Record<string, number>;
+    attrs: Record<string, string>;
+    classes: Set<string>;
+  };
+}
+
+function view() {
+  const { game } = newGame(3);
+  const el = {
+    gauge: stub(),
+    name: stub(),
+    bar: stub(),
+    gone: stub(),
+    welcome: stub(),
+    toast: stub(),
+  };
+  const pond = new PondView(el, () => game, 2);
+  return { game, el, pond };
+}
+const total = (el: Record<string, { writes: Record<string, number> }>) =>
+  Object.values(el).reduce((n, e) => n + Object.values(e.writes).reduce((a, b) => a + b, 0), 0);
+
+describe('the pond view', () => {
+  it('shows the gauge, the name and the welcome at the start, hides the toast, and reads the gauge for a screen reader', () => {
+    const { el, pond } = view();
+    pond.show();
+    expect(el.gauge.hidden).toBe(false);
+    expect(el.name.textContent).toBe('Duck Pond');
+    expect(el.gone.style.width).toBe('0%');
+    expect(el.bar.attrs['aria-valuenow']).toBe('100');
+    expect(el.welcome.hidden).toBe(false);
+    expect(el.toast.hidden).toBe(true);
+  });
+
+  it('writes the page only where something has changed', () => {
+    const { game, el, pond } = view();
+    pond.show();
+    const once = total(el);
+    for (let f = 0; f < 30; f++) {
+      game.step(DT);
+      pond.show();
+    }
+    expect(total(el), 'nothing written for a pond that has not changed').toBe(once);
+  });
+
+  it('takes the welcome away at the first cast, and keeps it away', () => {
+    const { game, el, pond } = view();
+    pond.show();
+    game.cast(Math.PI / 2, 0.6);
+    pond.show();
+    expect(el.welcome.hidden).toBe(true);
+    game.reelIn();
+    pond.show();
+    expect(el.welcome.hidden, 'reeled in, it does not come back').toBe(true);
+  });
+
+  it('says a cure for a while, steps the gauge, and takes the line away when the time is up', () => {
+    const { game, el, pond } = view();
+    pond.show();
+    game.progress.save.cured = 1;
+    game.contamination = contaminationAfter(1);
+    pond.cured(1, CURE.toClean);
+    pond.show();
+    expect(el.toast.hidden).toBe(false);
+    expect(el.toast.innerHTML).toContain('Cured!');
+    expect(el.toast.innerHTML).toContain('The pond clears a little.');
+    expect(el.gone.style.width, 'a twelfth of the glow gone').toBe('8.3%');
+    expect(el.bar.attrs['aria-valuenow']).toBe(String(Math.round(contaminationAfter(1) * 100)));
+    expect(el.welcome.hidden, 'a fish cured, no welcome').toBe(true);
+    for (let f = 0; f < 60 * 2 + 5; f++) game.step(DT);
+    pond.show();
+    expect(el.toast.hidden).toBe(true);
+  });
+
+  it('turns the gauge clean at the twelfth, and says so', () => {
+    const { game, el, pond } = view();
+    game.progress.save.cured = CURE.toClean;
+    game.contamination = 0;
+    pond.cured(CURE.toClean, CURE.toClean);
+    pond.show();
+    expect(el.gone.style.width).toBe('100%');
+    expect(el.gauge.classes.has('clean')).toBe(true);
+    expect(el.toast.innerHTML).toContain('The Duck Pond is clean!');
+  });
+});
