@@ -9,7 +9,7 @@ import { Orbit } from 'artshape-render/gpu/camera';
 import { LightPool } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
-import { createApi } from './debug';
+import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
@@ -35,6 +35,11 @@ import { STYLES } from './water/styles';
 import { shoreField } from './shorefield';
 import { surfaceOf, waterClock } from './water/swell';
 import { FightView } from './fightview';
+import { readPhoneLink } from './phone/linkname';
+import type { PairingOverlay } from './phone/pairing';
+
+/** Where the phone page is served from for the QR code: the LAN address under `npm run dev:phone`, empty otherwise. */
+declare const __PHONE_ORIGIN__: string;
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
 const MM_PER_UNIT = 100;
@@ -55,6 +60,7 @@ const stats = document.getElementById('stats')!;
 const help = document.getElementById('help')!;
 const lab = document.getElementById('lab')!;
 const castLine = document.getElementById('castLine')!;
+const phoneStatus = document.getElementById('phoneStatus')!;
 const modeButton = document.getElementById('modeButton')!;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
@@ -254,6 +260,7 @@ async function main() {
   const panel = buildPanel(lab, (next) => void change(next), {
     drop: () => game.dropNear(cam.target[0], cam.target[1]),
     reelIn: () => game.reelIn(),
+    pair: () => void openPairing(),
   });
 
   /**
@@ -312,11 +319,48 @@ async function main() {
           heading: Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]),
         };
       },
-      // no phone is wired yet (a later part); a phone's first gesture will put the page in cast mode
+      // a phone's first gesture, in look mode, puts the page in cast mode at the Shore view
       wantCast: () => void setMode('cast'),
     },
     PHONE,
   );
+  // ---- the phone ----
+
+  // which link the pairing opens: the real one unless the address asks for the tests' local one, and a value not known
+  // is refused by name. The pairing's code (the QR library, Trystero, the rules for the one phone) is fetched when Pair
+  // a phone is first pressed and never to boot, so the page keeps only the overlay it is handed.
+  const phoneLink = readPhoneLink(query);
+  if (phoneLink.refusal) console.warn(phoneLink.refusal);
+  let pairing: Promise<PairingOverlay> | null = null;
+  /** The overlay once its code has loaded, for the test API to read; null until Pair a phone has been pressed. */
+  let overlay: PairingOverlay | null = null;
+  /** Shows the pairing overlay, loading its code the first time; `fixed` is the test API's, for a still picture. */
+  async function openPairing(fixed?: { room: string; key: string }) {
+    pairing ??= import('./phone/pairing').then(
+      ({ PairingOverlay }) =>
+        new PairingOverlay({
+          elements: {
+            overlay: byId('pairing'),
+            qr: byId<HTMLCanvasElement>('pairingQr'),
+            address: byId('pairingAddress'),
+            status: byId('pairingStatus'),
+            close: byId<HTMLButtonElement>('pairingClose'),
+          },
+          handle: (e) => gestures.handle(e),
+          origin: __PHONE_ORIGIN__ || location.origin,
+          link: phoneLink.link,
+          // a status of its own and not the cast line, which is rewritten every frame by what the lure is doing and
+          // would hide "the phone left" in the middle of a fight, when it matters most
+          said: (text) => {
+            phoneStatus.textContent = text;
+            phoneStatus.hidden = false;
+          },
+        }),
+    );
+    overlay = await pairing;
+    await overlay.open(fixed);
+  }
+
   const pointer = (type: PointerGesture['type'], e: PointerEvent): PointerGesture => ({
     type,
     source: 'screen',
@@ -335,7 +379,7 @@ async function main() {
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the lab's own controls, where the key is only what it types or presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch, #modeButton') !== null;
+    e.target instanceof HTMLElement && e.target.closest('#labPanel, #catch, #modeButton, #pairing') !== null;
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
@@ -558,6 +602,8 @@ async function main() {
         : new Float64Array(0);
     },
     settings: () => ({ ...settings }),
+    phone: () => overlay?.reading() ?? NO_PHONE,
+    pair: (fixed) => openPairing(fixed),
     change: (next) => change(next),
     mode: () => mode,
     setMode: (to) => setMode(to),

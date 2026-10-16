@@ -20,6 +20,7 @@ import type { Game } from './game';
 import { FIGHT } from './lake';
 import { flight } from './cast';
 import type { Mode } from './mode';
+import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import { seeded } from './random';
@@ -31,6 +32,15 @@ declare global {
     game?: GameApi;
   }
 }
+
+/** What the phone reads as before pairing has been opened: nobody is there and nothing has been said. */
+export const NO_PHONE: PhoneReading = {
+  paired: false,
+  motion: false,
+  lastKind: null,
+  refused: 0,
+  lastRefusal: null,
+};
 
 export interface GameState {
   /** Game time, in seconds. */
@@ -155,6 +165,17 @@ export interface GameApi {
   mode(): Mode;
   mode(to: Mode): Promise<void>;
 
+  /**
+   * The phone, as the screen has it: whether one is paired and said it has motion sensors, the kind of the last good
+   * message, and how many were refused and why the last was. Reads nothing until pairing has been opened.
+   */
+  phone(): PhoneReading;
+  /**
+   * Opens the pairing overlay as Pair a phone does, resolving once the QR code is drawn. `fixed` names the room and key,
+   * for tests and the look pictures only, so that a picture of the code holds still; a player's press never has one.
+   */
+  pair(fixed?: { room: string; key: string }): Promise<void>;
+
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
   /** Where the camera is, and what it is looking at. */
@@ -220,6 +241,9 @@ export interface DebugHost {
   /** Fish `i`'s spine as the last frame posed it, three floats a joint; empty for none. */
   fishPose(i: number): Float64Array;
   settings(): Settings;
+  /** The phone's reading, and the overlay opened (on a fixed room for tests). */
+  phone(): PhoneReading;
+  pair(fixed?: { room: string; key: string }): Promise<void>;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
   /** The page's mode, and putting the page in one as its button does. */
@@ -345,6 +369,9 @@ export function createApi(host: DebugHost): GameApi {
     caustics: (on) => host.change({ caustics: on }),
     paint: (value) => host.change({ paint: value }),
     mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
+
+    phone: () => host.phone(),
+    pair: (fixed) => host.pair(fixed),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),

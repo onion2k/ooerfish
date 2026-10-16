@@ -103,6 +103,68 @@
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
+  /* what the phone is doing, once one has paired: a line under the frame time, where it is not in the way of the fight */
+  #phoneStatus {
+    top: 56px;
+    right: 16px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  /* the pairing code over the game: a card that fits a phone's width, with the code as wide as the card */
+  #pairing {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 7, 12, 0.78);
+    z-index: 10;
+  }
+  #pairing[hidden] {
+    display: none;
+  }
+  #pairing .card {
+    width: min(320px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 16px;
+    background: #1a1824;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    text-align: center;
+  }
+  #pairing h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+  }
+  #pairing p {
+    margin: 4px 0 10px;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  #pairingQr {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #fff;
+    border-radius: 8px;
+  }
+  #pairingAddress {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: var(--dim);
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+  #pairingClose {
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    cursor: pointer;
+  }
   #boot {
     position: fixed;
     inset: 0;
@@ -357,6 +419,17 @@
 </details>
 <div class="panel" id="stats" hidden></div>
 <div class="panel" id="castLine" hidden></div>
+<div class="panel" id="phoneStatus" role="status" hidden></div>
+<div id="pairing" role="dialog" aria-modal="true" aria-labelledby="pairingTitle" hidden>
+  <div class="card">
+    <h2 id="pairingTitle">Pair a phone</h2>
+    <p>Scan this with the phone's camera, open the page it finds and tap Connect.</p>
+    <canvas id="pairingQr" width="256" height="256" aria-label="QR code for the phone's address"></canvas>
+    <p id="pairingStatus"></p>
+    <code id="pairingAddress"></code>
+    <button type="button" id="pairingClose">Close</button>
+  </div>
+</div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">

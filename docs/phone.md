@@ -188,7 +188,7 @@ The real phone's lag, the flick's feel, and the iOS motion prompt. These need yo
 - [x] 3. **Protocol and flick:** `protocol.ts` and `flick.ts`. Check: their unit tests, each seen failing first.
 - [x] 4. **Phone gestures in `gesture.ts`:** tilt aim, flick cast, the any-source reel, gone. Check:
       `gesture.test.ts` rows for criteria 2, 3, 6 and 8.
-- [ ] 5. **Link, pairing and lab button:** `link.ts` (Trystero plus local), `pairing.ts`, **Pair a phone**,
+- [x] 5. **Link, pairing and lab button:** `link.ts` (Trystero plus local), `pairing.ts`, **Pair a phone**,
       `game.phone()` and `game.pair()`, `dev:phone`. Check: `phone.spec.ts` pairing steps on the local link;
       `scripts/pair.ts` pairs over Nostr once.
 - [ ] 6. **The phone page:** `phone.html`, pad, motion, word, bar, buzz. Check: `phone.spec.ts` complete.

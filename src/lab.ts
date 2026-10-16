@@ -26,6 +26,8 @@ export interface Panel {
 export interface Actions {
   drop(): void;
   reelIn(): void;
+  /** Shows the code a phone scans to become the rod. */
+  pair(): void;
 }
 
 /** The panel built into `root`, telling `change` of every setting changed by the viewer, and `actions` of its other buttons. */
@@ -41,10 +43,15 @@ export function buildPanel(root: HTMLElement, change: (next: Partial<Settings>) 
   reel.id = 'reel';
   reel.textContent = 'Reel in';
   reel.addEventListener('click', () => actions.reelIn());
+  const pair = document.createElement('button');
+  pair.type = 'button';
+  pair.id = 'pair';
+  pair.textContent = 'Pair a phone';
+  pair.addEventListener('click', () => actions.pair());
   const act = document.createElement('fieldset');
   const actLegend = document.createElement('legend');
   actLegend.textContent = 'On the water';
-  act.append(actLegend, pebble, reel);
+  act.append(actLegend, pebble, reel, pair);
   const buttons = new Map<string, HTMLButtonElement>();
 
   const group = (key: 'time' | 'view' | 'caustics' | 'paint', title: string, choices: [string, string][]) => {
