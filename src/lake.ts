@@ -446,9 +446,9 @@ export function onFace(x: number, y: number): boolean {
 /**
  * How a fish comes to the lure and bites, first guesses to be tuned by playing (and held by the pace gate once it is
  * back): how far off, in plan, a fish may notice a sunk lure, and how far from its own depth; the chance a second it
- * does, and how much a twitch adds to that and for how long; how fast it comes; how near the lure its mouth is when it
- * nibbles; how many nibbles, and the gaps between them; how long the strike's window is; and how long a fish that let
- * go keeps away.
+ * does, and how much a twitch adds to that and for how long; how fast it comes, and how long it may take before it
+ * gives up; how near the lure its mouth is when it nibbles; how many nibbles, and the gaps between them; how long the
+ * strike's window is; and how long a fish that let go keeps away.
  */
 export const FISHING = {
   // measured on 40 seeds of a cast to the middle: a bite in 11.7 s at the median and 23 s at the most; at a reach of
@@ -460,6 +460,8 @@ export const FISHING = {
   twitchBoost: 3,
   twitchLasts: 3,
   comeSpeed: 1.8,
+  // twice the time to swim the whole reach: seed 36 had a fish loop by the east boulder for minutes, never reaching it
+  comeLongest: 20,
   mouth: 0.6,
   nibbles: [1, 3] as const,
   nibbleGap: [0.7, 1.6] as const,

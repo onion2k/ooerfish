@@ -178,3 +178,38 @@ describe('a fish and the lure', () => {
     expect(run()).toBe(run());
   });
 });
+
+describe('a fish that cannot find its way', () => {
+  it('gives up coming to the lure, quietly, keeps away a while, and leaves the lure to another', () => {
+    // the state seed 36 reached under the pace gate's angler: a fish swimming a loop by the east boulder that never
+    // reached the lure, which held the lure from every other fish for minutes; the steering draws no chance, so it loops
+    // the same from here every time
+    const { game, told } = lake(1);
+    game.cast(NORTH, MIDDLE);
+    for (let f = 0; f < 120; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    const i = 4;
+    game.lure.bobber[0] = game.lure.at[0] = 6.252681736603605;
+    game.lure.bobber[1] = game.lure.at[1] = -1.029073577945205;
+    game.fish.x[i] = 15.027351267441663;
+    game.fish.y[i] = -13.90675056489785;
+    game.fish.heading[i] = 2.764421643383866;
+    game.fish.depth[i] = 0.8299177338249425;
+    Object.assign(game.bite, { phase: 'coming', fish: i, comingSince: game.t });
+    game.fish.held = i;
+    const from = game.t;
+    let gaveUp = -1;
+    for (let f = 0; f < (FISHING.comeLongest + 5) / DT && gaveUp < 0; f++) {
+      game.step(DT);
+      if (game.bite.fish !== i) gaveUp = game.t - from;
+    }
+    expect(gaveUp, 'it gave up').toBeGreaterThan(0);
+    expect(gaveUp).toBeCloseTo(FISHING.comeLongest, 1);
+    expect(game.fish.held === i).toBe(false);
+    expect(game.bite.wary[i]).toBeGreaterThan(game.t);
+    expect(
+      told.filter((l) => l === 'missed'),
+      'a fish that never reached the lure is not told as missed',
+    ).toEqual([]);
+  });
+});

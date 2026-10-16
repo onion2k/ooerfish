@@ -5,7 +5,8 @@
  *
  * A strike with no fish at the lure is a twitch of it, which draws fish in: for a while after one, a fish near it is
  * likelier to notice it. A strike while a fish only nibbles is too soon, and the fish lets go. A fish that let go
- * keeps away for a while, so the same one does not come straight back.
+ * keeps away for a while, so the same one does not come straight back, and so does one that gives up coming, having
+ * not found its way to the lure in time.
  *
  * Headless and stepped by `Game.step`, its chance handed in, so a seed plays the same bite every time.
  */
@@ -40,6 +41,8 @@ export class Bite {
   timer = 0;
   /** How many nibbles are still to come before the bite. */
   nibblesLeft = 0;
+  /** When the fish now coming set off for the lure, so one that cannot find its way gives up. */
+  comingSince = 0;
   /** When the fish at the lure last nibbled it, which twitches the bobber; minus one for not since it came. */
   nibbledAt = -1;
   /** Until when a twitch is drawing fish in. */
@@ -72,6 +75,7 @@ export class Bite {
       if (chosen >= 0) {
         this.nibbledAt = -1;
         this.phase = 'coming';
+        this.comingSince = t;
         this.fish = chosen;
         school.held = chosen;
       }
@@ -82,6 +86,12 @@ export class Bite {
     const speed = this.phase === 'coming' ? FISHING.comeSpeed : gap > FISHING.mouth * 0.6 ? FISHING.comeSpeed * 0.4 : 0;
     const near = steerTo(school, this.fish, bx, by, lure.depth, speed, dt);
     if (this.phase === 'coming') {
+      // steering has no way round a boulder or the jetty, and a fish caught behind one would hold the lure from
+      // every other fish for ever, so one that has not reached it in time gives up, untold, as it never got there
+      if (t - this.comingSince >= FISHING.comeLongest - 1e-9) {
+        this.letGo(t, school, lure, true);
+        return;
+      }
       if (near < FISHING.mouth) {
         this.phase = 'nibbling';
         this.nibblesLeft = between(random, FISHING.nibbles[0], FISHING.nibbles[1]);
