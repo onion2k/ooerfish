@@ -12,7 +12,7 @@
 import { Bite, type Strike } from './bite';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { DROP_NEAR, FIGHT, FISH_COUNT, PERCH, inside } from './lake';
+import { DROP_NEAR, FIGHT, FISHING, FISH_COUNT, PERCH, inside } from './lake';
 import { Progress } from './progress';
 import type { Random } from './random';
 import { Lure } from './lure';
@@ -27,6 +27,8 @@ export interface GameEvents {
   bitten?(): void;
   hooked?(): void;
   missed?(): void;
+  /** The player struck, and what it did: a twitch of the lure with no fish there, too soon at a nibble, or hooked. */
+  struck?(did: Strike): void;
   /** The fish was let out of the zone until the meter emptied, and slipped off with nothing lost. */
   slipped?(): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
@@ -77,9 +79,17 @@ export class Game {
     this.random = options.random ?? Math.random;
     this.events = options.events ?? {};
     const e = this.events;
+    // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
+    // rings are the water's own, through the splash pool, and unlike a pebble they do not scare the fish off
     this.bite = new Bite({
-      nibbled: () => e.nibbled?.(),
-      bitten: () => e.bitten?.(),
+      nibbled: () => {
+        e.nibbled?.();
+        this.ring(FISHING.nibbleRing);
+      },
+      bitten: () => {
+        e.bitten?.();
+        this.ring(FISHING.biteRing);
+      },
       hooked: () => e.hooked?.(),
       missed: () => e.missed?.(),
     });
@@ -102,6 +112,7 @@ export class Game {
   /** The player strikes: a fish biting is hooked, one nibbling lets go, and with none at the lure it is twitched. */
   strike(): Strike {
     const did = this.bite.strike(this.t, this.fish, this.lure);
+    if (did !== 'none') this.events.struck?.(did);
     if (did === 'hooked') {
       const i = this.bite.fish;
       const [lx, ly] = FIGHT.landAt;
@@ -161,6 +172,13 @@ export class Game {
       this.reeling = false;
       this.events.landed?.(PERCH.name, this.catchWeight);
     }
+  }
+
+  /** A ring of `size` on the water at the bobber, told as a splash: the bite's, which the fish does not flee. */
+  private ring(size: number) {
+    const [x, y] = this.lure.bobber;
+    this.splashes.add(x, y, this.t, size);
+    this.events.splashed?.(x, y, size);
   }
 
   /** How dirty the lake is, held to nought and one; what is not a number is refused, and changes nothing. */

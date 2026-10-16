@@ -46,6 +46,8 @@ const LIGHT_CAPACITY = 16,
 /** How far a pointer may move, in CSS pixels, and how long it may be down, in milliseconds, and still be a tap and not a drag. */
 const TAP_PX = 6,
   TAP_MS = 400;
+/** How long what a strike did is said for, in seconds of game time. */
+const HEARD_FOR = 2;
 /** How many of the game's events the test API keeps, before the oldest go. */
 const EVENTS_KEPT = 500;
 
@@ -86,6 +88,12 @@ async function main() {
     eventLog.push(line);
     if (eventLog.length > EVENTS_KEPT) eventLog.splice(0, eventLog.length - EVENTS_KEPT);
   };
+  /** What a strike or a fish letting go did, said on the cast's line for `HEARD_FOR` seconds of game time after. */
+  const heard = { text: '', until: -Infinity };
+  const hear = (text: string) => {
+    heard.text = text;
+    heard.until = game.t + HEARD_FOR;
+  };
   const events: GameEvents = {
     splashed(x, y, size) {
       log(`splashed ${x.toFixed(1)},${y.toFixed(1)}`);
@@ -95,7 +103,16 @@ async function main() {
     nibbled: () => log('nibbled'),
     bitten: () => log('bitten'),
     hooked: () => log('hooked'),
-    missed: () => log('missed'),
+    missed: () => {
+      log('missed');
+      hear('too late, it let go');
+    },
+    struck: (did) => {
+      log(`struck ${did}`);
+      // a fish struck at while it only nibbled has just let go, and that is what is said, not that it was too late
+      if (did === 'spooked') hear('too soon, it swam off');
+      else if (did === 'twitch') hear('nothing biting yet');
+    },
     slipped: () => log('slipped'),
     landed: (kind, weight) => log(`landed ${kind} ${weight.toFixed(2)}`),
   };
@@ -242,7 +259,10 @@ async function main() {
     reelIn: () => game.reelIn(),
   });
 
-  /** The line on the screen that says what the lure is doing: its sinking counted, a nibble, a bite, a fish on, or that it lies on the bank. */
+  /**
+   * The line on the screen that says what the lure is doing and what to do: waiting, a nibble, the bite, a fish on, or
+   * that it lies on the bank; and for a while after a strike or a fish letting go, what that did.
+   */
   let castText = '';
   function showCast() {
     const { lure, bite } = game;
@@ -250,14 +270,16 @@ async function main() {
       bite.phase === 'hooked'
         ? 'a fish on! hold to lift the zone, keep the fish in it'
         : bite.phase === 'biting'
-          ? 'a bite! strike'
+          ? 'BITE! strike now'
           : bite.phase === 'nibbling'
-            ? 'a nibble…'
-            : lure.phase === 'sinking'
-              ? `sinking… ${Math.floor(lure.sunk)}`
-              : lure.phase === 'lying'
-                ? 'on the bank: reel it in'
-                : '';
+            ? 'nibble… wait for the dip'
+            : game.t < heard.until
+              ? heard.text
+              : lure.phase === 'sinking'
+                ? 'waiting for a fish…'
+                : lure.phase === 'lying'
+                  ? 'on the bank: reel it in'
+                  : '';
     if (text === castText) return;
     castText = text;
     castLine.textContent = text;
@@ -347,11 +369,23 @@ async function main() {
   });
   // a reel held when the page loses the focus is let go, or the zone would ride up unseen while the fish got away
   window.addEventListener('blur', () => game.reel(false));
+  /** Where a point of the lake is on the screen, in the page's pixels, or null behind the camera. */
+  function toScreen(x: number, y: number, z: number) {
+    cam.update();
+    const m = cam.viewProjection;
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if (w <= 0) return null;
+    const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w,
+      ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    const box = canvas.getBoundingClientRect();
+    return { x: box.left + ((nx + 1) / 2) * box.width, y: box.top + ((1 - ny) / 2) * box.height };
+  }
   const fightView = new FightView(
     {
       gauge: byId('gauge'),
       zone: byId('gaugeZone'),
-      fish: byId('gaugeFish'),
+      fish: byId<SVGSVGElement>('gaugeFish'),
+      mark: byId('biteMark'),
       meter: byId('gaugeMeter'),
       meterFill: byId('gaugeMeterFill'),
       words: byId('gaugeWords'),
@@ -362,6 +396,7 @@ async function main() {
       bucket: byId('bucket'),
     },
     () => game,
+    toScreen,
   );
 
   /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
@@ -520,16 +555,7 @@ async function main() {
       cam.update();
       return { position: [...cam.position], target: [...cam.target] };
     },
-    project(x, y, z) {
-      cam.update();
-      const m = cam.viewProjection;
-      const w = m[3] * x + m[7] * y + m[11] * z + m[15];
-      if (w <= 0) return null;
-      const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w,
-        ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
-      const box = canvas.getBoundingClientRect();
-      return { x: box.left + ((nx + 1) / 2) * box.width, y: box.top + ((1 - ny) / 2) * box.height };
-    },
+    project: toScreen,
     target: () => [cam.target[0], cam.target[1]],
     aiming: () => aim,
     setAim: (to) => {

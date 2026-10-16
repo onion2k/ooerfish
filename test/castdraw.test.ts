@@ -190,6 +190,31 @@ describe('the fight, drawn', () => {
     }
   });
 
+  it('shakes the bobber from side to side while the strike’s window is open, and only then, the same each run', () => {
+    const { game } = newGame(1);
+    game.cast(NORTH, 0.62);
+    const draw = new CastDraw();
+    // how far the drawn bobber stands from where the lure's bobber is, sideways, over a second of game time
+    const swing = () => {
+      let most = 0;
+      for (let k = 0; k < 20; k++) {
+        game.t += 0.05;
+        draw.write(game, null);
+        most = Math.max(most, Math.hypot(draw.bobber[12] - game.lure.bobber[0], draw.bobber[13] - game.lure.bobber[1]));
+      }
+      game.t -= 1;
+      return most;
+    };
+    for (let f = 0; f < 3600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(swing(), 'still while sinking').toBeLessThan(1e-6);
+    for (let f = 0; f < 3600 && game.bite.phase !== 'nibbling'; f++) game.step(DT);
+    expect(swing(), 'still while nibbling').toBeLessThan(1e-6);
+    for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+    const shaken = swing();
+    expect(shaken, 'shaken on the bite').toBeGreaterThan(0.05);
+    expect(swing(), 'the same from the same time').toBe(shaken);
+  });
+
   it('dips the bobber under on a bite, and twitches it on a nibble', () => {
     const { game } = newGame(1);
     game.cast(NORTH, 0.62);

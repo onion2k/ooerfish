@@ -213,3 +213,58 @@ describe('a fish that cannot find its way', () => {
     ).toEqual([]);
   });
 });
+
+describe('the bite, seen', () => {
+  /** A lake whose every splash and strike is told, with the time it was told. */
+  function telling(seed: number) {
+    const told: string[] = [];
+    const game = new Game(new Progress(memoryStore()), {
+      random: seeded(seed),
+      events: {
+        splashed: (x, y, size) => told.push(`splashed ${x.toFixed(3)} ${y.toFixed(3)} ${size}`),
+        nibbled: () => told.push('nibbled'),
+        bitten: () => told.push('bitten'),
+        struck: (did) => told.push(`struck ${did}`),
+        missed: () => told.push('missed'),
+      },
+    });
+    return { game, told };
+  }
+
+  it('rings the water at the bobber at each nibble, and bigger at the bite, without scaring the fish off', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const { game, told } = telling(seed);
+      game.cast(NORTH, MIDDLE);
+      for (let f = 0; f < 60 / DT && game.bite.phase !== 'biting'; f++) game.step(DT);
+      expect(game.bite.phase, `seed ${seed}`).toBe('biting');
+      const at = `${game.lure.bobber[0].toFixed(3)} ${game.lure.bobber[1].toFixed(3)}`;
+      // every nibble and the bite is followed at once by its ring, where the bobber is
+      for (let k = 0; k < told.length; k++) {
+        if (told[k] === 'nibbled') expect(told[k + 1], `seed ${seed}`).toBe(`splashed ${at} ${FISHING.nibbleRing}`);
+        if (told[k] === 'bitten') expect(told[k + 1], `seed ${seed}`).toBe(`splashed ${at} ${FISHING.biteRing}`);
+      }
+      expect(FISHING.biteRing).toBeGreaterThan(FISHING.nibbleRing);
+      // the rings are on the water, in the pool the ripples are drawn from
+      const sizes = Array.from(game.splashes.size.slice(0, game.splashes.count));
+      expect(sizes).toContain(FISHING.biteRing);
+      // and the fish bit through them, still there to be struck
+      expect(told).not.toContain('missed');
+      expect(game.strike()).toBe('hooked');
+    }
+  });
+
+  it('tells what each strike did: a twitch with no fish, too soon at a nibble, hooked at the bite', () => {
+    const { game, told } = telling(3);
+    game.cast(NORTH, MIDDLE);
+    for (let f = 0; f < 120; f++) game.step(DT);
+    expect(game.bite.phase).toBe('none');
+    game.strike();
+    expect(told.at(-1)).toBe('struck twitch');
+    for (let f = 0; f < 60 / DT && game.bite.phase !== 'nibbling'; f++) game.step(DT);
+    game.strike();
+    expect(told.slice(-2)).toEqual(['missed', 'struck spooked']);
+    for (let f = 0; f < 120 / DT && game.bite.phase !== 'biting'; f++) game.step(DT);
+    game.strike();
+    expect(told.at(-1)).toBe('struck hooked');
+  });
+});

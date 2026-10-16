@@ -3,8 +3,8 @@
  * and to the bobber once it is in, sagging a little, the bobber bobbing by the game's clock, the lure, and while
  * aiming the preview of where it will go, a dotted arc and a ring where it lands, yellow over the water and red over
  * the bank. With a fish on the line, the rod bends toward it by the line's tension and the line warms from white to
- * red, and the bobber, dragged under, is gone; before that, it twitches at a nibble and dips under at the bite. Every
- * part is a pool sized once, written each frame from the game and the aim; nothing is made.
+ * red, and the bobber, dragged under, is gone; before that, it twitches at a nibble and dips under and shakes at the
+ * bite. Every part is a pool sized once, written each frame from the game and the aim; nothing is made.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
 import { pathPoints, rodTip } from './cast';
@@ -30,6 +30,8 @@ const LINE_WIDTH_ON = 0.12;
 /** How far the bobber dips under at a bite, and twitches at a nibble, and how long the twitch lasts. */
 const DIP = 0.35;
 const TWITCH = { depth: 0.16, lasts: 0.3 } as const;
+/** How far the bobber shakes from side to side while the strike's window is open, and how fast, by the game's clock. */
+const SHAKE = { reach: 0.12, rate: 38 } as const;
 export const PREVIEW_DOTS = 24;
 const RING_PIECES = 20;
 /** How thick the line is; how far it sags, a share of its length; how far the lure hangs from the tip when ready. */
@@ -221,7 +223,9 @@ export class CastDraw {
       if (bite.phase === 'biting') z -= DIP;
       else if (bite.phase === 'nibbling' && bite.nibbledAt >= 0 && game.t - bite.nibbledAt < TWITCH.lasts)
         z -= TWITCH.depth * Math.sin((Math.PI * (game.t - bite.nibbledAt)) / TWITCH.lasts);
-      place(this.bobber, 0, lure.bobber[0], lure.bobber[1], z);
+      // shaken while the window is open, so the bite is seen from the shore and not only read
+      const shake = bite.phase === 'biting' ? SHAKE.reach * Math.sin(game.t * SHAKE.rate) : 0;
+      place(this.bobber, 0, lure.bobber[0] + shake, lure.bobber[1], z);
       out.bobber = 1;
       to[0] = lure.bobber[0];
       to[1] = lure.bobber[1];

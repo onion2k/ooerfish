@@ -267,7 +267,7 @@ test('casts by a drag back in cast mode, to where its preview said, and not othe
   expect(handed, 'its ripples handed to the water').toHaveLength(1);
   expect(Math.hypot(handed[0].x - preview.x, handed[0].y - preview.y), 'where it landed').toBeLessThan(1e-4);
   expect(handed[0].size, "a lure's, smaller than a pebble's").toBeLessThan(1);
-  await expect(page.locator('#castLine')).toContainText('sinking');
+  await expect(page.locator('#castLine')).toHaveText('waiting for a fish…');
 
   // reeled in, it is ready to cast again
   await page.getByRole('button', { name: 'Reel in' }).click();

@@ -186,6 +186,43 @@ test('the fish keep off the jetty’s deck, ten seconds in a second at a time, a
   expect(problems).toEqual([]);
 });
 
+test('what a strike did is said: nothing biting yet, too soon at a nibble, and too late once the bite has gone', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  const said = page.locator('#castLine');
+  await page.evaluate(() => {
+    const g = window.game!;
+    g.cast(Math.PI / 2, 0.62);
+    for (let f = 0; f < 600 && g.lure().phase !== 'sinking'; f++) g.step(1);
+  });
+  await expect(said).toHaveText('waiting for a fish…');
+  // struck with nothing there, on the button: the lure twitches, and that is said
+  await page.locator('#reelButton').click();
+  await expect(said).toHaveText('nothing biting yet');
+  await page.evaluate(() => window.game!.step(130));
+  await expect(said).not.toHaveText('nothing biting yet');
+  // struck at a nibble: too soon
+  await page.evaluate(() => {
+    const g = window.game!;
+    for (let f = 0; f < 3600 && g.fishing().phase !== 'nibbling'; f++) g.step(1);
+  });
+  await expect(said).toHaveText('nibble… wait for the dip');
+  await page.locator('#reelButton').click();
+  await expect(said).toHaveText('too soon, it swam off');
+  // and a bite left until its window shuts: too late
+  await page.evaluate(() => {
+    const g = window.game!;
+    for (let f = 0; f < 7200 && g.fishing().phase !== 'biting'; f++) g.step(1);
+  });
+  expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('biting');
+  await page.evaluate(() => window.game!.step(60));
+  await expect(said).toHaveText('too late, it let go');
+  await expect(page.locator('#biteMark')).toBeHidden();
+  expect(problems).toEqual([]);
+});
+
 test('a fish bites, is struck by space, played on the bar by the Reel button and by space, landed, and put in the bucket by its card', async ({
   page,
 }) => {
@@ -198,12 +235,31 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
     for (let f = 0; f < 3600 && g.fishing().phase !== 'biting'; f++) g.step(1);
   });
   expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('biting');
-  await expect(page.locator('#castLine')).toHaveText('a bite! strike');
+  await expect(page.locator('#castLine')).toHaveText('BITE! strike now');
   await expect(page.locator('#reelButton')).toHaveText('Strike');
+  // the bite is seen: a mark stands over the bobber, and the Strike button pulses by the game's clock
+  const lure = await page.evaluate(() => window.game!.lure());
+  const over = (await page.evaluate(([x, y]) => window.game!.project(x, y, 1.4), lure.bobber))!;
+  const mark = (await page.locator('#biteMark').boundingBox())!;
+  expect(Math.abs(mark.x + mark.width / 2 - over.x), 'the mark over the bobber').toBeLessThan(3);
+  expect(Math.abs(mark.y + mark.height - over.y)).toBeLessThan(3);
+  await expect(page.locator('#reelButton')).toHaveClass(/biting/);
+  const pulse = () => page.locator('#reelButton').evaluate((b) => b.style.getPropertyValue('--pulse'));
+  const pulses = new Set([await pulse()]);
+  for (let k = 0; k < 4; k++) {
+    await page.evaluate(() => window.game!.step(3));
+    pulses.add(await pulse());
+  }
+  expect(pulses.size, 'the button pulses').toBeGreaterThan(1);
   await page.keyboard.press('Space');
   expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('hooked');
   await play(page, 1, 'hooked');
   await expect(page.locator('#gauge')).toBeVisible();
+  await expect(page.locator('#biteMark')).toBeHidden();
+  await expect(page.locator('#reelButton')).not.toHaveClass(/biting/);
+  // the bar is tall enough to play, and its fish is a fish
+  expect((await page.locator('#gaugeBar').boundingBox())!.height).toBe(280);
+  await expect(page.locator('#gaugeFish path')).toHaveCount(1);
   await expect(page.locator('#reelButton')).toHaveText('Reel');
   // the bar shows the zone and the fish where the game has them, and the meter part filled
   const bar = await page.locator('#gaugeBar').boundingBox();

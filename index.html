@@ -184,7 +184,7 @@
     display: grid;
     justify-content: center;
     /* fixed columns, the bar's and the meter's: the words span them without widening them */
-    --bar-width: 30px;
+    --bar-width: 36px;
     --meter-width: 10px;
     grid-template-columns: var(--bar-width) var(--meter-width);
     gap: 6px 8px;
@@ -199,7 +199,7 @@
   #gaugeBar,
   #gaugeMeter {
     position: relative;
-    height: 180px;
+    height: 280px;
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.12);
     overflow: hidden;
@@ -219,13 +219,33 @@
     border: 2px solid rgba(232, 244, 255, 0.85);
     box-sizing: border-box;
   }
+  /* a side-on fish, nose to the right, centred on where it is on the bar */
   #gaugeFish {
     position: absolute;
     left: 50%;
-    width: 22px;
-    height: 12px;
-    margin: 0 0 -6px -11px;
-    border-radius: 50%;
+    width: 30px;
+    height: 18px;
+    margin: 0 0 -9px -15px;
+    overflow: visible;
+  }
+  #gaugeFish .eye {
+    fill: #1d3b33;
+  }
+  /* the strike's window open: the button pulses amber by the game's clock, which the page writes as --pulse */
+  #reelButton.biting {
+    background: color-mix(in srgb, #ffd27a calc(var(--pulse, 0) * 100%), #e8f4ff);
+    transform: scale(calc(1 + var(--pulse, 0) * 0.08));
+  }
+  /* a mark over the bobber while the strike's window is open, placed by the page where the bobber is on the screen */
+  #biteMark {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    color: #ffd27a;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+    pointer-events: none;
   }
   #gaugeMeterFill {
     position: absolute;
@@ -337,10 +357,14 @@
 </details>
 <div class="panel" id="stats" hidden></div>
 <div class="panel" id="castLine" hidden></div>
+<div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">
     <div id="gaugeZone"></div>
-    <div id="gaugeFish"></div>
+    <svg id="gaugeFish" viewBox="-15 -9 30 18">
+      <path d="M13 0Q4-8-6-3L-14-8-11 0-14 8-6 3Q4 8 13 0Z" />
+      <circle class="eye" cx="7" cy="-1.5" r="1.6" />
+    </svg>
   </div>
   <div id="gaugeMeter" role="meter" aria-label="the catch" aria-valuemin="0" aria-valuemax="100" aria-valuenow="30">
     <div id="gaugeMeterFill"></div>

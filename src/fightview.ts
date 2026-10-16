@@ -1,5 +1,6 @@
 /**
- * The fight on the page: the bar beside the Reel button, with the zone the reel pushes up it, the fish darting on it in
+ * The bite and the fight on the page: while the strike's window is open, the Strike button pulsing and a mark over the
+ * bobber; the bar beside the Reel button, with the zone the reel pushes up it, the fish darting on it in
  * its glow, and the meter beside it, with words for whether the fish is in the zone so position is not all it says;
  * the button that strikes, and held, reels, for any view and for one finger; the catch shown off on a card, put in the
  * bucket by a tap on it; and the bucket's count. It reads the game each frame and writes the page only where something
@@ -13,7 +14,9 @@ import { PALETTE, type Colour } from './palette';
 export interface FightElements {
   gauge: HTMLElement;
   zone: HTMLElement;
-  fish: HTMLElement;
+  fish: SVGSVGElement;
+  /** The mark over the bobber while the strike's window is open. */
+  mark: HTMLElement;
   meter: HTMLElement;
   meterFill: HTMLElement;
   words: HTMLElement;
@@ -25,20 +28,39 @@ export interface FightElements {
 }
 
 const css = ([r, g, b]: Colour) => `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+/** Where a point of the lake is on the screen, or null behind the camera. */
+export type ToScreen = (x: number, y: number, z: number) => { x: number; y: number } | null;
+
+/** How fast the Strike button pulses while the window is open, in radians of game time a second; how high over the bobber the mark stands, in world units. */
+const PULSE_RATE = 14;
+const MARK_HIGH = 1.4;
+
 /** A share of the bar as a per cent, to a tenth, so a still bar writes nothing. */
 const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 export class FightView {
-  private was = { gauge: '', zone: '', fish: '', meter: '', words: '', button: '', card: '', bucket: -1 };
+  private was = {
+    gauge: '',
+    zone: '',
+    fish: '',
+    meter: '',
+    words: '',
+    button: '',
+    pulse: '',
+    mark: '',
+    card: '',
+    bucket: -1,
+  };
 
   constructor(
     private readonly el: FightElements,
     private readonly game: () => Game,
+    private readonly toScreen: ToScreen,
   ) {
     const { button, card } = el;
     el.zone.style.height = per(FIGHT.width);
-    el.fish.style.background = css(PALETTE.glow);
-    el.fish.style.boxShadow = `0 0 10px ${css(PALETTE.glow)}`;
+    el.fish.style.fill = css(PALETTE.glow);
+    el.fish.style.filter = `drop-shadow(0 0 4px ${css(PALETTE.glow)})`;
     // the button strikes when pressed, and while a fish is on, reels for as long as it is held
     button.addEventListener('pointerdown', (e) => {
       button.setPointerCapture(e.pointerId);
@@ -89,6 +111,26 @@ export class FightView {
     // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel
     const live = g.lure.phase === 'sinking' || phase === 'hooked';
     const button = !live ? '' : phase === 'hooked' ? `Reel ${g.reeling}` : 'Strike';
+    // while the window is open the button pulses and a mark stands over the bobber, both by the game's clock, so a
+    // picture is the same every run; each written only where it has changed
+    const biting = phase === 'biting';
+    const pulse = biting ? (Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20).toString() : '';
+    if (pulse !== this.was.pulse) {
+      this.was.pulse = pulse;
+      el.button.classList.toggle('biting', biting);
+      el.button.style.setProperty('--pulse', pulse || '0');
+    }
+    const at = biting ? this.toScreen(g.lure.bobber[0], g.lure.bobber[1], MARK_HIGH) : null;
+    const mark = at ? `${Math.round(at.x)} ${Math.round(at.y)}` : '';
+    if (mark !== this.was.mark) {
+      this.was.mark = mark;
+      el.mark.hidden = !at;
+      if (at) {
+        el.mark.style.left = `${Math.round(at.x)}px`;
+        el.mark.style.top = `${Math.round(at.y)}px`;
+      }
+    }
+
     if (button !== this.was.button) {
       this.was.button = button;
       el.button.hidden = !button;

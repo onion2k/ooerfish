@@ -172,6 +172,22 @@ test.describe('what it looks like', () => {
     expect(seen, 'the picture with a button on it matched the picture without').toMatch(/pixels \(ratio/);
   });
 
+  test('a bite at a desk’s width: the mark over the bobber, the Strike button pulsing and the words', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => {
+      window.game!.fishTo('bite');
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page.locator('#biteMark')).toBeInViewport();
+    await expect(page).toHaveScreenshot('desk-bite.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   test('a fish on the line at a desk’s width, the bar beside the Reel button', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
