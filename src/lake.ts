@@ -686,4 +686,8 @@ export const PHONE = {
   flickMin: 15,
   flickFull: 35,
   flickRest: 400,
+  /** The preview's power while the rod is raised: a guess, since a tilt has no pull to measure it by. */
+  previewPower: 0.6,
+  /** The weakest cast a flick makes, as a share of full power, for a flick at `flickMin`: a guess. */
+  flickLeast: 0.25,
 } as const;

@@ -20,7 +20,7 @@ import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { Game, type GameEvents } from './game';
 import { buildPanel } from './lab';
-import { SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE } from './lake';
+import { PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE } from './lake';
 import { light, paintFor, timeNamed } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
@@ -286,32 +286,37 @@ async function main() {
   // the gesture rules are src/gesture.ts's; the page turns its events into theirs and does what is the page's own: the
   // pointer capture, the camera and the picking of a point on the water
   const tapInverse = new Float32Array(16);
-  const gestures = new Gesture({
-    cast: (angle, power) => void game.cast(angle, power),
-    strike: () => void game.strike(),
-    reel: (on) => game.reel(on),
-    setAim: (to) => {
-      aim = to;
+  const gestures = new Gesture(
+    {
+      cast: (angle, power) => void game.cast(angle, power),
+      strike: () => void game.strike(),
+      reel: (on) => game.reel(on),
+      setAim: (to) => {
+        aim = to;
+      },
+      // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
+      pebble: (x, y) => {
+        cam.update();
+        if (!invertInto(tapInverse, cam.viewProjection)) return;
+        const box = canvas.getBoundingClientRect();
+        const at = waterPoint(tapInverse, ((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2);
+        if (at) game.drop(at[0], at[1]);
+      },
+      mode: () => mode,
+      bitePhase: () => game.bite.phase,
+      lurePhase: () => game.lure.phase,
+      view: () => {
+        const box = canvas.getBoundingClientRect();
+        return {
+          short: Math.min(box.width, box.height),
+          heading: Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]),
+        };
+      },
+      // no phone is wired yet (a later part); a phone's first gesture will put the page in cast mode
+      wantCast: () => void setMode('cast'),
     },
-    // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
-    pebble: (x, y) => {
-      cam.update();
-      if (!invertInto(tapInverse, cam.viewProjection)) return;
-      const box = canvas.getBoundingClientRect();
-      const at = waterPoint(tapInverse, ((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2);
-      if (at) game.drop(at[0], at[1]);
-    },
-    mode: () => mode,
-    bitePhase: () => game.bite.phase,
-    lurePhase: () => game.lure.phase,
-    view: () => {
-      const box = canvas.getBoundingClientRect();
-      return {
-        short: Math.min(box.width, box.height),
-        heading: Math.atan2(cam.target[1] - cam.position[1], cam.target[0] - cam.position[0]),
-      };
-    },
-  });
+    PHONE,
+  );
   const pointer = (type: PointerGesture['type'], e: PointerEvent): PointerGesture => ({
     type,
     source: 'screen',
@@ -489,6 +494,7 @@ async function main() {
   function simulate(dt: number) {
     frames++;
     game.step(dt);
+    gestures.sync();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
