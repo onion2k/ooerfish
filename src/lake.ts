@@ -672,3 +672,18 @@ export const SCENERY = {
  * frame budget itself. A machine that draws the full rung inside the budget keeps it.
  */
 export const RUNG_DOWN_MS = 8;
+
+/**
+ * The phone as the rod, first guesses to be tuned on a real phone: how many times a second the screen sends the phone
+ * its state; the phone's gamma, in degrees, at which the aim is full, and how far off the camera's heading that aim
+ * turns the cast; and the flick's strength, in m/s² without gravity: the least that counts, the one that casts at full
+ * power, and the rest in milliseconds after one in which the flick's own ringing is not another.
+ */
+export const PHONE = {
+  stateHz: 30,
+  tiltRange: 35,
+  aimSpread: 60,
+  flickMin: 15,
+  flickFull: 35,
+  flickRest: 400,
+} as const;

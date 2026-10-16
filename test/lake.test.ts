@@ -34,6 +34,7 @@ import {
   nearestBoulder,
   shoreRadius,
   VIEWS,
+  PHONE,
 } from '../src/lake';
 
 describe('the lake', () => {
@@ -440,5 +441,13 @@ describe('the jetty’s gap, answered cheaply from far off', () => {
     expect(far, 'points checked').toBeGreaterThan(1000);
     // the widest margin a fish is placed in from the shore is six: well under what a far point answers
     expect(DECK_NEAR).toBeGreaterThan(6);
+  });
+});
+
+describe('the phone as the rod', () => {
+  it('has figures that make sense', () => {
+    for (const v of Object.values(PHONE)) expect(v).toBeGreaterThan(0);
+    expect(PHONE.flickMin).toBeLessThan(PHONE.flickFull);
+    expect(PHONE.aimSpread).toBeLessThan(180);
   });
 });

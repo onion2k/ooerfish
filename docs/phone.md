@@ -185,7 +185,7 @@ The real phone's lag, the flick's feel, and the iOS motion prompt. These need yo
       cast, strike and reel green. Its own commit.
 - [x] 2. **Fight view snapshot:** `fightPicture` and draw-from-snapshot. Check: `fightview.test.ts`; the fight
       look pictures unchanged to the pixel.
-- [ ] 3. **Protocol and flick:** `protocol.ts` and `flick.ts`. Check: their unit tests, each seen failing first.
+- [x] 3. **Protocol and flick:** `protocol.ts` and `flick.ts`. Check: their unit tests, each seen failing first.
 - [ ] 4. **Phone gestures in `gesture.ts`:** tilt aim, flick cast, the any-source reel, gone. Check:
       `gesture.test.ts` rows for criteria 2, 3, 6 and 8.
 - [ ] 5. **Link, pairing and lab button:** `link.ts` (Trystero plus local), `pairing.ts`, **Pair a phone**,
