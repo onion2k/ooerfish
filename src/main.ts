@@ -4,6 +4,7 @@
  * artshape-render, and turns the panel's settings into the water, the light
  * and the camera they name. There is no game logic here.
  */
+import './fight.css';
 import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
 import { LightPool } from 'artshape-render/game/lights';
@@ -104,7 +105,11 @@ async function main() {
       renderer.emit(splashBurst(x, y, size, game.contamination));
     },
     nibbled: () => log('nibbled'),
-    bitten: () => log('bitten'),
+    bitten: () => {
+      log('bitten');
+      // a phone that can vibrate is asked to, once, as the strike's window opens
+      overlay?.buzz();
+    },
     hooked: () => log('hooked'),
     missed: () => {
       log('missed');
@@ -349,6 +354,8 @@ async function main() {
           handle: (e) => gestures.handle(e),
           origin: __PHONE_ORIGIN__ || location.origin,
           link: phoneLink.link,
+          game: () => game,
+          stateHz: PHONE.stateHz,
           // a status of its own and not the cast line, which is rewritten every frame by what the lure is doing and
           // would hide "the phone left" in the middle of a fight, when it matters most
           said: (text) => {
@@ -615,6 +622,8 @@ async function main() {
     const dt = Math.min((now - last) / 1000, 1 / 20);
     last = now;
     if (measuring) return;
+    // the phone's word and bar, by the page's clock and the game's state, so a paused game sends a bar that holds still
+    overlay?.tick(now);
     if (paused) {
       draw(0);
       return;

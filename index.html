@@ -235,63 +235,11 @@
     color: var(--dim);
     font-size: 11px;
   }
-  /* the fight: the bar beside the Reel button, upright, the zone the reel pushes up it and the fish darting on it,
-     the meter beside it filling while the fish is in the zone, and words below so position is not all it says */
+  /* the fight's bar: where it stands beside the Reel button (what it looks like is fight.css's, which the phone's page
+     shares) */
   #gauge {
     bottom: 64px;
     right: 124px;
-    /* a width of its own, room for the longer words, so the bar does not move as they change */
-    width: 116px;
-    box-sizing: border-box;
-    display: grid;
-    justify-content: center;
-    /* fixed columns, the bar's and the meter's: the words span them without widening them */
-    --bar-width: 36px;
-    --meter-width: 10px;
-    grid-template-columns: var(--bar-width) var(--meter-width);
-    gap: 6px 8px;
-    justify-items: center;
-    font-size: 12px;
-    padding: 10px 10px 8px;
-  }
-  /* its grid would otherwise show it while hidden */
-  #gauge[hidden] {
-    display: none;
-  }
-  #gaugeBar,
-  #gaugeMeter {
-    position: relative;
-    height: 280px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.12);
-    overflow: hidden;
-  }
-  #gaugeBar {
-    width: var(--bar-width);
-  }
-  #gaugeMeter {
-    width: var(--meter-width);
-  }
-  #gaugeZone {
-    position: absolute;
-    left: 0;
-    right: 0;
-    border-radius: 6px;
-    background: rgba(232, 244, 255, 0.32);
-    border: 2px solid rgba(232, 244, 255, 0.85);
-    box-sizing: border-box;
-  }
-  /* a side-on fish, nose to the right, centred on where it is on the bar */
-  #gaugeFish {
-    position: absolute;
-    left: 50%;
-    width: 30px;
-    height: 18px;
-    margin: 0 0 -9px -15px;
-    overflow: visible;
-  }
-  #gaugeFish .eye {
-    fill: #1d3b33;
   }
   /* the strike's window open: the button pulses amber by the game's clock, which the page writes as --pulse */
   #reelButton.biting {
@@ -308,18 +256,6 @@
     color: #ffd27a;
     text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
     pointer-events: none;
-  }
-  #gaugeMeterFill {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #9fe08a;
-  }
-  #gaugeWords {
-    grid-column: 1 / -1;
-    color: var(--dim);
-    white-space: nowrap;
   }
   #reelButton {
     position: fixed;

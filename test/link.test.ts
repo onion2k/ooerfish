@@ -153,3 +153,29 @@ describe('the local link', () => {
     expect(again).toBeDefined();
   });
 });
+
+describe('the phone page’s address', () => {
+  it('reads the room and key, and the link when it names one', async () => {
+    const { readPhoneAddress } = await import('../src/phone/linkname');
+    expect(readPhoneAddress('#room=abc123&key=def456')).toEqual({
+      ok: true,
+      room: 'abc123',
+      key: 'def456',
+      link: 'nostr',
+    });
+    expect(readPhoneAddress('#room=abc123&key=def456&link=local')).toMatchObject({ ok: true, link: 'local' });
+  });
+
+  it('refuses a missing, odd or unknown part by name', async () => {
+    const { readPhoneAddress } = await import('../src/phone/linkname');
+    const why = (hash: string) => {
+      const a = readPhoneAddress(hash);
+      return a.ok ? '' : a.why;
+    };
+    expect(why('')).toContain('room');
+    expect(why('#room=abc123')).toContain('key');
+    expect(why('#room=bad%20room!&key=def456')).toContain('room');
+    expect(why('#room=abc123&key=K')).toContain('key');
+    expect(why('#room=abc123&key=def456&link=pigeon')).toContain('"pigeon"');
+  });
+});

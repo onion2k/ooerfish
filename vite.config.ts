@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { networkInterfaces } from 'node:os';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import { defineConfig } from 'vite';
 
@@ -41,6 +42,15 @@ export default defineConfig({
   plugins: phoneDev ? [basicSsl()] : [],
   // empty means "this page's own origin", which is what a build and the plain dev server want
   define: { __PHONE_ORIGIN__: JSON.stringify(phoneDev ? `https://${lanHost()}:${PORT}` : '') },
+  // two pages: the game, and the phone that is its rod
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        phone: fileURLToPath(new URL('./phone.html', import.meta.url)),
+      },
+    },
+  },
   server: {
     port: PORT,
     strictPort: true,

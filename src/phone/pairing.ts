@@ -7,10 +7,14 @@
  * as arguments and imports no game state, so `main.ts` stays the only place that wires.
  */
 import QRCode from 'qrcode';
+import { blankPicture, fightPicture } from '../fightview';
+import type { Game } from '../game';
 import type { GestureEvent } from '../gesture';
 import { localLink, trysteroLink, type Link } from './link';
 import type { LinkName } from './linkname';
+import type { ScreenMessage } from './protocol';
 import { PhoneSession, newPairing, phoneUrl, type Pairing, type PhoneReading } from './session';
+import { phoneWord } from './word';
 
 /** The overlay's elements, found by the page. */
 export interface PairingElements {
@@ -29,6 +33,10 @@ export interface PairingOptions {
   /** What the phone page is served from: the LAN address under `dev:phone`, the page's own otherwise. */
   origin: string;
   link: LinkName;
+  /** The game, read for the word and the bar the phone is sent; the pairing never changes it. */
+  game: () => Game;
+  /** How many times a second the phone is sent the state of the fight at the most. */
+  stateHz: number;
   /** The phone joined or left, said on the big screen. */
   said(text: string): void;
 }
@@ -39,6 +47,12 @@ export class PairingOverlay {
   private session: PhoneSession | null = null;
   /** Opening is one thing at a time: a second press while the first is making the link shares it. */
   private opening: Promise<void> | null = null;
+  /** The one message the phone is sent, written into each time: a frame at thirty a second makes nothing. */
+  private readonly state: Extract<ScreenMessage, { kind: 'state' }> = {
+    kind: 'state',
+    word: '',
+    picture: blankPicture(),
+  };
 
   constructor(private readonly options: PairingOptions) {
     options.elements.close.addEventListener('click', () => this.close());
@@ -71,6 +85,25 @@ export class PairingOverlay {
     this.show();
   }
 
+  /**
+   * Sends the phone the word and the bar if they are due, by the page's clock `now` in milliseconds (a frame's
+   * timestamp). The picture is the game's, so a paused game sends a still bar. Does nothing, and builds nothing, with
+   * no phone.
+   */
+  tick(now: number) {
+    this.session?.sendState(now, () => {
+      const game = this.options.game();
+      this.state.word = phoneWord(game.bite.phase, game.lure.phase);
+      fightPicture(game, this.state.picture);
+      return this.state;
+    });
+  }
+
+  /** The phone is asked to vibrate: a fish has bitten. */
+  buzz() {
+    this.session?.buzz();
+  }
+
   close() {
     const { overlay } = this.options.elements;
     overlay.hidden = true;
@@ -89,6 +122,7 @@ export class PairingOverlay {
     this.session = new PhoneSession(this.link, {
       handle: (e) => this.options.handle(e),
       now: () => performance.now(),
+      stateHz: this.options.stateHz,
       onChange: (what) => {
         if (what === 'joined') {
           this.options.said('Phone connected');

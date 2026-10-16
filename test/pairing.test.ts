@@ -90,6 +90,7 @@ function session() {
   const s = new PhoneSession(fake.link, {
     handle: (e) => void handled.push(e),
     now: () => clock++,
+    stateHz: 30,
     onChange: (what) => void changes.push(what),
   });
   return { ...fake, s, handled, changes };
@@ -190,5 +191,72 @@ describe('the one phone', () => {
     handlers.join('phone-b');
     handlers.message({ kind: 'y' }, 'phone-b');
     expect(s.reading().refused).toBe(2);
+  });
+});
+
+describe('what the screen sends the phone', () => {
+  const state = (word: 'Cast' | 'Reel' = 'Cast') =>
+    ({
+      kind: 'state',
+      word,
+      picture: {
+        phase: 'none',
+        zone: 0,
+        width: 0.2,
+        fishAt: 0,
+        meter: 0,
+        tension: 0,
+        reeling: false,
+        biting: false,
+        pulse: 0,
+        words: '',
+        button: '',
+      },
+    }) as const;
+
+  it('sends nothing, and does not even build the state, until a phone is the phone', () => {
+    const { s, sent } = session();
+    const build = vi.fn(() => state());
+    expect(s.sendState(0, build)).toBe(false);
+    expect(build).not.toHaveBeenCalled();
+    expect(sent).toEqual([]);
+  });
+
+  it('sends state to the phone, and only the phone, at the state rate by the clock it is handed', () => {
+    const { s, handlers, sent } = session();
+    handlers.join('phone-a');
+    handlers.join('phone-b');
+    sent.length = 0;
+    const build = vi.fn(() => state());
+    // one second of frames at 120 a second: thirty messages, not a hundred and twenty
+    for (let f = 0; f < 120; f++) s.sendState(1000 + (f * 1000) / 120, build);
+    expect(sent).toHaveLength(30);
+    expect(build).toHaveBeenCalledTimes(30);
+    // a stall is not made up in a burst: after a long gap there is one message, not several
+    sent.length = 0;
+    for (let f = 0; f < 5; f++) s.sendState(9000 + f, build);
+    expect(sent).toHaveLength(1);
+    expect(sent.every((m) => m.to === 'phone-a')).toBe(true);
+  });
+
+  it('sends a buzz to the phone once per call, and none when there is no phone', () => {
+    const { s, handlers, sent } = session();
+    s.buzz();
+    expect(sent).toEqual([]);
+    handlers.join('phone-a');
+    s.buzz();
+    expect(sent).toEqual([{ message: { kind: 'buzz' }, to: 'phone-a' }]);
+  });
+
+  it('sends again at once to a phone that comes after the last had gone', () => {
+    const { s, handlers, sent } = session();
+    handlers.join('phone-a');
+    s.sendState(1000, () => state());
+    handlers.leave('phone-a');
+    handlers.join('phone-b');
+    sent.length = 0;
+    // inside the last interval, but a new phone must not wait a third of a second for its first word
+    expect(s.sendState(1001, () => state('Reel'))).toBe(true);
+    expect(sent).toHaveLength(1);
   });
 });

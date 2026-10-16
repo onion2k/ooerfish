@@ -10,7 +10,7 @@
 import type { GestureEvent, PhoneGesture } from '../gesture';
 import type { Link } from './link';
 import type { LinkName } from './linkname';
-import { parsePhoneMessage, type PhoneMessage } from './protocol';
+import { parsePhoneMessage, type PhoneMessage, type ScreenMessage } from './protocol';
 
 /** What the test API reads of the pairing. */
 export interface PhoneReading {
@@ -73,6 +73,8 @@ export interface SessionOptions {
   handle(e: GestureEvent): void;
   /** The screen's clock in milliseconds, for a gesture's `at`: `performance.now` in the page. */
   now(): number;
+  /** How many times a second the phone is sent the state of the fight at the most. */
+  stateHz: number;
   /** The phone joined or left, for the page to say so. */
   onChange?(what: 'joined' | 'left'): void;
 }
@@ -84,6 +86,8 @@ export class PhoneSession {
   private lastKind: string | null = null;
   private refused = 0;
   private lastRefusal: string | null = null;
+  /** When the phone is next owed its state, by the clock `sendState` is handed; a new phone is owed one at once. */
+  private stateDue = -Infinity;
 
   constructor(
     private readonly link: Link,
@@ -104,9 +108,32 @@ export class PhoneSession {
     };
   }
 
+  /**
+   * Sends the phone its state if one is due, at `stateHz` by `now` (the page's clock, in milliseconds), and says
+   * whether it did. `build` is called only then, so a frame with no phone, or one between two sends, costs nothing; it
+   * may hand back the same message each time, since the link copies what it sends.
+   */
+  sendState(now: number, build: () => ScreenMessage): boolean {
+    // a thousandth of a microsecond of slack, or the sum of the intervals' rounding would miss a frame it was owed
+    if (this.peer === null || now < this.stateDue - 1e-6) return false;
+    // the next is due a whole interval after this one was due and not after it was sent, so frames that do not divide
+    // the interval evenly still average the rate; after a stall it is an interval from now, not made up in a burst
+    const every = 1000 / this.options.stateHz;
+    const due = Number.isFinite(this.stateDue) ? this.stateDue + every : now + every;
+    this.stateDue = due > now ? due : now + every;
+    this.link.send(build(), this.peer);
+    return true;
+  }
+
+  /** Asks the phone to vibrate, once; nothing when there is no phone. */
+  buzz() {
+    if (this.peer !== null) this.link.send({ kind: 'buzz' } satisfies ScreenMessage, this.peer);
+  }
+
   private joined(peer: string) {
     if (this.peer === null) {
       this.peer = peer;
+      this.stateDue = -Infinity;
       this.options.onChange?.('joined');
       return;
     }

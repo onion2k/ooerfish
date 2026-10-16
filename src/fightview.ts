@@ -72,27 +72,46 @@ export interface FightPicture {
   button: string;
 }
 
-/** The fight as the bar and the button show it, worked out from the game and nothing else. */
-export function fightPicture(g: Game): FightPicture {
+/** A picture of nothing happening, to be written into by `fightPicture`: for a caller that keeps one and reuses it. */
+export function blankPicture(): FightPicture {
+  return {
+    phase: 'none',
+    zone: 0,
+    width: FIGHT.width,
+    fishAt: 0,
+    meter: 0,
+    tension: 0,
+    reeling: false,
+    biting: false,
+    pulse: 0,
+    words: '',
+    button: '',
+  };
+}
+
+/**
+ * The fight as the bar and the button show it, worked out from the game and nothing else. It writes into `into` when
+ * given one and hands it back, so the phone's thirty a second do not each make an object.
+ */
+export function fightPicture(g: Game, into: FightPicture = blankPicture()): FightPicture {
   const { phase } = g.bite;
   const hooked = phase === 'hooked';
   const biting = phase === 'biting';
   // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel
   const live = g.lure.phase === 'sinking' || hooked;
-  return {
-    phase,
-    zone: g.line.zone,
-    width: FIGHT.width,
-    fishAt: g.line.fishAt,
-    meter: g.line.meter,
-    tension: g.line.tension,
-    reeling: g.reeling,
-    biting,
-    // by the game's clock, so a picture is the same every run
-    pulse: biting ? Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20 : 0,
-    words: hooked ? (g.line.inZone() ? 'in the zone' : 'out of the zone') : '',
-    button: !live ? '' : hooked ? 'Reel' : 'Strike',
-  };
+  into.phase = phase;
+  into.zone = g.line.zone;
+  into.width = FIGHT.width;
+  into.fishAt = g.line.fishAt;
+  into.meter = g.line.meter;
+  into.tension = g.line.tension;
+  into.reeling = g.reeling;
+  into.biting = biting;
+  // by the game's clock, so a picture is the same every run
+  into.pulse = biting ? Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20 : 0;
+  into.words = hooked ? (g.line.inZone() ? 'in the zone' : 'out of the zone') : '';
+  into.button = !live ? '' : hooked ? 'Reel' : 'Strike';
+  return into;
 }
 
 /** The bar and the button drawn from a picture, writing an element only where its value has changed. */

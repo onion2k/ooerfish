@@ -37,9 +37,16 @@ export function watch(page: Page): string[] {
  */
 export async function start(
   page: Page,
-  options: { save?: Partial<Save>; seed?: number; paused?: boolean; rung?: 'full' | 'lean' | 'auto' } = {},
+  options: {
+    save?: Partial<Save>;
+    seed?: number;
+    paused?: boolean;
+    rung?: 'full' | 'lean' | 'auto';
+    /** More of the address, such as `phonelink: 'local'`, for a test that needs the page asked for something. */
+    query?: Record<string, string>;
+  } = {},
 ) {
-  const { save, seed, paused, rung = 'full' } = options;
+  const { save, seed, paused, rung = 'full', query: more = {} } = options;
   if (save)
     await page.addInitScript((s) => {
       if (sessionStorage.getItem('game-test-seeded')) return;
@@ -50,6 +57,7 @@ export async function start(
   if (seed !== undefined) query.set('seed', String(seed));
   if (paused) query.set('paused', '1');
   if (rung !== 'auto') query.set('rung', rung);
+  for (const [name, value] of Object.entries(more)) query.set(name, value);
   await page.goto(query.size ? `/?${query.toString()}` : '/');
   await ready(page);
 }

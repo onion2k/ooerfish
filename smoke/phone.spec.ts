@@ -1,12 +1,15 @@
 /**
- * Pairing, as a user does it and as a phone would: the game on the local link (`?phonelink=local`, which needs no
- * relay and no network) and the phone as a second page of the same browser, running the phone's side of the link
- * itself. The real relays are `npm run pair`'s, not this test's.
+ * The phone, as a user holds it and as the screen hears it: the game on the local link (`?phonelink=local`, which needs
+ * no relay and no network) and the real phone page, `phone.html`, as a second page of the same browser, its pad
+ * clicked and dragged as a thumb does and its sensors fed by the browser's own device events. A stand-in that is only
+ * the phone's side of the link plays the strangers: the peer that says what is not known, and the second phone. The
+ * real relays are `npm run pair`'s, not this test's.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { ready, watch } from './game';
+import { ANGLER } from '../src/lake';
+import { ready, start, watch } from './game';
 
-/** What the phone page keeps: its link, and what the screen has said to it. */
+/** What the stand-in keeps: its link, and what the screen has said to it. */
 interface PhoneSide {
   link: {
     send(message: unknown, to?: string): void;
@@ -17,13 +20,15 @@ interface PhoneSide {
 declare global {
   interface Window {
     phoneSide?: PhoneSide;
+    /** What the phone page was asked to vibrate, in the page's stub of `navigator.vibrate`. */
+    buzzes?: unknown[];
   }
 }
 
-/** A page of the dev server with nothing on it but the phone's side of the link, joined to a room. */
-async function phoneJoins(context: BrowserContext, room: string): Promise<Page> {
+/** A page of the dev server with nothing on it but the phone's side of the link, joined to a room: a stranger. */
+async function strangerJoins(context: BrowserContext, room: string): Promise<Page> {
   await context.route('**/phone-blank', (route) =>
-    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>a phone</title>' }),
+    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>a stranger</title>' }),
   );
   const page = await context.newPage();
   await page.goto('/phone-blank');
@@ -49,15 +54,102 @@ async function pairingFromOverlay(page: Page) {
   return { url: url!, room: params.get('room')!, key: params.get('key')!, link: params.get('link') };
 }
 
-test('a phone pairs through the QR code: the code loads on demand, closes when the phone joins, and its pad casts', async ({
+/** What the phone's sensors are, for the page that opens: none at all, or the iOS kind that asks and is granted. */
+type Sensors = 'none' | 'granted' | 'denied';
+
+/** The real phone page at an address, at a phone's size, with its sensors and its vibrator stubbed, not yet connected. */
+async function openPhone(context: BrowserContext, url: string, sensors: Sensors = 'none'): Promise<Page> {
+  const phone = await context.newPage();
+  await phone.setViewportSize({ width: 390, height: 844 });
+  await phone.addInitScript((kind) => {
+    window.buzzes = [];
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (pattern: unknown) => {
+        window.buzzes!.push(pattern);
+        return true;
+      },
+    });
+    const w = window as unknown as Record<string, unknown>;
+    if (kind === 'none') delete w.DeviceMotionEvent;
+    else {
+      // Safari's: the page has to ask from inside a tap, and the answer is the person's
+      Object.assign(w.DeviceMotionEvent as object, { requestPermission: () => Promise.resolve(kind) });
+    }
+  }, sensors);
+  await phone.goto(url);
+  return phone;
+}
+
+/** Connect, tapped as a user does. */
+async function connect(phone: Page) {
+  await phone.getByRole('button', { name: 'Connect', exact: true }).click();
+}
+
+/** The pad's box, for a thumb to be put on. */
+async function padBox(phone: Page) {
+  return (await phone.locator('#pad').boundingBox())!;
+}
+
+/** A thumb put down on the pad at a share of it, and moved to others, by the mouse (pointer events as a finger makes). */
+async function thumbDown(phone: Page, at: { x: number; y: number }) {
+  const box = await padBox(phone);
+  await phone.mouse.move(box.x + box.width * at.x, box.y + box.height * at.y);
+  await phone.mouse.down();
+}
+async function thumbTo(phone: Page, at: { x: number; y: number }) {
+  const box = await padBox(phone);
+  await phone.mouse.move(box.x + box.width * at.x, box.y + box.height * at.y, { steps: 4 });
+}
+const thumbUp = (phone: Page) => phone.mouse.up();
+
+/** A tilt of the phone, as the browser reports one. */
+const tilt = (phone: Page, gamma: number) =>
+  phone.evaluate((g) => window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { gamma: g })), gamma);
+
+/** One sample of the phone's pull without gravity, as the browser reports one. */
+const pull = (phone: Page, x: number, y: number, z: number) =>
+  phone.evaluate(
+    ([a, b, c]) => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { acceleration: { x: a, y: b, z: c } })),
+    [x, y, z] as const,
+  );
+
+/** A flick: a jolt of that peak and then the phone at rest. */
+async function flick(phone: Page, peak: number) {
+  await pull(phone, peak, 0, 0);
+  await pull(phone, 0, 0, 0);
+}
+
+/** A share as the bar writes it: a per cent to a tenth. */
+const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
+
+/** What the phone's bar shows, read from its page. */
+const barOf = (phone: Page) =>
+  phone.evaluate(() => ({
+    shown: !document.getElementById('gauge')!.hidden,
+    zone: document.getElementById('gaugeZone')!.style.bottom,
+    fish: (document.getElementById('gaugeFish') as unknown as SVGElement).style.bottom,
+    meter: document.getElementById('gaugeMeterFill')!.style.height,
+    words: document.getElementById('gaugeWords')!.textContent,
+  }));
+
+/** The same, as the game's `fishing()` would have the bar written. */
+const barFrom = (f: { zone: number; fishAt: number; meter: number }, words: string) => ({
+  shown: true,
+  zone: per(f.zone),
+  fish: per(f.fishAt),
+  meter: per(f.meter),
+  words,
+});
+
+test('a phone pairs through the QR code and its pad casts; a second phone is told the screen is taken', async ({
   page,
   context,
 }) => {
   const problems = watch(page);
   const requested: string[] = [];
   page.on('request', (r) => requested.push(r.url()));
-  await page.goto('/?phonelink=local&seed=3&paused=1&rung=full');
-  await ready(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
 
   // nothing of pairing is fetched to boot the game, and nothing reads before it is opened
   const pairingCode = /trystero|qrcode|phone\/(pairing|session|link)\.ts/i;
@@ -96,53 +188,43 @@ test('a phone pairs through the QR code: the code loads on demand, closes when t
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   await page.setViewportSize({ width: 1280, height: 800 });
 
-  // the phone joins, says hello (no motion) and drags back on its pad and lets go
-  const phone = await phoneJoins(context, room);
+  // the real phone page opens that address, with no motion sensors, and Connect is tapped
+  const phone = await openPhone(context, url, 'none');
+  const phoneProblems = watch(phone);
+  await expect(phone.locator('#status')).toContainText('Connect');
+  await connect(phone);
   await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
   await expect(page.locator('#pairing')).toBeHidden();
   await expect(page.locator('#phoneStatus')).toHaveText('Phone connected');
-  await send(phone, { kind: 'hello', v: 1, motion: false });
-  await send(phone, { kind: 'down' });
-  await send(phone, { kind: 'move', x: 0.5, y: 0.4, aspect: 0.5 });
-  await send(phone, { kind: 'move', x: 0.5, y: 0.7, aspect: 0.5 });
-  await expect.poll(() => page.evaluate(() => window.game!.preview() !== null)).toBe(true);
-  expect(await page.evaluate(() => window.game!.lure().phase)).toBe('ready');
-  await send(phone, { kind: 'up' });
-  await expect.poll(() => page.evaluate(() => window.game!.lure().phase)).not.toBe('ready');
-  expect(await page.evaluate(() => window.game!.phone())).toMatchObject({
-    paired: true,
-    motion: false,
-    lastKind: 'up',
-    refused: 0,
-  });
-  // the first gesture from the phone put the page in cast mode
-  expect(await page.evaluate(() => window.game!.mode())).toBe('cast');
-
-  // a message that is not known is refused by name, and counted, and the last good kind stands
-  await send(phone, { kind: 'strike' });
-  await expect.poll(() => page.evaluate(() => window.game!.phone().refused)).toBe(1);
-  const after = await page.evaluate(() => window.game!.phone());
-  expect(after.lastRefusal).toContain('"strike"');
-  expect(after.lastKind).toBe('up');
-  await send(phone, { kind: 'hello', v: 7, motion: true });
-  await expect.poll(() => page.evaluate(() => window.game!.phone().refused)).toBe(2);
+  await expect(phone.locator('#status')).toContainText('Connected');
+  await expect.poll(() => page.evaluate(() => window.game!.phone().lastKind)).toBe('hello');
   expect(await page.evaluate(() => window.game!.phone().motion)).toBe(false);
 
-  // a second phone is told the screen has one, and is ignored
-  const second = await phoneJoins(context, room);
-  await expect.poll(() => second.evaluate(() => window.phoneSide!.heard)).toContainEqual({ kind: 'busy' });
-  const before = await page.evaluate(() => window.game!.phone());
-  await send(second, { kind: 'hello', v: 1, motion: true });
-  await send(second, { kind: 'down' });
-  await send(second, { kind: 'strike' });
-  // the first phone's next message is heard after the second's, so by then the second's would have been
-  await send(phone, { kind: 'tilt', g: 4 });
-  await expect.poll(() => page.evaluate(() => window.game!.phone().lastKind)).toBe('tilt');
-  const now = await page.evaluate(() => window.game!.phone());
-  expect(now).toMatchObject({ paired: true, motion: before.motion, refused: before.refused });
-  // the first phone never heard it was busy
-  expect(await phone.evaluate(() => window.phoneSide!.heard)).not.toContainEqual({ kind: 'busy' });
+  // a thumb drags back on the pad: the preview is drawn on the big screen, and letting go casts
+  await thumbDown(phone, { x: 0.5, y: 0.4 });
+  await thumbTo(phone, { x: 0.5, y: 0.7 });
+  await expect.poll(() => page.evaluate(() => window.game!.preview() !== null)).toBe(true);
+  expect(await page.evaluate(() => window.game!.lure().phase)).toBe('ready');
+  await thumbUp(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.lure().phase)).not.toBe('ready');
+  expect(await page.evaluate(() => window.game!.preview())).toBeNull();
+  // the first gesture from the phone put the page in cast mode
+  expect(await page.evaluate(() => window.game!.mode())).toBe('cast');
+  // the lure is cast, so the phone's word is nothing while it sinks and waits
+  await page.evaluate(() => window.game!.step(120));
+  await expect(phone.locator('#word')).toHaveText('');
 
+  // a second phone on the same address is told the screen already has one, and is ignored
+  const second = await openPhone(context, url, 'granted');
+  await connect(second);
+  await expect(second.locator('#status')).toContainText('already has a phone');
+  const before = await page.evaluate(() => window.game!.phone());
+  await thumbDown(second, { x: 0.5, y: 0.5 });
+  await thumbUp(second);
+  await page.evaluate(() => window.game!.step(1));
+  expect(await page.evaluate(() => window.game!.phone())).toEqual(before);
+  // the first phone never heard it was busy
+  await expect(phone.locator('#status')).not.toContainText('already has a phone');
   // the second phone leaving is not the phone leaving
   await second.close();
   await page.evaluate(() => window.game!.step(1));
@@ -154,6 +236,227 @@ test('a phone pairs through the QR code: the code loads on demand, closes when t
   await expect(page.locator('#phoneStatus')).toHaveText('The phone left');
   expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
+  expect(phoneProblems).toEqual([]);
+});
+
+test('a peer that says what is not known is refused by name and changes nothing', async ({ page, context }) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => window.game!.pair());
+  const { room } = await pairingFromOverlay(page);
+  const stranger = await strangerJoins(context, room);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+  await send(stranger, { kind: 'hello', v: 1, motion: false });
+  await send(stranger, { kind: 'up' });
+  await expect.poll(() => page.evaluate(() => window.game!.phone().lastKind)).toBe('up');
+
+  // a kind that is not known, and a version that is not
+  await send(stranger, { kind: 'strike' });
+  await expect.poll(() => page.evaluate(() => window.game!.phone().refused)).toBe(1);
+  const after = await page.evaluate(() => window.game!.phone());
+  expect(after.lastRefusal).toContain('"strike"');
+  expect(after.lastKind).toBe('up');
+  await send(stranger, { kind: 'hello', v: 7, motion: true });
+  await expect.poll(() => page.evaluate(() => window.game!.phone().refused)).toBe(2);
+  expect(await page.evaluate(() => window.game!.phone().motion)).toBe(false);
+  expect(await page.evaluate(() => window.game!.lure().phase)).toBe('ready');
+  expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('the phone page refuses an address with no pairing in it, and fits a phone either way up', async ({
+  page,
+  context,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  for (const hash of ['', '#room=only', '#key=only', '#room=bad%20room!&key=k']) {
+    const bad = await openPhone(context, `/phone.html${hash}`, 'none');
+    await expect(bad.locator('#status')).toContainText('scan');
+    await expect(bad.getByRole('button', { name: 'Connect', exact: true })).toBeDisabled();
+    await bad.close();
+  }
+
+  await page.evaluate(() => window.game!.pair());
+  const { url } = await pairingFromOverlay(page);
+  const phone = await openPhone(context, url, 'granted');
+  for (const [width, height] of [
+    [390, 844],
+    [844, 390],
+    [320, 568],
+  ]) {
+    await phone.setViewportSize({ width, height });
+    expect(await phone.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    expect(await phone.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height);
+    const pad = await padBox(phone);
+    expect(pad.width).toBeGreaterThan(100);
+    expect(pad.x).toBeGreaterThanOrEqual(0);
+    expect(pad.x + pad.width).toBeLessThanOrEqual(width);
+    expect(pad.y + pad.height).toBeLessThanOrEqual(height);
+  }
+  expect(problems).toEqual([]);
+});
+
+test('a phone with motion tilts to aim and flicks to cast, is told to strike, hooks, reels and lets go', async ({
+  page,
+  context,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => window.game!.pair());
+  const { url } = await pairingFromOverlay(page);
+  const phone = await openPhone(context, url, 'granted');
+  const phoneProblems = watch(phone);
+  await connect(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+  // the permission was given inside the tap, so the phone says it has motion
+  await expect.poll(() => page.evaluate(() => window.game!.phone().motion)).toBe(true);
+  const game = <T>(f: () => T) => page.evaluate(f);
+
+  // a flick with no thumb down casts nothing
+  await flick(phone, 40);
+  await thumbDown(phone, { x: 0.5, y: 0.5 });
+  await expect.poll(() => game(() => window.game!.phone().lastKind)).toBe('move');
+  expect(await game(() => window.game!.lure().phase)).toBe('ready');
+
+  // with the thumb down, tilting swings the preview: right and left land on either side of the middle
+  await tilt(phone, 0);
+  await tilt(phone, 30);
+  await expect.poll(() => game(() => window.game!.preview() !== null)).toBe(true);
+  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeGreaterThan(0.5);
+  const right = (await game(() => window.game!.preview()))!;
+  await tilt(phone, -30);
+  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeLessThan(-0.5);
+  const left = (await game(() => window.game!.preview()))!;
+  expect(right.x).toBeGreaterThan(left.x);
+
+  // a weak flick (the phone's rest swallows a second flick sent too soon, so it is sent again until the cast is out)
+  await tilt(phone, 30);
+  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeGreaterThan(0.5);
+  await expect
+    .poll(async () => {
+      await flick(phone, 20);
+      return game(() => window.game!.lure().phase);
+    })
+    .not.toBe('ready');
+  await game(() => window.game!.step(120));
+  const weak = await game(() => window.game!.lure());
+  expect(weak.x).toBeGreaterThan(0.5);
+  // letting go after a flick casts nothing more
+  await thumbUp(phone);
+  await expect.poll(() => game(() => window.game!.phone().lastKind)).toBe('up');
+  expect(await game(() => window.game!.lure().x)).toBe(weak.x);
+
+  // reeled in and cast again, the same tilt and a hard flick goes further: power rises with the flick's strength
+  await game(() => {
+    window.game!.reelIn();
+    window.game!.step(120);
+  });
+  expect(await game(() => window.game!.lure().phase)).toBe('ready');
+  await thumbDown(phone, { x: 0.5, y: 0.5 });
+  await tilt(phone, 0);
+  await tilt(phone, 30);
+  await expect
+    .poll(async () => {
+      await flick(phone, 40);
+      return game(() => window.game!.lure().phase);
+    })
+    .not.toBe('ready');
+  await game(() => window.game!.step(120));
+  const hard = await game(() => window.game!.lure());
+  const reach = (l: { x: number; y: number }) => Math.hypot(l.x - ANGLER.x, l.y - ANGLER.y);
+  expect(reach(hard)).toBeGreaterThan(reach(weak) + 5);
+  // and the phone says the last flick's strength, to tune by
+  await expect(phone.locator('#flick')).toContainText('40');
+  await thumbUp(phone);
+
+  // reeled in, a fish bites: the phone's word is Strike! and it is asked to vibrate, once
+  await game(() => {
+    window.game!.reelIn();
+    window.game!.step(120);
+  });
+  await expect(phone.locator('#word')).toHaveText('Cast');
+  expect(await game(() => window.game!.fishTo('bite'))).toBe(true);
+  await expect(phone.locator('#word')).toHaveText('Strike!');
+  await expect.poll(() => phone.evaluate(() => window.buzzes!.length)).toBe(1);
+
+  // a tap on the pad strikes, as a tap on the screen does
+  await thumbDown(phone, { x: 0.5, y: 0.5 });
+  await thumbUp(phone);
+  await expect.poll(() => game(() => window.game!.fishing().phase)).toBe('hooked');
+  await game(() => window.game!.step(1));
+  await expect(phone.locator('#word')).toHaveText('Reel');
+
+  // a hold with the fish on reels until let go; stepped, the zone rises, and the phone's bar says what the game's does
+  await thumbDown(phone, { x: 0.5, y: 0.5 });
+  await expect.poll(() => game(() => window.game!.fishing().reeling)).toBe(true);
+  await game(() => window.game!.step(90));
+  const fight = await game(() => window.game!.fishing());
+  expect(fight.phase).toBe('hooked');
+  expect(fight.zone).toBeGreaterThan(0);
+  const words = await game(() => (window.game!.invariants().length === 0 ? 'ok' : 'broken'));
+  expect(words).toBe('ok');
+  await expect
+    .poll(async () => {
+      const bar = await barOf(phone);
+      return { ...bar, words: bar.words === 'in the zone' || bar.words === 'out of the zone' ? 'words' : bar.words };
+    })
+    .toEqual(barFrom(fight, 'words'));
+  // the words say what the game says of the fish
+  const inZone = await game(() => {
+    const f = window.game!.fishing();
+    return f.fishAt >= f.zone && f.fishAt <= f.zone + f.width;
+  });
+  expect((await barOf(phone)).words).toBe(inZone ? 'in the zone' : 'out of the zone');
+  // stepped on, the bar follows
+  await game(() => window.game!.step(30));
+  const later = await game(() => window.game!.fishing());
+  expect(later.phase).toBe('hooked');
+  await expect.poll(async () => (await barOf(phone)).meter).toBe(per(later.meter));
+  await expect.poll(async () => (await barOf(phone)).zone).toBe(per(later.zone));
+  await expect.poll(async () => (await barOf(phone)).fish).toBe(per(later.fishAt));
+
+  // letting go gives line
+  await thumbUp(phone);
+  await expect.poll(() => game(() => window.game!.fishing().reeling)).toBe(false);
+
+  // held again, and the phone closes: the reel is let go, and the screen says the phone left
+  await thumbDown(phone, { x: 0.5, y: 0.5 });
+  await expect.poll(() => game(() => window.game!.fishing().reeling)).toBe(true);
+  await phone.close();
+  await expect.poll(() => game(() => window.game!.fishing().reeling)).toBe(false);
+  await expect(page.locator('#phoneStatus')).toHaveText('The phone left');
+  expect(await game(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+  expect(phoneProblems).toEqual([]);
+});
+
+test('a phone that denies the motion sensors still works as a pad, and says so', async ({ page, context }) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => window.game!.pair());
+  const { url } = await pairingFromOverlay(page);
+  const phone = await openPhone(context, url, 'denied');
+  await connect(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().lastKind)).toBe('hello');
+  expect(await page.evaluate(() => window.game!.phone().motion)).toBe(false);
+  await expect(phone.locator('#sensors')).toContainText('refused');
+  expect(problems).toEqual([]);
+});
+
+test('a phone that reloads comes back to the same room and is the phone again', async ({ page, context }) => {
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => window.game!.pair());
+  const { url } = await pairingFromOverlay(page);
+  const phone = await openPhone(context, url, 'granted');
+  await connect(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+  await phone.reload();
+  // the page's leaving told the screen, so the rejoin is not told it is busy
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(false);
+  await connect(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+  await expect(phone.locator('#status')).not.toContainText('already has a phone');
 });
 
 test('the overlay closes by its button and by Escape, and Pair a phone shows it again with the same code', async ({
