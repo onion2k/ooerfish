@@ -178,8 +178,15 @@
   #gauge {
     bottom: 64px;
     right: 124px;
+    /* a width of its own, room for the longer words, so the bar does not move as they change */
+    width: 116px;
+    box-sizing: border-box;
     display: grid;
-    grid-template-columns: auto auto;
+    justify-content: center;
+    /* fixed columns, the bar's and the meter's: the words span them without widening them */
+    --bar-width: 30px;
+    --meter-width: 10px;
+    grid-template-columns: var(--bar-width) var(--meter-width);
     gap: 6px 8px;
     justify-items: center;
     font-size: 12px;
@@ -198,10 +205,10 @@
     overflow: hidden;
   }
   #gaugeBar {
-    width: 30px;
+    width: var(--bar-width);
   }
   #gaugeMeter {
-    width: 10px;
+    width: var(--meter-width);
   }
   #gaugeZone {
     position: absolute;

@@ -229,6 +229,9 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   };
   let movedUp = false,
     fell = false;
+  // the bar stands still on the screen however the words under it change, in the zone or out of it
+  const places = new Set<string>();
+  const words = new Set<string>();
   for (let f = 0; f < 120 * 60; f += 6) {
     const { phase, zone, width, fishAt } = await page.evaluate(() => window.game!.fishing());
     if (phase !== 'hooked') break;
@@ -241,6 +244,9 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
       held = by;
     }
     expect((await page.evaluate(() => window.game!.fishing())).reeling).toBe(held !== null);
+    const place = await page.locator('#gaugeBar').boundingBox();
+    places.add(`${Math.round(place!.x)} ${Math.round(place!.y)}`);
+    words.add((await page.locator('#gaugeWords').textContent()) ?? '');
     await page.evaluate(() => window.game!.step(6));
     const after = (await page.evaluate(() => window.game!.fishing())).zone;
     if (held && after > zone) movedUp = true;
@@ -248,6 +254,8 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   }
   expect(movedUp, 'the zone rose while held').toBe(true);
   expect(fell, 'and fell when let go').toBe(true);
+  expect([...words].sort(), 'the fish was both in the zone and out of it').toEqual(['in the zone', 'out of the zone']);
+  expect([...places], 'the bar never moved on the screen').toHaveLength(1);
   await letGo();
   await play(page, 1, 'the fight');
   await expect(page.locator('#gauge')).toBeHidden();
