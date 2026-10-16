@@ -120,7 +120,7 @@ Out of scope: the cast, the bite and the strike, kinds of fish, sound, and the p
 - [x] 5. The page: the bar in `fightview.ts` and `index.html`. `check:quick` is green.
 - [x] 6. The smoke test plays the fight on the button by the bar (criterion 9), and a picture is taken at a phone's
       width.
-- [ ] 7. The pass: `npm run check`, `npm run fuzz -- --seeds 1-24`, perf against the parent, the pictures looked at,
+- [x] 7. The pass: `npm run check`, `npm run fuzz -- --seeds 1-24`, perf against the parent, the pictures looked at,
       the new tests mutation-checked, and the moved gates written through `/gate-moved`.
 
 ### Where part 7 stands (16 Oct 2026)
@@ -131,6 +131,6 @@ and the look. Fourteen mutations of the new rules were each caught. The download
 was meant, and is written. The pictures `fishing-fight-dusk`, `fishing-landed` and `phone-fight` were written again,
 and `desk-fight` is new, each looked at.
 
-Open: the perf frame on a quiet machine. With a load average of 5 to 6, the same build read 3.6 to 5.6 ms, and the
-parent timed in turn read 5.49 and 5.63, so the frame baseline (3.54 ms, written quiet) is kept, not written again.
-`npm run perf` is to be run again when the machine is quiet.
+The perf frame, left open while the machine was busy (load 5 to 6, the same build reading 3.6 to 5.6 ms and the
+parent in turn 5.49 and 5.63), was run again quiet: 3.61 ms against the baseline of 3.54, within tolerance, with boot
+778 ms and the water's frame 3.76 ms by day and 3.72 by night. No baseline was written again. The pass is clean.
