@@ -183,7 +183,7 @@ The real phone's lag, the flick's feel, and the iOS motion prompt. These need yo
 - [x] 1. **Gesture refactor:** `src/gesture.ts` from `main.ts`'s pointer, key and button code, with no behaviour
       change. Check: the new `gesture.test.ts` green on the old behaviour, `check:quick`, the existing smoke for
       cast, strike and reel green. Its own commit.
-- [ ] 2. **Fight view snapshot:** `fightPicture` and draw-from-snapshot. Check: `fightview.test.ts`; the fight
+- [x] 2. **Fight view snapshot:** `fightPicture` and draw-from-snapshot. Check: `fightview.test.ts`; the fight
       look pictures unchanged to the pixel.
 - [ ] 3. **Protocol and flick:** `protocol.ts` and `flick.ts`. Check: their unit tests, each seen failing first.
 - [ ] 4. **Phone gestures in `gesture.ts`:** tilt aim, flick cast, the any-source reel, gone. Check:

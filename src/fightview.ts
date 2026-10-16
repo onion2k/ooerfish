@@ -6,22 +6,32 @@
  * bucket by a tap on it; and the bucket's count. It reads the game each frame and writes the page only where something
  * has changed, to a tenth of a per cent, and does nothing of the fishing itself: it calls the game's strike, reel and
  * stow.
+ *
+ * What the bar and the button show is `fightPicture(game)`, plain numbers, words and flags, and `FightBar` draws one
+ * onto the bar's elements, so the phone can draw the same bar from a picture sent to it. What only the big screen has
+ * (the mark placed over the bobber by the camera, the catch card and the bucket) is `FightView`'s own, read from the
+ * game and not from the picture, since none of it is the phone's to show.
  */
 import type { Game } from './game';
 import type { GestureEvent } from './gesture';
 import { FIGHT, PERCH } from './lake';
 import { PALETTE, type Colour } from './palette';
 
-export interface FightElements {
+/** The elements of the bar and the button, which the screen and the phone each have. */
+export interface BarElements {
   gauge: HTMLElement;
   zone: HTMLElement;
   fish: SVGSVGElement;
-  /** The mark over the bobber while the strike's window is open. */
-  mark: HTMLElement;
   meter: HTMLElement;
   meterFill: HTMLElement;
   words: HTMLElement;
   button: HTMLButtonElement;
+}
+
+/** The big screen's own elements besides the bar. */
+export interface FightElements extends BarElements {
+  /** The mark over the bobber while the strike's window is open. */
+  mark: HTMLElement;
   card: HTMLButtonElement;
   name: HTMLElement;
   weight: HTMLElement;
@@ -39,19 +49,104 @@ const MARK_HIGH = 1.4;
 /** A share of the bar as a per cent, to a tenth, so a still bar writes nothing. */
 const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
-export class FightView {
-  private was = {
-    gauge: '',
-    zone: '',
-    fish: '',
-    meter: '',
-    words: '',
-    button: '',
-    pulse: '',
-    mark: '',
-    card: '',
-    bucket: -1,
+/** What the bar and the button show, as plain data: only numbers, strings and booleans, so it can be sent as it is. */
+export interface FightPicture {
+  /** The bite's phase: none, coming, nibbling, biting, hooked or landed. */
+  phase: string;
+  /** The bar, each from nought to one: the foot of the zone, its height, where the fish is, and the meter. */
+  zone: number;
+  width: number;
+  fishAt: number;
+  meter: number;
+  /** How far the fish is out of the zone, from calm to one. */
+  tension: number;
+  /** Whether the reel is held. */
+  reeling: boolean;
+  /** Whether the strike's window is open. */
+  biting: boolean;
+  /** How bright the Strike button is, from nought to one, to a twentieth; nought unless the window is open. */
+  pulse: number;
+  /** Whether the fish is in the zone: said in words so position is not all the bar says. Empty unless hooked. */
+  words: string;
+  /** The button's label, Strike or Reel, and empty when there is no button. */
+  button: string;
+}
+
+/** The fight as the bar and the button show it, worked out from the game and nothing else. */
+export function fightPicture(g: Game): FightPicture {
+  const { phase } = g.bite;
+  const hooked = phase === 'hooked';
+  const biting = phase === 'biting';
+  // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel
+  const live = g.lure.phase === 'sinking' || hooked;
+  return {
+    phase,
+    zone: g.line.zone,
+    width: FIGHT.width,
+    fishAt: g.line.fishAt,
+    meter: g.line.meter,
+    tension: g.line.tension,
+    reeling: g.reeling,
+    biting,
+    // by the game's clock, so a picture is the same every run
+    pulse: biting ? Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20 : 0,
+    words: hooked ? (g.line.inZone() ? 'in the zone' : 'out of the zone') : '',
+    button: !live ? '' : hooked ? 'Reel' : 'Strike',
   };
+}
+
+/** The bar and the button drawn from a picture, writing an element only where its value has changed. */
+export class FightBar {
+  private was = { gauge: '', zone: '', fish: '', meter: '', words: '', button: '', pulse: '' };
+
+  constructor(private readonly el: BarElements) {
+    el.zone.style.height = per(FIGHT.width);
+    el.fish.style.fill = css(PALETTE.glow);
+    el.fish.style.filter = `drop-shadow(0 0 4px ${css(PALETTE.glow)})`;
+  }
+
+  draw(p: FightPicture) {
+    const el = this.el;
+    const on = p.phase === 'hooked';
+    const gauge = on ? 'on' : '';
+    if (gauge !== this.was.gauge) {
+      this.was.gauge = gauge;
+      el.gauge.hidden = !on;
+    }
+    if (on) {
+      const zone = per(p.zone),
+        fish = per(p.fishAt),
+        meter = per(p.meter);
+      if (zone !== this.was.zone) el.zone.style.bottom = this.was.zone = zone;
+      if (fish !== this.was.fish) el.fish.style.bottom = this.was.fish = fish;
+      if (meter !== this.was.meter) {
+        el.meterFill.style.height = this.was.meter = meter;
+        el.meter.setAttribute('aria-valuenow', String(Math.round(p.meter * 100)));
+      }
+      if (p.words !== this.was.words) el.words.textContent = this.was.words = p.words;
+    }
+
+    // while the window is open the button pulses, written only where it has changed
+    const pulse = p.biting ? p.pulse.toString() : '';
+    if (pulse !== this.was.pulse) {
+      this.was.pulse = pulse;
+      el.button.classList.toggle('biting', p.biting);
+      el.button.style.setProperty('--pulse', pulse || '0');
+    }
+
+    const button = p.button ? `${p.button} ${p.reeling}` : '';
+    if (button !== this.was.button) {
+      this.was.button = button;
+      el.button.hidden = !p.button;
+      el.button.textContent = p.button === 'Reel' ? 'Reel' : 'Strike';
+      el.button.setAttribute('aria-pressed', String(p.button === 'Reel' && p.reeling));
+    }
+  }
+}
+
+export class FightView {
+  private readonly bar: FightBar;
+  private was = { mark: '', card: '', bucket: -1 };
 
   constructor(
     private readonly el: FightElements,
@@ -60,9 +155,7 @@ export class FightView {
     gesture: (e: GestureEvent) => void,
   ) {
     const { button, card } = el;
-    el.zone.style.height = per(FIGHT.width);
-    el.fish.style.fill = css(PALETTE.glow);
-    el.fish.style.filter = `drop-shadow(0 0 4px ${css(PALETTE.glow)})`;
+    this.bar = new FightBar(el);
     // the button strikes when pressed, and while a fish is on, reels for as long as it is held: the rules are
     // gesture.ts's, and the pointer capture is the page's
     button.addEventListener('pointerdown', (e) => {
@@ -88,40 +181,10 @@ export class FightView {
     const { phase } = g.bite;
     const el = this.el;
 
-    const on = phase === 'hooked';
-    const gauge = on ? 'on' : '';
-    if (gauge !== this.was.gauge) {
-      this.was.gauge = gauge;
-      el.gauge.hidden = !on;
-    }
-    if (on) {
-      const { line } = g;
-      const zone = per(line.zone),
-        fish = per(line.fishAt),
-        meter = per(line.meter);
-      const words = line.inZone() ? 'in the zone' : 'out of the zone';
-      if (zone !== this.was.zone) el.zone.style.bottom = this.was.zone = zone;
-      if (fish !== this.was.fish) el.fish.style.bottom = this.was.fish = fish;
-      if (meter !== this.was.meter) {
-        el.meterFill.style.height = this.was.meter = meter;
-        el.meter.setAttribute('aria-valuenow', String(Math.round(line.meter * 100)));
-      }
-      if (words !== this.was.words) el.words.textContent = this.was.words = words;
-    }
+    this.bar.draw(fightPicture(g));
 
-    // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel
-    const live = g.lure.phase === 'sinking' || phase === 'hooked';
-    const button = !live ? '' : phase === 'hooked' ? `Reel ${g.reeling}` : 'Strike';
-    // while the window is open the button pulses and a mark stands over the bobber, both by the game's clock, so a
-    // picture is the same every run; each written only where it has changed
-    const biting = phase === 'biting';
-    const pulse = biting ? (Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20).toString() : '';
-    if (pulse !== this.was.pulse) {
-      this.was.pulse = pulse;
-      el.button.classList.toggle('biting', biting);
-      el.button.style.setProperty('--pulse', pulse || '0');
-    }
-    const at = biting ? this.toScreen(g.lure.bobber[0], g.lure.bobber[1], MARK_HIGH) : null;
+    // a mark stands over the bobber while the window is open, where the camera puts it
+    const at = phase === 'biting' ? this.toScreen(g.lure.bobber[0], g.lure.bobber[1], MARK_HIGH) : null;
     const mark = at ? `${Math.round(at.x)} ${Math.round(at.y)}` : '';
     if (mark !== this.was.mark) {
       this.was.mark = mark;
@@ -130,13 +193,6 @@ export class FightView {
         el.mark.style.left = `${Math.round(at.x)}px`;
         el.mark.style.top = `${Math.round(at.y)}px`;
       }
-    }
-
-    if (button !== this.was.button) {
-      this.was.button = button;
-      el.button.hidden = !button;
-      el.button.textContent = phase === 'hooked' ? 'Reel' : 'Strike';
-      el.button.setAttribute('aria-pressed', String(phase === 'hooked' && g.reeling));
     }
 
     const card = phase === 'landed' ? `${g.catchWeight}` : '';
