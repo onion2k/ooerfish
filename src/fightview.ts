@@ -1,16 +1,21 @@
 /**
- * The fight on the page: the line's tension as an arc, white to red, with a word for it so the colour is not all it
- * says; the button that strikes, and held, reels, for any view and for one finger; the catch shown off on a card,
- * put in the bucket by a tap on it; and the bucket's count. It reads the game each frame and writes the page only
- * where something has changed, and does nothing of the fishing itself: it calls the game's strike, reel and stow.
+ * The fight on the page: the bar beside the Reel button, with the zone the reel pushes up it, the fish darting on it in
+ * its glow, and the meter beside it, with words for whether the fish is in the zone so position is not all it says;
+ * the button that strikes, and held, reels, for any view and for one finger; the catch shown off on a card, put in the
+ * bucket by a tap on it; and the bucket's count. It reads the game each frame and writes the page only where something
+ * has changed, to a tenth of a per cent, and does nothing of the fishing itself: it calls the game's strike, reel and
+ * stow.
  */
 import type { Game } from './game';
-import { PERCH } from './lake';
+import { FIGHT, PERCH } from './lake';
 import { PALETTE, type Colour } from './palette';
 
 export interface FightElements {
   gauge: HTMLElement;
-  fill: SVGPathElement;
+  zone: HTMLElement;
+  fish: HTMLElement;
+  meter: HTMLElement;
+  meterFill: HTMLElement;
   words: HTMLElement;
   button: HTMLButtonElement;
   card: HTMLButtonElement;
@@ -19,19 +24,21 @@ export interface FightElements {
   bucket: HTMLElement;
 }
 
-/** What the tension is called, from slack to as tight as it goes, at the start of each quarter. */
-const WORDS = ['slack', 'taut', 'tight', 'too tight!'] as const;
-const COLOURS: readonly Colour[] = [PALETTE.line, PALETTE.lineWarm, PALETTE.lineHot, PALETTE.lineRed];
 const css = ([r, g, b]: Colour) => `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+/** A share of the bar as a per cent, to a tenth, so a still bar writes nothing. */
+const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 export class FightView {
-  private was = { gauge: '', button: '', card: '', bucket: -1 };
+  private was = { gauge: '', zone: '', fish: '', meter: '', words: '', button: '', card: '', bucket: -1 };
 
   constructor(
     private readonly el: FightElements,
     private readonly game: () => Game,
   ) {
     const { button, card } = el;
+    el.zone.style.height = per(FIGHT.width);
+    el.fish.style.background = css(PALETTE.glow);
+    el.fish.style.boxShadow = `0 0 10px ${css(PALETTE.glow)}`;
     // the button strikes when pressed, and while a fish is on, reels for as long as it is held
     button.addEventListener('pointerdown', (e) => {
       button.setPointerCapture(e.pointerId);
@@ -58,17 +65,25 @@ export class FightView {
     const { phase } = g.bite;
     const el = this.el;
 
-    const tension = phase === 'hooked' ? g.line.tension : -1;
-    const step = Math.min(3, Math.floor(Math.max(0, tension) * 4));
-    const gauge = tension < 0 ? '' : `${Math.round(tension * 100)} ${step}`;
+    const on = phase === 'hooked';
+    const gauge = on ? 'on' : '';
     if (gauge !== this.was.gauge) {
       this.was.gauge = gauge;
-      el.gauge.hidden = !gauge;
-      if (gauge) {
-        el.fill.setAttribute('stroke-dasharray', `${Math.round(tension * 100)} 100`);
-        el.fill.setAttribute('stroke', css(COLOURS[step]));
-        el.words.textContent = WORDS[step];
+      el.gauge.hidden = !on;
+    }
+    if (on) {
+      const { line } = g;
+      const zone = per(line.zone),
+        fish = per(line.fishAt),
+        meter = per(line.meter);
+      const words = line.inZone() ? 'in the zone' : 'out of the zone';
+      if (zone !== this.was.zone) el.zone.style.bottom = this.was.zone = zone;
+      if (fish !== this.was.fish) el.fish.style.bottom = this.was.fish = fish;
+      if (meter !== this.was.meter) {
+        el.meterFill.style.height = this.was.meter = meter;
+        el.meter.setAttribute('aria-valuenow', String(Math.round(line.meter * 100)));
       }
+      if (words !== this.was.words) el.words.textContent = this.was.words = words;
     }
 
     // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel

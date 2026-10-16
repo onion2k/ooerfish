@@ -173,24 +173,64 @@
     color: var(--dim);
     font-size: 11px;
   }
-  /* the fight: the line's tension as an arc over the cast line, white to red, its words beside it so colour is not all
-     it says; the button that strikes and, held, reels; the catch shown off; and the bucket's count */
+  /* the fight: the bar beside the Reel button, upright, the zone the reel pushes up it and the fish darting on it,
+     the meter beside it filling while the fish is in the zone, and words below so position is not all it says */
   #gauge {
     bottom: 64px;
+    right: 124px;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 6px 8px;
+    justify-items: center;
+    font-size: 12px;
+    padding: 10px 10px 8px;
+  }
+  /* its grid would otherwise show it while hidden */
+  #gauge[hidden] {
+    display: none;
+  }
+  #gaugeBar,
+  #gaugeMeter {
+    position: relative;
+    height: 180px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+  }
+  #gaugeBar {
+    width: 30px;
+  }
+  #gaugeMeter {
+    width: 10px;
+  }
+  #gaugeZone {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-radius: 6px;
+    background: rgba(232, 244, 255, 0.32);
+    border: 2px solid rgba(232, 244, 255, 0.85);
+    box-sizing: border-box;
+  }
+  #gaugeFish {
+    position: absolute;
     left: 50%;
-    transform: translateX(-50%);
-    text-align: center;
-    font-size: 13px;
-    padding: 8px 14px 6px;
+    width: 22px;
+    height: 12px;
+    margin: 0 0 -6px -11px;
+    border-radius: 50%;
   }
-  #gauge svg {
-    display: block;
-    width: 120px;
-    height: 62px;
-    margin: 0 auto;
+  #gaugeMeterFill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #9fe08a;
   }
-  #gauge .track {
-    stroke: rgba(255, 255, 255, 0.18);
+  #gaugeWords {
+    grid-column: 1 / -1;
+    color: var(--dim);
+    white-space: nowrap;
   }
   #reelButton {
     position: fixed;
@@ -214,7 +254,7 @@
     background: #ffd27a;
   }
   #catch {
-    /* low, where the gauge was, so the fish hanging from the rod and the lake stay in view */
+    /* low in the middle, so the fish hanging from the rod and the lake stay in view */
     bottom: 64px;
     left: 50%;
     transform: translateX(-50%);
@@ -251,7 +291,10 @@
       bottom: 180px;
       right: 16px;
     }
-    #gauge,
+    #gauge {
+      bottom: 150px;
+      right: 114px;
+    }
     #catch {
       bottom: 160px;
     }
@@ -288,26 +331,14 @@
 <div class="panel" id="stats" hidden></div>
 <div class="panel" id="castLine" hidden></div>
 <div class="panel" id="gauge" hidden>
-  <svg viewBox="0 0 120 62" aria-hidden="true">
-    <path
-      class="track"
-      d="M10 56 A50 50 0 0 1 110 56"
-      fill="none"
-      stroke-width="10"
-      stroke-linecap="round"
-      pathLength="100"
-    />
-    <path
-      id="gaugeFill"
-      d="M10 56 A50 50 0 0 1 110 56"
-      fill="none"
-      stroke-width="10"
-      stroke-linecap="round"
-      pathLength="100"
-      stroke-dasharray="0 100"
-    />
-  </svg>
-  <span id="gaugeWords">slack</span>
+  <div id="gaugeBar" aria-hidden="true">
+    <div id="gaugeZone"></div>
+    <div id="gaugeFish"></div>
+  </div>
+  <div id="gaugeMeter" role="meter" aria-label="the catch" aria-valuemin="0" aria-valuemax="100" aria-valuenow="30">
+    <div id="gaugeMeterFill"></div>
+  </div>
+  <span id="gaugeWords">in the zone</span>
 </div>
 <button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
 <button class="panel" id="catch" type="button" hidden>

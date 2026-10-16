@@ -186,7 +186,7 @@ test('the fish keep off the jetty’s deck, ten seconds in a second at a time, a
   expect(problems).toEqual([]);
 });
 
-test('a fish bites, is struck by space, played on the Reel button, landed, and put in the bucket by its card', async ({
+test('a fish bites, is struck by space, played on the bar by the Reel button and by space, landed, and put in the bucket by its card', async ({
   page,
 }) => {
   const problems = watch(page);
@@ -205,26 +205,52 @@ test('a fish bites, is struck by space, played on the Reel button, landed, and p
   await play(page, 1, 'hooked');
   await expect(page.locator('#gauge')).toBeVisible();
   await expect(page.locator('#reelButton')).toHaveText('Reel');
-  // played on the button by the mouse: held while the line is slack, let go when it is tight, a frame at a time
+  // the bar shows the zone and the fish where the game has them, and the meter part filled
+  const bar = await page.locator('#gaugeBar').boundingBox();
+  const shown = await page.evaluate(() => {
+    const at = (id: string) => document.getElementById(id)!.getBoundingClientRect();
+    return { zone: at('gaugeZone'), fish: at('gaugeFish'), fill: at('gaugeMeterFill'), meter: at('gaugeMeter') };
+  });
+  const first = await page.evaluate(() => window.game!.fishing());
+  expect(first.meter).toBeCloseTo(0.3, 1);
+  expect(shown.zone.height / bar!.height).toBeCloseTo(first.width, 1);
+  expect((bar!.y + bar!.height - (shown.fish.y + shown.fish.height / 2)) / bar!.height).toBeCloseTo(first.fishAt, 1);
+  expect(shown.fill.height / shown.meter.height).toBeCloseTo(first.meter, 1);
+  // played as a careful hand plays it, a tenth of a second at a time: held while the zone's middle is below the fish,
+  // on the button by the mouse for the first ten seconds, and by space after
   const button = await page.locator('#reelButton').boundingBox();
   const [bx, by] = [button!.x + button!.width / 2, button!.y + button!.height / 2];
   await page.mouse.move(bx, by);
-  let held = false;
+  let held: 'mouse' | 'space' | null = null;
+  const letGo = async () => {
+    if (held === 'mouse') await page.mouse.up();
+    if (held === 'space') await page.keyboard.up('Space');
+    held = null;
+  };
+  let movedUp = false,
+    fell = false;
   for (let f = 0; f < 120 * 60; f += 6) {
-    const { phase, tension } = await page.evaluate(() => window.game!.fishing());
+    const { phase, zone, width, fishAt } = await page.evaluate(() => window.game!.fishing());
     if (phase !== 'hooked') break;
-    if (!held && tension < 0.45) {
-      await page.mouse.down();
-      held = true;
-    } else if (held && tension > 0.75) {
-      await page.mouse.up();
-      held = false;
+    const by = f < 600 ? 'mouse' : 'space';
+    const want = zone + width / 2 < fishAt;
+    if (held && (!want || held !== by)) await letGo();
+    if (want && !held) {
+      if (by === 'mouse') await page.mouse.down();
+      else await page.keyboard.down('Space');
+      held = by;
     }
-    expect((await page.evaluate(() => window.game!.fishing())).reeling).toBe(held);
+    expect((await page.evaluate(() => window.game!.fishing())).reeling).toBe(held !== null);
     await page.evaluate(() => window.game!.step(6));
+    const after = (await page.evaluate(() => window.game!.fishing())).zone;
+    if (held && after > zone) movedUp = true;
+    if (!held && after < zone) fell = true;
   }
-  if (held) await page.mouse.up();
+  expect(movedUp, 'the zone rose while held').toBe(true);
+  expect(fell, 'and fell when let go').toBe(true);
+  await letGo();
   await play(page, 1, 'the fight');
+  await expect(page.locator('#gauge')).toBeHidden();
   expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('landed');
   const landed = (await page.evaluate(() => window.game!.events())).filter((l) => l.startsWith('landed'));
   expect(landed).toHaveLength(1);

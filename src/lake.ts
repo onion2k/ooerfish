@@ -470,28 +470,38 @@ export const FISHING = {
 } as const;
 
 /**
- * The fight, first guesses to be tuned by playing and held by the pace gate: how fast the reel winds line in, and
- * what share of that it manages against a pulling fish; how fast the reel draws the line tighter, and how much more a
- * pull adds; how fast letting go eases it, resting and pulling; how fast a pulling fish takes line off a reel let go;
- * how long a pull and a rest last, and what share of its rest a sick lake's fish keeps (so it pulls more often); how
- * tight the line is when the fish is hooked; how long it may be as tight as it goes before the fish slips; the spool's
- * length; and where in the shallows below the angler a fish is landed, and how near it the line must be wound.
+ * The fight, kept in the zone (`docs/fight.md`): the zone's height on the bar, how hard holding pushes it up and how
+ * hard it falls when let go, and the drag on it, a share of its speed kept a second; how fast the meter fills with the
+ * fish in the zone and drains with it out, and how full it starts; where on the bar a fish is hooked; how fast a fish
+ * darts, in bars a second, and how much faster the heaviest of its kind; the least of a dart, as a share of the bar,
+ * the most it may take, and the lowest it darts to, so a zone let fall to the foot of the bar does not hold it; how
+ * long a fish rests between darts, and what share of its rest a sick lake's fish keeps; the line's strain with the
+ * fish in the zone, and how far out of it the strain is at its most; the spool's length; and where in the shallows
+ * below the angler a fish is landed, and how near it a landed fish is.
  */
 export const FIGHT = {
-  // at a reel of 3, a reel's tension of 0.22, an easing of 0.45 and a run of 2, a careful hand took over two minutes
-  // to wind in a fish hooked in the middle of the lake, the fish taking back most of what the reel won
-  reel: 4,
-  reelPulling: 0.25,
-  reelTension: 0.15,
-  pullTension: 0.7,
-  ease: 0.6,
-  easePulling: 0.15,
-  run: 1.2,
-  pull: [0.8, 2.2] as const,
-  rest: [1.5, 3.5] as const,
+  // measured on 40 seeds of the pace gate's angler (a quarter of a second late, letting go early as the zone speeds):
+  // 120 fish landed of 120, in 20.3 s at the median, 7.9 at the least and 41.8 at the most; on the line alone, a hand
+  // 0.4 s late landed every fish but took nearly twice as long, and never holding or always holding lost every fish
+  // in 9 to 11 s. At the mock's push of 1.6, drag of 0.25, darts of 0.6 and a zone of 0.25, the late hand swung about
+  // the fish and lost all forty
+  width: 0.28,
+  push: 3,
+  fall: 2.4,
+  drag: 0.02,
+  fill: 0.09,
+  drain: 0.06,
+  meterStart: 0.3,
+  hookedAt: [0.3, 0.7] as const,
+  dart: 0.3,
+  heavyDart: 0.6,
+  dartLeast: 0.15,
+  dartLongest: 2,
+  floor: 0.2,
+  rest: [0.6, 1.8] as const,
   sickRest: 0.5,
-  startTension: 0.2,
-  slip: 0.3,
+  calm: 0.3,
+  strainOver: 0.4,
   spool: 60,
   landAt: [0, -shoreRadius(-Math.PI / 2) + 2] as const,
   landWithin: 1.5,

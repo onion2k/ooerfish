@@ -1,5 +1,6 @@
 /** The cast as it is drawn: a piece between two ends, the line's sag, the preview, the bobber and the lure. */
 import { describe, expect, it } from 'vitest';
+import { careful } from '../src/angler';
 import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
@@ -215,11 +216,8 @@ describe('the fight, drawn', () => {
 describe('the catch, drawn', () => {
   it('hangs the landed fish from the rod tip on a short line, the lure at its mouth, until it is stowed', () => {
     const game = onTheLine(3);
-    let reeling = false;
     for (let f = 0; f < 120 / DT && game.bite.phase === 'hooked'; f++) {
-      if (game.line.tension < 0.45) reeling = true;
-      if (game.line.tension > 0.75) reeling = false;
-      game.reel(reeling);
+      game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
       game.step(DT);
     }
     expect(game.bite.phase).toBe('landed');

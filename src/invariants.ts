@@ -111,8 +111,8 @@ export function checkInvariants(game: Game): string[] {
 /**
  * The fishing's rules: the bite in a phase it knows, with a fish when it has one and none when it has none, that
  * fish the one the school leaves to it; a fish nibbling or biting at the lure; a fish on the line or landed with the
- * lure in its mouth; the line's tension from nought to one and the line out no more than the spool; and the bucket a
- * count.
+ * lure in its mouth; the line's tension from nought to one and the line out no more than the spool; the zone, the
+ * fish and the meter on the fight's bar; and the bucket a count.
  */
 function fishingRules(game: Game): string[] {
   const out: string[] = [];
@@ -141,6 +141,9 @@ function fishingRules(game: Game): string[] {
   if (!(line.tension >= 0 && line.tension <= 1)) out.push(`the line's tension is ${line.tension}`);
   if (!(line.out >= 0 && line.out <= FIGHT.spool))
     out.push(`the line out is ${line.out}, of a spool of ${FIGHT.spool}`);
+  if (!(line.zone >= 0 && line.zone <= 1 - FIGHT.width)) out.push(`the zone is at ${line.zone}, off the bar`);
+  if (!(line.fishAt >= 0 && line.fishAt <= 1)) out.push(`the fish is at ${line.fishAt} on the bar`);
+  if (!(line.meter >= 0 && line.meter <= 1)) out.push(`the meter is at ${line.meter}`);
   if (!Number.isInteger(game.bucket) || game.bucket < 0) out.push(`the bucket holds ${game.bucket}`);
   return out;
 }

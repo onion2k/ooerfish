@@ -15,6 +15,7 @@
  * Each run is stepped the same, frame for frame, so the two are played the
  * same way without a recording.
  */
+import { careful } from '../src/angler';
 import { Game } from '../src/game';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -96,7 +97,12 @@ export function hashGame(game: Game): string {
     line.out,
     line.tension,
     line.timer,
-    line.over,
+    line.zone,
+    line.zoneSpeed,
+    line.fishAt,
+    line.target,
+    line.meter,
+    line.heft,
     +line.pulling,
     +game.reeling,
     game.bucket,
@@ -121,9 +127,9 @@ export function playTwice({ seed, frames, every = 300, meddle }: TwiceOptions): 
       if (f % DROP_EVERY === 0) game.dropNear(0, 0);
       // and a cast by chance as often, so the lure is played and held to the seed
       if (f % DROP_EVERY === DROP_EVERY / 2) game.cast(game.random() * Math.PI * 2, game.random());
-      // and fished as an angler would, struck on the dip and played by the line's tension, so a fight is held too
+      // and fished as an angler would, struck on the dip and played by the bar, so a fight is held too
       if (game.bite.phase === 'biting') game.strike();
-      if (game.bite.phase === 'hooked') game.reel(game.line.tension < 0.6);
+      if (game.bite.phase === 'hooked') game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
       if (game.bite.phase === 'landed') game.stow();
       meddle?.(game, pass);
       if (f % every === 0) hashes.push(hashGame(game));

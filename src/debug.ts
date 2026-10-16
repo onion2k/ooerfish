@@ -15,7 +15,9 @@
  * The types are shared with the smoke tests, so a test that calls something
  * that is not here does not compile.
  */
+import { careful } from './angler';
 import type { Game } from './game';
+import { FIGHT } from './lake';
 import { flight } from './cast';
 import type { Mode } from './mode';
 import type { Rung } from './rung';
@@ -65,6 +67,11 @@ export interface FishingState {
   out: number;
   pulling: boolean;
   reeling: boolean;
+  /** The fight's bar: the foot of the zone and its height, where the fish is on it, and the meter, each from nought to one. */
+  zone: number;
+  width: number;
+  fishAt: number;
+  meter: number;
   bucket: number;
   weight: number;
 }
@@ -114,11 +121,11 @@ export interface GameApi {
   reel(on: boolean): void;
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
   stow(): boolean;
-  /** The fishing: the bite's phase and its fish, the line's tension and length, whether the fish pulls, and the bucket. */
+  /** The fishing: the bite's phase and its fish, the line's strain and length, whether the fish darts, the bar, and the bucket. */
   fishing(): FishingState;
   /**
    * The lake played to a moment of the fishing, as a careful angler would: a cast to the middle and the bite; a fight
-   * under way with the line tight; or a fish landed and waiting by the rod. For the pictures, which want each moment
+   * under way with the fish in the zone and the meter past half; or a fish landed and waiting by the rod. For the pictures, which want each moment
    * the same every run; says whether it got there.
    */
   fishTo(moment: 'bite' | 'fight' | 'landed'): boolean;
@@ -287,6 +294,10 @@ export function createApi(host: DebugHost): GameApi {
       reeling: game.reeling,
       bucket: game.bucket,
       weight: game.catchWeight,
+      zone: game.line.zone,
+      width: FIGHT.width,
+      fishAt: game.line.fishAt,
+      meter: game.line.meter,
     }),
     fishTo(moment) {
       // each frame as the page's own step does it, the lake on and drawn, so what follows in the picture is the same
@@ -298,14 +309,11 @@ export function createApi(host: DebugHost): GameApi {
       for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       if (moment === 'bite') return game.bite.phase === 'biting';
       game.strike();
-      let reeling = false;
       for (let f = 0; f < 7200 && game.bite.phase === 'hooked'; f++) {
-        const t = game.line.tension;
-        // a fight is pictured a few seconds in, the line between tight and too tight
-        if (moment === 'fight' && f > 300 && t > 0.6 && t < 0.75) break;
-        if (t < 0.45) reeling = true;
-        if (t > 0.75) reeling = false;
-        game.reel(reeling);
+        const { line } = game;
+        // a fight is pictured a few seconds in, the fish in the zone and the meter past half
+        if (moment === 'fight' && f > 300 && line.inZone() && line.meter > 0.5) break;
+        game.reel(careful(line.zone, line.zoneSpeed, line.fishAt));
         frame();
       }
       game.reel(false);

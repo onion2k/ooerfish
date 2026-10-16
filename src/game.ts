@@ -27,7 +27,7 @@ export interface GameEvents {
   bitten?(): void;
   hooked?(): void;
   missed?(): void;
-  /** The line was held too tight and the fish slipped off, with nothing lost. */
+  /** The fish was let out of the zone until the meter emptied, and slipped off with nothing lost. */
   slipped?(): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number): void;
@@ -56,7 +56,7 @@ export class Game {
   readonly lure = new Lure();
   readonly bite: Bite;
   readonly line = new Line();
-  /** Whether the reel is held. */
+  /** Whether the reel is held, which pushes the zone up the fight's bar. */
   reeling = false;
   /** How many fish have been landed and stowed: the session's, not saved until the cure comes. */
   bucket = 0;
@@ -105,11 +105,13 @@ export class Game {
     if (did === 'hooked') {
       const i = this.bite.fish;
       const [lx, ly] = FIGHT.landAt;
-      this.line.start(Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly), this.random);
-      this.bearing = Math.atan2(this.fish.y[i] - ly, this.fish.x[i] - lx);
-      this.hookedAt = this.t;
       this.catchWeight =
         Math.round((PERCH.weight[0] + this.random() * (PERCH.weight[1] - PERCH.weight[0])) * 100) / 100;
+      // a heavier fish fights harder: its heft is where its weight lies between the least and most of its kind
+      const heft = (this.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
+      this.line.start(Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly), heft, this.random);
+      this.bearing = Math.atan2(this.fish.y[i] - ly, this.fish.x[i] - lx);
+      this.hookedAt = this.t;
       // the lure is in its mouth from the strike, not from the next step
       this.lure.phase = 'hooked';
       this.lure.at[0] = this.fish.x[i];
@@ -135,7 +137,7 @@ export class Game {
     return true;
   }
 
-  /** The fight on by `dt`: the line, and the fish swimming to keep to it along its bearing, swaying, with the lure in its mouth. */
+  /** The fight on by `dt`: the zone and the meter, and the fish swimming to keep to it along its bearing, swaying, with the lure in its mouth. */
   private fight(dt: number) {
     const i = this.bite.fish;
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);

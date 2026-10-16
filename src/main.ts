@@ -248,7 +248,7 @@ async function main() {
     const { lure, bite } = game;
     const text =
       bite.phase === 'hooked'
-        ? 'a fish on! hold to reel, let go to give it line'
+        ? 'a fish on! hold to lift the zone, keep the fish in it'
         : bite.phase === 'biting'
           ? 'a bite! strike'
           : bite.phase === 'nibbling'
@@ -345,12 +345,15 @@ async function main() {
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') game.reel(false);
   });
-  // a reel held when the page loses the focus is let go, or the line would tighten unseen until the fish slipped
+  // a reel held when the page loses the focus is let go, or the zone would ride up unseen while the fish got away
   window.addEventListener('blur', () => game.reel(false));
   const fightView = new FightView(
     {
       gauge: byId('gauge'),
-      fill: byId<SVGPathElement>('gaugeFill'),
+      zone: byId('gaugeZone'),
+      fish: byId('gaugeFish'),
+      meter: byId('gaugeMeter'),
+      meterFill: byId('gaugeMeterFill'),
       words: byId('gaugeWords'),
       button: byId<HTMLButtonElement>('reelButton'),
       card: byId<HTMLButtonElement>('catch'),

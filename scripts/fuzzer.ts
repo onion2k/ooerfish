@@ -12,6 +12,7 @@
  * From a seed, so a failure can be played again exactly: `npm run fuzz --
  * --seed N` does, and prints what was done before it went wrong.
  */
+import { careful } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
@@ -81,7 +82,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     let store = memoryStore();
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // in an object, since the actions change it from inside closures the type checker cannot follow
-    const page = { paused: false, watching: 0 };
+    const page = { paused: false, watching: 0, careless: false, holding: false };
     let busy = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     const did = (what: string) => {
@@ -177,8 +178,10 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         3,
         () => {
           // an angler who watches for a while, a few seconds to half a minute: every frame of it, strikes on the dip
-          // and plays a fish on the line by its tension, as someone fishing does, and stows what is landed
+          // and plays a fish on the line by the bar, carefully or not, as someone fishing does, and stows what is landed
           page.watching = Math.floor(between(300, 1800));
+          // as careful a hand as the pace gate's, or a careless one that holds and lets go with no eye on the bar
+          page.careless = random() < 0.5;
           did('angle');
         },
       ],
@@ -217,7 +220,13 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       if (page.watching > 0) {
         page.watching--;
         if (game.bite.phase === 'biting') game.strike();
-        if (game.bite.phase === 'hooked') game.reel(game.line.tension < 0.6);
+        if (game.bite.phase === 'hooked') {
+          if (!page.careless) game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+          else {
+            if (random() < 0.05) page.holding = !page.holding;
+            game.reel(page.holding);
+          }
+        }
         if (game.bite.phase === 'landed') game.stow();
         if (game.lure.phase === 'ready' || game.lure.phase === 'lying')
           game.cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));

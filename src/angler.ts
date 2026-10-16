@@ -1,21 +1,37 @@
 /**
  * An angler who plays the lake as a careful player does, for the pace gate to time: it casts toward the middle of
  * the lake (a little either way, by its own chance), waits, strikes when the bobber dips and not before, plays a fish
- * on the line by the gauge (reels while the line is slack, lets go once it is tight), stows what it lands, and casts
- * again. A lure on the bank it reels in and casts again.
+ * on the line by the bar (holds while its zone is below the fish, a reaction late, and lets go early as the zone
+ * speeds), stows what it lands, and casts again. A lure on the bank it reels in and casts again.
  *
  * Its chance is its own, so what it decides does not shift what the lake does, and the same seeds play the same day.
  * It does only what a player could: it calls the game's cast, strike, reel and stow, and reads what the page shows.
  */
 import type { Game } from './game';
+import { FIGHT } from './lake';
 import type { Random } from './random';
 
-/** The gauge's marks it plays by: it starts reeling below the first and lets go above the second. */
-export const PLAY = { reelBelow: 0.45, letGoAbove: 0.75 } as const;
+/** How late the angler sees the fish on the bar, in frames of a sixtieth: a quarter of a second, a player's reaction. */
+export const REACTION = 15;
+/** How far ahead it reads the zone's speed: it lets go this many seconds early, so the zone does not swing past. */
+const LEAD = 0.15;
 /** The cast it aims: due north from the shore at about the power that reaches the middle, and how far it varies either. */
 const AIM = { angle: Math.PI / 2, power: 0.62, spread: 0.25, powerSpread: 0.08 } as const;
 
+/**
+ * What a careful hand does on the bar, for the zone at `zone` moving at `speed` and the fish seen at `fishAt`: it holds
+ * while the zone's middle, where it will be a moment on, is below the fish. The fuzzer, the bench and the tests play by
+ * it too, so a fight played anywhere is played the same way.
+ */
+export function careful(zone: number, speed: number, fishAt: number): boolean {
+  return fishAt - (zone + FIGHT.width / 2) - LEAD * speed > 0;
+}
+
 export class Angler {
+  /** Where the fish was on the bar at the start of each of the last frames of the fight, sized once. */
+  private readonly seen = new Float64Array(REACTION + 1);
+  private frames = 0;
+
   constructor(
     private readonly game: Game,
     private readonly random: Random,
@@ -25,12 +41,14 @@ export class Angler {
   step(dt: number) {
     const g = this.game;
     const { phase } = g.bite;
+    if (phase === 'hooked') this.seen[this.frames++ % this.seen.length] = g.line.fishAt;
+    else this.frames = 0;
     if (phase === 'landed') g.stow();
     else if (phase === 'biting') g.strike();
     if (g.bite.phase === 'hooked') {
-      const t = g.line.tension;
-      if (t < PLAY.reelBelow) g.reel(true);
-      else if (t > PLAY.letGoAbove) g.reel(false);
+      // until it has watched the fish for a reaction, it goes by where the fish is now
+      const at = this.frames > REACTION ? this.seen[(this.frames - 1 - REACTION) % this.seen.length] : g.line.fishAt;
+      g.reel(careful(g.line.zone, g.line.zoneSpeed, at));
     } else g.reel(false);
     if (g.lure.phase === 'lying') g.reelIn();
     if (g.lure.phase === 'ready')

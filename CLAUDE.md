@@ -56,7 +56,8 @@ Numbers, held by gates, on this machine at 1280×800:
 
 The standard scene is `STANDARD` in `smoke/game.ts`: the water half
 cleaned, by day, from the shore. The pace gate's angler (`src/angler.ts`)
-casts toward the middle, strikes on the dip and plays the line by its gauge;
+casts toward the middle, strikes on the dip and plays the fight's bar a
+quarter of a second late (`careful`, which the fuzzer and bench play by too);
 `scripts/pace.ts` says how its tolerance was measured.
 
 A budget is what the game may cost at all; a baseline is what it cost at
@@ -236,13 +237,18 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
 - **The fishing:** `src/bite.ts` is a fish and the lure (none, coming,
   nibbling, biting, hooked, landed): one fish at a time, which the school's
   wander leaves alone (`School.held`) while `steerTo` swims it, the strike's
-  window, the twitch and the wary fish. `src/line.ts` is the fight's sums
-  (the line out and its tension under the reel and the fish's pulls, the
-  slip, the landing). `Game` wires them (`strike`, `reel`, `stow`, the fish
+  window, the twitch, the wary fish, and a coming fish that gives up after
+  `comeLongest` (steering has no way round a boulder). `src/line.ts` is the
+  fight, kept in the zone (`docs/fight.md`): the fish darts on a bar, the reel
+  held pushes the zone up it and let go it falls, and a meter fills while
+  the fish is in the zone and drains while out, full landed and empty
+  slipped; the line out follows the meter and its tension is how far the
+  fish is out of the zone. A heavier fish darts faster, a sick lake's more
+  often. `Game` wires them (`strike`, `reel`, `stow`, the fish
   steered along the line, `GameEvents` nibbled to landed); the figures are
   `FISHING`, `FIGHT` and `PERCH` in `lake.ts`, tuned on measured seeds.
   `castdraw.ts` bends the rod, colours the line by the tension and hangs a
-  landed fish; `src/fightview.ts` is the gauge, the Strike/Reel button, the
+  landed fish; `src/fightview.ts` is the bar, the Strike/Reel button, the
   card and the bucket. A tap strikes and a hold reels in cast mode;
   space and the button do in any view and mode.
 - **Splashes:** `src/splash.ts` is the pool (twelve, the oldest replaced),
@@ -376,8 +382,8 @@ For anything new, check what it does, from `DESIGN.md`:
   the deepest and the shallowest; a lure or a fish never out of the lake
 - **the line:** cast (onto the water, onto the bank, at the shore's edge),
   sinking to the line's depth or the bed, reeled in, cast again while out;
-  and, when the fish come, bitten, drawn too tight (the fish slips off,
-  nothing is lost), propped on the rail and left
+  and, when the fish come, bitten, let out of the zone until the meter
+  empties (the fish slips off, nothing is lost), propped on the rail and left
 - **the fish:** wandering, at its own depth, drawn to the lure, fleeing,
   hooked; two fish at one lure; a fish hidden behind a snag
 - **snags:** reeds, rocks and rooftops caught on, and freed from

@@ -51,6 +51,10 @@ describe('what must always hold', () => {
     expect(broken((g) => (g.line.tension = Number.NaN))).toMatch(/tension is NaN/);
     expect(broken((g) => (g.line.tension = -0.1))).toMatch(/tension is -0.1/);
     expect(broken((g) => (g.line.out = 1000))).toMatch(/line out is 1000/);
+    expect(broken((g) => (g.line.zone = 0.9))).toMatch(/the zone is at 0.9/);
+    expect(broken((g) => (g.line.zone = Number.NaN))).toMatch(/the zone is at NaN/);
+    expect(broken((g) => (g.line.fishAt = 1.2))).toMatch(/the fish is at 1.2 on the bar/);
+    expect(broken((g) => (g.line.meter = -0.1))).toMatch(/the meter is at -0.1/);
     expect(broken((g) => (g.bucket = -1))).toMatch(/the bucket holds -1/);
     // and with no fish at the lure, none held
     const { game } = newGame();

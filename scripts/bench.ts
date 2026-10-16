@@ -27,6 +27,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { careful } from '../src/angler';
 import { Game } from '../src/game';
 import { FISH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
@@ -100,7 +101,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: 'a fish fought and landed',
-    // a cast to the middle, struck on the bite, played by its tension, landed, stowed and cast again, over and over
+    // a cast to the middle, struck on the bite, played by the bar, landed, stowed and cast again, over and over
     frames: 20000,
     busy: [0.6, 1],
     setup: () => {
@@ -111,7 +112,7 @@ const SCENARIOS: Scenario[] = [
           const { phase } = game.bite;
           if (game.lure.phase === 'ready') game.cast(Math.PI / 2, 0.62);
           if (phase === 'biting') game.strike();
-          game.reel(phase === 'hooked' && game.line.tension < 0.6);
+          game.reel(phase === 'hooked' && careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
           if (phase === 'landed') game.stow();
           game.step(DT);
         },

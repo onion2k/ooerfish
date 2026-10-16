@@ -171,6 +171,20 @@ test.describe('what it looks like', () => {
     }
     expect(seen, 'the picture with a button on it matched the picture without').toMatch(/pixels \(ratio/);
   });
+
+  test('a fish on the line at a desk’s width, the bar beside the Reel button', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => {
+      window.game!.fishTo('fight');
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page.locator('#gauge')).toBeInViewport();
+    await expect(page).toHaveScreenshot('desk-fight.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
 });
 
 test.describe('on a phone', () => {
@@ -205,7 +219,7 @@ test.describe('on a phone', () => {
     expect(problems).toEqual([]);
   });
 
-  test('a fish on the line, with the gauge and the Reel button in reach of a thumb', async ({ page }) => {
+  test('a fish on the line, with the bar and the Reel button in reach of a thumb', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
     await set(page, { ...STANDARD, view: 'phone' }, 30);
