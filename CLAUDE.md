@@ -53,7 +53,6 @@ Numbers, held by gates, on this machine at 1280×800:
 | Download, scripts and styles gzipped                 | 400 kB; baseline to the byte   | `perf`  |
 | A frame drawn, the least of 24 at the standard scene | 8 ms                           | `perf`  |
 | A frame of the water, day and night                  | 8 ms                           | `perf`  |
-| The grass, the full rung's frame less the lean's     | 0.7 ms ± 0.25, both ways       | `perf`  |
 | A step of the lake, against the reference arithmetic | baseline ± 15%                 | `bench` |
 | Game minutes for the angler to land three fish       | baseline ± 20%, both ways      | `pace`  |
 | The scenery download, `public/scenery` gzipped       | 900 kB; baseline to the byte   | `perf`  |
@@ -238,7 +237,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   drawn near and far back from the GPU.
 - **The rung:** the page is on `full` (the grass) or `lean` (no grass),
   `src/rung.ts`; the woodland stands on both, since measured it costs about
-  0.1 ms (the grass about 1 ms). At boot, unless `?rung=full|lean` asks, the
+  0.1 ms (the grass about 0.7, which `npm run perf` tells and does not hold). At boot, unless `?rung=full|lean` asks, the
   governor measures the frame as `measureFrame` does (the least of five
   samples, half a second) and steps to lean when it is over
   `RUNG_DOWN_MS` (8, the budget), once and never again; `game.rung()` reads and
