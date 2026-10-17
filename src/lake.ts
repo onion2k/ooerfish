@@ -493,8 +493,8 @@ export const FIGHT = {
   push: 3,
   fall: 2.4,
   drag: 0.02,
-  fill: 0.12,
-  drain: 0.09,
+  fill: 0.079,
+  drain: 0.118,
   meterStart: 0.3,
   hookedAt: [0.3, 0.7] as const,
   dart: 0.3,
@@ -517,10 +517,10 @@ export const FIGHT = {
  * the no-gear targets of `docs/fight2.md`, together with `FIGHT.fill` and `FIGHT.drain`; the gear is tuned after.
  */
 export const SIZE = {
-  dart: 0.7,
-  reach: 0.7,
-  rest: -0.3,
-  fill: -0.1,
+  dart: 0.32,
+  reach: 0.236,
+  rest: -0.198,
+  fill: -0.037,
 } as const;
 
 /**
@@ -530,9 +530,9 @@ export const SIZE = {
  * is clearly the easiest and feisty the hardest, but never hopeless for a heavy fish.
  */
 export const TEMPERS = [
-  { name: 'calm', odds: 0.25, dart: 0.8, reach: 0.8, rest: 1.3, fill: 1.1 },
+  { name: 'calm', odds: 0.25, dart: 0.879, reach: 0.87, rest: 1.183, fill: 1.02 },
   { name: 'steady', odds: 0.5, dart: 1, reach: 1, rest: 1, fill: 1 },
-  { name: 'feisty', odds: 0.25, dart: 1.12, reach: 1.1, rest: 0.9, fill: 1.0 },
+  { name: 'feisty', odds: 0.25, dart: 1.07, reach: 1.176, rest: 0.78, fill: 0.93 },
 ] as const;
 
 /** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */

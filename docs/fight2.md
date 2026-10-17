@@ -91,6 +91,14 @@ measuring tool, not by eye.
    hand that never holds the reel lands no fish: the fish's lowest dart (`floor`) stands above a zone resting at
    the bottom of the bar, so a meter cannot fill while the player does nothing.
 
+   **Relaxed with the user, 17 Oct, after the second tuning:** the agreed rates could only be met by making calm
+   fish sure to be landed and feisty middle and heavy fish never landed, so the temper decided more than skill. The
+   user chose instead that **every fish is catchable**. For the careful 0.25 s hand with no gear: light about 100%,
+   middle about 98%, heavy about 80%, and every temper and size landed at least 20% of the time (feisty heavy about
+   1 in 5). For the 0.4 s hand: about 65%, 42% and 21%. The 0.15 s hand lands nearly all. The median landed by the
+   0.25 s hand is 10 to 30 s. Fish escape mostly from slower hands; size and temper make fights longer, not
+   unwinnable. Every seed of the pace gate's angler lands its three fish.
+
 2. **The gifts and when.** Recommended: the line at 2 cures, the reel at 4, the rod at 6, the bobber at 8 and the
    bait at 10 (the pond takes 12), so the hardest fights come first and the gear arrives as the pond heals.
    Alternatively, fewer and bigger gifts (rod at 4, line at 8).
@@ -151,7 +159,7 @@ Out of scope: a shop and its money; gear drawn on the rod; more fish kinds; the 
 
 - [x] 1. **The balance tool:** `balance.ts` and `balancing.ts`, its baseline of today's game, and its trust checks.
       Check: its sums' unit tests, and today's table reproduced.
-- [ ] 2. **Size and temper:** `fight.ts`, `TEMPERS` and `SIZE`, the `Line` from a profile, and the card. Check:
+- [x] 2. **Size and temper:** `fight.ts`, `TEMPERS` and `SIZE`, the `Line` from a profile, and the card. Check:
       unit tests, and the balance tool showing the sizes and tempers apart. **It also takes part 4's no-gear
       half:** the figures are tuned to decision 1's no-gear targets here, so part 4 tunes only what the gear
       brings.
