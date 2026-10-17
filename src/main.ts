@@ -20,6 +20,7 @@ import { Gesture, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
+import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
 import { PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
 import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
@@ -323,21 +324,11 @@ async function main() {
    */
   let castText = '';
   function showCast() {
-    const { lure, bite } = game;
-    const text =
-      bite.phase === 'hooked'
-        ? 'a fish on! hold to lift the zone, keep the fish in it'
-        : bite.phase === 'biting'
-          ? 'BITE! strike now'
-          : bite.phase === 'nibbling'
-            ? 'nibble… wait for the dip'
-            : game.t < heard.until
-              ? heard.text
-              : lure.phase === 'sinking'
-                ? 'waiting for a fish…'
-                : lure.phase === 'lying'
-                  ? 'on the bank: reel it in'
-                  : '';
+    const text = castWords({
+      bite: game.bite.phase,
+      lure: game.lure.phase,
+      heard: game.t < heard.until ? heard.text : null,
+    });
     if (text === castText) return;
     castText = text;
     castLine.textContent = text;
