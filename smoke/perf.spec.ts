@@ -24,6 +24,16 @@ import { STANDARD, set, start, watch } from './game';
 import { moved as hasMoved, type Figures } from './judging';
 
 const BASELINE = 'smoke/perf-baseline.json';
+/** How many times each rung is measured, in turn, for what the grass costs. */
+const GRASS_ROUNDS = 3;
+/**
+ * What the grass costs a frame, the full rung's least less the lean's, and how far it may move either way. Read 0.65
+ * to 0.77 ms over ten runs on 17 October 2026 (an M4 Pro, other sessions at work on it), as it read 0.67 to 0.72 on
+ * 14 October: a spread of 0.12, and a quarter of a millisecond is twice that. Below it the lean rung is letting less
+ * go than the grass, or the grass has got cheaper and the figure is written again; above it the grass has got dearer
+ * by a third, which the full rung's frame, held to 15% of 3.6 ms, would not see alone.
+ */
+const GRASS_MS = { was: 0.7, tolerance: 0.25 };
 /** What the game may cost at all, on this machine, whatever it cost before. */
 export const BUDGET = { bootMs: 3000, frameMs: 8, bundleBytes: 400 * 1024, sceneryBytes: 900 * 1024 };
 
@@ -133,5 +143,34 @@ test('draws the water, at every time of day, splashing, within the frame budget'
     expect(ms, `the water at ${time} within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
   }
   console.log(`frame, the water: ${costs.join(', ')}`);
+  expect(problems).toEqual([]);
+});
+
+test('the lean rung saves the grass, and the grass costs what it did', async ({ page }) => {
+  test.setTimeout(180_000);
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true });
+  await set(page, STANDARD, 60);
+  // the rungs measured in turn, full and lean, so a spell of the machine at other work falls on both alike, and each
+  // rung's frame the least of its readings, since a busy machine only ever adds to one
+  const full: number[] = [],
+    lean: number[] = [];
+  for (let round = 0; round < GRASS_ROUNDS; round++)
+    for (const rung of ['full', 'lean'] as const) {
+      await page.evaluate((r) => window.game!.rung(r), rung);
+      await page.evaluate(() => window.game!.step(2));
+      const ms = await page.evaluate(
+        (warm) => window.game!.measureFrame(warm),
+        round === 0 && rung === 'full' ? undefined : 60,
+      );
+      (rung === 'full' ? full : lean).push(ms);
+    }
+  const grass = Math.min(...full) - Math.min(...lean);
+  console.log(
+    `grass: ${grass.toFixed(3)} ms, full ${full.map((m) => m.toFixed(3)).join(' ')}, lean ${lean.map((m) => m.toFixed(3)).join(' ')}`,
+  );
+  expect(Math.abs(grass - GRASS_MS.was), `the grass's cost, ${GRASS_MS.was} ms before`).toBeLessThanOrEqual(
+    GRASS_MS.tolerance,
+  );
   expect(problems).toEqual([]);
 });
