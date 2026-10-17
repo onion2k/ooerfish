@@ -18,6 +18,7 @@
 import { careful } from './angler';
 import type { Game } from './game';
 import { flight } from './cast';
+import type { Layout } from './layout';
 import type { Mode } from './mode';
 import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
@@ -238,6 +239,20 @@ export interface GameApi {
    * body is bent by its stroke and its turn. Empty for a fish the lake does not have.
    */
   fishPose(i: number): [number, number, number][];
+  /**
+   * Where the things the fight must not cover are on the page, in CSS pixels: the bobber, the line's end at the lure
+   * and the hooked fish's head, each null when it is not there to be seen (no bobber out of the water, no fish unless
+   * one is hooked).
+   */
+  onScreen(): { bobber: Point | null; line: Point | null; fish: Point | null };
+  /** Which layout the page is in (portrait, sideways or desk), as `layoutFor` says of the screen's shape. */
+  layout(): Layout;
+}
+
+/** A point on the page. */
+export interface Point {
+  x: number;
+  y: number;
 }
 
 /** What the page gives the API that is not the game's: time, the camera and the renderer. */
@@ -269,6 +284,10 @@ export interface DebugHost {
   ripples(): Float32Array;
   /** Fish `i`'s spine as the last frame posed it, three floats a joint; empty for none. */
   fishPose(i: number): Float64Array;
+  /** The bobber, the line's end and the hooked fish's head on the page, each null when not there. */
+  onScreen(): { bobber: Point | null; line: Point | null; fish: Point | null };
+  /** The layout the page set on the document. */
+  layout(): Layout;
   settings(): Settings;
   /** The phone's reading, and the overlay opened (on a fixed room for tests). */
   phone(): PhoneReading;
@@ -447,5 +466,7 @@ export function createApi(host: DebugHost): GameApi {
       const d = host.fishPose(i);
       return Array.from({ length: d.length / 3 }, (_, k) => [d[k * 3], d[k * 3 + 1], d[k * 3 + 2]]);
     },
+    onScreen: () => host.onScreen(),
+    layout: () => host.layout(),
   };
 }

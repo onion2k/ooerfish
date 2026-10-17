@@ -43,6 +43,7 @@ import type { PairingOverlay } from './phone/pairing';
 
 /** Where the phone page is served from for the QR code: the LAN address under `npm run dev:phone`, empty otherwise. */
 declare const __PHONE_ORIGIN__: string;
+import { layoutFor, type Layout } from './layout';
 import { PondView } from './pondview';
 
 /** How many millimetres a world unit is: the renderer fixes a few real sizes by it. */
@@ -205,6 +206,12 @@ async function main() {
   };
   addEventListener('resize', resize);
   resize();
+  // the layout the screen's shape gives is set on the document for the CSS to key off, now and whenever it is turned
+  const setLayout = () => {
+    document.documentElement.dataset.layout = layoutFor(innerWidth, innerHeight);
+  };
+  addEventListener('resize', setLayout);
+  setLayout();
 
   // ---- what the address holds, and what each change of the game's makes of the page ----
 
@@ -715,6 +722,17 @@ async function main() {
         ? fish.joints.slice(i * n, i * n + n)
         : new Float64Array(0);
     },
+    onScreen: () => {
+      const { lure, bite } = game;
+      const bobber = lure.phase === 'sinking' ? toScreen(lure.bobber[0], lure.bobber[1], 0) : null;
+      const line =
+        lure.phase === 'sinking' || lure.phase === 'hooked' ? toScreen(lure.at[0], lure.at[1], lure.at[2]) : null;
+      const per = (SWIM.segments.length + 1) * 3;
+      const head =
+        bite.phase === 'hooked' && bite.fish >= 0 ? fish.joints.subarray(bite.fish * per, bite.fish * per + 3) : null;
+      return { bobber, line, fish: head && head.length === 3 ? toScreen(head[0], head[1], head[2]) : null };
+    },
+    layout: () => document.documentElement.dataset.layout as Layout,
     settings: () => ({ ...settings }),
     phone: () => overlay?.reading() ?? NO_PHONE,
     pair: (fixed) => openPairing(fixed),
