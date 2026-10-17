@@ -216,11 +216,11 @@ export function formatTable(table: Table): string {
 }
 
 /** The temper table: the rate and median of each temper at each size, played with that temper given to every fight. */
-export function playTemperTable(fights = FIGHTS): Table {
+export function playTemperTable(fights = FIGHTS, gear: Gear = 'none'): Table {
   const table: Table = {};
   for (const temper of TEMPER_NAMES)
     for (const band of BANDS) {
-      const cell = { gear: 'none' as Gear, reaction: TEMPER_REACTION, band: band.name };
+      const cell = { gear, reaction: TEMPER_REACTION, band: band.name };
       table[`${temper}/${band.name}`] = playCell(cell, fights, { temper });
     }
   return table;

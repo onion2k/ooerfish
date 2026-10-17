@@ -1,5 +1,5 @@
 /** The gifts: which cure count earns what, how each eases the fight and the bite, and that the game gives each once. */
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { Angler, careful } from '../src/angler';
 import { fightFor, gearFor, noticeFor, windowFor, NO_GEAR } from '../src/fight';
 import { Game, type GameEvents } from '../src/game';
@@ -7,6 +7,7 @@ import { checkInvariants } from '../src/invariants';
 import { FIGHT, FISHING, GEAR, GIFT_GIVER } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
+import { BANDS, FIGHTS, GEARS, playCell, type BandName, type Gear } from '../scripts/balancing';
 import { DT } from './helpers';
 
 const only = (id: (typeof GEAR)[number]['id']) => ({ ...NO_GEAR, [id]: true });
@@ -62,17 +63,17 @@ describe('fightFor with the gifts', () => {
   });
   it('eases the drain by the line and changes nothing else', () => {
     const f = fightFor(0.5, 'steady', only('line'));
-    expect(f.drain).toBeCloseTo(base.drain * 0.75, 12);
+    expect(f.drain).toBeCloseTo(base.drain * GEAR[0].times, 12);
     expect({ ...f, drain: 0 }).toEqual({ ...base, drain: 0 });
   });
   it('speeds the lift by the reel and changes nothing else', () => {
     const f = fightFor(0.5, 'steady', only('reel'));
-    expect(f.push).toBeCloseTo(base.push * 1.25, 12);
+    expect(f.push).toBeCloseTo(base.push * GEAR[1].times, 12);
     expect({ ...f, push: 0 }).toEqual({ ...base, push: 0 });
   });
   it('widens the zone by the rod, which lifts the fish floor with it, and changes nothing else', () => {
     const f = fightFor(0.5, 'steady', only('rod'));
-    expect(f.width).toBeCloseTo(FIGHT.width + 0.06, 12);
+    expect(f.width).toBeCloseTo(FIGHT.width + GEAR[2].plus, 12);
     expect(f.floor).toBeCloseTo(f.width + FIGHT.floor, 12);
     expect({ ...f, width: 0, floor: 0 }).toEqual({ ...base, width: 0, floor: 0 });
   });
@@ -83,6 +84,73 @@ describe('fightFor with the gifts', () => {
   it('holds all three together', () => {
     const f = fightFor(0.5, 'steady', gearFor(12));
     expect([f.drain < base.drain, f.push > base.push, f.width > base.width]).toEqual([true, true, true]);
+  });
+});
+
+describe('each gift on its own, and stacked', () => {
+  const tempers = ['calm', 'steady', 'feisty'] as const;
+  const hefts = [0, 0.2, 0.5, 0.8, 1];
+  /** The figures that differ between two fights, named. */
+  const differing = (a: ReturnType<typeof fightFor>, b: ReturnType<typeof fightFor>) =>
+    (Object.keys(a) as (keyof typeof a)[]).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])).sort();
+  const own = { line: ['drain'], reel: ['push'], rod: ['floor', 'width'], bobber: [], bait: [] } as const;
+
+  it('changes only its own figures, for every size and temper', () => {
+    for (const t of tempers)
+      for (const h of hefts)
+        for (const g of GEAR)
+          expect(differing(fightFor(h, t), fightFor(h, t, only(g.id))), `${g.id} ${t} ${h}`).toEqual([...own[g.id]]);
+  });
+  it('eases in the right direction: a slower drain, a quicker push, a wider zone and a higher floor', () => {
+    const b = fightFor(0.5, 'steady');
+    expect(fightFor(0.5, 'steady', only('line')).drain).toBeLessThan(b.drain);
+    expect(fightFor(0.5, 'steady', only('reel')).push).toBeGreaterThan(b.push);
+    expect(fightFor(0.5, 'steady', only('rod')).width).toBeGreaterThan(b.width);
+    expect(fightFor(0.5, 'steady', only('rod')).floor).toBeGreaterThan(b.floor);
+  });
+  it('keeps the floor above the zone’s top at rest, as the floor rule has it', () => {
+    for (const t of tempers)
+      for (const h of hefts) {
+        const f = fightFor(h, t, gearFor(12));
+        expect(f.floor).toBeGreaterThanOrEqual(f.width + FIGHT.floor);
+      }
+  });
+  it('stacks in order, each cure count adding exactly its gift’s figures to the last', () => {
+    let was = fightFor(0.5, 'feisty', gearFor(0));
+    for (const g of GEAR) {
+      const now = fightFor(0.5, 'feisty', gearFor(g.at));
+      expect(differing(was, now), g.id).toEqual([...own[g.id]]);
+      expect(fightFor(0.5, 'feisty', gearFor(g.at - 1)), `just before ${g.id}`).toEqual(was);
+      was = now;
+    }
+  });
+});
+
+describe('the gear levels are each a step easier', () => {
+  // The line and the rod each make every column easier for the 0.4 s hand, at the check's own fight count so that the
+  // unit test and the table agree; a gift zeroed leaves two levels alike, and the landed count then fails to rise. The
+  // reel is held by its own figure above and here only never to make things harder: the careful hand reads the zone's
+  // speed and lets go the earlier, so the balance tool cannot see a faster reel help, though a player's hand may.
+  const table: Partial<Record<string, number>> = {};
+  beforeAll(() => {
+    for (const gear of GEARS)
+      for (const b of BANDS) table[`${gear}/${b.name}`] = playCell({ gear, reaction: 24, band: b.name }, FIGHTS).landed;
+  });
+  const landed = (gear: Gear, band: BandName) => table[`${gear}/${band}`]!;
+  it.each(BANDS.map((b) => b.name))('lands more in the %s column with the line and again with the rod', (band) => {
+    expect(landed('line', band), 'the line over none').toBeGreaterThan(landed('none', band));
+    expect(landed('line+reel+rod', band), 'the rod over the line and reel').toBeGreaterThan(landed('line+reel', band));
+  });
+  it.each(BANDS.map((b) => b.name))('never lands fewer in the %s column for the reel', (band) => {
+    // within a fight's worth of chance, since the two levels play the same seeds and the reel's step is about nothing
+    expect(landed('line+reel', band)).toBeGreaterThanOrEqual(landed('line', band) - FIGHTS / 100);
+  });
+  it('is the same at the last level as at the one before, since the bobber and bait are the bite’s', () => {
+    for (const b of BANDS) expect(landed('all', b.name)).toBe(landed('line+reel+rod', b.name));
+  });
+  it('leaves no cell of the 0.4 s hand a sure thing at any level', () => {
+    for (const gear of GEARS)
+      for (const b of BANDS) expect(landed(gear, b.name), `${gear} ${b.name}`).toBeLessThan(FIGHTS);
   });
 });
 
@@ -209,7 +277,7 @@ describe('the game and the gifts', () => {
     expect(game.line.figures.width).toBe(FIGHT.width);
     for (let f = 0; f < 60 * 600 && game.bite.phase !== 'none'; f++) angler.step(DT);
     for (let f = 0; f < 60 * 600 && game.bite.phase !== 'hooked'; f++) angler.step(DT);
-    expect(game.line.figures.width).toBeCloseTo(FIGHT.width + 0.06, 12);
+    expect(game.line.figures.width).toBeCloseTo(FIGHT.width + GEAR[2].plus, 12);
   });
   it('has the angler win with the wider rod, centred on its width', () => {
     const { game } = giftGame(6);

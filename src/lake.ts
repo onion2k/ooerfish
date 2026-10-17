@@ -540,13 +540,18 @@ export const TEMPERS = [
  * its id, its name and the words the toast says of it, and the one figure it eases, by a multiplier (`times`) or an
  * amount added (`plus`): the line drains the meter more slowly, the reel lifts the zone faster, the rod widens it, the
  * bobber holds the strike's window open longer and the bait makes fish notice the lure sooner. The gear is worked out
- * from the count cured, so the save holds nothing of it. First guesses that help visibly, to be tuned with the balance
- * tool and the pace gate.
+ * from the count cured, so the save holds nothing of it.
+ *
+ * Each does what its words say, at a size a player notices, as the user chose (`docs/fight2.md`, decision 1, option B
+ * over a setting tuned to the balance tool's hand, which took a reel six times as fast and a rod that widened nothing):
+ * the line drains the meter 8% slower, the reel lifts the zone a quarter faster, the rod widens it by 0.02 (the fish's
+ * floor follows the width, as it always does). The balance tool cannot see the reel, since its careful hand reads the
+ * zone's speed and lets go the earlier; a player's hand may. Each is one figure, to be tuned by how it feels in play.
  */
 export const GEAR = [
-  { id: 'line', at: 2, name: 'a stronger line', words: 'The meter drains more slowly.', figure: 'drain', times: 0.75 },
+  { id: 'line', at: 2, name: 'a stronger line', words: 'The meter drains more slowly.', figure: 'drain', times: 0.92 },
   { id: 'reel', at: 4, name: 'a faster reel', words: 'Your zone lifts faster.', figure: 'push', times: 1.25 },
-  { id: 'rod', at: 6, name: 'a longer rod', words: 'Your zone is wider.', figure: 'width', plus: 0.06 },
+  { id: 'rod', at: 6, name: 'a longer rod', words: 'Your zone is wider.', figure: 'width', plus: 0.02 },
   {
     id: 'bobber',
     at: 8,

@@ -99,6 +99,22 @@ measuring tool, not by eye.
    0.25 s hand is 10 to 30 s. Fish escape mostly from slower hands; size and temper make fights longer, not
    unwinnable. Every seed of the pace gate's angler lands its three fish.
 
+   **The gear's targets, set with the user, 17 Oct, before part 4:** with the careful hand landing nearly all
+   without gear, the gear's help is measured on slower hands. The 0.4 s hand, from 61/40/22% with none, rises a
+   visible step with each gift that acts in the fight, to about 68/50/32 with the line, 74/58/40 with the reel too,
+   and 85/70/55 with the rod too (each ±6). With all the gear the 0.6 s hand lands about 50/35/20 (±8) and the
+   0.25 s hand at least 99/99/95, every temper and size at least 50%. No gear level makes any cell a sure thing
+   for the 0.4 s hand (under 100%). The bobber and bait act on the strike and the bite and are not in these
+   tables.
+
+   **Then, after part 4's first tuning (option B, chosen by the user):** those staged numbers could only be hit by
+   tuning the gifts to the balance tool's hand, with a reel six times as fast and a rod that widened nothing, so the
+   gifts would not do what their words say. Instead each gift is honest and noticeable: the line drains 8% slower,
+   the reel lifts a quarter faster, the rod is 0.02 wider, and the bobber and bait as before. What is held: the line
+   and the rod each make every column easier for the 0.4 s hand, the reel never makes it harder (the tool's hand
+   cannot see a faster reel help), no cell is a sure thing for the 0.4 s hand at any level, and with all the gear the
+   0.25 s hand lands 100/100/100 and the 0.4 s hand 90/77/68. The rest is tuned by how it feels in play.
+
 2. **The gifts and when.** Recommended: the line at 2 cures, the reel at 4, the rod at 6, the bobber at 8 and the
    bait at 10 (the pond takes 12), so the hardest fights come first and the gear arrives as the pond heals.
    Alternatively, fewer and bigger gifts (rod at 4, line at 8).
@@ -165,7 +181,7 @@ Out of scope: a shop and its money; gear drawn on the rod; more fish kinds; the 
       brings.
 - [x] 3. **The gifts:** `GEAR`, `gearFor`, the gear in the fight and the bite, the toast, and the load. Check: unit
       and end-to-end tests.
-- [ ] 4. **Tuned to the targets:** the figures tuned with the balance tool to decision 1, and the balance and pace
+- [x] 4. **Tuned to the targets:** the figures tuned with the balance tool to decision 1, and the balance and pace
       baselines written through `/gate-moved`. Check: the tool inside the targets at each gear level.
 - [ ] 5. **The pass:** the full check, fuzz on seeds 1 to 24, pictures looked at, the mutations, `CLAUDE.md` and
       the report.

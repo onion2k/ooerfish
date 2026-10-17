@@ -9,7 +9,10 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
-import { FIGHT, FISH_COUNT, HEAL, jettyGap } from '../src/lake';
+import { FIGHT, FISH_COUNT, GEAR, HEAL, jettyGap } from '../src/lake';
+
+/** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
+const ROD = GEAR.find((g) => g.id === 'rod')!;
 import { STANDARD, ready, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
@@ -527,10 +530,10 @@ test('a load from a save of 6 holds the line, reel and rod with no toast, and th
   });
   await expect(page.locator('#toast')).toBeHidden();
   expect(await api(() => window.game!.fishTo('fight'))).toBe(true);
-  expect((await api(() => window.game!.fishing())).width).toBeCloseTo(FIGHT.width + 0.06, 12);
+  expect((await api(() => window.game!.fishing())).width).toBeCloseTo(FIGHT.width + ROD.plus, 12);
   // the bar draws the wider zone: its height is the line's width, as a share of the bar
   const bar = await page.locator('#gaugeZone').evaluate((e) => (e as HTMLElement).style.height);
-  expect(bar).toBe(`${Math.round((FIGHT.width + 0.06) * 1000) / 10}%`);
+  expect(bar).toBe(`${Math.round((FIGHT.width + ROD.plus) * 1000) / 10}%`);
   await expect(page.locator('#toast')).toBeHidden();
   expect((await api(() => window.game!.events())).filter((e) => e.startsWith('gifted'))).toEqual([]);
   expect(await api(() => window.game!.invariants())).toEqual([]);

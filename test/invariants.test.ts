@@ -36,7 +36,7 @@ describe('what must always hold', () => {
     game.lure.phase = 'hooked';
     game.lure.at.set([game.fish.x[0], game.fish.y[0], -game.fish.depth[0]]);
     game.line.start(5, fightFor(0.5, 'steady'), () => 0.5);
-    expect(checkInvariants(game).join('\n')).toMatch(/the zone is 0.28 wide, the gear's is 0.34/);
+    expect(checkInvariants(game).join('\n')).toMatch(/the zone is 0.28 wide, the gear's is 0.3/);
   });
 
   it('reports a time that is not a number, or before the start', () => {
