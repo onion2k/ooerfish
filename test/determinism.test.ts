@@ -55,4 +55,14 @@ describe('the same seed gives the same game', () => {
     expect(run.diverged).toBe(300);
     expect(run.note).toMatch(/parted by frame 300/);
   });
+
+  it('hashes which fish are cured, so two runs that differ only in that part', () => {
+    const one = newGame(5).game;
+    const two = newGame(5).game;
+    expect(hashGame(two)).toBe(hashGame(one));
+    one.fish.cured[2] = 1;
+    expect(hashGame(one), 'a fish cured').not.toBe(hashGame(two));
+    two.fish.cured[3] = 1;
+    expect(hashGame(two), 'a different fish cured').not.toBe(hashGame(one));
+  });
 });

@@ -47,10 +47,9 @@ describe('what the pond says', () => {
     expect(said({ cured: 5, toastCured: 5, t: 0 })?.lead).toBe('Cured!');
   });
 
-  it('says the pond is clean at the twelfth, and a fish after it only that the pond stays so', () => {
+  it('says the pond is clean at the twelfth', () => {
     const at = (cured: number) => pondWords(state({ cured, toastCured: cured, toastUntil: 9, t: 1 })).toast;
     expect(at(CURE.toClean)).toEqual({ lead: 'The Duck Pond is clean!', bold: 'Every fish is cured.' });
-    expect(at(CURE.toClean + 1)).toEqual({ lead: 'Cured!', bold: 'The pond stays clean.' });
     expect(at(CURE.toClean - 1)?.lead).toBe('Cured!');
   });
 });

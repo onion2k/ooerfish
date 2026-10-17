@@ -1,22 +1,34 @@
-/** The cast line's words: what the bite and the lure are doing, as the page said them before. */
+/** The cast line's words: what the lure is doing, and in a clean pond that nothing will take the bait. */
 import { describe, expect, it } from 'vitest';
-import { castWords, type CastState } from '../src/castwords';
+import { CLEAN_WORDS, castWords, type CastState } from '../src/castwords';
 
-const state = (over: Partial<CastState> = {}): CastState => ({ bite: 'none', lure: 'sinking', heard: null, ...over });
+const state = (over: Partial<CastState> = {}): CastState => ({
+  bite: 'none',
+  lure: 'sinking',
+  heard: null,
+  clean: false,
+  ...over,
+});
 
 describe('the cast line', () => {
-  it('waits for a fish while the lure sinks, says nothing before a cast and asks for a lure on the bank to be reeled in', () => {
+  it('waits for a fish while the lure sinks in a pond that still has some', () => {
     expect(castWords(state())).toBe('waiting for a fish…');
-    expect(castWords(state({ lure: 'ready' }))).toBe('');
-    expect(castWords(state({ lure: 'lying' }))).toBe('on the bank: reel it in');
   });
 
-  it('keeps a strike’s own words over what the lure is doing', () => {
-    expect(castWords(state({ heard: 'missed' }))).toBe('missed');
+  it('says the pond is clean, and nothing takes this bait, when the lure sinks in a clean pond', () => {
+    expect(CLEAN_WORDS).toBe('the pond is clean: nothing takes this bait');
+    expect(castWords(state({ clean: true }))).toBe(CLEAN_WORDS);
+    expect(castWords(state({ clean: false }))).not.toBe(CLEAN_WORDS);
   });
 
-  it('says the fish’s part of the fight before anything else', () => {
-    expect(castWords(state({ bite: 'biting', heard: 'missed' }))).toBe('BITE! strike now');
+  it('keeps a strike’s own words over the clean pond’s, and says nothing of waiting before a cast', () => {
+    expect(castWords(state({ clean: true, heard: 'missed' }))).toBe('missed');
+    expect(castWords(state({ clean: true, lure: 'ready' }))).toBe('');
+    expect(castWords(state({ clean: true, lure: 'lying' }))).toBe('on the bank: reel it in');
+  });
+
+  it('says the fish’s part of the fight as before', () => {
+    expect(castWords(state({ bite: 'biting' }))).toBe('BITE! strike now');
     expect(castWords(state({ bite: 'nibbling' }))).toBe('nibble… wait for the dip');
     expect(castWords(state({ bite: 'hooked' }))).toBe('a fish on! hold to lift the zone, keep the fish in it');
   });

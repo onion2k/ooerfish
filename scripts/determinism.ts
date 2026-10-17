@@ -69,6 +69,8 @@ export function hashGame(game: Game): string {
     eat(fish.heading[i]);
     eat(fish.speed[i]);
     eat(fish.keeps[i]);
+    // which fish are cured, since two lakes that differ only in that are not the same lake
+    eat(fish.cured[i]);
     // the stroke too, which only the drawing reads, so a picture of a fish is held to the seed as its place is
     eat(fish.phase[i]);
     eat(fish.turn[i]);

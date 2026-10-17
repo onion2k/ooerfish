@@ -48,7 +48,6 @@ export function pondWords(s: PondState): PondWords {
   let toast: PondWords['toast'] = null;
   if (s.t < s.toastUntil && s.toastCured > 0) {
     if (s.toastCured === s.toClean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured.' };
-    else if (s.toastCured > s.toClean) toast = { lead: 'Cured!', bold: 'The pond stays clean.' };
     else toast = { lead: 'Cured!', bold: 'The pond clears a little.' };
   }
   // a player who has cured a fish is not welcomed again, on this visit or the next

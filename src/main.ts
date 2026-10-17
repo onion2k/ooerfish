@@ -328,6 +328,7 @@ async function main() {
       bite: game.bite.phase,
       lure: game.lure.phase,
       heard: game.t < heard.until ? heard.text : null,
+      clean: game.pondClean,
     });
     if (text === castText) return;
     castText = text;

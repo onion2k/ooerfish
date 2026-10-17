@@ -1,6 +1,7 @@
 /** The monkey itself: it gets about, and a clean seed is clean. `npm run fuzz` is the long form. */
 import { describe, expect, it } from 'vitest';
 import { fuzz } from '../scripts/fuzzer';
+import { FISH_COUNT } from '../src/lake';
 
 describe('the fuzzer', () => {
   it('plays a seed through without breaking a rule, and does everything a player can', () => {
@@ -23,7 +24,9 @@ describe('the fuzzer', () => {
   it('fishes: across a few seeds, it strikes, reels and stows, and fish are hooked, slip and are landed', () => {
     const happened: Record<string, number> = {},
       done: Record<string, number> = {};
-    for (let seed = 1; seed <= 8; seed++) {
+    // twelve seeds and not eight: a seed now starts with some of the fish already cured, which leaves fewer to slip
+    // the hook, and the first eight draw none that does in 4000 frames
+    for (let seed = 1; seed <= 12; seed++) {
       const r = fuzz(seed, 4000);
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
@@ -32,6 +35,21 @@ describe('the fuzzer', () => {
     for (const action of ['strike', 'reel', 'stow', 'angle']) expect(done[action], action).toBeGreaterThan(0);
     for (const event of ['nibbled', 'bitten', 'hooked', 'missed', 'slipped', 'landed', 'cured'])
       expect(happened[event], event).toBeGreaterThan(0);
+  });
+
+  it('reaches a clean pond: across a few seeds it is clean for some frames, a cast is made into it, nothing bites there, and no more than twelve are ever cured', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 8; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      // the most ever cured at once is the pond's size, which the invariants hold; the result says it too
+      expect(r.done['most cured'] ?? 0, `seed ${seed}`).toBeLessThanOrEqual(FISH_COUNT);
+      // a frame with the pond clean is a frame with nothing biting: the fuzzer counts any bite made in one
+      expect(r.done['bites in a clean pond'], `seed ${seed}`).toBe(0);
+    }
+    expect(done['clean frames'], 'frames played with the pond clean').toBeGreaterThan(0);
+    expect(done['clean casts'], 'casts made into a clean pond').toBeGreaterThan(0);
   });
 
   it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {

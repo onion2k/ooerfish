@@ -90,6 +90,8 @@ export interface Fish {
   x: number;
   y: number;
   depth: number;
+  /** Cured: gold, let go in the pond, and never drawn to the lure. */
+  cured: boolean;
 }
 
 export interface GameApi {
@@ -316,7 +318,12 @@ export function createApi(host: DebugHost): GameApi {
     }),
     fish() {
       const { fish } = game;
-      return Array.from({ length: fish.count }, (_, i) => ({ x: fish.x[i], y: fish.y[i], depth: fish.depth[i] }));
+      return Array.from({ length: fish.count }, (_, i) => ({
+        x: fish.x[i],
+        y: fish.y[i],
+        depth: fish.depth[i],
+        cured: fish.cured[i] === 1,
+      }));
     },
     splashes() {
       const { splashes } = game;

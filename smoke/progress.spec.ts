@@ -456,6 +456,15 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   await api(() => window.game!.step(150));
   expect(await api(() => window.game!.fishTo('landed'))).toBe(false);
   expect((await api(() => window.game!.state())).contamination).toBe(0);
+  // the API shows all twelve cured, and a cast into the pond says why nothing comes
+  const fish = await api(() => window.game!.fish());
+  expect(fish.length).toBe(12);
+  expect(fish.filter((f) => f.cured).length, 'every fish cured').toBe(12);
+  await api(() => window.game!.reelIn());
+  expect(await api(() => window.game!.cast(Math.PI / 2, 0.62))).toBe(true);
+  await api(() => window.game!.step(1200));
+  await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
+  expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
   expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12 });
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);

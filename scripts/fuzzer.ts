@@ -16,6 +16,7 @@ import { careful } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
+import { FISH_COUNT } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -82,7 +83,19 @@ export function fuzz(seed: number, frames: number): FuzzResult {
   });
 
   try {
-    let store = memoryStore();
+    // a returning player loads a save with fish already cured, so the lake starts anywhere from none cured to clean.
+    // The count is drawn from a stream of its own, so it moves none of the monkey's other chance: two in five seeds
+    // start with none cured, one in five clean, one in five one to three short of it and the rest anywhere between
+    const curedAtStart = (() => {
+      const pick = seeded(seed * 13 + 5);
+      const u = pick();
+      if (u < 0.4) return 0;
+      if (u < 0.6) return FISH_COUNT;
+      if (u < 0.8) return FISH_COUNT - 1 - Math.floor(pick() * 3);
+      return 1 + Math.floor(pick() * (FISH_COUNT - 1));
+    })();
+    done['start cured'] = curedAtStart;
+    let store = memoryStore(JSON.stringify({ cured: curedAtStart }));
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
@@ -99,6 +112,16 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     let phone: PhoneMonkey = makePhone();
     let busy = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
+    // what the clean pond saw, from nought so a monkey that never reached it shows as nought and not as missing
+    done['clean frames'] = 0;
+    done['clean casts'] = 0;
+    done['bites in a clean pond'] = 0;
+    done['most cured'] = 0;
+    /** A cast, counted when it is thrown into a pond with no uncured fish left. */
+    const cast = (angle: number, power: number) => {
+      const into = game.pondClean;
+      if (game.cast(angle, power) && into) done['clean casts']++;
+    };
     const did = (what: string) => {
       done[what] = (done[what] ?? 0) + 1;
       log.push(`frame ${frame}: ${what}`);
@@ -144,7 +167,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         () => {
           // a cast any way round at any power, a drag let go anywhere, or now and then a value that is no number
           const odd = random() < 0.05;
-          game.cast(odd ? NaN : between(-Math.PI, Math.PI), odd ? 0.5 : between(0, 1.2));
+          cast(odd ? NaN : between(-Math.PI, Math.PI), odd ? 0.5 : between(0, 1.2));
           busy = Math.floor(between(30, 300));
           did('cast');
         },
@@ -243,7 +266,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         }
         if (game.bite.phase === 'landed') game.stow();
         if (game.lure.phase === 'ready' || game.lure.phase === 'lying')
-          game.cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+          cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
       } else if (busy > 0) busy--;
       else {
         act();
@@ -251,6 +274,12 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       }
       phone.tick(frame);
       game.step(page.paused ? 0 : DT);
+      done['most cured'] = Math.max(done['most cured'], game.fish.curedCount());
+      if (game.pondClean) {
+        done['clean frames']++;
+        // nothing takes the bait in a clean pond: no fish is ever coming, nibbling, biting, hooked or landed there
+        if (game.bite.phase !== 'none') done['bites in a clean pond']++;
+      }
       // after everything done, and every few frames between: a bad value set and set again at once is never seen
       if (acted || frame % CHECK_EVERY === 0) {
         const problems = checkInvariants(game);
