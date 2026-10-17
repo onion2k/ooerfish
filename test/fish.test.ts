@@ -1,6 +1,7 @@
 /** The fish of the lab's lake: where they swim, that they stay in the water, and the lake's two levers. */
 import { describe, expect, it } from 'vitest';
 import { School } from '../src/fish';
+import { seeded } from '../src/random';
 import { checkInvariants } from '../src/invariants';
 import {
   BOULDERS,
@@ -105,7 +106,8 @@ describe('the fish', () => {
       [...onDeck(JETTY.length + 0.6, 0.5), heading + Math.PI - 0.2],
     ];
     const { game } = newGame();
-    expect(game.fish.count).toBe(starts.length);
+    // only these six are placed, so only they are swum: the rest of the pond is left out of it
+    game.fish.count = starts.length;
     starts.forEach(([x, y, h], i) => {
       game.fish.x[i] = x;
       game.fish.y[i] = y;
@@ -238,5 +240,90 @@ describe('what must always hold of the fish and the levers', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/the time of day is 1/);
     game.timeOfDay = 0.999;
     expect(checkInvariants(game)).toEqual([]);
+  });
+});
+
+describe('the cured fish', () => {
+  const stocked = (n: number, cured = 0, seed = 3) => {
+    const school = new School();
+    school.fill(n, seeded(seed), cured);
+    return school;
+  };
+
+  it('start with none cured, and the flags are sized once for the most a lake holds', () => {
+    const school = stocked(FISH_COUNT);
+    expect(school.cured.length).toBe(FISH_CAPACITY);
+    expect(school.curedCount()).toBe(0);
+  });
+
+  it('are marked and placed by cure, and a held fish is let go', () => {
+    const school = stocked(6);
+    school.held = 2;
+    const depth = school.depth[2],
+      phase = school.phase[2];
+    school.cure(2, 3, -4, 1.25);
+    expect(school.cured[2]).toBe(1);
+    expect([school.x[2], school.y[2], school.heading[2]]).toEqual([3, -4, 1.25]);
+    expect(school.depth[2]).toBe(depth);
+    expect(school.phase[2]).toBe(phase);
+    expect(school.held).toBe(-1);
+    expect(school.curedCount()).toBe(1);
+    expect(school.cured[1]).toBe(0);
+  });
+
+  it('leave a fish held that is not the one cured', () => {
+    const school = stocked(6);
+    school.held = 4;
+    school.cure(1, 0, 0, 0);
+    expect(school.held).toBe(4);
+  });
+
+  it('are counted among the live fish only', () => {
+    const school = stocked(4);
+    school.cured[10] = 1;
+    school.cure(0, 0, 0, 0);
+    expect(school.curedCount()).toBe(1);
+  });
+
+  it('start the first few cured when the lake is stocked with some', () => {
+    const school = stocked(FISH_COUNT, 5);
+    expect(school.curedCount()).toBe(5);
+    for (let i = 0; i < FISH_COUNT; i++) expect(school.cured[i], `fish ${i}`).toBe(i < 5 ? 1 : 0);
+  });
+
+  it('are all of them, and no more flags, when the save has cured more than the lake holds', () => {
+    const school = stocked(FISH_COUNT, FISH_COUNT + 30);
+    expect(school.curedCount()).toBe(FISH_COUNT);
+    expect(school.cured.subarray(FISH_COUNT).every((c) => c === 0)).toBe(true);
+  });
+
+  it('are not kept by a refill, whose flags are its own', () => {
+    const school = stocked(8, 8);
+    school.fill(8, seeded(4), 2);
+    expect(school.curedCount()).toBe(2);
+    school.fill(8, seeded(5));
+    expect(school.curedCount()).toBe(0);
+    school.fill(8, seeded(5), 8);
+    school.fill(3, seeded(5), 0);
+    expect(school.cured.every((c) => c === 0)).toBe(true);
+  });
+
+  it('are new fish when let in afresh: a respawn clears the flag', () => {
+    const school = stocked(6, 6);
+    school.respawn(3, seeded(9));
+    expect(school.cured[3]).toBe(0);
+    expect(school.curedCount()).toBe(5);
+  });
+
+  it('draw no chance of their own: a seed places the fish where it did', () => {
+    const a = stocked(FISH_COUNT, 0, 7),
+      b = stocked(FISH_COUNT, 7, 7);
+    for (const key of ['x', 'y', 'depth', 'heading', 'speed', 'keeps'] as const)
+      expect(Array.from(b[key]), key).toEqual(Array.from(a[key]));
+    const ra = seeded(7),
+      rb = seeded(7);
+    new School().fill(FISH_COUNT, ra);
+    new School().fill(FISH_COUNT, rb, 7);
+    expect(rb()).toBe(ra());
   });
 });

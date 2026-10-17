@@ -69,20 +69,48 @@ export class School {
   private readonly lastY = new Float64Array(FISH_CAPACITY);
   private readonly lastHeading = new Float64Array(FISH_CAPACITY);
   private readonly lastDepth = new Float64Array(FISH_CAPACITY);
+  /** Which fish are cured, one for yes: kept in the pond, healthy, and never drawn to the lure. Sized once. */
+  readonly cured = new Uint8Array(FISH_CAPACITY);
   count = 0;
   /** The fish the bite is steering, which the wander leaves alone; minus one for none. */
   held = -1;
 
-  /** The lake stocked with `n` fish at places in the water chosen by chance, as many as fit. */
-  fill(n: number, random: Random) {
+  /**
+   * The lake stocked with `n` fish at places in the water chosen by chance, as many as fit, the first `cured` of them
+   * cured (a save's count, which may be more than the lake holds). The flags draw no chance, so a seed places the fish
+   * where it did, and a refill sets every flag afresh rather than keep the last stocking's.
+   */
+  fill(n: number, random: Random, cured = 0) {
     this.count = Math.min(n, FISH_CAPACITY);
     for (let i = 0; i < this.count; i++) this.place(i, random);
+    this.cured.fill(0);
+    this.cured.fill(1, 0, Math.max(0, Math.min(cured, this.count)));
   }
 
-  /** Fish `i` let into the lake afresh, somewhere in it by chance: a landed fish's place taken by another. */
+  /** Fish `i` let into the lake afresh, somewhere in it by chance: a landed fish's place taken by another, a new one that glows. */
   respawn(i: number, random: Random) {
     if (this.held === i) this.held = -1;
     this.place(i, random);
+    this.cured[i] = 0;
+  }
+
+  /**
+   * Fish `i` cured and put back in the water at (`x`, `y`) facing `heading`. It is not a respawn: its depth and stroke
+   * are as they were, so it swims on from where it was let go, and the bite lets go of it if it was the one held.
+   */
+  cure(i: number, x: number, y: number, heading: number) {
+    if (this.held === i) this.held = -1;
+    this.cured[i] = 1;
+    this.x[i] = x;
+    this.y[i] = y;
+    this.heading[i] = heading;
+  }
+
+  /** How many of the live fish are cured. */
+  curedCount(): number {
+    let n = 0;
+    for (let i = 0; i < this.count; i++) n += this.cured[i];
+    return n;
   }
 
   private place(i: number, random: Random) {

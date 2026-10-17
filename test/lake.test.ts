@@ -9,6 +9,9 @@ import {
   CABIN,
   CABIN_AT,
   CLIFF,
+  CURE,
+  FISH_CAPACITY,
+  FISH_COUNT,
   DECK,
   DECK_NEAR,
   DECK_ROUND,
@@ -39,6 +42,11 @@ import {
 } from '../src/lake';
 
 describe('the lake', () => {
+  it('holds as many fish as it takes to clean it, said once, and no more than the pools hold', () => {
+    expect(CURE.toClean).toBe(FISH_COUNT);
+    expect(FISH_COUNT).toBeLessThanOrEqual(FISH_CAPACITY);
+  });
+
   it('has a shore that closes, and is the same each time it is asked', () => {
     expect(shoreRadius(0)).toBeCloseTo(shoreRadius(Math.PI * 2), 10);
     expect(shoreRadius(1.234)).toBe(shoreRadius(1.234));

@@ -254,7 +254,7 @@ describe('the bite, seen', () => {
   });
 
   it('tells what each strike did: a twitch with no fish, too soon at a nibble, hooked at the bite', () => {
-    const { game, told } = telling(3);
+    const { game, told } = telling(4);
     game.cast(NORTH, MIDDLE);
     for (let f = 0; f < 120; f++) game.step(DT);
     expect(game.bite.phase).toBe('none');

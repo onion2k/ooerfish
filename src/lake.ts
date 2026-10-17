@@ -579,8 +579,12 @@ export const SURFACE = { rings: 24, segments: 128, spacing: 0.5, near: 40 } as c
  */
 export const WATER_PACE = 0.6;
 
-/** How many fish swim in the lab's lake, and the most a lake may ever hold, which fixes the pools. */
-export const FISH_COUNT = 6;
+/**
+ * How many fish swim in the lake, and the most a lake may ever hold, which fixes the pools. The pond holds as many
+ * fish as it takes to clean it, each cured in turn (`CURE.toClean` reads this, so the figure is said once); twelve is
+ * still an estimate, tuned once the game is played.
+ */
+export const FISH_COUNT = 12;
 export const FISH_CAPACITY = 32;
 /** How near the shore a fish will swim, and how near the surface and the bed. */
 export const FISH_SHORE = 4;
@@ -622,9 +626,10 @@ export function framingFor(name: ViewName, aspect: number): View {
 
 /**
  * The cure: how many fish put in the bucket it takes to clean the lake, each lowering the contamination by a share of
- * that (an estimate, twelve; `DESIGN.md` sizes the cure by the player's pace, so it is tuned once the game is played).
+ * that. It is the number of fish the pond holds, so that each is cured in turn and the last one cleans it (an estimate,
+ * twelve; `DESIGN.md` sizes the cure by the player's pace, so it is tuned once the game is played).
  */
-export const CURE = { toClean: 12 } as const;
+export const CURE = { toClean: FISH_COUNT } as const;
 
 /** How sick the lake is once `cured` fish have been cured: from sick (1) down a share a fish, to clean (0), where it stays. */
 export function contaminationAfter(cured: number): number {
