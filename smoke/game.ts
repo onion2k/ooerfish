@@ -119,10 +119,10 @@ export async function set(page: Page, scene: Scene, frames = 120) {
   );
 }
 
-/** The corners that tell how to look round, the look or cast button, the pond's gauge and lines, and the menu: not the look. */
+/** The corners that tell how to look round, the look or cast button, the pond's gauge and lines, the menu and the bucket: not the look. */
 export async function hideOverlays(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['help', 'modeButton', 'pond', 'welcome', 'toast', 'menu'])
+    for (const id of ['help', 'modeButton', 'pond', 'welcome', 'toast', 'menu', 'bucket'])
       document.getElementById(id)!.hidden = true;
     // the boot cover's own display rule beats the hidden attribute, and its fade runs on the wall clock, so a picture
     // taken right after boot could catch its text fading: it is taken off the page.

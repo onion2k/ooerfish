@@ -145,7 +145,16 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   groups over again when the count cured changes (`game.drawnCured()`). The
   invariants hold the count cured to the save and a cured fish off the bite;
   the fuzzer starts each seed from a save part cured, so it reaches the clean
-  pond. `docs/cured.md` is the plan it was built from.
+  pond. `docs/cured.md` is the plan it was built from. **The water heals
+  gradually** (`docs/heal.md`): `Game.waterDirt` is the contamination the water
+  shows, easing to the truth over `HEAL.seconds` of game time after a cure
+  (`healToward` in `src/heal.ts`, `1 - (1 - u)^3`, so about half in the first
+  fifth), from wherever it is, so cures close together never jump; paused it
+  holds, and the lever and a load set it at once. The fight reads the truth.
+  The page draws the water at `waterDirt` rounded to `HEAL.step` (`waterShown`
+  in `main.ts`) and hands it over only when that moves, about forty times a
+  cure (`game.waterHandovers()` counts them), since a handover makes buffers
+  and costs about half a millisecond; the gauge steps at the cure.
 - `src/main.ts` is the page. It turns what the game says into the water (when
   the contamination changes: `showWater`), the light (when the clock comes to
   the next look: `showLight`, each frame comparing `nearestTime` to the look's

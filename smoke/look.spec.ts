@@ -60,6 +60,27 @@ test.describe('what it looks like', () => {
     expect(problems).toEqual([]);
   });
 
+  // the pond healing (`docs/heal.md`): five cured, the sixth stowed, and a fifth of the heal gone by, where the ease
+  // has taken the water about half way from where it was to where the cure puts it
+  test('healing, a fifth of the way through', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 5 } });
+    await set(page, { dirt: 7 / 12, time: 'day', view: 'shore' }, 60);
+    const was = await page.evaluate(() => {
+      const g = window.game!;
+      if (!g.fishTo('landed') || !g.stow()) throw new Error('no fish to cure');
+      return g.state().contamination;
+    });
+    await page.evaluate(() => window.game!.step(360));
+    const now = await page.evaluate(() => window.game!.state());
+    expect(now.contamination).toBeCloseTo(was, 12);
+    expect(now.waterDirt).toBeGreaterThan(now.contamination);
+    expect(now.waterDirt).toBeLessThan(7 / 12);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('healing.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // a pebble a third of a second after it landed in front of the boat: its fine droplets fallen back and its first
   // ripples going out in the water's own surface, bending the bed and the mirror and painting nothing; on the sick lake, whose
   // murk shows the ring only by its light and its mirror; and at night, when the mirror is all it has
