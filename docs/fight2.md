@@ -163,7 +163,7 @@ Out of scope: a shop and its money; gear drawn on the rod; more fish kinds; the 
       unit tests, and the balance tool showing the sizes and tempers apart. **It also takes part 4's no-gear
       half:** the figures are tuned to decision 1's no-gear targets here, so part 4 tunes only what the gear
       brings.
-- [ ] 3. **The gifts:** `GEAR`, `gearFor`, the gear in the fight and the bite, the toast, and the load. Check: unit
+- [x] 3. **The gifts:** `GEAR`, `gearFor`, the gear in the fight and the bite, the toast, and the load. Check: unit
       and end-to-end tests.
 - [ ] 4. **Tuned to the targets:** the figures tuned with the balance tool to decision 1, and the balance and pace
       baselines written through `/gate-moved`. Check: the tool inside the targets at each gear level.

@@ -16,7 +16,7 @@ import { careful } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
-import { FISH_COUNT } from '../src/lake';
+import { FISH_COUNT, GEAR } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -58,6 +58,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     slipped: 0,
     landed: 0,
     cured: 0,
+    gifted: 0,
   };
   const count = (what: string) => () => {
     happened[what]++;
@@ -71,6 +72,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     slipped: count('slipped'),
     landed: count('landed'),
     cured: count('cured'),
+    gifted: count('gifted'),
   };
   const log: string[] = [];
   let frame = 0;
@@ -95,6 +97,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       return 1 + Math.floor(pick() * (FISH_COUNT - 1));
     })();
     done['start cured'] = curedAtStart;
+    // the gifts the part-cured start already holds, so some seeds fish with gear from the first frame
+    done['start gifts'] = GEAR.filter((g) => curedAtStart >= g.at).length;
     let store = memoryStore(JSON.stringify({ cured: curedAtStart }));
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
@@ -258,7 +262,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         page.watching--;
         if (game.bite.phase === 'biting') game.strike();
         if (game.bite.phase === 'hooked') {
-          if (!page.careless) game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+          if (!page.careless)
+            game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width));
           else {
             if (random() < 0.05) page.holding = !page.holding;
             game.reel(page.holding);

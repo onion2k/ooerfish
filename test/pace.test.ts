@@ -30,8 +30,8 @@ describe('the angler', () => {
       // a fish landed in the step is let go of by the game itself, so only a fight that goes on is counted
       if (before === 'hooked' && game.bite.phase === 'hooked') {
         fought++;
-        if (game.reeling === careful(zone, speed, seen)) late++;
-        if (ago.length > REACTION && game.reeling !== careful(zone, speed, seen)) prompt++;
+        if (game.reeling === careful(zone, speed, seen, game.line.figures.width)) late++;
+        if (ago.length > REACTION && game.reeling !== careful(zone, speed, seen, game.line.figures.width)) prompt++;
       }
       if (f % 60 === 0) expect(checkInvariants(game)).toEqual([]);
     }
@@ -44,11 +44,13 @@ describe('the angler', () => {
   });
 
   it('holds while the zone’s middle is below the fish, and lets go early as the zone rises fast', () => {
-    expect(careful(0, 0, 0.9)).toBe(true);
-    expect(careful(0.6, 0, 0.2)).toBe(false);
+    expect(careful(0, 0, 0.9, FIGHT.width)).toBe(true);
+    expect(careful(0.6, 0, 0.2, FIGHT.width)).toBe(false);
     const middle = FIGHT.width / 2;
-    expect(careful(0.3, 0, 0.3 + middle + 0.05)).toBe(true);
-    expect(careful(0.3, 1, 0.3 + middle + 0.05), 'rising fast, it lets go before it overshoots').toBe(false);
+    expect(careful(0.3, 0, 0.3 + middle + 0.05, FIGHT.width)).toBe(true);
+    expect(careful(0.3, 1, 0.3 + middle + 0.05, FIGHT.width), 'rising fast, it lets go before it overshoots').toBe(
+      false,
+    );
   });
 
   it('casts again when its lure lies on the bank, and plays the same from the same seeds', () => {

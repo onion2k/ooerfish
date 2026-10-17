@@ -6,7 +6,7 @@
  * player's fishing is `fightview.ts`'s, and the cure is the game's.
  */
 import type { Game } from './game';
-import { CURE, LAKE_NAME } from './lake';
+import { CURE, GIFT_GIVER, LAKE_NAME } from './lake';
 
 export interface PondElements {
   gauge: HTMLElement;
@@ -27,6 +27,13 @@ export interface PondState {
   /** How many fish had been cured when the line was last said, and the game time it is said until. */
   toastCured: number;
   toastUntil: number;
+  /**
+   * The gift last given, and the game time its line is said from and until. A gift comes with its cure, so its line
+   * waits for the cure's to end (`giftFrom` is that time) and the two never overlap.
+   */
+  gift: { name: string; words: string } | null;
+  giftFrom: number;
+  giftUntil: number;
   t: number;
 }
 
@@ -49,7 +56,8 @@ export function pondWords(s: PondState): PondWords {
   if (s.t < s.toastUntil && s.toastCured > 0) {
     if (s.toastCured === s.toClean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured.' };
     else toast = { lead: 'Cured!', bold: 'The pond clears a little.' };
-  }
+  } else if (s.gift && s.t >= s.giftFrom && s.t < s.giftUntil)
+    toast = { lead: `A gift from ${GIFT_GIVER}: ${s.gift.name}.`, bold: s.gift.words };
   // a player who has cured a fish is not welcomed again, on this visit or the next
   return { name: LAKE_NAME, welcome: !s.cast && s.cured === 0, glow, clean, toast };
 }
@@ -61,6 +69,9 @@ export class PondView {
   private cast = false;
   private toastCured = 0;
   private toastUntil = -Infinity;
+  private gift: PondState['gift'] = null;
+  private giftFrom = -Infinity;
+  private giftUntil = -Infinity;
   private was = { welcome: '', toast: '', gone: '', clean: '', gauge: '', name: '' };
 
   /** `heardFor` is how long a line about a cure is said, in seconds of game time. */
@@ -81,6 +92,16 @@ export class PondView {
     this.toastUntil = this.game().t + this.heardFor;
   }
 
+  /**
+   * A gift was given with the cure just told: its line is said after the cure's own, which the game has told first,
+   * for as long again, so the two never share the toast.
+   */
+  gifted(name: string, words: string) {
+    this.gift = { name, words };
+    this.giftFrom = Math.max(this.game().t, this.toastUntil);
+    this.giftUntil = this.giftFrom + this.heardFor;
+  }
+
   /** The page made what the game says, where it has changed. */
   show() {
     const g = this.game();
@@ -93,6 +114,9 @@ export class PondView {
       cast: this.cast,
       toastCured: this.toastCured,
       toastUntil: this.toastUntil,
+      gift: this.gift,
+      giftFrom: this.giftFrom,
+      giftUntil: this.giftUntil,
       t: g.t,
     });
     if (this.was.gauge === '') {

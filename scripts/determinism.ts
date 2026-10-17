@@ -133,7 +133,8 @@ export function playTwice({ seed, frames, every = 300, meddle }: TwiceOptions): 
       if (f % DROP_EVERY === DROP_EVERY / 2) game.cast(game.random() * Math.PI * 2, game.random());
       // and fished as an angler would, struck on the dip and played by the bar, so a fight is held too
       if (game.bite.phase === 'biting') game.strike();
-      if (game.bite.phase === 'hooked') game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+      if (game.bite.phase === 'hooked')
+        game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width));
       if (game.bite.phase === 'landed') game.stow();
       meddle?.(game, pass);
       if (f % every === 0) hashes.push(hashGame(game));

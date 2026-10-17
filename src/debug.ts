@@ -136,6 +136,8 @@ export interface GameApi {
   reel(on: boolean): void;
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
   stow(): boolean;
+  /** The gifts in force, a flag for each (line, reel, rod, bobber, bait): what the cure count earns, from the next fight. */
+  gear(): Record<string, boolean>;
   /** The fishing: the bite's phase and its fish, the line's strain and length, whether the fish darts, the bar, and the bucket. */
   fishing(): FishingState;
   /**
@@ -354,6 +356,7 @@ export function createApi(host: DebugHost): GameApi {
     strike: () => game.strike(),
     reel: (on) => game.reel(on),
     stow: () => game.stow(),
+    gear: () => ({ ...game.gear }),
     fishing: () => ({
       phase: game.bite.phase,
       fish: game.bite.fish,
@@ -383,7 +386,7 @@ export function createApi(host: DebugHost): GameApi {
         const { line } = game;
         // a fight is pictured a few seconds in, the fish in the zone and the meter past half
         if (moment === 'fight' && f > 300 && line.inZone() && line.meter > 0.5) break;
-        game.reel(careful(line.zone, line.zoneSpeed, line.fishAt));
+        game.reel(careful(line.zone, line.zoneSpeed, line.fishAt, line.figures.width));
         frame();
       }
       game.reel(false);

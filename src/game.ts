@@ -18,6 +18,7 @@ import {
   contaminationAfter,
   HEAL,
   CURE,
+  GEAR,
   FIGHT,
   FISHING,
   FISH_COUNT,
@@ -27,7 +28,7 @@ import {
   inside,
 } from './lake';
 import { Progress } from './progress';
-import { drawTemper, fightFor, type Temper } from './fight';
+import { drawTemper, fightFor, gearFor, type Gear, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
 import { Splashes } from './splash';
@@ -47,6 +48,11 @@ export interface GameEvents {
   slipped?(): void;
   /** A fish was cured by being stowed: how many have been cured, and how many it takes to clean the lake. */
   cured?(cured: number, toClean: number): void;
+  /**
+   * The cure earned a gift, told once, on that cure only and after `cured`: what it is called and what it does, in the
+   * words of `GEAR`. A load that has the gift already tells nothing.
+   */
+  gifted?(name: string, words: string): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number, temper: Temper): void;
 }
@@ -82,6 +88,8 @@ export class Game {
   catchWeight = 0;
   /** The temper of the fish on the line or landed, drawn when it was hooked. */
   temper: Temper = 'steady';
+  /** The gifts the cure count has earned, in force from the next fight (and the bite's next window); a load has its own, untold. */
+  gear: Gear;
   private bearing = 0;
   private hookedAt = 0;
   private readonly events: GameEvents;
@@ -109,6 +117,7 @@ export class Game {
     this.contamination = contaminationAfter(progress.save.cured);
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
+    this.gear = gearFor(progress.save.cured);
     const e = this.events;
     // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
     // rings are the water's own, through the splash pool, and unlike a pebble they do not scare the fish off
@@ -124,6 +133,7 @@ export class Game {
       hooked: () => e.hooked?.(),
       missed: () => e.missed?.(),
     });
+    this.bite.gear = this.gear;
     this.fish.fill(FISH_COUNT, () => this.random(), progress.save.cured);
   }
 
@@ -156,7 +166,11 @@ export class Game {
       const heft = (this.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
       // the temper is drawn next, one draw after the weight and before the line's own (where the fish first darts)
       this.temper = drawTemper(this.random);
-      this.line.start(Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly), fightFor(heft, this.temper), this.random);
+      this.line.start(
+        Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly),
+        fightFor(heft, this.temper, this.gear),
+        this.random,
+      );
       this.bearing = Math.atan2(this.fish.y[i] - ly, this.fish.x[i] - lx);
       this.hookedAt = this.t;
       // the lure is in its mouth from the strike, not from the next step
@@ -197,6 +211,10 @@ export class Game {
     this.healElapsed = 0;
     this.persist();
     this.events.cured?.(save.cured, CURE.toClean);
+    // a gift is given on the cure that earns it, from the next fight, and told that once
+    const had = this.gear;
+    this.gear = this.bite.gear = gearFor(save.cured);
+    for (const g of GEAR) if (this.gear[g.id] && !had[g.id]) this.events.gifted?.(g.name, g.words);
     return true;
   }
 

@@ -11,6 +11,7 @@
  * Headless and stepped by `Game.step`, its chance handed in, so a seed plays the same bite every time.
  */
 import { steerTo, type School } from './fish';
+import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
 import { FISHING, FISH_CAPACITY } from './lake';
 import type { Lure } from './lure';
 import type { Random } from './random';
@@ -49,6 +50,8 @@ export class Bite {
   twitchUntil = -Infinity;
   /** Until when each fish keeps away, having let go. */
   readonly wary = new Float64Array(FISH_CAPACITY);
+  /** The gifts held, which the game hands over when it has them: the bobber's window and the bait's notice. */
+  gear: Gear = NO_GEAR;
 
   constructor(private readonly events: BiteEvents = {}) {}
 
@@ -62,7 +65,7 @@ export class Bite {
     }
     const [bx, by] = [lure.bobber[0], lure.bobber[1]];
     if (this.phase === 'none') {
-      const rate = FISHING.notice * (t < this.twitchUntil ? FISHING.twitchBoost : 1);
+      const rate = noticeFor(this.gear) * (t < this.twitchUntil ? FISHING.twitchBoost : 1);
       let chosen = -1,
         nearest = Infinity;
       for (let i = 0; i < school.count; i++) {
@@ -111,7 +114,7 @@ export class Bite {
         return;
       }
       this.phase = 'biting';
-      this.timer = FISHING.window;
+      this.timer = windowFor(this.gear);
       this.events.bitten?.();
       return;
     }

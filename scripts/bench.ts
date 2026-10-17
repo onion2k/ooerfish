@@ -112,7 +112,10 @@ const SCENARIOS: Scenario[] = [
           const { phase } = game.bite;
           if (game.lure.phase === 'ready') game.cast(Math.PI / 2, 0.62);
           if (phase === 'biting') game.strike();
-          game.reel(phase === 'hooked' && careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+          game.reel(
+            phase === 'hooked' &&
+              careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width),
+          );
           if (phase === 'landed') game.stow();
           game.step(DT);
         },

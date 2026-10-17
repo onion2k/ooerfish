@@ -130,6 +130,10 @@ async function main() {
       void showWater();
       pond.cured(cured, toClean);
     },
+    gifted: (name, words) => {
+      log(`gifted ${name}`);
+      pond.gifted(name, words);
+    },
   };
   const game = new Game(new Progress(), { ...(seed !== null ? { random: seeded(+seed) } : {}), events });
 

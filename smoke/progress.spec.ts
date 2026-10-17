@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
-import { FISH_COUNT, HEAL, jettyGap } from '../src/lake';
+import { FIGHT, FISH_COUNT, HEAL, jettyGap } from '../src/lake';
 import { STANDARD, ready, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
@@ -373,7 +373,10 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   expect(landed).toHaveLength(1);
   // shown off on its card, and a tap on the card puts it in the bucket
   await expect(page.locator('#catch')).toBeVisible();
-  await expect(page.locator('#catchName')).toHaveText('glowing perch');
+  // the card names the fish's temper before its kind, the one the game drew when it was hooked
+  const temper = (await page.evaluate(() => window.game!.fishing())).temper;
+  expect(['calm', 'steady', 'feisty']).toContain(temper);
+  await expect(page.locator('#catchName')).toHaveText(`${temper} glowing perch`);
   await expect(page.locator('#catchWeight')).toHaveText(/^\d\.\d\d kg$/);
   await page.locator('#catch').click();
   await play(page, 1, 'stowed');
@@ -462,6 +465,74 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
   expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
   expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12 });
+  expect(await api(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('the second cure gives the line: its toast follows the cure’s once, and the gear is in force', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 1 } });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  expect(await api(() => window.game!.gear())).toEqual({
+    line: false,
+    reel: false,
+    rod: false,
+    bobber: false,
+    bait: false,
+  });
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  // the cure's own line first, and the gift's after it, the two never at once
+  await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
+  await api(() => window.game!.step(150));
+  await expect(page.locator('#toast')).toHaveText(
+    'A gift from the Sunny Atom: a stronger line. The meter drains more slowly.',
+  );
+  expect((await api(() => window.game!.gear())).line).toBe(true);
+  await api(() => window.game!.step(300));
+  await expect(page.locator('#toast')).toBeHidden();
+  expect((await api(() => window.game!.events())).filter((e) => e.startsWith('gifted'))).toEqual([
+    'gifted a stronger line',
+  ]);
+  expect(await api(() => window.game!.invariants())).toEqual([]);
+
+  // the next cure is not a gift, and says only that it cured
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
+  await api(() => window.game!.step(600));
+  // the log was read (and so emptied) above with the one gift in it: this read has the third cure and no second gift
+  const later = await api(() => window.game!.events());
+  expect(later).toContain('cured 3/12');
+  expect(later.filter((e) => e.startsWith('gifted'))).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('a load from a save of 6 holds the line, reel and rod with no toast, and the next fight has the rod’s zone', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 6 } });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  expect(await api(() => window.game!.gear())).toEqual({
+    line: true,
+    reel: true,
+    rod: true,
+    bobber: false,
+    bait: false,
+  });
+  await expect(page.locator('#toast')).toBeHidden();
+  expect(await api(() => window.game!.fishTo('fight'))).toBe(true);
+  expect((await api(() => window.game!.fishing())).width).toBeCloseTo(FIGHT.width + 0.06, 12);
+  // the bar draws the wider zone: its height is the line's width, as a share of the bar
+  const bar = await page.locator('#gaugeZone').evaluate((e) => (e as HTMLElement).style.height);
+  expect(bar).toBe(`${Math.round((FIGHT.width + 0.06) * 1000) / 10}%`);
+  await expect(page.locator('#toast')).toBeHidden();
+  expect((await api(() => window.game!.events())).filter((e) => e.startsWith('gifted'))).toEqual([]);
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });

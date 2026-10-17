@@ -242,7 +242,7 @@ describe('the catch, drawn', () => {
   it('hangs the landed fish from the rod tip on a short line, the lure at its mouth, until it is stowed', () => {
     const game = onTheLine(3);
     for (let f = 0; f < 120 / DT && game.bite.phase === 'hooked'; f++) {
-      game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+      game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width));
       game.step(DT);
     }
     expect(game.bite.phase).toBe('landed');

@@ -1,11 +1,13 @@
 /** The balance tool's sums: the delayed hand, one fight, a cell, the table and its comparison, and faults put there on purpose. */
 import { afterEach, describe, expect, it } from 'vitest';
-import { drawTemper, fightFor } from '../src/fight';
+import { drawTemper, fightFor, gearFor, NO_GEAR } from '../src/fight';
 import { FIGHT } from '../src/lake';
 import {
   BANDS,
   DelayedHand,
   GEARS,
+  GEAR_LEVELS,
+  biteLines,
   REACTIONS,
   cellKey,
   compareTables,
@@ -81,7 +83,7 @@ describe('a fight', () => {
     while (result === 'fighting' && frames < 7200) {
       past.push(line.fishAt);
       const at = past.length > reaction ? past[past.length - 1 - reaction] : line.fishAt;
-      result = line.step(1 / 60, careful(line.zone, line.zoneSpeed, at), 0.5, random);
+      result = line.step(1 / 60, careful(line.zone, line.zoneSpeed, at, line.figures.width), 0.5, random);
       frames++;
     }
     const r = playFight(seeded(3), { reaction, heft: 0.4 });
@@ -121,6 +123,27 @@ describe('the table', () => {
     expect(text).toContain('0.25 s');
     expect(text).toContain('light');
     expect(text).toContain('heavy');
+  });
+});
+
+describe('the gear levels', () => {
+  it('are none, the line, the line and reel, those and the rod, and all five, none being today’s game', () => {
+    expect(GEARS).toEqual(['none', 'line', 'line+reel', 'line+reel+rod', 'all']);
+    expect(GEAR_LEVELS.none).toBe(NO_GEAR);
+    expect(GEAR_LEVELS.all).toEqual(gearFor(10));
+  });
+  it('play the line with the gear’s figures, so a fight at a level is a fight with that gear', () => {
+    const bare = playCell({ gear: 'none', reaction: 24, band: 'heavy' }, 60);
+    const line = playCell({ gear: 'line', reaction: 24, band: 'heavy' }, 60);
+    const all = playCell({ gear: 'all', reaction: 24, band: 'heavy' }, 60);
+    expect(line.landed).toBeGreaterThan(bare.landed);
+    expect(all.landed).toBeGreaterThanOrEqual(line.landed);
+    const a = playFight(seeded(4), { reaction: 15, heft: 0.5, temper: 'steady', gear: gearFor(6) });
+    const b = playFight(seeded(4), { reaction: 15, heft: 0.5, temper: 'steady' });
+    expect(a).not.toEqual(b);
+  });
+  it('say what the bobber and the bait do, which the line cannot show', () => {
+    expect(biteLines().join('\n')).toMatch(/window 0.90 s -> 1.26 s[\s\S]*0.40 a second -> 0.60 a second/);
   });
 });
 

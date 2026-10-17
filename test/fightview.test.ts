@@ -23,7 +23,7 @@ function hooked(seed = 1): Game {
   game.strike();
   expect(game.bite.phase).toBe('hooked');
   for (let f = 0; f < 120; f++) {
-    game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+    game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width));
     game.step(DT);
   }
   expect(game.bite.phase).toBe('hooked');
@@ -35,7 +35,7 @@ function landed(seed = 1): Game {
   const game = biting(seed);
   game.strike();
   for (let f = 0; f < 7200 && game.bite.phase === 'hooked'; f++) {
-    game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt));
+    game.reel(careful(game.line.zone, game.line.zoneSpeed, game.line.fishAt, game.line.figures.width));
     game.step(DT);
   }
   game.reel(false);

@@ -535,6 +535,32 @@ export const TEMPERS = [
   { name: 'feisty', odds: 0.25, dart: 1.07, reach: 1.176, rest: 0.78, fill: 0.93 },
 ] as const;
 
+/**
+ * The gifts the pond gives as it is cured (`docs/fight2.md`), in the order they come: the cure count that earns each,
+ * its id, its name and the words the toast says of it, and the one figure it eases, by a multiplier (`times`) or an
+ * amount added (`plus`): the line drains the meter more slowly, the reel lifts the zone faster, the rod widens it, the
+ * bobber holds the strike's window open longer and the bait makes fish notice the lure sooner. The gear is worked out
+ * from the count cured, so the save holds nothing of it. First guesses that help visibly, to be tuned with the balance
+ * tool and the pace gate.
+ */
+export const GEAR = [
+  { id: 'line', at: 2, name: 'a stronger line', words: 'The meter drains more slowly.', figure: 'drain', times: 0.75 },
+  { id: 'reel', at: 4, name: 'a faster reel', words: 'Your zone lifts faster.', figure: 'push', times: 1.25 },
+  { id: 'rod', at: 6, name: 'a longer rod', words: 'Your zone is wider.', figure: 'width', plus: 0.06 },
+  {
+    id: 'bobber',
+    at: 8,
+    name: 'a bigger bobber',
+    words: 'The strike window lasts longer.',
+    figure: 'window',
+    times: 1.4,
+  },
+  { id: 'bait', at: 10, name: 'tastier bait', words: 'Fish notice the lure sooner.', figure: 'notice', times: 1.5 },
+] as const;
+
+/** Who gives the gifts, as the toast names them: the power plant's mascot. */
+export const GIFT_GIVER = 'the Sunny Atom';
+
 /** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */
 export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
 import { depthRange } from '../src/fish';
+import { fightFor, gearFor } from '../src/fight';
 import { DECK, bedDepth, inside } from '../src/lake';
 import { newGame, settle } from './helpers';
 
@@ -17,6 +18,25 @@ describe('what must always hold', () => {
     game.fish.x[0] = DECK.x + DECK.inward[0] * 6;
     game.fish.y[0] = DECK.y + DECK.inward[1] * 6;
     expect(checkInvariants(game).join('\n')).toMatch(/fish 0 is out of the water/);
+  });
+
+  it('reports gear that is not what the count cured earns, and a zone that is not the gear’s while a fish is on', () => {
+    const { game } = newGame(1, JSON.stringify({ cured: 6 }));
+    expect(checkInvariants(game)).toEqual([]);
+    game.gear = { ...game.gear, rod: false };
+    expect(checkInvariants(game).join('\n')).toMatch(/the rod is not held, but 6 cured earns it true/);
+    game.gear = { ...game.gear, rod: true, bait: true };
+    expect(checkInvariants(game).join('\n')).toMatch(/the bait is held/);
+    game.gear = gearFor(6);
+    game.bite.gear = gearFor(0);
+    expect(checkInvariants(game).join('\n')).toMatch(/the bite has not the gear/);
+    game.bite.gear = game.gear;
+    game.bite.phase = 'hooked';
+    game.bite.fish = game.fish.held = 0;
+    game.lure.phase = 'hooked';
+    game.lure.at.set([game.fish.x[0], game.fish.y[0], -game.fish.depth[0]]);
+    game.line.start(5, fightFor(0.5, 'steady'), () => 0.5);
+    expect(checkInvariants(game).join('\n')).toMatch(/the zone is 0.28 wide, the gear's is 0.34/);
   });
 
   it('reports a time that is not a number, or before the start', () => {

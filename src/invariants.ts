@@ -13,7 +13,19 @@
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
 import type { Game } from './game';
-import { FIGHT, FISHING, FISH_CAPACITY, FISH_COUNT, SPLASH_CAPACITY, SWIM, bedDepth, ground, inside } from './lake';
+import { fightFor, gearFor } from './fight';
+import {
+  FIGHT,
+  FISHING,
+  FISH_CAPACITY,
+  FISH_COUNT,
+  GEAR,
+  SPLASH_CAPACITY,
+  SWIM,
+  bedDepth,
+  ground,
+  inside,
+} from './lake';
 import { poseFish } from './swim';
 
 /** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
@@ -122,6 +134,13 @@ export function checkInvariants(game: Game): string[] {
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
   else if (fish.curedCount() !== Math.min(cured, FISH_COUNT))
     out.push(`${fish.curedCount()} fish are cured, but the save says ${cured}, of ${FISH_COUNT} in the pond`);
+  // the gifts in force are the ones the count has earned, and nothing else; the zone a fight plays is that gear's width
+  // (a fight under way keeps its own, so only a line at rest is held to the gear in force)
+  const gear = gearFor(cured);
+  for (const g of GEAR)
+    if (game.gear[g.id] !== gear[g.id])
+      out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${cured} cured earns it ${gear[g.id]}`);
+  if (game.bite.gear !== game.gear) out.push('the bite has not the gear the game holds');
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }
@@ -160,6 +179,13 @@ function fishingRules(game: Game): string[] {
   if (!(line.tension >= 0 && line.tension <= 1)) out.push(`the line's tension is ${line.tension}`);
   if (!(line.out >= 0 && line.out <= FIGHT.spool))
     out.push(`the line out is ${line.out}, of a spool of ${FIGHT.spool}`);
+  // the gear changes only when a fish is stowed, never in a fight, so the zone a fish on the line is played in is the one
+  // the gear in force gives
+  if (bite.phase === 'hooked' || bite.phase === 'landed') {
+    const width = fightFor(0, 'steady', game.gear).width;
+    if (Math.abs(line.figures.width - width) > 1e-9)
+      out.push(`the zone is ${line.figures.width} wide, the gear's is ${width}`);
+  }
   if (!(line.zone >= 0 && line.zone <= 1 - line.figures.width)) out.push(`the zone is at ${line.zone}, off the bar`);
   if (!(line.fishAt >= 0 && line.fishAt <= 1)) out.push(`the fish is at ${line.fishAt} on the bar`);
   if (!(line.meter >= 0 && line.meter <= 1)) out.push(`the meter is at ${line.meter}`);

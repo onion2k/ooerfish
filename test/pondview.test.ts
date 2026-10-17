@@ -10,6 +10,9 @@ const state = (over: Partial<PondState> = {}): PondState => ({
   cast: false,
   toastCured: 0,
   toastUntil: -Infinity,
+  gift: null,
+  giftFrom: -Infinity,
+  giftUntil: -Infinity,
   t: 0,
   ...over,
 });
@@ -51,6 +54,27 @@ describe('what the pond says', () => {
     const at = (cured: number) => pondWords(state({ cured, toastCured: cured, toastUntil: 9, t: 1 })).toast;
     expect(at(CURE.toClean)).toEqual({ lead: 'The Duck Pond is clean!', bold: 'Every fish is cured.' });
     expect(at(CURE.toClean - 1)?.lead).toBe('Cured!');
+  });
+});
+
+describe('what the pond says of a gift', () => {
+  const gift = { name: 'a stronger line', words: 'The meter drains more slowly.' };
+  const said = (over: Partial<PondState>) =>
+    pondWords(state({ cured: 2, toastCured: 2, toastUntil: 2, gift, giftFrom: 2, giftUntil: 4, ...over })).toast;
+  it('names the giver, the gift and what it does, once the cure’s own line is over', () => {
+    expect(said({ t: 2 })).toEqual({
+      lead: 'A gift from the Sunny Atom: a stronger line.',
+      bold: 'The meter drains more slowly.',
+    });
+    expect(said({ t: 3.9 })?.lead).toContain('Sunny Atom');
+    expect(said({ t: 4 }), 'over at the time').toBe(null);
+  });
+  it('lets the cure’s line have the first two seconds, so the two never overlap', () => {
+    expect(said({ t: 1 })?.lead).toBe('Cured!');
+    expect(said({ t: 1.99 })?.lead).toBe('Cured!');
+  });
+  it('says none with no gift', () => {
+    expect(said({ t: 3, gift: null })).toBe(null);
   });
 });
 
@@ -120,6 +144,21 @@ const total = (el: Record<string, { writes: Record<string, number> }>) =>
   Object.values(el).reduce((n, e) => n + Object.values(e.writes).reduce((a, b) => a + b, 0), 0);
 
 describe('the pond view', () => {
+  it('says the gift after the cure’s line, once, and then nothing', () => {
+    const { game, el, pond } = view();
+    pond.cured(2, CURE.toClean);
+    pond.gifted('a stronger line', 'The meter drains more slowly.');
+    pond.show();
+    expect(el.toast.innerHTML).toContain('Cured!');
+    game.t = 2.5;
+    pond.show();
+    expect(el.toast.innerHTML).toContain('A gift from the Sunny Atom: a stronger line.');
+    expect(el.toast.innerHTML).toContain('<b>The meter drains more slowly.</b>');
+    game.t = 4.5;
+    pond.show();
+    expect(el.toast.hidden).toBe(true);
+  });
+
   it('shows the gauge, the name and the welcome at the start, hides the toast, and reads the gauge for a screen reader', () => {
     const { el, pond } = view();
     pond.show();

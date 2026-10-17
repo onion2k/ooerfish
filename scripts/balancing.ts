@@ -9,7 +9,16 @@
  * move it, and is written again through /gate-moved.
  */
 import { careful } from '../src/angler';
-import { drawTemper, fightFor, type Temper } from '../src/fight';
+import {
+  drawTemper,
+  fightFor,
+  gearFor,
+  noticeFor,
+  NO_GEAR,
+  windowFor,
+  type Gear as GearHeld,
+  type Temper,
+} from '../src/fight';
 import { Line } from '../src/line';
 import { seeded, type Random } from '../src/random';
 
@@ -28,15 +37,26 @@ export const BANDS = [
   { name: 'middle', lo: 0.33, hi: 0.66 },
   { name: 'heavy', lo: 0.66, hi: 1 },
 ] as const;
-/** The gear the hand has. Only none now; the gifts add their levels here, and every cell is played at each. */
-export const GEARS = ['none'] as const;
+/**
+ * The gear the hand has, a level at a time as the gifts come: none, the line, the line and the reel, those and the rod,
+ * and all five. Every cell is played at each. The bobber and the bait belong to the bite and change nothing the `Line`
+ * plays, so the table cannot show them: the last level only holds them, and `biteLines` says what they do.
+ */
+export const GEAR_LEVELS = {
+  none: NO_GEAR,
+  line: gearFor(2),
+  'line+reel': gearFor(4),
+  'line+reel+rod': gearFor(6),
+  all: gearFor(10),
+} as const satisfies Record<string, GearHeld>;
+export const GEARS = Object.keys(GEAR_LEVELS) as (keyof typeof GEAR_LEVELS)[];
 /**
  * How many fights a cell plays in the check: a fight is 0.1% of a rate. The table takes about 0.9 s, so six gear
  * levels would still take about five.
  */
 export const FIGHTS = 1000;
 
-export type Gear = (typeof GEARS)[number];
+export type Gear = keyof typeof GEAR_LEVELS;
 export type BandName = (typeof BANDS)[number]['name'];
 export interface Cell {
   gear: Gear;
@@ -86,6 +106,8 @@ export interface FightOptions {
   heft: number;
   /** The fish's temper; steady unless a test asks otherwise, since a fight with none given draws one as the game does. */
   temper?: Temper;
+  /** The gifts held; none unless a cell asks. */
+  gear?: GearHeld;
   /** What the hand does for the line and the fish it sees; the careful hand unless a test asks otherwise. */
   hand?: (line: Line, seen: number) => boolean;
   capSeconds?: number;
@@ -99,9 +121,9 @@ export interface FightResult {
 export function playFight(random: Random, o: FightOptions): FightResult {
   const line = new Line();
   const delayed = new DelayedHand(o.reaction);
-  const hand = o.hand ?? ((l: Line, seen: number) => careful(l.zone, l.zoneSpeed, seen));
+  const hand = o.hand ?? ((l: Line, seen: number) => careful(l.zone, l.zoneSpeed, seen, l.figures.width));
   // the temper is drawn here, one draw after the heft and before the line's own, as the game's hook does
-  line.start(OUT, fightFor(o.heft, o.temper ?? drawTemper(random)), random);
+  line.start(OUT, fightFor(o.heft, o.temper ?? drawTemper(random), o.gear), random);
   const frames = Math.round((o.capSeconds ?? CAP_SECONDS) / DT);
   for (let f = 1; f <= frames; f++) {
     delayed.push(line.fishAt);
@@ -136,7 +158,13 @@ export function playCell(cell: Cell, fights: number, o: CellOptions = {}): Resul
   for (let i = 0; i < fights; i++) {
     const random = seeded(fightSeed(i, cell.reaction, cell.band));
     const heft = band.lo + random() * (band.hi - band.lo);
-    const r = playFight(random, { reaction: o.reaction ?? cell.reaction, heft, hand: o.hand, temper: o.temper });
+    const r = playFight(random, {
+      reaction: o.reaction ?? cell.reaction,
+      heft,
+      hand: o.hand,
+      temper: o.temper,
+      gear: GEAR_LEVELS[cell.gear],
+    });
     if (r.result === 'landed') times.push(r.seconds);
   }
   const m = medianOf(times);
@@ -173,7 +201,7 @@ export function compareTables(baseline: Table, now: Table): string[] {
 /** The table as the spec's: a row a reaction (and gear), a column a size, each "rate, median". */
 export function formatTable(table: Table): string {
   const lines: string[] = [];
-  lines.push(['gear', 'reaction', ...BANDS.map((b) => b.name.padEnd(16))].join('  '));
+  lines.push(['gear'.padEnd(13), 'reaction', ...BANDS.map((b) => b.name.padEnd(16))].join('  '));
   for (const gear of GEARS)
     for (const reaction of REACTIONS) {
       const cells = BANDS.map((band) => {
@@ -182,7 +210,7 @@ export function formatTable(table: Table): string {
         const rate = Math.round((100 * r.landed) / r.fights);
         return `${rate}%, ${r.median === null ? '-' : `${r.median.toFixed(1)} s`}`.padEnd(16);
       });
-      lines.push([gear.padEnd(4), `${(reaction / 60).toFixed(2)} s`.padEnd(8), ...cells].join('  '));
+      lines.push([gear.padEnd(13), `${(reaction / 60).toFixed(2)} s`.padEnd(8), ...cells].join('  '));
     }
   return lines.join('\n');
 }
@@ -211,4 +239,12 @@ export function formatTemperTable(table: Table): string {
     lines.push([temper.padEnd(7), ...cells].join('  '));
   }
   return lines.join('\n');
+}
+
+/** What the gifts the table cannot play do instead, in words: the bobber's window and the bait's notice, with and without. */
+export function biteLines(): string[] {
+  return [
+    `the bobber, which the line does not play: the strike's window ${windowFor(NO_GEAR).toFixed(2)} s -> ${windowFor(GEAR_LEVELS.all).toFixed(2)} s`,
+    `the bait, likewise: a fish in reach notices the lure at ${noticeFor(NO_GEAR).toFixed(2)} a second -> ${noticeFor(GEAR_LEVELS.all).toFixed(2)} a second`,
+  ];
 }

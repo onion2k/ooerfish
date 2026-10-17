@@ -2,9 +2,10 @@
  * What a fish's size and temper do to its fight, as plain sums: `fightFor` gives the figures a `Line` plays by, so the
  * line itself has no idea of sizes or tempers and the balance tool plays the very same fights as the game. Without it
  * the figures would be read straight from `FIGHT` and every fish would fight alike. Like `line.ts`, it reads the
- * content tables itself; the gear (part of the plan not built yet) will be a further argument here.
+ * content tables itself. The gifts the cure count has earned (`gearFor`) are a further argument, and ease the figures
+ * they name; the bobber's and the bait's belong to the bite, which asks `windowFor` and `noticeFor`.
  */
-import { FIGHT, SIZE, TEMPERS } from './lake';
+import { FIGHT, FISHING, GEAR, SIZE, TEMPERS } from './lake';
 import type { Random } from './random';
 
 export type Temper = (typeof TEMPERS)[number]['name'];
@@ -47,12 +48,34 @@ export function drawTemper(random: Random): Temper {
   return TEMPERS[TEMPERS.length - 1].name;
 }
 
-/** The figures of a fight with a fish of `heft` (from nought to one) and a `temper`. */
-export function fightFor(heft: number, temper: Temper): FightFigures {
+/** Which gifts are held: a flag for each, by its id in `GEAR`. A small object, so it never grows with the count. */
+export type Gear = Readonly<Record<(typeof GEAR)[number]['id'], boolean>>;
+
+/** The gear of a player who has been given nothing. */
+export const NO_GEAR: Gear = { line: false, reel: false, rod: false, bobber: false, bait: false };
+
+/** The gifts a count of fish cured has earned, all of them held for good once earned; none for what is not a count. */
+export function gearFor(cured: number): Gear {
+  const gear = { ...NO_GEAR } as Record<keyof Gear, boolean>;
+  for (const g of GEAR) gear[g.id] = cured >= g.at;
+  return gear;
+}
+
+const gift = <T extends (typeof GEAR)[number]['id']>(id: T) =>
+  GEAR.find((g) => g.id === id) as Extract<(typeof GEAR)[number], { id: T }>;
+
+/** How long the strike's window stays open, the bobber's gift lengthening it. */
+export const windowFor = (gear: Gear) => FISHING.window * (gear.bobber ? gift('bobber').times : 1);
+
+/** How likely a fish in reach is to notice the lure a second, the bait's gift raising it. */
+export const noticeFor = (gear: Gear) => FISHING.notice * (gear.bait ? gift('bait').times : 1);
+
+/** The figures of a fight with a fish of `heft` (from nought to one) and a `temper`, eased by the `gear` held. */
+export function fightFor(heft: number, temper: Temper, gear: Gear = NO_GEAR): FightFigures {
   const h = clamp(heft, 0, 1);
   const t = temperNamed(temper);
   const rest = (1 + SIZE.rest * h) * t.rest;
-  const width = FIGHT.width;
+  const width = FIGHT.width + (gear.rod ? gift('rod').plus : 0);
   return {
     heft: h,
     dart: FIGHT.dart * (1 + SIZE.dart * h) * t.dart,
@@ -65,9 +88,9 @@ export function fightFor(heft: number, temper: Temper): FightFigures {
     rest: [FIGHT.rest[0] * rest, FIGHT.rest[1] * rest],
     sickRest: FIGHT.sickRest,
     fill: FIGHT.fill * (1 + SIZE.fill * h) * t.fill,
-    drain: FIGHT.drain,
+    drain: FIGHT.drain * (gear.line ? gift('line').times : 1),
     width,
-    push: FIGHT.push,
+    push: FIGHT.push * (gear.reel ? gift('reel').times : 1),
     fall: FIGHT.fall,
   };
 }

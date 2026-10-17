@@ -37,6 +37,19 @@ describe('the fuzzer', () => {
       expect(happened[event], event).toBeGreaterThan(0);
   });
 
+  it('reaches the gifts: across seeds 1 to 24 some start with gear, some are given a gift in play, and none breaks a rule', () => {
+    let given = 0,
+      withGear = 0;
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      given += r.happened.gifted;
+      if (r.done['start gifts'] > 0) withGear++;
+    }
+    expect(given, 'gifts given in play').toBeGreaterThan(0);
+    expect(withGear, 'seeds that start with gear').toBeGreaterThan(0);
+  });
+
   it('reaches a clean pond: across a few seeds it is clean for some frames, a cast is made into it, nothing bites there, and no more than twelve are ever cured', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 8; seed++) {

@@ -10,6 +10,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
   FIGHTS,
+  biteLines,
   TEMPER_REACTION,
   compareTables,
   formatTable,
@@ -36,6 +37,7 @@ function main() {
   console.log(formatTable(table));
   console.log(`\nby temper, at the ${(TEMPER_REACTION / 60).toFixed(2)} s hand (not held to a baseline yet):`);
   console.log(formatTemperTable(playTemperTable(fights)));
+  console.log(`\nwhat the table cannot play:\n${biteLines().join('\n')}`);
   console.log(`${Object.keys(table).length} cells of ${fights} fights (${seconds} s)`);
   if (args.includes('--print') || fights !== FIGHTS) return;
 

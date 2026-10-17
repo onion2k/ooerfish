@@ -8,7 +8,6 @@
  * It does only what a player could: it calls the game's cast, strike, reel and stow, and reads what the page shows.
  */
 import type { Game } from './game';
-import { FIGHT } from './lake';
 import type { Random } from './random';
 
 /** How late the angler sees the fish on the bar, in frames of a sixtieth: a quarter of a second, a player's reaction. */
@@ -20,11 +19,12 @@ const AIM = { angle: Math.PI / 2, power: 0.62, spread: 0.25, powerSpread: 0.08 }
 
 /**
  * What a careful hand does on the bar, for the zone at `zone` moving at `speed` and the fish seen at `fishAt`: it holds
- * while the zone's middle, where it will be a moment on, is below the fish. The fuzzer, the bench and the tests play by
+ * while the zone's middle, where it will be a moment on, is below the fish. The zone's `width` is the line's own, which a rod
+ * widens: centred on the wrong width, the hand would make a gift look like a loss. The fuzzer, the bench and the tests play by
  * it too, so a fight played anywhere is played the same way.
  */
-export function careful(zone: number, speed: number, fishAt: number): boolean {
-  return fishAt - (zone + FIGHT.width / 2) - LEAD * speed > 0;
+export function careful(zone: number, speed: number, fishAt: number, width: number): boolean {
+  return fishAt - (zone + width / 2) - LEAD * speed > 0;
 }
 
 export class Angler {
@@ -48,7 +48,7 @@ export class Angler {
     if (g.bite.phase === 'hooked') {
       // until it has watched the fish for a reaction, it goes by where the fish is now
       const at = this.frames > REACTION ? this.seen[(this.frames - 1 - REACTION) % this.seen.length] : g.line.fishAt;
-      g.reel(careful(g.line.zone, g.line.zoneSpeed, at));
+      g.reel(careful(g.line.zone, g.line.zoneSpeed, at, g.line.figures.width));
     } else g.reel(false);
     if (g.lure.phase === 'lying') g.reelIn();
     if (g.lure.phase === 'ready')
