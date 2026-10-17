@@ -106,3 +106,29 @@ describe('what must always hold', () => {
     expect(checkInvariants(g).join('\n')).toMatch(/fish 0 is cured, but it is the bite's \(coming\)/);
   });
 });
+
+describe('the water the page shows', () => {
+  it('is within nought and one', () => {
+    const { game } = newGame();
+    game.waterDirt = 1.5;
+    expect(checkInvariants(game).join('\n')).toMatch(/the water's dirt is 1.5/);
+    game.waterDirt = NaN;
+    expect(checkInvariants(game).join('\n')).toMatch(/the water's dirt is NaN/);
+  });
+  it('is never cleaner than the truth', () => {
+    const { game } = newGame();
+    game.contamination = 0.5;
+    game.waterDirt = 0.4;
+    expect(checkInvariants(game).join('\n')).toMatch(/the water is cleaner than the lake/);
+  });
+  it('never rises unless the lever was set', () => {
+    const { game } = newGame();
+    game.contamination = 0.2;
+    game.waterDirt = 0.6;
+    expect(checkInvariants(game)).toEqual([]);
+    game.waterDirt = 0.7;
+    expect(checkInvariants(game).join('\n')).toMatch(/the water's dirt rose from 0.6 to 0.7, and no lever was set/);
+    game.setContamination(0.9);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+});

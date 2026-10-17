@@ -8,6 +8,7 @@
  * Nothing here waits on anything the page does, so the same lake runs in the
  * page and in Node, and what the tests try is what is drawn.
  */
+import { healToward } from './heal';
 import { Bite, type Strike } from './bite';
 import { School, steerTo } from './fish';
 import { Line } from './line';
@@ -15,6 +16,7 @@ import {
   CLOCK,
   DROP_NEAR,
   contaminationAfter,
+  HEAL,
   CURE,
   FIGHT,
   FISHING,
@@ -82,6 +84,15 @@ export class Game {
   private readonly events: GameEvents;
   /** How dirty the lake is, from clear (0) to as sick as it gets (1): worked out from the fish cured, and only the cure lowers it. */
   contamination: number;
+  /**
+   * The contamination the water shows: it follows `contamination` down over `HEAL.seconds` of game time after a cure,
+   * and is set at once by the lever and on a load. The fight reads the truth, `contamination`, never this.
+   */
+  waterDirt: number;
+  /** Where the water's heal began, what it heals to, and the game time it has run: a cure starts a new one from `waterDirt`. */
+  healFrom: number;
+  healTo: number;
+  healElapsed = 0;
   /** How many times the lever has set the contamination, which the invariants read to tell a rise by the lever from one by any other road. */
   levers = 0;
   /** Where the day is, from midnight (0) through noon (0.5), up to but not reaching midnight again: one is nought. */
@@ -93,6 +104,7 @@ export class Game {
   ) {
     this.random = options.random ?? Math.random;
     this.contamination = contaminationAfter(progress.save.cured);
+    this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
     const e = this.events;
     // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
@@ -115,6 +127,8 @@ export class Game {
   /** One frame of `dt` seconds. */
   step(dt: number) {
     this.t += dt;
+    this.healElapsed += dt;
+    this.waterDirt = healToward(this.healFrom, this.healTo, this.healElapsed, HEAL.seconds);
     this.setTimeOfDay(this.timeOfDay + dt / CLOCK.daySeconds);
     this.fish.step(dt, this.random);
     // a lure landing on the water splashes, smaller than a pebble
@@ -172,6 +186,10 @@ export class Game {
     save.cured = Math.min(save.cured + 1, Number.MAX_SAFE_INTEGER);
     // never above where it is: a lake the lever has made cleaner than the count says is not made dirtier by a cure
     this.contamination = Math.min(this.contamination, contaminationAfter(save.cured));
+    // the water follows, from where it is now and not from where it was, so two cures close together never jump
+    this.healFrom = this.waterDirt;
+    this.healTo = this.contamination;
+    this.healElapsed = 0;
     this.persist();
     this.events.cured?.(save.cured, CURE.toClean);
     return true;
@@ -239,6 +257,9 @@ export class Game {
   setContamination(v: number) {
     if (Number.isNaN(v)) return;
     this.contamination = Math.min(1, Math.max(0, v));
+    // the water is set with it and any heal is over: the lever is for looking, and wants the picture now
+    this.waterDirt = this.healFrom = this.healTo = this.contamination;
+    this.healElapsed = 0;
     this.levers++;
   }
 

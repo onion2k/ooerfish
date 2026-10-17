@@ -631,6 +631,13 @@ export function framingFor(name: ViewName, aspect: number): View {
  */
 export const CURE = { toClean: FISH_COUNT } as const;
 
+/**
+ * How the water heals after a cure (first guesses): the seconds of game time it takes to catch up with the lake, and
+ * the step the page draws it in, a part of the whole dirt from sick to clean so that a heal is a few dozen handovers
+ * of the water and not one a frame. Said here once, for the game's sums and the page's drawing both.
+ */
+export const HEAL = { seconds: 30, step: 1 / 480 } as const;
+
 /** How sick the lake is once `cured` fish have been cured: from sick (1) down a share a fish, to clean (0), where it stays. */
 export function contaminationAfter(cured: number): number {
   return Math.max(0, 1 - cured / CURE.toClean);

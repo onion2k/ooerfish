@@ -23,7 +23,7 @@ const spine = new Float64Array((SWIM.segments.length + 1) * 3);
 const EACH = 3;
 
 /** What each game's contamination was when the rules were last asked, and how many times the lever had been set: a rise with the lever unmoved is a fault. */
-const seen = new WeakMap<Game, { contamination: number; levers: number }>();
+const seen = new WeakMap<Game, { contamination: number; waterDirt: number; levers: number }>();
 
 export function checkInvariants(game: Game): string[] {
   const out: string[] = [];
@@ -111,7 +111,13 @@ export function checkInvariants(game: Game): string[] {
   const was = seen.get(game);
   if (was && was.levers === game.levers && game.contamination > was.contamination)
     out.push(`the contamination rose from ${was.contamination} to ${game.contamination}, and no lever was set`);
-  seen.set(game, { contamination: game.contamination, levers: game.levers });
+  // the water the page shows lies between the truth and sick, and like the truth it only falls but by the lever
+  if (!(game.waterDirt >= 0 && game.waterDirt <= 1)) out.push(`the water's dirt is ${game.waterDirt}`);
+  else if (game.waterDirt < game.contamination)
+    out.push(`the water is cleaner than the lake: ${game.waterDirt} against ${game.contamination}`);
+  if (was && was.levers === game.levers && game.waterDirt > was.waterDirt)
+    out.push(`the water's dirt rose from ${was.waterDirt} to ${game.waterDirt}, and no lever was set`);
+  seen.set(game, { contamination: game.contamination, waterDirt: game.waterDirt, levers: game.levers });
   const { cured } = game.progress.save;
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
   else if (fish.curedCount() !== Math.min(cured, FISH_COUNT))

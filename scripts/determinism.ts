@@ -112,6 +112,7 @@ export function hashGame(game: Game): string {
   ])
     eat(n);
   eat(game.contamination);
+  eat(game.waterDirt);
   eat(game.timeOfDay);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');

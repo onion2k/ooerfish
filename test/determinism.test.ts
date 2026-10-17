@@ -28,6 +28,12 @@ describe('the same seed gives the same game', () => {
     expect(hashGame(one)).not.toBe(hash);
     one.t -= 1e-6;
     expect(hashGame(one)).toBe(hash);
+    // two games alike but for the water they show
+    const water = one.waterDirt;
+    one.waterDirt = water + 0.001;
+    expect(hashGame(one)).not.toBe(hash);
+    one.waterDirt = water;
+    expect(hashGame(one)).toBe(hash);
     one.fish.x[3] += 0.001;
     expect(hashGame(one)).not.toBe(hash);
     one.fish.x[3] -= 0.001;
