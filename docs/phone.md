@@ -192,7 +192,7 @@ The real phone's lag, the flick's feel, and the iOS motion prompt. These need yo
       `game.phone()` and `game.pair()`, `dev:phone`. Check: `phone.spec.ts` pairing steps on the local link;
       `scripts/pair.ts` pairs over Nostr once.
 - [x] 6. **The phone page:** `phone.html`, pad, motion, word, bar, buzz. Check: `phone.spec.ts` complete.
-- [ ] 7. **Fuzzer, leaks, pictures, CLAUDE.md.** Check: `fuzz -- --seeds 1-24` clean, leaks green, pictures
+- [x] 7. **Fuzzer, leaks, pictures, CLAUDE.md.** Check: `fuzz -- --seeds 1-24` clean, leaks green, pictures
       written and each looked at.
 - [ ] 8. **The pass:** `npm run check`, the perf baseline through `/gate-moved` (download only), the mutations, and
       the report.

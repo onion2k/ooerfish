@@ -20,13 +20,17 @@
  * (half-unit cells over the banks, a fixed size) and handed to the renderer, which
  * grows the blades again each frame from a hash into buffers sized once, so nothing
  * is added to over an hour; the trees, pebbles and clumps are a fixed set of placements
- * made once. Switching rung hands the renderer a grass field or none, and is the
+ * made once. The phone keeps two things, and both are watched: the gesture's holds (at most one for each of the four
+ * sources that can hold the reel) and the session's peers (the one phone; a second is told the screen is busy and
+ * forgotten, and the refusals are a count and the last reason, cut short). The leak run plays a busy room through the
+ * real session and gesture, with a link that goes nowhere. Switching rung hands the renderer a grass field or none, and is the
  * page's, not the game's, and so not played here.
  */
 import { Game } from '../src/game';
 import { FISH_CAPACITY, SPLASH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
+import { collectionsKept, crowd, type Crowd } from './phonemonkey';
 
 const DT = 1 / 60;
 
@@ -39,13 +43,20 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   fish: { ceiling: FISH_CAPACITY },
   splashes: { ceiling: SPLASH_CAPACITY },
   'save bytes': { ceiling: 2_000 },
+  // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
+  'gesture holds': { ceiling: 4 },
+  // the one phone; a second or a stranger is never kept
+  'session peers': { ceiling: 1 },
   // the catch-all for what is leaking and has no name here; noisy, so it is given a lot of room
   'heap MB': { ceiling: 300, steady: true },
 };
 
 /** Every size worth watching, read off a game as it stands. */
-export function sizes(game: Game): Record<string, number> {
+export function sizes(game: Game, room?: Crowd): Record<string, number> {
   return {
+    // what the phone's gesture and session keep, counted by what their collections hold, so that one added later is seen
+    'gesture holds': room ? collectionsKept(room.gesture) : 0,
+    'session peers': room ? collectionsKept(room.session) + (room.session.reading().paired ? 1 : 0) : 0,
     fish: game.fish.count,
     splashes: game.splashes.count,
     'save bytes': JSON.stringify(game.progress.save).length,
@@ -108,9 +119,14 @@ export function leakRun({ seed, minutes }: LeakOptions): LeakRun {
   const samples: Record<string, number[]> = {};
   try {
     const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+    // a busy room for the whole run, from a chance of its own so the game plays as it did
+    const room = crowd(() => game, seeded(seed * 13 + 5));
     for (let minute = 0; minute < minutes; minute++) {
-      for (let f = 0; f < 3600; f++) game.step(DT);
-      for (const [key, n] of Object.entries(sizes(game))) (samples[key] ??= []).push(n);
+      for (let f = 0; f < 3600; f++) {
+        room.tick(minute * 3600 + f);
+        game.step(DT);
+      }
+      for (const [key, n] of Object.entries(sizes(game, room))) (samples[key] ??= []).push(n);
     }
     return { seed, minutes, samples, problems: trouble(samples), seconds: (performance.now() - started) / 1000 };
   } catch (err) {

@@ -340,7 +340,7 @@ async function main() {
   /** The overlay once its code has loaded, for the test API to read; null until Pair a phone has been pressed. */
   let overlay: PairingOverlay | null = null;
   /** Shows the pairing overlay, loading its code the first time; `fixed` is the test API's, for a still picture. */
-  async function openPairing(fixed?: { room: string; key: string }) {
+  async function openPairing(fixed?: { room: string; key: string; origin?: string }) {
     pairing ??= import('./phone/pairing').then(
       ({ PairingOverlay }) =>
         new PairingOverlay({

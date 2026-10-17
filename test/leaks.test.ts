@@ -7,6 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { WATCH, grew, sizes, trouble } from '../scripts/leaks';
+import { crowd } from '../scripts/phonemonkey';
+import { seeded } from '../src/random';
 import { newGame } from './helpers';
 
 describe('what must stay bounded', () => {
@@ -19,6 +21,23 @@ describe('what must stay bounded', () => {
       expect(Object.keys(WATCH), `a ceiling for ${key}`).toContain(key);
     }
     expect(now['save bytes'], 'the empty save is two bytes, {}').toBe(2);
+  });
+
+  it('holds the phone to its ceilings through a busy room of phones, strangers and noise', () => {
+    const { game } = newGame();
+    const room = crowd(() => game, seeded(3));
+    let most = { holds: 0, peers: 0 };
+    for (let f = 0; f < 60 * 600; f++) {
+      room.tick(f);
+      game.step(1 / 60);
+      const now = sizes(game, room);
+      most = { holds: Math.max(most.holds, now['gesture holds']), peers: Math.max(most.peers, now['session peers']) };
+    }
+    expect(most.peers, 'a phone was paired at some point').toBe(1);
+    expect(most.holds, 'a phone reeled at some point').toBeGreaterThan(0);
+    expect(most.holds).toBeLessThanOrEqual(WATCH['gesture holds']!.ceiling);
+    expect(most.peers).toBeLessThanOrEqual(WATCH['session peers']!.ceiling);
+    expect(room.session.reading().refused, 'the noise was refused, not kept').toBeGreaterThan(0);
   });
 
   it('knows a size that grows from one that wanders', () => {

@@ -172,9 +172,10 @@ export interface GameApi {
   phone(): PhoneReading;
   /**
    * Opens the pairing overlay as Pair a phone does, resolving once the QR code is drawn. `fixed` names the room and key,
-   * for tests and the look pictures only, so that a picture of the code holds still; a player's press never has one.
+   * for tests and the look pictures only, so that a picture of the code holds still; a player's press never has one. `origin`
+   * likewise names the address the code carries, so a picture does not depend on the port the smoke is served on.
    */
-  pair(fixed?: { room: string; key: string }): Promise<void>;
+  pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -243,7 +244,7 @@ export interface DebugHost {
   settings(): Settings;
   /** The phone's reading, and the overlay opened (on a fixed room for tests). */
   phone(): PhoneReading;
-  pair(fixed?: { room: string; key: string }): Promise<void>;
+  pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
   /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
   change(next: Partial<Settings>): Promise<void>;
   /** The page's mode, and putting the page in one as its button does. */

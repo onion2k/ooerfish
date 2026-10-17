@@ -20,3 +20,13 @@ export function phoneWord(bite: BitePhase, lure: LurePhase): Word {
   if (lure === 'ready' || lure === 'lying') return 'Cast';
   return '';
 }
+
+/**
+ * What the pad says it does: with motion sensors a hold raises the rod and a flick casts, and without them the pad is a
+ * drag as the screen is. Telling a phone with no sensors to flick would leave its owner waving it at nothing.
+ */
+export function padHelp(motion: boolean): string {
+  return motion
+    ? 'Hold to raise the rod, flick to cast. Tap to strike, hold to reel.'
+    : 'Drag back and let go to cast. Tap to strike, hold to reel.';
+}

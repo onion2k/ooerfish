@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { BitePhase } from '../src/bite';
 import type { LurePhase } from '../src/lure';
 import { WORDS } from '../src/phone/protocol';
-import { phoneWord } from '../src/phone/word';
+import { padHelp, phoneWord } from '../src/phone/word';
 
 describe('the phone’s word', () => {
   it('says Cast while the lure is on the rod or lying on the bank', () => {
@@ -28,5 +28,11 @@ describe('the phone’s word', () => {
     const bites: BitePhase[] = ['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'];
     const lures: LurePhase[] = ['ready', 'flying', 'sinking', 'lying', 'hooked'];
     for (const b of bites) for (const l of lures) expect(WORDS).toContain(phoneWord(b, l));
+  });
+
+  it('tells a pad with motion to flick and a pad without to drag', () => {
+    expect(padHelp(true)).toContain('flick to cast');
+    expect(padHelp(false)).toContain('Drag back and let go to cast');
+    expect(padHelp(false)).not.toContain('flick');
   });
 });

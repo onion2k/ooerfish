@@ -72,6 +72,7 @@ looked into.
 ## Commands
 
     npm run dev            the game at http://localhost:5204
+    npm run dev:phone      the same over HTTPS on the LAN, for a real phone (its motion sensors need a secure page)
     npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook; ~10 s)
     npm run check          all of it: check:quick, fuzz, determinism, leaks, bench, pace, smoke with perf and look (~1.5 min)
     npm test               unit tests (Vitest, test/)
@@ -84,6 +85,7 @@ looked into.
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
     npm run film -- --scene <name> --seconds <n>  a scene filmed a stepped frame at a time, for looking at, not a gate
+    npm run pair           two headless browsers paired over the real Nostr relays, with the figures: a tool, not a gate, since it needs the network
     npm run kit -- <dir>   a folder of .glb into public/scenery (see below)
     npm run kit:prune -- <kind> ...  models of those kinds out of public/scenery, no GLBs needed
 
@@ -263,6 +265,22 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   (`docs/splash.md`). `game.ripples()` reads what the last frame handed over.
   `splashBurst` in `src/bursts.ts` is the droplets, emitted on the event.
   `src/pick.ts` turns a tap on the screen into the point on the water.
+- **The phone:** a phone paired by a QR code is the rod (`docs/phone.md`). `src/gesture.ts` is every way of playing
+  as pure rules (`Gesture.handle` from `down`, `move`, `up`, `tilt`, `flick`, `gone` and the key, button and blur,
+  each tagged with its source, to calls on a `GestureTarget`); the reel is held while any source holds it, and
+  `main.ts` only turns DOM events into its events and does the page's own (capture, camera, picking). `src/flick.ts`
+  makes a flick of a run of acceleration samples, on the phone. `src/phone/`: `protocol.ts` the versioned messages
+  each way (refusing unknown, NaN, extra and wrong-version ones by name), `link.ts` a `Link` (`trysteroLink`, WebRTC
+  through public Nostr relays, and `localLink` over `BroadcastChannel`, chosen by `?phonelink=local`, which every test
+  uses so none depends on a relay), `linkname.ts` that address key, `session.ts` the screen's side of **one phone**
+  (the first peer; a second is told `busy` and ignored; a refusal is counted and changes nothing), `pairing.ts` the
+  QR overlay and the room, `word.ts` the phone's large word, and `page.ts` with `phone.html` the phone's own page (a
+  pad, the sensors behind Connect, the word, the fight's bar, the buzz). Pairing is **lazy**: Trystero and the QR
+  library are fetched when Pair a phone is first pressed, never to boot, and the room and key are from `crypto`, not
+  the game's chance. `PHONE` in `lake.ts` (tilt range, aim spread, flick figures, the state rate) are first guesses,
+  tuned on a real phone. `game.phone()` reads the pairing and `game.pair({ room, key })` opens the overlay on a fixed
+  one so a picture holds still. A gesture from the phone in look mode goes to cast at the Shore view; nothing is
+  saved. `scripts/phonemonkey.ts` plays a phone at random for the fuzzer and a busy room of phones for the leak run.
 - `src/settings.ts` reads the lab's settings (the dirt, the time, the view,
   and the water's caustics) from the address and refuses
   what it does not know; `src/lab.ts` is the panel. The save lives in
@@ -298,6 +316,9 @@ What to copy the shape of, when building something new:
   named in `look.ts`'s `PAINT`, a test that it is painted and built the same
   each time, and a picture; the paint turns off with `?paint=off`. See
   `docs/painted.md`.
+- **A way of playing:** the phone: its events in `gesture.ts` with a source, the rules tested there without a page,
+  its messages in `phone/protocol.ts`, a `Link` to carry them, an action in the fuzzer (`scripts/phonemonkey.ts`),
+  what it keeps named in `scripts/leaks.ts`, and a spec in `smoke/phone.spec.ts` that plays the real page.
 - **A control on the lab:** a key in `Settings` with its check in `CHECK`
   (`settings.ts`), a group on the panel (`lab.ts`), what it changes in
   `apply` (`main.ts`), a method on the test API, and a click in the controls
@@ -374,6 +395,9 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the rung:** full and lean, each time of day and view on each; the governor
   choosing at boot, forced by the address, and set through `game.rung()` while
   playing; lean has no grass drawn and the same placements
+- **the phone as the rod:** paired and not; with motion and without; a second phone (told busy, ignored); the phone
+  leaving mid-hold and mid-aim, and a reload (it comes back to the same room); a malformed message (refused by name,
+  nothing changed); each mode, and the first gesture in look; the bite's buzz; the status line clear of the bucket
 - **the lab:** each time of day, each view, caustics on and off, the paint
   on and off (`?paint=off`; `?paint=maybe` refused by name),
   the lake clear and sick; what the address says that is not known; and a

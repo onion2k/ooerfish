@@ -154,7 +154,8 @@ export class PhoneSession {
     const parsed = parsePhoneMessage(raw);
     if (!parsed.ok) {
       this.refused++;
-      this.lastRefusal = parsed.why;
+      // a stranger's own words are in some reasons (a kind it made up), so only the start of one is kept
+      this.lastRefusal = parsed.why.slice(0, 200);
       return;
     }
     const { message } = parsed;

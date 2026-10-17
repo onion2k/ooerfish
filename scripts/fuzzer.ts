@@ -17,6 +17,7 @@ import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
+import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
 const DT = 1 / 60;
 /** How many frames between checks, when nothing has just been done; after anything done, the check is at once. */
@@ -83,6 +84,10 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // in an object, since the actions change it from inside closures the type checker cannot follow
     const page = { paused: false, watching: 0, careless: false, holding: false };
+    // a phone at random over whichever game is current, new with each reload as a new page's would be
+    const phoned = newCounts();
+    const makePhone = () => phoneMonkey(() => game, random, phoned);
+    let phone: PhoneMonkey = makePhone();
     let busy = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     const did = (what: string) => {
@@ -203,7 +208,16 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           game = new Game(new Progress(store), { random: seeded(seed + frame), events });
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
+          phone = makePhone();
           did('reload');
+        },
+      ],
+      [
+        6,
+        () => {
+          // a phone's pad, tilt and flick, or a message a stranger might send, through the gesture rules
+          const what = phone.start(frame);
+          if (what) did(what);
         },
       ],
     ];
@@ -235,6 +249,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         act();
         acted = true;
       }
+      phone.tick(frame);
       game.step(page.paused ? 0 : DT);
       // after everything done, and every few frames between: a bad value set and set again at once is never seen
       if (acted || frame % CHECK_EVERY === 0) {
@@ -242,6 +257,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         if (problems.length) return fail(problems);
       }
     }
+    for (const what of ['cast', 'strike', 'reel', 'refused'] as const)
+      if (phoned[what]) done[`phone ${what}`] = phoned[what];
     return { seed, frames, failure: null, done, happened };
   } catch (err) {
     return fail([`threw: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`]);

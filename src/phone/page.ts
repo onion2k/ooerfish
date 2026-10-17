@@ -12,6 +12,7 @@ import { PHONE } from '../lake';
 import { localLink, trysteroLink, type Link } from './link';
 import { readPhoneAddress } from './linkname';
 import { PROTOCOL_VERSION, parseScreenMessage, type PhoneMessage } from './protocol';
+import { padHelp } from './word';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const status = $('status');
@@ -192,6 +193,7 @@ connectButton.addEventListener('click', () => {
   // the permission is asked for first, and from inside the tap
   void askForMotion().then(async (on) => {
     motion = on;
+    $('padHelp').textContent = padHelp(on);
     link = address.link === 'local' ? localLink(address.room) : await trysteroLink(address.room, address.key);
     link.onMessage(heard);
     link.onJoin(() => hello());

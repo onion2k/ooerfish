@@ -71,13 +71,13 @@ export class PairingOverlay {
    * Shows the overlay. The first time (or when `fixed` names a different room) it makes the room and opens the link;
    * after, it shows the same code again, since the room stays open while the page does. Resolves once the QR code is
    * drawn. `fixed` is for tests and the look pictures only, so a picture of the code holds still: a real press never
-   * passes it.
+   * passes it. Its `origin` is the address the code carries, so a picture does not hold the port it was served on.
    */
-  async open(fixed?: Pairing): Promise<void> {
+  async open(fixed?: Pairing & { origin?: string }): Promise<void> {
     const same = !fixed || (this.pairing?.room === fixed.room && this.pairing.key === fixed.key);
     if (this.opening && same) await this.opening;
     else if (!this.pairing || !same) {
-      this.opening = this.start(fixed ?? newPairing()).finally(() => (this.opening = null));
+      this.opening = this.start(fixed ?? newPairing(), fixed?.origin).finally(() => (this.opening = null));
       await this.opening;
       // a phone that joined while the code was being drawn has already closed the overlay, and it stays closed
       if (this.session?.reading().paired) return;
@@ -109,12 +109,12 @@ export class PairingOverlay {
     overlay.hidden = true;
   }
 
-  private async start(pairing: Pairing) {
+  private async start(pairing: Pairing, origin = this.options.origin) {
     // an earlier room, replaced, is left, or its phone would go on playing in a room nobody is shown
     this.link?.leave();
     this.pairing = pairing;
     const { link, elements } = this.options;
-    const address = phoneUrl(this.options.origin, pairing, link);
+    const address = phoneUrl(origin, pairing, link);
     elements.overlay.dataset.url = address;
     elements.address.textContent = address;
     elements.status.textContent = 'Waiting for the phone…';

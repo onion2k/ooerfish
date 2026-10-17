@@ -20,6 +20,7 @@
 import { expect, test } from '@playwright/test';
 import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
+import { connect, openPhone, pairingFromOverlay } from './phoneside';
 
 /**
  * How far the pictures may differ before it is a change and not the GPU: not a pixel whose colour is off by more
@@ -247,6 +248,112 @@ test.describe('on a phone', () => {
     await expect(page.locator('#reelButton')).toBeInViewport();
     await expect(page.locator('#gauge')).toBeInViewport();
     await expect(page).toHaveScreenshot('phone-fight.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+/** A pairing that holds still, with an address of its own, so that the QR code and the text under it are the same every run on any port. */
+const FIXED_PAIRING = { room: 'fixedroom00', key: 'fixedkey0000000000000000', origin: 'https://lake.test' };
+
+/**
+ * The pairing overlay over the game, at a desk's width and a phone's: the card, the code as wide as the card, the
+ * address under it, and the lake dimmed behind. The room and key are fixed so the code holds still.
+ */
+test.describe('pairing a phone', () => {
+  test('the overlay at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, query: { phonelink: 'local' } });
+    await set(page, STANDARD, 30);
+    await page.evaluate((fixed) => window.game!.pair(fixed), FIXED_PAIRING);
+    await page.evaluate(() => {
+      document.getElementById('stats')!.hidden = true;
+      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+    });
+    await expect(page.locator('#pairing')).toBeVisible();
+    await expect(page).toHaveScreenshot('pairing-desk.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('the overlay at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, query: { phonelink: 'local' } });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate((fixed) => window.game!.pair(fixed), FIXED_PAIRING);
+      await page.evaluate(() => {
+        document.getElementById('stats')!.hidden = true;
+        (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
+      });
+      await expect(page.locator('#pairing')).toBeVisible();
+      await expect(page).toHaveScreenshot('pairing-phone.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
+/**
+ * The phone's own page at a phone's size, paired to a game on the local link, in the three words it shows: Cast with
+ * the lure ready, Strike! at a bite, and Reel with the bar part filled. The game is stepped through the test API and
+ * the phone is waited on for the state it has drawn, never for a time, since it draws what the game last sent it.
+ */
+test.describe('the phone as the rod', () => {
+  /** The game paired to a phone that has connected without motion sensors; the phone is at 390 by 844. */
+  async function paired(page: import('@playwright/test').Page, context: import('@playwright/test').BrowserContext) {
+    await start(page, { seed: 11, paused: true, query: { phonelink: 'local' } });
+    await set(page, { ...STANDARD, dirt: 0.2 }, 30);
+    await page.evaluate(() => window.game!.pair());
+    const { url } = await pairingFromOverlay(page);
+    const phone = await openPhone(context, url, 'none');
+    await connect(phone);
+    await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+    return phone;
+  }
+  /** A share as the phone's bar writes it. */
+  const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
+
+  test('Cast: paired, the lure ready', async ({ page, context }) => {
+    const problems = watch(page);
+    const phone = await paired(page, context);
+    await expect(phone.locator('#word')).toHaveText('Cast');
+    await expect(phone.locator('#status')).toContainText('Connected to the screen');
+    await expect(phone).toHaveScreenshot('rod-cast.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('Strike!: a fish biting', async ({ page, context }) => {
+    const problems = watch(page);
+    const phone = await paired(page, context);
+    expect(await page.evaluate(() => window.game!.fishTo('bite'))).toBe(true);
+    await expect(phone.locator('#word')).toHaveText('Strike!');
+    // the word and the rest are drawn from one state, so the picture is of the bite and not of the one before it
+    await expect(phone).toHaveScreenshot('rod-strike.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('Reel: hooked, the reel held until the catch meter is part filled', async ({ page, context }) => {
+    const problems = watch(page);
+    const phone = await paired(page, context);
+    expect(await page.evaluate(() => window.game!.fishTo('fight'))).toBe(true);
+    // stepped, a frame at a time, with the reel held, until the meter is a fair way up and the fish still on
+    const meter = await page.evaluate(() => {
+      const g = window.game!;
+      g.reel(true);
+      for (let i = 0; i < 600 && g.fishing().phase === 'hooked' && g.fishing().meter < 0.4; i++) g.step(1);
+      return g.fishing();
+    });
+    expect(meter.phase).toBe('hooked');
+    expect(meter.meter).toBeGreaterThan(0.2);
+    expect(meter.meter).toBeLessThan(0.9);
+    await expect(phone.locator('#word')).toHaveText('Reel');
+    await expect
+      .poll(() => phone.evaluate(() => document.getElementById('gaugeMeterFill')!.style.height))
+      .toBe(per(meter.meter));
+    await expect
+      .poll(() => phone.evaluate(() => (document.getElementById('gaugeFish') as unknown as SVGElement).style.bottom))
+      .toBe(per(meter.fishAt));
+    await expect(phone).toHaveScreenshot('rod-reel.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
 });

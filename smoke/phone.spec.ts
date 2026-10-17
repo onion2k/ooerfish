@@ -8,6 +8,7 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { ANGLER } from '../src/lake';
 import { ready, start, watch } from './game';
+import { connect, openPhone, padBox, pairingFromOverlay, thumbDown, thumbTo, thumbUp } from './phoneside';
 
 /** What the stand-in keeps: its link, and what the screen has said to it. */
 interface PhoneSide {
@@ -20,8 +21,6 @@ interface PhoneSide {
 declare global {
   interface Window {
     phoneSide?: PhoneSide;
-    /** What the phone page was asked to vibrate, in the page's stub of `navigator.vibrate`. */
-    buzzes?: unknown[];
   }
 }
 
@@ -45,63 +44,6 @@ async function strangerJoins(context: BrowserContext, room: string): Promise<Pag
 }
 
 const send = (page: Page, message: unknown) => page.evaluate((m) => window.phoneSide!.link.send(m), message);
-
-/** The room and key in the address the overlay is showing, which is the one in its QR code. */
-async function pairingFromOverlay(page: Page) {
-  const url = await page.locator('#pairing').getAttribute('data-url');
-  const hash = new URL(url!).hash;
-  const params = new URLSearchParams(hash.slice(1));
-  return { url: url!, room: params.get('room')!, key: params.get('key')!, link: params.get('link') };
-}
-
-/** What the phone's sensors are, for the page that opens: none at all, or the iOS kind that asks and is granted. */
-type Sensors = 'none' | 'granted' | 'denied';
-
-/** The real phone page at an address, at a phone's size, with its sensors and its vibrator stubbed, not yet connected. */
-async function openPhone(context: BrowserContext, url: string, sensors: Sensors = 'none'): Promise<Page> {
-  const phone = await context.newPage();
-  await phone.setViewportSize({ width: 390, height: 844 });
-  await phone.addInitScript((kind) => {
-    window.buzzes = [];
-    Object.defineProperty(navigator, 'vibrate', {
-      configurable: true,
-      value: (pattern: unknown) => {
-        window.buzzes!.push(pattern);
-        return true;
-      },
-    });
-    const w = window as unknown as Record<string, unknown>;
-    if (kind === 'none') delete w.DeviceMotionEvent;
-    else {
-      // Safari's: the page has to ask from inside a tap, and the answer is the person's
-      Object.assign(w.DeviceMotionEvent as object, { requestPermission: () => Promise.resolve(kind) });
-    }
-  }, sensors);
-  await phone.goto(url);
-  return phone;
-}
-
-/** Connect, tapped as a user does. */
-async function connect(phone: Page) {
-  await phone.getByRole('button', { name: 'Connect', exact: true }).click();
-}
-
-/** The pad's box, for a thumb to be put on. */
-async function padBox(phone: Page) {
-  return (await phone.locator('#pad').boundingBox())!;
-}
-
-/** A thumb put down on the pad at a share of it, and moved to others, by the mouse (pointer events as a finger makes). */
-async function thumbDown(phone: Page, at: { x: number; y: number }) {
-  const box = await padBox(phone);
-  await phone.mouse.move(box.x + box.width * at.x, box.y + box.height * at.y);
-  await phone.mouse.down();
-}
-async function thumbTo(phone: Page, at: { x: number; y: number }) {
-  const box = await padBox(phone);
-  await phone.mouse.move(box.x + box.width * at.x, box.y + box.height * at.y, { steps: 4 });
-}
-const thumbUp = (phone: Page) => phone.mouse.up();
 
 /** A tilt of the phone, as the browser reports one. */
 const tilt = (phone: Page, gamma: number) =>
@@ -197,6 +139,8 @@ test('a phone pairs through the QR code and its pad casts; a second phone is tol
   await expect(page.locator('#pairing')).toBeHidden();
   await expect(page.locator('#phoneStatus')).toHaveText('Phone connected');
   await expect(phone.locator('#status')).toContainText('Connected');
+  // with no sensors the pad is a drag, and says so
+  await expect(phone.locator('#padHelp')).toContainText('Drag back and let go to cast');
   await expect.poll(() => page.evaluate(() => window.game!.phone().lastKind)).toBe('hello');
   expect(await page.evaluate(() => window.game!.phone().motion)).toBe(false);
 
@@ -309,7 +253,8 @@ test('a phone with motion tilts to aim and flicks to cast, is told to strike, ho
   const phoneProblems = watch(phone);
   await connect(phone);
   await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
-  // the permission was given inside the tap, so the phone says it has motion
+  // the permission was given inside the tap, so the phone says it has motion, and the pad says to flick
+  await expect(phone.locator('#padHelp')).toContainText('flick to cast');
   await expect.poll(() => page.evaluate(() => window.game!.phone().motion)).toBe(true);
   const game = <T>(f: () => T) => page.evaluate(f);
 
@@ -506,4 +451,33 @@ test('an address with a link not known is refused by name and the game still boo
   // and the address is left as it was written: the link is not a lab setting
   await page.evaluate(() => window.game!.dirt(0.3));
   expect(page.url()).toContain('phonelink=nonsense');
+});
+
+test('the phone’s status line does not sit over the bucket, at a desk’s width or a phone’s', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => {
+    // a fish in the bucket, so that its count is on the screen, and a line from the phone beside it
+    window.game!.fishTo('landed');
+    window.game!.stow();
+    window.game!.step(5);
+    const status = document.getElementById('phoneStatus')!;
+    status.textContent = 'The phone left';
+    status.hidden = false;
+  });
+  for (const [width, height] of [
+    [1280, 800],
+    [390, 844],
+    [320, 568],
+  ]) {
+    await page.setViewportSize({ width, height });
+    const bucket = (await page.locator('#bucket').boundingBox())!;
+    const line = (await page.locator('#phoneStatus').boundingBox())!;
+    const apart = line.y >= bucket.y + bucket.height || line.x + line.width <= bucket.x;
+    expect(
+      apart,
+      `at ${width} wide the status (${JSON.stringify(line)}) is over the bucket (${JSON.stringify(bucket)})`,
+    ).toBe(true);
+  }
+  expect(problems).toEqual([]);
 });

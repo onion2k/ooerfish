@@ -27,6 +27,24 @@ describe('the fuzzer', () => {
       expect(happened[event], event).toBeGreaterThan(0);
   });
 
+  it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 8; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+    }
+    const phone = Object.entries(done).filter(
+      ([k]) => k.startsWith('phone ') && !/^phone (cast|strike|reel|refused)$/.test(k),
+    );
+    expect(
+      phone.reduce((n, [, c]) => n + c, 0),
+      'the monkey plays a phone',
+    ).toBeGreaterThan(20);
+    for (const effect of ['cast', 'strike', 'reel', 'refused'])
+      expect(done[`phone ${effect}`], effect).toBeGreaterThan(0);
+  });
+
   it('plays the same way twice from a seed', () => {
     expect(fuzz(2, 600)).toEqual(fuzz(2, 600));
   });
