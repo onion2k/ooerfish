@@ -13,7 +13,7 @@
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
 import type { Game } from './game';
-import { FIGHT, FISHING, FISH_CAPACITY, SPLASH_CAPACITY, SWIM, bedDepth, ground, inside } from './lake';
+import { FIGHT, FISHING, FISH_CAPACITY, FISH_COUNT, SPLASH_CAPACITY, SWIM, bedDepth, ground, inside } from './lake';
 import { poseFish } from './swim';
 
 /** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
@@ -114,6 +114,8 @@ export function checkInvariants(game: Game): string[] {
   seen.set(game, { contamination: game.contamination, levers: game.levers });
   const { cured } = game.progress.save;
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
+  else if (fish.curedCount() !== Math.min(cured, FISH_COUNT))
+    out.push(`${fish.curedCount()} fish are cured, but the save says ${cured}, of ${FISH_COUNT} in the pond`);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }
@@ -137,6 +139,7 @@ function fishingRules(game: Game): string[] {
       return [...out, `the bite is ${bite.phase} with fish ${bite.fish}, of ${fish.count}`];
     if (fish.held !== bite.fish) out.push(`fish ${bite.fish} is ${bite.phase}, but the school holds fish ${fish.held}`);
     const i = bite.fish;
+    if (fish.cured[i]) out.push(`fish ${i} is cured, but it is the bite's (${bite.phase})`);
     const fromLure = Math.hypot(fish.x[i] - lure.at[0], fish.y[i] - lure.at[1]);
     if ((bite.phase === 'nibbling' || bite.phase === 'biting') && fromLure > FISHING.mouth + 0.5)
       out.push(`fish ${i} is ${bite.phase} ${fromLure.toFixed(2)} from the lure`);

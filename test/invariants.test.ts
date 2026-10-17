@@ -81,4 +81,28 @@ describe('what must always hold', () => {
     game.fish.rise[0] = 10;
     expect(checkInvariants(game)).toEqual([]);
   });
+
+  it('reports the cured fish not matching the save, and a cured fish that is the bite’s', () => {
+    const { game } = newGame(1, JSON.stringify({ cured: 3 }));
+    expect(checkInvariants(game)).toEqual([]);
+    game.fish.cured[5] = 1;
+    expect(checkInvariants(game).join('\n')).toMatch(/4 fish are cured, but the save says 3/);
+    game.fish.cured[5] = 0;
+    game.fish.cured[0] = 0;
+    expect(checkInvariants(game).join('\n')).toMatch(/2 fish are cured, but the save says 3/);
+    game.fish.cured[0] = 1;
+    expect(checkInvariants(game)).toEqual([]);
+    // a save past the pond's size means all of them
+    const full = newGame(1, JSON.stringify({ cured: 99 })).game;
+    expect(checkInvariants(full)).toEqual([]);
+    full.fish.cured[2] = 0;
+    expect(checkInvariants(full).join('\n')).toMatch(/11 fish are cured, but the save says 99/);
+    // and a cured fish coming to the lure
+    const { game: g } = newGame(1, JSON.stringify({ cured: 1 }));
+    g.lure.phase = 'sinking';
+    g.bite.phase = 'coming';
+    g.bite.fish = 0;
+    g.fish.held = 0;
+    expect(checkInvariants(g).join('\n')).toMatch(/fish 0 is cured, but it is the bite's \(coming\)/);
+  });
 });

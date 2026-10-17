@@ -154,7 +154,7 @@ call to rewrite patterns without re-handing the groups (a package change).
 
 - [x] 1. **The school knows cured fish:** `School.cured`, `cure`, `fill` with cured; `FISH_COUNT` 12 with
       `CURE.toClean` read from it. Check: fish and lake unit tests, seen failing first.
-- [ ] 2. **Cured fish never bite; stow releases:** `bite.ts` skips cured, `Game.stow` cures and releases with a
+- [x] 2. **Cured fish never bite; stow releases:** `bite.ts` skips cured, `Game.stow` cures and releases with a
       splash, the save rebuilds on load, and the invariants. Check: bite and game unit tests, invariants.
 - [ ] 3. **The cured look:** `fishdraw.ts` from `school.cured`, `CURED_LOOK`, re-handed on a cure. Check:
       fishdraw unit test, and a headless picture looked at.

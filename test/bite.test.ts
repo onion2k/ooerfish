@@ -46,6 +46,69 @@ function until(game: Game, done: () => boolean, seconds: number): number {
   return done() ? Math.round(seconds / DT) : -1;
 }
 
+/** A lake with the lure sunk and every fish moved out of reach, so a test places the few it means to. */
+function sunk(seed = 1) {
+  const { game } = lake(seed);
+  game.cast(NORTH, MIDDLE);
+  for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+  for (let f = 0; f < 120; f++) game.step(DT);
+  expect(game.lure.phase).toBe('sinking');
+  // whoever came to the lure while it sank is sent off, and the bite starts clean
+  game.bite.stowed(game.fish);
+  for (let i = 0; i < game.fish.count; i++) game.fish.x[i] = game.fish.y[i] = 1e6;
+  game.fish.held = -1;
+  return game;
+}
+
+/** Fish `i` set `d` from the bobber, at the lure's depth. */
+function put(game: Game, i: number, d: number) {
+  game.fish.x[i] = game.lure.bobber[0] + d;
+  game.fish.y[i] = game.lure.bobber[1];
+  game.fish.depth[i] = game.lure.depth;
+}
+
+/** The bite stepped for `seconds` with a chance that always notices, and which fish it chose, or -1. */
+function chosenIn(game: Game, seconds = 5): number {
+  let t = game.t;
+  for (let f = 0; f < seconds / DT; f++) {
+    t += DT;
+    game.bite.step(t, DT, game.fish, game.lure, () => 0);
+    if (game.bite.phase !== 'none') return game.bite.fish;
+  }
+  return -1;
+}
+
+describe('a cured fish and the lure', () => {
+  it('is never chosen over a glowing fish further off, with and without a twitch', () => {
+    for (const twitch of [false, true]) {
+      const game = sunk();
+      put(game, 0, 0.5);
+      game.fish.cured[0] = 1;
+      put(game, 1, 3);
+      if (twitch) expect(game.strike()).toBe('twitch');
+      expect(chosenIn(game), `twitch ${twitch}`).toBe(1);
+    }
+  });
+
+  it('draws no chance for a cured fish', () => {
+    const game = sunk();
+    put(game, 0, 0.5);
+    game.fish.cured[0] = 1;
+    let draws = 0;
+    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1));
+    expect(draws).toBe(0);
+  });
+
+  it('never bites in a pond where every fish is cured, however long the lure sinks', () => {
+    const game = sunk();
+    game.fish.cured.fill(1, 0, game.fish.count);
+    put(game, 0, 0.5);
+    put(game, 1, 1);
+    expect(chosenIn(game, 600)).toBe(-1);
+    expect(game.bite.phase).toBe('none');
+  });
+});
+
 describe('a fish and the lure', () => {
   it('comes, nibbles and bites a lure sunk in the middle of the lake within a minute, on every seed', () => {
     for (let seed = 1; seed <= 12; seed++) {
@@ -254,15 +317,25 @@ describe('the bite, seen', () => {
   });
 
   it('tells what each strike did: a twitch with no fish, too soon at a nibble, hooked at the bite', () => {
-    const { game, told } = telling(4);
+    const { game, told } = telling(3);
+    // the moment with no fish there is made, not hoped for: all but one fish cured, and that one kept far from the lure
+    game.fish.cured.fill(1, 0, game.fish.count);
     game.cast(NORTH, MIDDLE);
     for (let f = 0; f < 120; f++) game.step(DT);
     expect(game.bite.phase).toBe('none');
+    // then one is glowing again and comes to the lure, the only fish that can
+    game.fish.cured[0] = 0;
+    game.fish.x[0] = game.lure.bobber[0] + 3;
+    game.fish.y[0] = game.lure.bobber[1];
     game.strike();
     expect(told.at(-1)).toBe('struck twitch');
     for (let f = 0; f < 60 / DT && game.bite.phase !== 'nibbling'; f++) game.step(DT);
     game.strike();
     expect(told.slice(-2)).toEqual(['missed', 'struck spooked']);
+    // the one glowing fish has fled and is wary, so another is let loose at the lure for the bite
+    game.fish.cured[1] = 0;
+    game.fish.x[1] = game.lure.bobber[0] + 3;
+    game.fish.y[1] = game.lure.bobber[1];
     for (let f = 0; f < 120 / DT && game.bite.phase !== 'biting'; f++) game.step(DT);
     game.strike();
     expect(told.at(-1)).toBe('struck hooked');

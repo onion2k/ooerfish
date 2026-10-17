@@ -658,6 +658,14 @@ export const DROP_NEAR = 8;
 export const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
 
 /**
+ * Where a cured fish is let go: `distance` out from the angler toward the pond's middle, and if that is not on the
+ * water (kept `margin` in from the shore, a boulder and the jetty) `step` further out at a time, `steps` times at the
+ * most, so the search is bounded; and the size of the splash it makes there, a small one beside a pebble's. A first
+ * guess, to be tuned by looking at it.
+ */
+export const RELEASE = { distance: 5, step: 1.5, steps: 12, margin: 1, splash: 0.4 } as const;
+
+/**
  * A cast: how far it reaches at full power, over the water, in world units; how steeply it is thrown; how fast the
  * lure sinks, in units a second; how far below the bobber the line lets it go; and how far over the bed it stops.
  * First guesses, to be tuned by playing.

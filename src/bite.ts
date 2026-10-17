@@ -66,7 +66,8 @@ export class Bite {
       let chosen = -1,
         nearest = Infinity;
       for (let i = 0; i < school.count; i++) {
-        if (this.wary[i] > t) continue;
+        // a cured fish never comes to the bait, and costs no draw of chance, so curing one moves no other fish's luck
+        if (school.cured[i] || this.wary[i] > t) continue;
         const d = Math.hypot(school.x[i] - bx, school.y[i] - by);
         if (d > FISHING.reach || Math.abs(school.depth[i] - lure.depth) > FISHING.band) continue;
         // each fish in reach notices it by a chance of its own, and the nearest that does comes

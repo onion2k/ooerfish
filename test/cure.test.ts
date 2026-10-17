@@ -56,16 +56,20 @@ describe('the cure', () => {
     expect(checkInvariants(game)).toEqual([]);
   });
 
-  it('cleans the lake at the twelfth, and a fish after it is still caught and counted, the lake staying clean', () => {
+  it('cleans the lake at the twelfth, and then nothing takes the bait, the lake staying clean', () => {
     const { game, told } = cureGame(2);
     fishUntil(game, CURE.toClean);
     expect(game.contamination).toBe(0);
+    expect(game.pondClean).toBe(true);
     expect(told.at(-1)).toEqual([CURE.toClean, CURE.toClean]);
-    fishUntil(game, CURE.toClean + 1);
+    // the angler goes on fishing for ten game minutes, and no fish comes to the lure
+    const angler = new Angler(game, seeded(9));
+    for (let f = 0; f < 60 * 60 * 10; f++) {
+      angler.step(DT);
+      expect(game.bite.phase).toBe('none');
+    }
+    expect(cured(game)).toBe(CURE.toClean);
     expect(game.contamination).toBe(0);
-    expect(cured(game)).toBe(CURE.toClean + 1);
-    expect(game.bucket).toBe(CURE.toClean + 1);
-    expect(told.at(-1)).toEqual([CURE.toClean + 1, CURE.toClean]);
     expect(checkInvariants(game)).toEqual([]);
   });
 
@@ -112,6 +116,6 @@ describe('the cure', () => {
     game.progress.save.cured = 2.5;
     expect(checkInvariants(game).join('\n')).toMatch(/cured 2.5 fish/);
     game.progress.save.cured = 3;
-    expect(checkInvariants(game).filter((p) => /cured/.test(p))).toEqual([]);
+    expect(checkInvariants(game).filter((p) => /the lake has cured/.test(p))).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@
  * stage the game's invariants are checked.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { jettyGap } from '../src/lake';
+import { FISH_COUNT, jettyGap } from '../src/lake';
 import { STANDARD, ready, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
@@ -221,10 +221,10 @@ test('the fish swim the lake, and stay in it', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
   const before = await page.evaluate(() => window.game!.fish());
-  expect(before.length).toBe(6);
+  expect(before.length).toBe(FISH_COUNT);
   await play(page, 600, 'ten seconds of fish');
   const after = await page.evaluate(() => window.game!.fish());
-  expect(after.length).toBe(6);
+  expect(after.length).toBe(FISH_COUNT);
   for (let i = 0; i < after.length; i++)
     expect(Math.hypot(after[i].x - before[i].x, after[i].y - before[i].y), `fish ${i} swam`).toBeGreaterThan(1);
   expect(problems).toEqual([]);
@@ -236,7 +236,7 @@ test('the fish keep off the jetty’s deck, ten seconds in a second at a time, a
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
   const count = (await page.evaluate(() => window.game!.fish())).length;
-  expect(count).toBe(6);
+  expect(count).toBe(FISH_COUNT);
   for (let second = 0; second < 10; second++) {
     await play(page, 60, `second ${second} by the jetty`);
     for (const f of await page.evaluate(() => window.game!.fish()))
@@ -437,7 +437,7 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   expect(problems).toEqual([]);
 });
 
-test('the twelfth fish cleans the pond and says so, and a fish after it is still caught, the pond staying clean', async ({
+test('the twelfth fish cleans the pond and says so, and after it no fish is left to take the bait, the pond staying clean', async ({
   page,
 }) => {
   const problems = watch(page);
@@ -452,14 +452,11 @@ test('the twelfth fish cleans the pond and says so, and a fish after it is still
   await expect(page.locator('#pondBar')).toHaveAttribute('aria-valuenow', '0');
   await expect(page.locator('#pond')).toHaveClass(/clean/);
 
-  // fish still come and are caught: the next is cured too, and the pond stays at nothing
+  // every fish is cured, and the bait is one only an uncured fish takes: none is left to land, and the pond stays at nothing
   await api(() => window.game!.step(150));
-  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
-  await page.locator('#catch').click();
-  await api(() => window.game!.step(1));
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(false);
   expect((await api(() => window.game!.state())).contamination).toBe(0);
-  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 13 });
-  await expect(page.locator('#toast')).toHaveText('Cured! The pond stays clean.');
+  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12 });
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });

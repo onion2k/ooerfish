@@ -11,7 +11,19 @@
 import { Bite, type Strike } from './bite';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { CLOCK, DROP_NEAR, contaminationAfter, CURE, FIGHT, FISHING, FISH_COUNT, PERCH, inside } from './lake';
+import {
+  CLOCK,
+  DROP_NEAR,
+  contaminationAfter,
+  CURE,
+  FIGHT,
+  FISHING,
+  FISH_COUNT,
+  PERCH,
+  RELEASE,
+  ANGLER,
+  inside,
+} from './lake';
 import { Progress } from './progress';
 import type { Random } from './random';
 import { Lure } from './lure';
@@ -97,7 +109,7 @@ export class Game {
       hooked: () => e.hooked?.(),
       missed: () => e.missed?.(),
     });
-    this.fish.fill(FISH_COUNT, () => this.random());
+    this.fish.fill(FISH_COUNT, () => this.random(), progress.save.cured);
   }
 
   /** One frame of `dt` seconds. */
@@ -142,14 +154,19 @@ export class Game {
     this.reeling = on === true;
   }
 
-  /** The landed fish put in the bucket, and another let into the lake in its place; false with none landed. */
+  /** True when every fish in the pond is cured: nothing is left to take the bait. */
+  get pondClean(): boolean {
+    return this.fish.count > 0 && this.fish.curedCount() === this.fish.count;
+  }
+
+  /** The landed fish put in the bucket, cured, and let go in the pond near the angler with a splash; false with none landed. */
   stow(): boolean {
     if (this.bite.phase !== 'landed') return false;
     const i = this.bite.fish;
     this.bucket++;
     this.bite.stowed(this.fish);
-    this.fish.respawn(i, this.random);
     this.lure.reelIn();
+    this.release(i);
     // the cure: the fish is cured by being put in the bucket, the lake a step cleaner, and the count kept at once
     const save = this.progress.save;
     save.cured = Math.min(save.cured + 1, Number.MAX_SAFE_INTEGER);
@@ -158,6 +175,28 @@ export class Game {
     this.persist();
     this.events.cured?.(save.cured, CURE.toClean);
     return true;
+  }
+
+  /**
+   * Fish `i` cured and let go in the pond, `RELEASE.distance` out from the angler toward the middle and facing away from
+   * the shore, or further out a step at a time until that is on the water; if none of the tries is, it stays where the
+   * fight left it, which was on the water. A small splash is told there.
+   */
+  private release(i: number) {
+    const heading = Math.atan2(-ANGLER.y, -ANGLER.x);
+    const [dx, dy] = [Math.cos(heading), Math.sin(heading)];
+    let x = this.fish.x[i],
+      y = this.fish.y[i];
+    for (let k = 0; k <= RELEASE.steps; k++) {
+      const out = RELEASE.distance + k * RELEASE.step;
+      const [px, py] = [ANGLER.x + dx * out, ANGLER.y + dy * out];
+      if (inside(px, py, RELEASE.margin)) {
+        [x, y] = [px, py];
+        break;
+      }
+    }
+    this.fish.cure(i, x, y, heading);
+    this.drop(x, y, RELEASE.splash);
   }
 
   /** The fight on by `dt`: the zone and the meter, and the fish swimming to keep to it along its bearing, swaying, with the lure in its mouth. */

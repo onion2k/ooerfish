@@ -96,7 +96,7 @@ export class School {
 
   /**
    * Fish `i` cured and put back in the water at (`x`, `y`) facing `heading`. It is not a respawn: its depth and stroke
-   * are as they were, so it swims on from where it was let go, and the bite lets go of it if it was the one held.
+   * are as they were where the new place allows, so it swims on from where it was let go, and the bite lets go of it if it was the one held.
    */
   cure(i: number, x: number, y: number, heading: number) {
     if (this.held === i) this.held = -1;
@@ -104,6 +104,9 @@ export class School {
     this.x[i] = x;
     this.y[i] = y;
     this.heading[i] = heading;
+    // the new place may be shallower than the one it was landed from, so it is brought to within that place's depths
+    const [least, most] = depthRange(x, y);
+    this.depth[i] = Math.min(most, Math.max(least, this.depth[i]));
   }
 
   /** How many of the live fish are cured. */
