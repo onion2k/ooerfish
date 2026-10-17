@@ -1,0 +1,65 @@
+{
+  "fights": 1000,
+  "table": {
+    "none/9/light": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 8.5
+    },
+    "none/9/middle": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 8.5
+    },
+    "none/9/heavy": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 9.4
+    },
+    "none/15/light": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 8.7
+    },
+    "none/15/middle": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 17.2
+    },
+    "none/15/heavy": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 19.5
+    },
+    "none/24/light": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 25.3
+    },
+    "none/24/middle": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 26.6
+    },
+    "none/24/heavy": {
+      "fights": 1000,
+      "landed": 1000,
+      "median": 27.5
+    },
+    "none/36/light": {
+      "fights": 1000,
+      "landed": 993,
+      "median": 43.9
+    },
+    "none/36/middle": {
+      "fights": 1000,
+      "landed": 990,
+      "median": 50.8
+    },
+    "none/36/heavy": {
+      "fights": 1000,
+      "landed": 959,
+      "median": 60.7
+    }
+  }
+}
