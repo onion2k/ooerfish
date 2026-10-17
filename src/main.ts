@@ -123,7 +123,7 @@ async function main() {
       else if (did === 'twitch') hear('nothing biting yet');
     },
     slipped: () => log('slipped'),
-    landed: (kind, weight) => log(`landed ${kind} ${weight.toFixed(2)}`),
+    landed: (kind, weight, temper) => log(`landed ${temper} ${kind} ${weight.toFixed(2)}`),
     cured: (cured, toClean) => {
       log(`cured ${cured}/${toClean}`);
       // the water steps clearer at once, and the line says so; the gauge reads the save the game has just written

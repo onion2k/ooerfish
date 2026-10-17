@@ -478,7 +478,7 @@ export const FISHING = {
  * hard it falls when let go, and the drag on it, a share of its speed kept a second; how fast the meter fills with the
  * fish in the zone and drains with it out, and how full it starts; where on the bar a fish is hooked; how fast a fish
  * darts, in bars a second, and how much faster the heaviest of its kind; the least of a dart, as a share of the bar,
- * the most it may take, and the lowest it darts to, so a zone let fall to the foot of the bar does not hold it; how
+ * the most it may take, and the lowest it darts to, a margin above the zone's top (`fightFor` adds the zone's width), so a zone let fall to the foot of the bar never holds it; how
  * long a fish rests between darts, and what share of its rest a sick lake's fish keeps; the line's strain with the
  * fish in the zone, and how far out of it the strain is at its most; the spool's length; and where in the shallows
  * below the angler a fish is landed, and how near it a landed fish is.
@@ -493,15 +493,14 @@ export const FIGHT = {
   push: 3,
   fall: 2.4,
   drag: 0.02,
-  fill: 0.09,
-  drain: 0.06,
+  fill: 0.12,
+  drain: 0.09,
   meterStart: 0.3,
   hookedAt: [0.3, 0.7] as const,
   dart: 0.3,
-  heavyDart: 0.6,
   dartLeast: 0.15,
   dartLongest: 2,
-  floor: 0.2,
+  floor: 0.04,
   rest: [0.6, 1.8] as const,
   sickRest: 0.5,
   calm: 0.3,
@@ -510,6 +509,31 @@ export const FIGHT = {
   landAt: [0, -shoreRadius(-Math.PI / 2) + 2] as const,
   landWithin: 1.5,
 } as const;
+
+/**
+ * How a fish's size shapes its fight (`docs/fight2.md`): each figure is its base in `FIGHT` times one plus the share
+ * here times the fish's heft, from the lightest of its kind (0) to the heaviest (1), so a heavy fish darts faster and
+ * further, rests less and fills the meter more slowly. Tuned with the balance tool (`npm run balance -- --print`) to
+ * the no-gear targets of `docs/fight2.md`, together with `FIGHT.fill` and `FIGHT.drain`; the gear is tuned after.
+ */
+export const SIZE = {
+  dart: 0.7,
+  reach: 0.7,
+  rest: -0.3,
+  fill: -0.1,
+} as const;
+
+/**
+ * A fish's temper, drawn when it is hooked, in the order calm, steady and feisty: its name, its odds (they sum to
+ * one) and what it multiplies the dart's speed, the dart's reach (its least), the rest and the meter's fill by, on top
+ * of the size. Feisty heavy fish are the hard ones, because the two multiply. Tuned with `SIZE` to the no-gear targets: calm
+ * is clearly the easiest and feisty the hardest, but never hopeless for a heavy fish.
+ */
+export const TEMPERS = [
+  { name: 'calm', odds: 0.25, dart: 0.8, reach: 0.8, rest: 1.3, fill: 1.1 },
+  { name: 'steady', odds: 0.5, dart: 1, reach: 1, rest: 1, fill: 1 },
+  { name: 'feisty', odds: 0.25, dart: 1.12, reach: 1.1, rest: 0.9, fill: 1.0 },
+] as const;
 
 /** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */
 export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;

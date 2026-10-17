@@ -109,6 +109,7 @@ export function hashGame(game: Game): string {
     +game.reeling,
     game.bucket,
     game.catchWeight,
+    ['calm', 'steady', 'feisty'].indexOf(game.temper),
   ])
     eat(n);
   eat(game.contamination);

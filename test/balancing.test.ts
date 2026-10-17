@@ -1,5 +1,6 @@
 /** The balance tool's sums: the delayed hand, one fight, a cell, the table and its comparison, and faults put there on purpose. */
 import { afterEach, describe, expect, it } from 'vitest';
+import { drawTemper, fightFor } from '../src/fight';
 import { FIGHT } from '../src/lake';
 import {
   BANDS,
@@ -73,7 +74,7 @@ describe('a fight', () => {
     const reaction = 15;
     const random = seeded(3);
     const line = new Line();
-    line.start(20, 0.4, random);
+    line.start(20, fightFor(0.4, drawTemper(random)), random);
     const past: number[] = [];
     let frames = 0,
       result = 'fighting';

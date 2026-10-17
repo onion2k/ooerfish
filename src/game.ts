@@ -27,6 +27,7 @@ import {
   inside,
 } from './lake';
 import { Progress } from './progress';
+import { drawTemper, fightFor, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
 import { Splashes } from './splash';
@@ -47,7 +48,7 @@ export interface GameEvents {
   /** A fish was cured by being stowed: how many have been cured, and how many it takes to clean the lake. */
   cured?(cured: number, toClean: number): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
-  landed?(kind: string, weight: number): void;
+  landed?(kind: string, weight: number, temper: Temper): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
@@ -79,6 +80,8 @@ export class Game {
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
   catchWeight = 0;
+  /** The temper of the fish on the line or landed, drawn when it was hooked. */
+  temper: Temper = 'steady';
   private bearing = 0;
   private hookedAt = 0;
   private readonly events: GameEvents;
@@ -151,7 +154,9 @@ export class Game {
         Math.round((PERCH.weight[0] + this.random() * (PERCH.weight[1] - PERCH.weight[0])) * 100) / 100;
       // a heavier fish fights harder: its heft is where its weight lies between the least and most of its kind
       const heft = (this.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
-      this.line.start(Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly), heft, this.random);
+      // the temper is drawn next, one draw after the weight and before the line's own (where the fish first darts)
+      this.temper = drawTemper(this.random);
+      this.line.start(Math.hypot(this.fish.x[i] - lx, this.fish.y[i] - ly), fightFor(heft, this.temper), this.random);
       this.bearing = Math.atan2(this.fish.y[i] - ly, this.fish.x[i] - lx);
       this.hookedAt = this.t;
       // the lure is in its mouth from the strike, not from the next step
@@ -239,7 +244,7 @@ export class Game {
     } else if (was === 'landed') {
       this.bite.landed();
       this.reeling = false;
-      this.events.landed?.(PERCH.name, this.catchWeight);
+      this.events.landed?.(PERCH.name, this.catchWeight, this.temper);
     }
   }
 

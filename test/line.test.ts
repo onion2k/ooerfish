@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { flight } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
+import { fightFor } from '../src/fight';
 import { FIGHT, PERCH } from '../src/lake';
 import { Line } from '../src/line';
 import { Progress, memoryStore } from '../src/progress';
@@ -23,7 +24,7 @@ let MIDDLE = 0;
 /** A line with its fish held still at `fishAt` on the bar, resting for as long as a test needs. */
 function still(fishAt: number, zone = 0) {
   const line = new Line();
-  line.start(30, 0, seeded(1));
+  line.start(30, fightFor(0, 'steady'), seeded(1));
   line.fishAt = fishAt;
   line.target = fishAt;
   line.pulling = false;
@@ -39,7 +40,7 @@ const below = (line: Line) => line.zone + FIGHT.width / 2 < line.fishAt;
 describe('the line', () => {
   it('starts with the meter part filled and the line out as far as the fish was hooked', () => {
     const line = new Line();
-    line.start(30, 0.5, seeded(1));
+    line.start(30, fightFor(0.5, 'steady'), seeded(1));
     expect(line.meter).toBe(FIGHT.meterStart);
     expect(line.out).toBeCloseTo(30, 9);
     expect(line.heft).toBe(0.5);
@@ -83,7 +84,7 @@ describe('the line', () => {
     expect(line.out).toBeLessThan(was);
     expect(line.out).toBeCloseTo(30 * ((1 - line.meter) / (1 - FIGHT.meterStart)), 6);
     const far = new Line();
-    far.start(FIGHT.spool, 0, seeded(1));
+    far.start(FIGHT.spool, fightFor(0, 'steady'), seeded(1));
     far.meter = 0.01;
     far.step(DT, false, 0, seeded(1));
     expect(far.out).toBeLessThanOrEqual(FIGHT.spool);
@@ -94,7 +95,7 @@ describe('the line', () => {
       for (let seed = 1; seed <= 6; seed++) {
         const line = new Line(),
           random = seeded(seed);
-        line.start(30, 0.5, random);
+        line.start(30, fightFor(0.5, 'steady'), random);
         let was = line.step(DT, holding, 0.5, random);
         for (let f = 0; f < 120 / DT && was === 'fighting'; f++) was = line.step(DT, holding, 0.5, random);
         expect(was, `seed ${seed}, ${holding ? 'held' : 'never held'}`).toBe('slipped');
@@ -105,7 +106,7 @@ describe('the line', () => {
     for (let seed = 1; seed <= 6; seed++) {
       const line = new Line(),
         random = seeded(seed);
-      line.start(30, 0.5, random);
+      line.start(30, fightFor(0.5, 'steady'), random);
       let was: string = 'fighting';
       for (let f = 0; f < 120 / DT && was === 'fighting'; f++) was = line.step(DT, below(line), 0.5, random);
       expect(was, `seed ${seed}`).toBe('landed');
@@ -116,7 +117,7 @@ describe('the line', () => {
     const darts = (hot: number) => {
       const line = new Line(),
         random = seeded(3);
-      line.start(30, 0, random);
+      line.start(30, fightFor(0, 'steady'), random);
       let n = 0,
         was = line.pulling;
       for (let f = 0; f < 600 / DT; f++) {
@@ -134,7 +135,7 @@ describe('the line', () => {
     const fastest = (heft: number) => {
       const line = new Line(),
         random = seeded(4);
-      line.start(30, heft, random);
+      line.start(30, fightFor(heft, 'steady'), random);
       let most = 0;
       for (let f = 0; f < 120 / DT; f++) {
         line.meter = 0.5;
@@ -145,6 +146,40 @@ describe('the line', () => {
       return most;
     };
     expect(fastest(1)).toBeGreaterThan(fastest(0) * 1.3);
+  });
+
+  it('plays the figures handed in: a meter that never fills never lands, and a wider zone holds the fish more', () => {
+    const play = (figures: ReturnType<typeof fightFor>, seed: number) => {
+      const line = new Line(),
+        random = seeded(seed);
+      line.start(30, figures, random);
+      let inside = 0,
+        result = 'fighting';
+      for (let f = 0; f < 60 / DT && result === 'fighting'; f++) {
+        result = line.step(DT, below(line), 0, random);
+        if (line.inZone()) inside++;
+      }
+      return { result, inside, line };
+    };
+    const base = fightFor(0.5, 'steady');
+    for (let seed = 1; seed <= 5; seed++) {
+      const dead = play({ ...base, fill: 0 }, seed);
+      expect(dead.result, `seed ${seed}`).not.toBe('landed');
+      expect(dead.line.meter).toBeLessThanOrEqual(FIGHT.meterStart);
+    }
+    // the zone's width is the figures', not the content's: the zone may rise to one less its width
+    const wide = new Line();
+    wide.start(30, { ...base, width: 0.6 }, seeded(1));
+    for (let f = 0; f < 600; f++) wide.step(DT, true, 0, seeded(1));
+    expect(wide.zone).toBeCloseTo(0.4, 9);
+    expect(wide.inZone() || wide.fishAt < wide.zone).toBe(true);
+    let narrowIn = 0,
+      wideIn = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      narrowIn += play({ ...base, fill: 0, width: 0.1 }, seed).inside;
+      wideIn += play({ ...base, fill: 0, width: 0.5 }, seed).inside;
+    }
+    expect(wideIn).toBeGreaterThan(narrowIn);
   });
 
   it('is strained by how far the fish is out of the zone: calm inside, tighter the further out', () => {
@@ -162,9 +197,10 @@ describe('the line', () => {
   it('keeps the zone, the fish and the meter on the bar and the tension from nought to one, whatever the hand does', () => {
     const line = new Line(),
       random = seeded(9);
-    line.start(FIGHT.spool - 1, random(), random);
+    line.start(FIGHT.spool - 1, fightFor(random(), 'steady'), random);
     for (let f = 0; f < 20000; f++) {
-      if (line.step(DT, random() < 0.5, random(), random) !== 'fighting') line.start(FIGHT.spool - 1, random(), random);
+      if (line.step(DT, random() < 0.5, random(), random) !== 'fighting')
+        line.start(FIGHT.spool - 1, fightFor(random(), 'steady'), random);
       expect(line.zone).toBeGreaterThanOrEqual(0);
       expect(line.zone).toBeLessThanOrEqual(1 - FIGHT.width);
       expect(line.fishAt).toBeGreaterThanOrEqual(0);
@@ -186,7 +222,7 @@ function hooked(seed = 1) {
     events: {
       hooked: () => told.push('hooked'),
       slipped: () => told.push('slipped'),
-      landed: (kind, weight) => told.push(`landed ${kind} ${weight}`),
+      landed: (kind, weight, temper) => told.push(`landed ${kind} ${weight} ${temper}`),
     },
   });
   game.cast(NORTH, MIDDLE);
@@ -216,7 +252,7 @@ describe('the fight', () => {
       const landed = told.filter((l) => l.startsWith('landed'));
       expect(landed.length, `seed ${seed}: told once`).toBe(1);
       const [, , , w] = landed[0].split(' ');
-      expect(landed[0]).toMatch(new RegExp(`^landed ${PERCH.name} `));
+      expect(landed[0]).toMatch(new RegExp(`^landed ${PERCH.name} [\\d.]+ (calm|steady|feisty)$`));
       expect(Number(w)).toBeGreaterThanOrEqual(PERCH.weight[0]);
       expect(Number(w)).toBeLessThanOrEqual(PERCH.weight[1]);
       // shown off, it waits by the rod; stowed, it is in the bucket and the lake has its fish still

@@ -8,7 +8,16 @@
  *   npm run balance -- --fights N         N fights a cell (the baseline is for the default, so this prints only)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { FIGHTS, compareTables, formatTable, playTable, type Table } from './balancing';
+import {
+  FIGHTS,
+  TEMPER_REACTION,
+  compareTables,
+  formatTable,
+  formatTemperTable,
+  playTable,
+  playTemperTable,
+  type Table,
+} from './balancing';
 
 const BASELINE = 'scripts/balance-baseline.json';
 
@@ -25,6 +34,8 @@ function main() {
   const table = playTable(fights);
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   console.log(formatTable(table));
+  console.log(`\nby temper, at the ${(TEMPER_REACTION / 60).toFixed(2)} s hand (not held to a baseline yet):`);
+  console.log(formatTemperTable(playTemperTable(fights)));
   console.log(`${Object.keys(table).length} cells of ${fights} fights (${seconds} s)`);
   if (args.includes('--print') || fights !== FIGHTS) return;
 

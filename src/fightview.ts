@@ -101,7 +101,7 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
   const live = g.lure.phase === 'sinking' || hooked;
   into.phase = phase;
   into.zone = g.line.zone;
-  into.width = FIGHT.width;
+  into.width = g.line.figures.width;
   into.fishAt = g.line.fishAt;
   into.meter = g.line.meter;
   into.tension = g.line.tension;
@@ -116,10 +116,10 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
 
 /** The bar and the button drawn from a picture, writing an element only where its value has changed. */
 export class FightBar {
-  private was = { gauge: '', zone: '', fish: '', meter: '', words: '', button: '', pulse: '' };
+  private was = { height: '', gauge: '', zone: '', fish: '', meter: '', words: '', button: '', pulse: '' };
 
   constructor(private readonly el: BarElements) {
-    el.zone.style.height = per(FIGHT.width);
+    el.zone.style.height = this.was.height = per(FIGHT.width);
     el.fish.style.fill = css(PALETTE.glow);
     el.fish.style.filter = `drop-shadow(0 0 4px ${css(PALETTE.glow)})`;
   }
@@ -136,6 +136,9 @@ export class FightBar {
       const zone = per(p.zone),
         fish = per(p.fishAt),
         meter = per(p.meter);
+      // the zone's height is the fight's own figure, so a rod that widens it is drawn wider
+      const height = per(p.width);
+      if (height !== this.was.height) el.zone.style.height = this.was.height = height;
       if (zone !== this.was.zone) el.zone.style.bottom = this.was.zone = zone;
       if (fish !== this.was.fish) el.fish.style.bottom = this.was.fish = fish;
       if (meter !== this.was.meter) {
@@ -219,7 +222,7 @@ export class FightView {
       this.was.card = card;
       el.card.hidden = !card;
       if (card) {
-        el.name.textContent = PERCH.name;
+        el.name.textContent = `${g.temper} ${PERCH.name}`;
         el.weight.textContent = `${g.catchWeight.toFixed(2)} kg`;
       }
     }

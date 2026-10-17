@@ -17,7 +17,6 @@
  */
 import { careful } from './angler';
 import type { Game } from './game';
-import { FIGHT } from './lake';
 import { flight } from './cast';
 import type { Mode } from './mode';
 import type { PhoneReading } from './phone/session';
@@ -84,6 +83,8 @@ export interface FishingState {
   width: number;
   fishAt: number;
   meter: number;
+  /** The temper of the fish on the line or landed: calm, steady or feisty. */
+  temper: string;
   bucket: number;
   weight: number;
 }
@@ -363,7 +364,8 @@ export function createApi(host: DebugHost): GameApi {
       bucket: game.bucket,
       weight: game.catchWeight,
       zone: game.line.zone,
-      width: FIGHT.width,
+      width: game.line.figures.width,
+      temper: game.temper,
       fishAt: game.line.fishAt,
       meter: game.line.meter,
     }),

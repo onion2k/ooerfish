@@ -1,9 +1,11 @@
 /** The lake without its picture: its clock, and that it is played the same from a seed. */
 import { describe, expect, it } from 'vitest';
+import { flight } from '../src/cast';
+import { fightFor, type Temper } from '../src/fight';
 import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { ANGLER, CLOCK, FISH_COUNT, RELEASE, inside } from '../src/lake';
+import { ANGLER, CLOCK, FISH_COUNT, PERCH, RELEASE, inside } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
@@ -155,5 +157,56 @@ describe('a cured fish goes back into the pond', () => {
     };
     expect(at(5)).toEqual(at(0));
     expect(at(99)).toEqual(at(0));
+  });
+});
+
+/** A game with a fish just hooked, from a seed, and the tempers its events told. */
+function hookedGame(seed: number) {
+  const landed: [string, number, Temper][] = [];
+  const game = new Game(new Progress(memoryStore()), {
+    random: seeded(seed),
+    events: { landed: (kind, weight, temper) => landed.push([kind, weight, temper]) },
+  });
+  const north = Math.PI / 2;
+  let middle = 0,
+    gap = Infinity;
+  for (let p = 1; p <= 200; p++) {
+    const f = flight(north, p / 200);
+    const g = Math.hypot(f.landing[0], f.landing[1]);
+    if (g < gap) [middle, gap] = [p / 200, g];
+  }
+  game.cast(north, middle);
+  for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+  expect(game.strike()).toBe('hooked');
+  return { game, landed };
+}
+
+describe('a hooked fish’s temper', () => {
+  it('is drawn on the hook, and the line is started with the figures for its size and temper', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const { game } = hookedGame(seed);
+      expect(['calm', 'steady', 'feisty'], `seed ${seed}`).toContain(game.temper);
+      const heft = (game.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
+      expect(game.line.figures, `seed ${seed}`).toEqual(fightFor(heft, game.temper));
+    }
+  });
+
+  it('is drawn after the weight and before the line’s own first draws, so a seed gives the same fish', () => {
+    const a = hookedGame(3).game,
+      b = hookedGame(3).game;
+    expect([a.temper, a.catchWeight]).toEqual([b.temper, b.catchWeight]);
+  });
+
+  it('is told with the landing', () => {
+    for (let seed = 1; seed <= 3; seed++) {
+      const { game, landed } = hookedGame(seed);
+      for (let f = 0; f < 120 / DT && game.bite.phase === 'hooked'; f++) {
+        const l = game.line;
+        game.reel(l.zone + l.figures.width / 2 < l.fishAt);
+        game.step(DT);
+      }
+      expect(game.bite.phase, `seed ${seed}`).toBe('landed');
+      expect(landed).toEqual([[PERCH.name, game.catchWeight, game.temper]]);
+    }
   });
 });

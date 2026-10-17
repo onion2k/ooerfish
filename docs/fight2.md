@@ -83,6 +83,14 @@ measuring tool, not by eye.
    of light, 75% of middle and 55% of heavy fish, and a 0.4 s hand about 60%, 40% and 20%. With all the gear, a
    0.25 s hand lands about 98%, 92% and 85%. A 0.15 s hand lands nearly everything throughout. A median fight is
    under 30 s.
+
+   **Changed with the user, 17 Oct, after the first tuning:** the median fight landed by the 0.25 s hand is
+   between 10 and 30 s in every column, not merely under 30. The first tuning met the rates by swinging the meter
+   three to five times as fast (fill 0.28, drain 0.28), which gave 3 to 13 s fights and a fish that could not keep
+   up with the line. The rates come from the fish (size and temper) instead, with the meter near its old pace. A
+   hand that never holds the reel lands no fish: the fish's lowest dart (`floor`) stands above a zone resting at
+   the bottom of the bar, so a meter cannot fill while the player does nothing.
+
 2. **The gifts and when.** Recommended: the line at 2 cures, the reel at 4, the rod at 6, the bobber at 8 and the
    bait at 10 (the pond takes 12), so the hardest fights come first and the gear arrives as the pond heals.
    Alternatively, fewer and bigger gifts (rod at 4, line at 8).
@@ -144,7 +152,9 @@ Out of scope: a shop and its money; gear drawn on the rod; more fish kinds; the 
 - [x] 1. **The balance tool:** `balance.ts` and `balancing.ts`, its baseline of today's game, and its trust checks.
       Check: its sums' unit tests, and today's table reproduced.
 - [ ] 2. **Size and temper:** `fight.ts`, `TEMPERS` and `SIZE`, the `Line` from a profile, and the card. Check:
-      unit tests, and the balance tool showing the sizes and tempers apart.
+      unit tests, and the balance tool showing the sizes and tempers apart. **It also takes part 4's no-gear
+      half:** the figures are tuned to decision 1's no-gear targets here, so part 4 tunes only what the gear
+      brings.
 - [ ] 3. **The gifts:** `GEAR`, `gearFor`, the gear in the fight and the bite, the toast, and the load. Check: unit
       and end-to-end tests.
 - [ ] 4. **Tuned to the targets:** the figures tuned with the balance tool to decision 1, and the balance and pace

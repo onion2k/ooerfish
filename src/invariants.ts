@@ -160,7 +160,7 @@ function fishingRules(game: Game): string[] {
   if (!(line.tension >= 0 && line.tension <= 1)) out.push(`the line's tension is ${line.tension}`);
   if (!(line.out >= 0 && line.out <= FIGHT.spool))
     out.push(`the line out is ${line.out}, of a spool of ${FIGHT.spool}`);
-  if (!(line.zone >= 0 && line.zone <= 1 - FIGHT.width)) out.push(`the zone is at ${line.zone}, off the bar`);
+  if (!(line.zone >= 0 && line.zone <= 1 - line.figures.width)) out.push(`the zone is at ${line.zone}, off the bar`);
   if (!(line.fishAt >= 0 && line.fishAt <= 1)) out.push(`the fish is at ${line.fishAt} on the bar`);
   if (!(line.meter >= 0 && line.meter <= 1)) out.push(`the meter is at ${line.meter}`);
   if (!Number.isInteger(game.bucket) || game.bucket < 0) out.push(`the bucket holds ${game.bucket}`);

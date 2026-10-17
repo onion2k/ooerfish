@@ -9,6 +9,7 @@
  * move it, and is written again through /gate-moved.
  */
 import { careful } from '../src/angler';
+import { drawTemper, fightFor, type Temper } from '../src/fight';
 import { Line } from '../src/line';
 import { seeded, type Random } from '../src/random';
 
@@ -83,6 +84,8 @@ export class DelayedHand {
 export interface FightOptions {
   reaction: number;
   heft: number;
+  /** The fish's temper; steady unless a test asks otherwise, since a fight with none given draws one as the game does. */
+  temper?: Temper;
   /** What the hand does for the line and the fish it sees; the careful hand unless a test asks otherwise. */
   hand?: (line: Line, seen: number) => boolean;
   capSeconds?: number;
@@ -97,7 +100,8 @@ export function playFight(random: Random, o: FightOptions): FightResult {
   const line = new Line();
   const delayed = new DelayedHand(o.reaction);
   const hand = o.hand ?? ((l: Line, seen: number) => careful(l.zone, l.zoneSpeed, seen));
-  line.start(OUT, o.heft, random);
+  // the temper is drawn here, one draw after the heft and before the line's own, as the game's hook does
+  line.start(OUT, fightFor(o.heft, o.temper ?? drawTemper(random)), random);
   const frames = Math.round((o.capSeconds ?? CAP_SECONDS) / DT);
   for (let f = 1; f <= frames; f++) {
     delayed.push(line.fishAt);
@@ -113,7 +117,13 @@ export function fightSeed(index: number, reaction: number, band: BandName): numb
   return index * 7919 + reaction * 104729 + b * 1299709 + 17;
 }
 
+/** The tempers' table: one cell per temper and size, at the 0.25 s hand and no gear, each played over its own seeds. */
+export const TEMPER_REACTION = 15;
+export const TEMPER_NAMES: readonly Temper[] = ['calm', 'steady', 'feisty'];
+
 export interface CellOptions {
+  /** A temper to give every fight in the cell, instead of drawing one as the game does. */
+  temper?: Temper;
   /** Overrides, for the faults put there on purpose; none in the check. */
   reaction?: number;
   hand?: FightOptions['hand'];
@@ -126,7 +136,7 @@ export function playCell(cell: Cell, fights: number, o: CellOptions = {}): Resul
   for (let i = 0; i < fights; i++) {
     const random = seeded(fightSeed(i, cell.reaction, cell.band));
     const heft = band.lo + random() * (band.hi - band.lo);
-    const r = playFight(random, { reaction: o.reaction ?? cell.reaction, heft, hand: o.hand });
+    const r = playFight(random, { reaction: o.reaction ?? cell.reaction, heft, hand: o.hand, temper: o.temper });
     if (r.result === 'landed') times.push(r.seconds);
   }
   const m = medianOf(times);
@@ -174,5 +184,31 @@ export function formatTable(table: Table): string {
       });
       lines.push([gear.padEnd(4), `${(reaction / 60).toFixed(2)} s`.padEnd(8), ...cells].join('  '));
     }
+  return lines.join('\n');
+}
+
+/** The temper table: the rate and median of each temper at each size, played with that temper given to every fight. */
+export function playTemperTable(fights = FIGHTS): Table {
+  const table: Table = {};
+  for (const temper of TEMPER_NAMES)
+    for (const band of BANDS) {
+      const cell = { gear: 'none' as Gear, reaction: TEMPER_REACTION, band: band.name };
+      table[`${temper}/${band.name}`] = playCell(cell, fights, { temper });
+    }
+  return table;
+}
+
+/** The temper table: a row a temper, a column a size, each "rate, median". */
+export function formatTemperTable(table: Table): string {
+  const lines = [['temper'.padEnd(7), ...BANDS.map((b) => b.name.padEnd(16))].join('  ')];
+  for (const temper of TEMPER_NAMES) {
+    const cells = BANDS.map((band) => {
+      const r = table[`${temper}/${band.name}`];
+      return `${Math.round((100 * r.landed) / r.fights)}%, ${r.median === null ? '-' : `${r.median.toFixed(1)} s`}`.padEnd(
+        16,
+      );
+    });
+    lines.push([temper.padEnd(7), ...cells].join('  '));
+  }
   return lines.join('\n');
 }
