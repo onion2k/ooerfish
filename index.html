@@ -55,13 +55,6 @@
     backdrop-filter: blur(8px);
     pointer-events: none;
   }
-  #stats {
-    top: 16px;
-    right: 16px;
-    text-align: right;
-    color: var(--dim);
-    font-size: 12px;
-  }
   #castLine {
     bottom: 16px;
     left: 50%;
@@ -70,7 +63,7 @@
   }
   /* look or cast, always on the screen, above the hint that says what a drag does now, in a column so a hint of
      two or three lines pushes the button up and not under it; on a phone, where the hint is not, at the top left,
-     clear of the lab's panel at the foot and the Reel button at the right */
+     clear of the Reel button at the right */
   #hud {
     position: fixed;
     bottom: 16px;
@@ -103,10 +96,10 @@
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
-  /* what the phone is doing, once one has paired: a line under the bucket's count (which ends at 115px, or at 59px on a
-     phone), where it is not in the way of the fight and the two never overlap */
+  /* what the phone is doing, once one has paired: a line under the menu and the bucket's count (which end at 60px),
+     where it is not in the way of the fight and never over either */
   #phoneStatus {
-    top: 123px;
+    top: 68px;
     right: 16px;
     font-size: 12px;
     color: var(--dim);
@@ -181,60 +174,70 @@
   #boot p {
     color: var(--dim);
   }
-  #labPanel {
+  /* the pond: the glow gauge at the top left, a bar that empties as the lake is cleaned (the dark part covers the
+     glow that has gone, from the right), and the welcome and the line for a cure, centred at the top */
+  #pond {
     top: 16px;
     left: 16px;
-    max-width: 300px;
-    pointer-events: auto;
-    padding: 0;
-  }
-  #labPanel summary {
-    padding: 10px 14px;
-    cursor: pointer;
-    font-weight: 700;
-  }
-  #lab {
-    padding: 0 14px 12px;
-  }
-  #lab fieldset {
-    border: 0;
-    margin: 0 0 8px;
-    padding: 0;
-  }
-  #lab legend {
-    color: var(--dim);
-    font-size: 12px;
-    padding: 0 0 4px;
-  }
-  #lab button {
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink);
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 7px;
-    padding: 4px 9px;
-    margin: 0 4px 4px 0;
-    cursor: pointer;
-  }
-  #lab button[aria-pressed='true'] {
-    background: #e8f4ff;
-    color: #10202e;
-    border-color: #e8f4ff;
-  }
-  #lab button:focus-visible,
-  #lab input:focus-visible {
-    outline: 2px solid #9fd0ff;
-    outline-offset: 2px;
-  }
-  #lab input[type='range'] {
-    width: 100%;
-  }
-  #lab .ends {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  #pond[hidden] {
+    display: none;
+  }
+  #pondIcon {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    fill: #9fe04a;
+    stroke: #9fe04a;
+  }
+  #pond.clean #pondIcon {
+    fill: #5fd0ff;
+    stroke: #5fd0ff;
+  }
+  #pondBar {
+    position: relative;
+    width: 150px;
+    height: 10px;
+    margin-top: 2px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: linear-gradient(90deg, #5fd0ff, #6fe3a0 55%, #9fe04a);
+  }
+  #pondBarGone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 0;
+    background: rgba(14, 12, 20, 0.75);
+  }
+  #welcome,
+  #toast {
+    left: 50%;
+    top: 26px;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: 16px;
+  }
+  #welcome {
+    /* the lines of a sentence of this length are evened, so a word is not left alone on the second */
+    text-wrap: balance;
+    width: 520px;
+    max-width: calc(100% - 32px);
+  }
+  #welcome small {
     color: var(--dim);
-    font-size: 11px;
+    font-size: 14px;
+  }
+  #toast {
+    top: 80px;
+    white-space: nowrap;
+  }
+  #toast b {
+    color: #8fe3ff;
   }
   /* the fight's bar: where it stands beside the Reel button (what it looks like is fight.css's, which the phone's page
      shares) */
@@ -308,9 +311,67 @@
     outline-offset: 3px;
   }
   #bucket {
-    top: 72px;
-    right: 16px;
+    top: 16px;
+    right: 72px;
     font-size: 14px;
+  }
+  /* what not every player wants (pairing a phone) is behind one small button in the corner, out of the way of play */
+  #menu {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  #menu[hidden] {
+    display: none;
+  }
+  #menu .panel {
+    position: static;
+  }
+  #menuButton {
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--ink);
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    touch-action: manipulation;
+  }
+  #menuList {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+  }
+  #menuList[hidden] {
+    display: none;
+  }
+  #menuList button {
+    cursor: pointer;
+    font: inherit;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-height: 44px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  #menuList button:hover,
+  #menuList button:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  #menuButton:focus-visible,
+  #menuList button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 2px;
   }
   @media (max-width: 600px) {
     #reelButton {
@@ -324,40 +385,59 @@
     #catch {
       bottom: 160px;
     }
-    /* above the folded lab panel, which takes the foot of a phone's screen */
     #castLine {
       bottom: 76px;
       max-width: calc(100% - 32px);
     }
-    #bucket {
-      top: 16px;
-    }
-    #phoneStatus {
-      top: 67px;
-    }
-    #labPanel {
-      top: auto;
-      bottom: 16px;
-      left: 16px;
-      right: 16px;
-      max-width: none;
-    }
-    #help,
-    #stats {
+    #help {
       display: none;
     }
+    /* the pond's gauge takes the top left, so the Cast button stands under it, and the lines under that */
     #hud {
-      top: 16px;
+      top: 76px;
       bottom: auto;
+    }
+    #welcome,
+    #toast {
+      top: 134px;
+    }
+    /* the gauge is too wide for the bucket to stand left of the menu here, so the bucket keeps the corner and the menu
+       and the phone's line take the Cast button's row, on the right */
+    #bucket {
+      right: 16px;
+    }
+    #menu {
+      top: 76px;
+    }
+    #phoneStatus {
+      top: 80px;
+      right: 72px;
+    }
+    #toast {
+      white-space: normal;
+      width: calc(100% - 32px);
     }
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
-<details class="panel" id="labPanel" open>
-  <summary>Lake lab</summary>
-  <div id="lab" hidden></div>
-</details>
-<div class="panel" id="stats" hidden></div>
+<div class="panel" id="pond" hidden>
+  <svg id="pondIcon" viewBox="-50 -50 100 100" aria-hidden="true">
+    <g fill="none" stroke-width="7">
+      <ellipse rx="44" ry="15" />
+      <ellipse rx="44" ry="15" transform="rotate(60)" />
+      <ellipse rx="44" ry="15" transform="rotate(-60)" />
+    </g>
+    <circle r="12" stroke="none" />
+  </svg>
+  <div>
+    <div id="pondName"></div>
+    <div id="pondBar"><div id="pondBarGone"></div></div>
+  </div>
+</div>
+<div class="panel" id="welcome" hidden>
+  Welcome home. The pond's fish are glowing: catch them to clean it up.<br /><small>press Cast, or C, to start</small>
+</div>
+<div class="panel" id="toast" hidden></div>
 <div class="panel" id="castLine" hidden></div>
 <div class="panel" id="phoneStatus" role="status" hidden></div>
 <div id="pairing" role="dialog" aria-modal="true" aria-labelledby="pairingTitle" hidden>
@@ -386,9 +466,25 @@
 </div>
 <button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
 <button class="panel" id="catch" type="button" hidden>
-  <b id="catchName"></b><span id="catchWeight"></span><small>tap to put it in the bucket</small>
+  <b id="catchName"></b><span id="catchWeight"></span><small>tap to cure it and put it in the bucket</small>
 </button>
 <div class="panel" id="bucket" hidden></div>
+<div id="menu">
+  <button
+    class="panel"
+    id="menuButton"
+    type="button"
+    aria-label="More"
+    aria-haspopup="true"
+    aria-expanded="false"
+    aria-controls="menuList"
+  >
+    ⋯
+  </button>
+  <div class="panel" id="menuList" role="menu" hidden>
+    <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
+  </div>
+</div>
 <div id="hud">
   <button class="panel" id="modeButton" type="button" hidden>Cast</button>
   <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>

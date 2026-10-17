@@ -20,8 +20,10 @@ const read = (file: string) => readFileSync(new URL(file, DIR), 'utf8');
 
 /** What each save was worth when it was written, and what loading it must keep. */
 const KEPT: Record<string, Record<string, unknown>> = {
-  // the lake lab saves nothing: the stub's bank was never written for a player, so its shape is not kept
-  '01-empty.json': {},
+  // the lake lab saved nothing: an empty save loads as no fish cured
+  '01-empty.json': { cured: 0 },
+  // the cure: a count of fish cured, from which the lake's contamination is worked out
+  '02-cured.json': { cured: 5 },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -32,7 +34,7 @@ describe('saves from every shape the game has written', () => {
   for (const file of files) {
     describe(file, () => {
       it('loads with what it held kept', () => {
-        const save = new Progress(memoryStore(read(file))).save as Record<string, unknown>;
+        const save = new Progress(memoryStore(read(file))).save as unknown as Record<string, unknown>;
         for (const [key, was] of Object.entries(KEPT[file])) expect(save[key]).toEqual(was);
       });
 
@@ -55,9 +57,14 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({});
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({});
-    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({});
+    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0 });
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0 });
+    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0 });
+    // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
+    for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
+      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({ cured: 0 });
+    // and one that is, is kept, with whatever else the save said left alone
+    expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {

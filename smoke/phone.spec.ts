@@ -105,7 +105,8 @@ test('a phone pairs through the QR code and its pad casts; a second phone is tol
   });
 
   // the button, pressed as a user does: the code is fetched then, and a QR code is drawn
-  await page.getByRole('button', { name: 'Pair a phone', exact: true }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Pair a phone', exact: true }).click();
   await expect(page.locator('#pairing')).toBeVisible();
   await expect.poll(() => requested.filter((u) => pairingCode.test(u)).length).toBeGreaterThan(0);
   const drawn = () =>
@@ -410,13 +411,32 @@ test('the overlay closes by its button and by Escape, and Pair a phone shows it 
   const problems = watch(page);
   await page.goto('/?phonelink=local&seed=3&paused=1&rung=full');
   await ready(page);
-  const pair = page.getByRole('button', { name: 'Pair a phone', exact: true });
-  await pair.click();
+  // Pair a phone is behind the corner's More button: shut at the start, opened by it, and shut again by Escape and by
+  // a click anywhere else, without pairing
+  const more = page.getByRole('button', { name: 'More', exact: true });
+  const item = page.getByRole('menuitem', { name: 'Pair a phone', exact: true });
+  await expect(item).toBeHidden();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await more.click();
+  await expect(item).toBeVisible();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Escape');
+  await expect(item).toBeHidden();
+  await more.click();
+  await page.mouse.click(640, 400);
+  await expect(item).toBeHidden();
+  await expect(page.locator('#pairing')).toBeHidden();
+  const pair = async () => {
+    await more.click();
+    await item.click();
+    await expect(item).toBeHidden();
+  };
+  await pair();
   await expect(page.locator('#pairing')).toBeVisible();
   const first = await pairingFromOverlay(page);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.locator('#pairing')).toBeHidden();
-  await pair.click();
+  await pair();
   await expect(page.locator('#pairing')).toBeVisible();
   expect((await pairingFromOverlay(page)).room).toBe(first.room);
   await page.keyboard.press('Escape');

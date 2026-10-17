@@ -4,6 +4,7 @@ import { School } from '../src/fish';
 import { checkInvariants } from '../src/invariants';
 import {
   BOULDERS,
+  CLOCK,
   FISH_CAPACITY,
   FISH_COUNT,
   JETTY,
@@ -185,7 +186,7 @@ describe("the lab's levers", () => {
   it('set the contamination and the time of day, within nought and one, and refuse what is not a number', () => {
     const { game } = newGame();
     expect(game.contamination).toBe(1);
-    expect(game.timeOfDay).toBe(0.5);
+    expect(game.timeOfDay).toBe(CLOCK.startsAt);
     game.setContamination(0.25);
     expect(game.contamination).toBe(0.25);
     game.setContamination(7);
@@ -198,8 +199,17 @@ describe("the lab's levers", () => {
     expect(game.timeOfDay).toBe(0.75);
     game.setTimeOfDay(Infinity);
     expect(game.timeOfDay).toBe(0.75);
-    game.setTimeOfDay(2);
-    expect(game.timeOfDay).toBe(1);
+    // a clock: one is midnight again, and past it goes round
+    game.setTimeOfDay(1);
+    expect(game.timeOfDay).toBe(0);
+    game.setTimeOfDay(1.25);
+    expect(game.timeOfDay).toBeCloseTo(0.25, 10);
+    game.setTimeOfDay(-0.25);
+    expect(game.timeOfDay).toBeCloseTo(0.75, 10);
+    // a hair under midnight rounds up to one in the subtraction, and a day never reaches one
+    game.setTimeOfDay(-1e-17);
+    expect(game.timeOfDay).toBe(0);
+    expect(checkInvariants(game)).toEqual([]);
   });
 });
 
@@ -223,5 +233,10 @@ describe('what must always hold of the fish and the levers', () => {
     game.contamination = 1;
     game.timeOfDay = -0.5;
     expect(checkInvariants(game).join('\n')).toMatch(/the time of day is -0.5/);
+    // a day is [0, 1): one is midnight again, and is not a time
+    game.timeOfDay = 1;
+    expect(checkInvariants(game).join('\n')).toMatch(/the time of day is 1/);
+    game.timeOfDay = 0.999;
+    expect(checkInvariants(game)).toEqual([]);
   });
 });

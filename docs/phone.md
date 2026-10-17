@@ -15,7 +15,7 @@ without looking up. The user chose these three things:
 
 ## What
 
-- **Pairing.** On the lab panel, **Pair a phone** shows a QR code over the game. The phone scans it, opens the
+- **Pairing.** On the lab panel (since the game replaced the lab, behind the corner's More button, ⋯), **Pair a phone** shows a QR code over the game. The phone scans it, opens the
   phone page and taps **Connect**. The code closes when the phone joins. One phone pairs with a screen at a time.
 - **On the phone, with motion sensors:**
   - Hold a thumb on the pad to raise the rod. While it is held, tilting left or right swings the aim, and the

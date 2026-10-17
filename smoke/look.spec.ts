@@ -17,7 +17,7 @@
  * A failure leaves the picture, what was drawn and the difference in
  * `test-results/`. Look at all three before deciding which is right.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
@@ -181,8 +181,6 @@ test.describe('what it looks like', () => {
     await set(page, STANDARD, 30);
     await page.evaluate(() => {
       window.game!.fishTo('bite');
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
     });
     await expect(page.locator('#biteMark')).toBeInViewport();
     await expect(page).toHaveScreenshot('desk-bite.png', TOLERANCE);
@@ -195,8 +193,6 @@ test.describe('what it looks like', () => {
     await set(page, STANDARD, 30);
     await page.evaluate(() => {
       window.game!.fishTo('fight');
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
     });
     await expect(page.locator('#gauge')).toBeInViewport();
     await expect(page).toHaveScreenshot('desk-fight.png', TOLERANCE);
@@ -207,14 +203,11 @@ test.describe('what it looks like', () => {
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
 
-  test('the lake from the shore, with the lab folded away', async ({ page }) => {
+  test('the lake from the shore', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
     await set(page, { ...STANDARD, view: 'phone' }, 180);
-    await page.evaluate(() => {
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
-    });
+    await page.evaluate(() => {});
     await expect(page).toHaveScreenshot('phone.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
@@ -228,10 +221,7 @@ test.describe('on a phone', () => {
       window.game!.drop(0, 4);
       window.game!.step(30);
     });
-    await page.evaluate(() => {
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
-    });
+    await page.evaluate(() => {});
     await expect(page).toHaveScreenshot('phone-splash.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
@@ -242,8 +232,6 @@ test.describe('on a phone', () => {
     await set(page, { ...STANDARD, view: 'phone' }, 30);
     await page.evaluate(() => {
       window.game!.fishTo('fight');
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
     });
     await expect(page.locator('#reelButton')).toBeInViewport();
     await expect(page.locator('#gauge')).toBeInViewport();
@@ -265,10 +253,6 @@ test.describe('pairing a phone', () => {
     await start(page, { seed: 11, paused: true, query: { phonelink: 'local' } });
     await set(page, STANDARD, 30);
     await page.evaluate((fixed) => window.game!.pair(fixed), FIXED_PAIRING);
-    await page.evaluate(() => {
-      document.getElementById('stats')!.hidden = true;
-      (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
-    });
     await expect(page.locator('#pairing')).toBeVisible();
     await expect(page).toHaveScreenshot('pairing-desk.png', TOLERANCE);
     expect(problems).toEqual([]);
@@ -282,10 +266,6 @@ test.describe('pairing a phone', () => {
       await start(page, { seed: 11, paused: true, query: { phonelink: 'local' } });
       await set(page, { ...STANDARD, view: 'phone' }, 30);
       await page.evaluate((fixed) => window.game!.pair(fixed), FIXED_PAIRING);
-      await page.evaluate(() => {
-        document.getElementById('stats')!.hidden = true;
-        (document.getElementById('labPanel') as HTMLDetailsElement).open = false;
-      });
       await expect(page.locator('#pairing')).toBeVisible();
       await expect(page).toHaveScreenshot('pairing-phone.png', TOLERANCE);
       expect(problems).toEqual([]);
@@ -356,4 +336,56 @@ test.describe('the phone as the rod', () => {
     await expect(phone).toHaveScreenshot('rod-reel.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
+});
+
+/**
+ * The pond as a player first meets it and as it comes to be, the real HUD over the real page, from the start of the
+ * game at dawn: `welcome` is the first sight (the sick pond, the gauge full, the welcome line), `playing` is eight
+ * fish cured with the line gone, and `clean` is the twelfth cured and the line that says so. Seeded and paused, so
+ * each is the same every run.
+ */
+async function pond(page: Page, scene: 'welcome' | 'playing' | 'clean') {
+  const save = scene === 'welcome' ? undefined : { cured: scene === 'playing' ? 8 : 11 };
+  await start(page, { seed: 11, paused: true, ...(save ? { save } : {}) });
+  await page.evaluate(() => window.game!.step(60));
+  if (scene === 'clean') {
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    await page.locator('#catch').click();
+    await page.evaluate(() => window.game!.step(1));
+    await expect(page.locator('#toast')).toContainText('The Duck Pond is clean!');
+  }
+}
+
+test.describe('the pond at a desk’s width', () => {
+  for (const scene of ['welcome', 'playing', 'clean'] as const)
+    test(`${scene}`, async ({ page }) => {
+      const problems = watch(page);
+      await pond(page, scene);
+      await expect(page).toHaveScreenshot(`desk-pond-${scene}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+});
+
+test.describe('the pond on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  for (const scene of ['welcome', 'playing', 'clean'] as const)
+    test(`${scene}`, async ({ page }) => {
+      const problems = watch(page);
+      await pond(page, scene);
+      // the Shore view is the phone's framing by itself here, and the gauge, the Cast button and the lines are clear of each other
+      const box = async (id: string) => (await page.locator(`#${id}`).boundingBox())!;
+      const gauge = await box('pond'),
+        cast = await box('modeButton');
+      expect(gauge.y + gauge.height, 'the Cast button is under the gauge').toBeLessThanOrEqual(cast.y);
+      for (const id of ['welcome', 'toast'])
+        if (await page.locator(`#${id}`).isVisible()) {
+          const line = await box(id);
+          expect(cast.y + cast.height, `${id} is under the Cast button`).toBeLessThanOrEqual(line.y);
+          expect(line.x).toBeGreaterThanOrEqual(0);
+          expect(line.x + line.width).toBeLessThanOrEqual(390);
+        }
+      await expect(page).toHaveScreenshot(`phone-pond-${scene}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
 });

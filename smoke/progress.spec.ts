@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { jettyGap } from '../src/lake';
-import { STANDARD, set, start, watch } from './game';
+import { STANDARD, ready, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
 async function play(page: Page, frames: number, stage: string) {
@@ -113,6 +113,66 @@ test("the lake's time runs while it is played, and stands still while it is paus
       }),
   );
   expect(await page.evaluate(() => window.game!.state().t)).toBe(after);
+  expect(problems).toEqual([]);
+});
+
+test('the day runs from dawn: the light steps when the clock crosses into the next time, paused it does not, and all four looks are baked at ready', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 1, paused: true });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  // the game starts at dawn, and the four environments are baked once the first frame is up, so no step in play bakes one
+  expect(await api(() => window.game!.time())).toBe('dawn');
+  expect((await api(() => window.game!.state())).timeOfDay).toBe(0.25);
+  expect(await api(() => window.game!.looksBaked()), 'the four looks baked after ready').toBe(4);
+
+  // the clock runs on by game time: a sixtieth of a day-second a frame
+  await play(page, 60, 'a second of the day');
+  expect((await api(() => window.game!.state())).timeOfDay).toBeCloseTo(0.25 + 1 / 720, 6);
+
+  // each boundary between two looks, crossed by a step: the look is the old one until it, and the new one after
+  for (const [from, to, at] of [
+    ['dawn', 'day', 0.375],
+    ['day', 'dusk', 0.625],
+    ['dusk', 'night', 0.875],
+    ['night', 'dawn', 0.125],
+  ] as const) {
+    await page.evaluate(
+      async ([f, a]) => {
+        await window.game!.time(f);
+        window.game!.clock(a - 0.0005);
+      },
+      [from, at] as const,
+    );
+    await play(page, 10, `the ${from} look held`);
+    expect(await api(() => window.game!.time()), `${from} before ${at}`).toBe(from);
+    await play(page, 30, `crossing ${at}`);
+    expect(await api(() => window.game!.time()), `${to} after ${at}`).toBe(to);
+    // the frame across the step is inside its budget, as it is on either side
+    expect(await api(() => window.game!.measureFrame()), `a frame of ${to}`).toBeLessThan(8);
+  }
+  // and the clock wrapped at midnight, still a time of the day
+  await page.evaluate(() => window.game!.clock(0.9999));
+  await play(page, 120, 'past midnight');
+  expect((await api(() => window.game!.state())).timeOfDay).toBeLessThan(0.01);
+  expect(await api(() => window.game!.time())).toBe('night');
+
+  // paused, the clock stands still, however many frames the page draws
+  const at = (await api(() => window.game!.state())).timeOfDay;
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        let n = 0;
+        const tick = () => (++n < 10 ? requestAnimationFrame(tick) : done());
+        requestAnimationFrame(tick);
+      }),
+  );
+  expect((await api(() => window.game!.state())).timeOfDay).toBe(at);
+  // a look picked by name sets the clock there, and it runs on from it
+  await page.evaluate(() => window.game!.time('dusk'));
+  await play(page, 60, 'from dusk');
+  expect((await api(() => window.game!.state())).timeOfDay).toBeCloseTo(0.75 + 1 / 720, 6);
   expect(problems).toEqual([]);
 });
 
@@ -327,5 +387,79 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   await expect(page.locator('#catch')).toBeHidden();
   await expect(page.locator('#bucket')).toHaveText('in the bucket: 1');
   expect((await page.evaluate(() => window.game!.fishing())).bucket).toBe(1);
+  expect(problems).toEqual([]);
+});
+
+test('a fish cured: the welcome goes at the first cast, the card says what the tap does, and the tap steps the gauge, the water and the save, which a reload keeps', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  const meter = () => page.locator('#pondBar').getAttribute('aria-valuenow');
+
+  // straight in: the pond's name, the gauge full, and a welcome line, and no title card
+  await expect(page.locator('#pondName')).toHaveText('Duck Pond');
+  expect(await meter()).toBe('100');
+  await expect(page.locator('#welcome')).toBeVisible();
+  await expect(page.locator('#welcome')).toContainText("Welcome home. The pond's fish are glowing");
+  await expect(page.locator('#toast')).toBeHidden();
+
+  // the first cast takes the welcome away
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await expect(page.locator('#welcome')).toBeHidden();
+  await expect(page.locator('#catch')).toContainText('tap to cure it and put it in the bucket');
+  const before = (await api(() => window.game!.state())).contamination;
+  expect(before).toBe(1);
+
+  // the tap on the card: a twelfth cleaner, in the game, the gauge and the save at once
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
+  expect(await meter()).toBe('92');
+  expect(await api(() => window.game!.drawnDirt()), 'the water drawn a step clearer at once').toBeCloseTo(11 / 12, 12);
+  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 1 });
+  await expect(page.locator('#toast')).toBeVisible();
+  await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
+  expect(await api(() => window.game!.events())).toContain('cured 1/12');
+  expect(await api(() => window.game!.invariants())).toEqual([]);
+
+  // the line goes by itself, in game time
+  await api(() => window.game!.step(150));
+  await expect(page.locator('#toast')).toBeHidden();
+
+  // reload: the gauge and the water as left, and no welcome for a player who has cured a fish
+  await page.reload();
+  await ready(page);
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
+  expect(await meter()).toBe('92');
+  await expect(page.locator('#welcome')).toBeHidden();
+  expect(problems).toEqual([]);
+});
+
+test('the twelfth fish cleans the pond and says so, and a fish after it is still caught, the pond staying clean', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 11 } });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(1 / 12, 12);
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  expect((await api(() => window.game!.state())).contamination).toBe(0);
+  await expect(page.locator('#toast')).toContainText('The Duck Pond is clean! Every fish is cured.');
+  await expect(page.locator('#pondBar')).toHaveAttribute('aria-valuenow', '0');
+  await expect(page.locator('#pond')).toHaveClass(/clean/);
+
+  // fish still come and are caught: the next is cured too, and the pond stays at nothing
+  await api(() => window.game!.step(150));
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  expect((await api(() => window.game!.state())).contamination).toBe(0);
+  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 13 });
+  await expect(page.locator('#toast')).toHaveText('Cured! The pond stays clean.');
+  expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });

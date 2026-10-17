@@ -35,6 +35,7 @@ import {
   shoreRadius,
   VIEWS,
   PHONE,
+  framingFor,
 } from '../src/lake';
 
 describe('the lake', () => {
@@ -449,5 +450,20 @@ describe('the phone as the rod', () => {
     for (const v of Object.values(PHONE)) expect(v).toBeGreaterThan(0);
     expect(PHONE.flickMin).toBeLessThan(PHONE.flickFull);
     expect(PHONE.aimSpread).toBeLessThan(180);
+  });
+});
+
+describe('the framing of a view for a screen', () => {
+  it('gives the Shore view the phone framing on a screen taller than it is wide, and every other view as it is', () => {
+    expect(framingFor('shore', 390 / 844)).toBe(VIEWS.phone);
+    expect(framingFor('shore', 1280 / 800)).toBe(VIEWS.shore);
+    // a square screen is not tall
+    expect(framingFor('shore', 1)).toBe(VIEWS.shore);
+    for (const name of ['boat', 'overhead', 'phone'] as const)
+      for (const aspect of [0.46, 1.6]) expect(framingFor(name, aspect), `${name} at ${aspect}`).toBe(VIEWS[name]);
+  });
+
+  it('is the Shore view as it is for an aspect that is no number', () => {
+    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor('shore', aspect)).toBe(VIEWS.shore);
   });
 });

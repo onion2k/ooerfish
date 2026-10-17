@@ -4,13 +4,20 @@ import { fuzz } from '../scripts/fuzzer';
 
 describe('the fuzzer', () => {
   it('plays a seed through without breaking a rule, and does everything a player can', () => {
-    // twice the fuzz's frames: an angler watching for half a minute takes a share of them, and seed 1 reached the
-    // reel-in and the panel's pebble only after four thousand
-    const r = fuzz(1, 8000);
-    expect(r.failure, JSON.stringify(r.failure)).toBe(null);
-    expect(r.happened.splashed, 'the monkey splashes something').toBeGreaterThan(0);
+    // twice the fuzz's frames, on three seeds and counted together: an angler watching for half a minute takes a share
+    // of them, and which actions one seed draws moves whenever an action is added (seed 1 stopped reaching the reel-in
+    // when the phone's and the pond's came together), so the reach is held across seeds and not on one
+    const done: Record<string, number> = {};
+    let splashed = 0;
+    for (const seed of [1, 2, 3]) {
+      const r = fuzz(seed, 8000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      splashed += r.happened.splashed;
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+    }
+    expect(splashed, 'the monkey splashes something').toBeGreaterThan(0);
     for (const action of ['wait', 'pause', 'dirt', 'time', 'drop', 'drop near', 'cast', 'reel in', 'reload'])
-      expect(r.done[action], action).toBeGreaterThan(0);
+      expect(done[action] ?? 0, action).toBeGreaterThan(0);
   });
 
   it('fishes: across a few seeds, it strikes, reels and stows, and fish are hooked, slip and are landed', () => {
@@ -23,7 +30,7 @@ describe('the fuzzer', () => {
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
     }
     for (const action of ['strike', 'reel', 'stow', 'angle']) expect(done[action], action).toBeGreaterThan(0);
-    for (const event of ['nibbled', 'bitten', 'hooked', 'missed', 'slipped', 'landed'])
+    for (const event of ['nibbled', 'bitten', 'hooked', 'missed', 'slipped', 'landed', 'cured'])
       expect(happened[event], event).toBeGreaterThan(0);
   });
 

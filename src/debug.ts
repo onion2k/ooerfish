@@ -7,9 +7,9 @@
  * Time is the test's to keep: `pause` stops the game where it is, and
  * `step` plays it on a frame at a time, exactly, drawing the last. `seed`
  * makes chance repeat. Anything that changes the game goes through here,
- * and `state`, `fish`, `settings` and `invariants` read it back. The lab's
- * controls are here too, doing what the panel's do (`dirt`, `time`, `view`,
- * `caustics` and `paint`), and `mode` what the page's look or cast button does; each
+ * and `state`, `fish`, `settings` and `invariants` read it back. The
+ * levers the lab's panel used to hold are here for the tests (`dirt`, `time`, `view`, `caustics`
+ * and `paint`), and `mode` does what the page's look or cast button does; each
  * resolves once the frame it changes is ready to draw.
  *
  * The types are shared with the smoke tests, so a test that calls something
@@ -112,7 +112,7 @@ export interface GameApi {
   splashes(): Splash[];
   /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
   events(): string[];
-  /** The lab's settings as they stand, as the address has them. */
+  /** What the address holds as it stands: the water's caustics and the rocks' paint. */
   settings(): Settings;
   /** The rules that must always hold, broken; empty when all is well. */
   invariants(): string[];
@@ -143,15 +143,32 @@ export interface GameApi {
   preview(): { x: number; y: number; z: number; onWater: boolean } | null;
   /** A pebble dropped on the water at (x, y); says whether it landed, which off the water it does not. */
   drop(x: number, y: number): boolean;
-  /** A pebble dropped somewhere near what the camera looks at, as the panel's button does. */
+  /** A pebble dropped somewhere near what the camera looks at. */
   dropNear(): boolean;
 
-  /** The lake made as dirty as that, from clear (0) to sick (1), as the slider does. */
+  /** The lake made as dirty as that, from clear (0) to sick (1), as the cure does; a number it is not is refused. */
   dirt(contamination: number): Promise<void>;
-  /** The time of day of that name: night, dawn, day or dusk. */
+  /**
+   * The clock put at the time of day of that name (night, dawn, day or dusk), which it runs on from; one not known is
+   * refused. Without a name, says which look the page is lit with now.
+   */
+  time(): string;
   time(name: string): Promise<void>;
-  /** The camera put at the view of that name: shore, boat, overhead or phone. */
+  /**
+   * The camera put at the view of that name (shore, boat, overhead or phone), look mode unless the page's mode put it
+   * there. Without a name, says which view the camera was last put at.
+   */
+  view(): string;
   view(name: string): Promise<void>;
+  /**
+   * The clock put at a point of the day, from midnight (0) round to midnight again (1, which is nought), without
+   * lighting the page: the look follows at the next step, as it does when the clock gets there by itself.
+   */
+  clock(at: number): void;
+  /** How many of the four looks' environments are baked: all four once the first frame is up, so a step in play bakes none. */
+  looksBaked(): number;
+  /** The contamination the water was last drawn at, which follows the game's at once when a fish is cured; null before the first. */
+  drawnDirt(): number | null;
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
   /** The rocks' painted edge, on or off: with it off the same rocks are drawn plain. */
@@ -229,7 +246,7 @@ export interface DebugHost {
   /** The cast being aimed, and setting it. */
   aiming(): { angle: number; power: number } | null;
   setAim(to: { angle: number; power: number } | null): void;
-  /** The point the camera looks at, where the panel's button drops near. */
+  /** The point the camera looks at, which a pebble dropped near is dropped near. */
   target(): [number, number];
   events: string[];
   measureFrame(warm?: number): Promise<number>;
@@ -245,8 +262,18 @@ export interface DebugHost {
   /** The phone's reading, and the overlay opened (on a fixed room for tests). */
   phone(): PhoneReading;
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
-  /** The settings changed as the panel would change them, resolving once the change is ready to draw. */
-  change(next: Partial<Settings>): Promise<void>;
+  /** The caustics or the paint changed, resolving once the change is ready to draw. */
+  setSettings(next: Partial<Settings>): Promise<void>;
+  /** The lake made as dirty as that, the water drawn so. */
+  setDirt(contamination: number): Promise<void>;
+  drawnDirt(): number | null;
+  /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
+  setTime(name: string): Promise<void>;
+  time(): string;
+  looksBaked(): number;
+  /** The camera put at a view, and the view it was last put at. */
+  setView(name: string): Promise<void>;
+  view(): string;
   /** The page's mode, and putting the page in one as its button does. */
   mode(): Mode;
   setMode(to: Mode): Promise<void>;
@@ -364,11 +391,14 @@ export function createApi(host: DebugHost): GameApi {
     },
     drop: (x, y) => game.drop(x, y),
     dropNear: () => game.dropNear(...host.target()),
-    dirt: (contamination) => host.change({ dirt: contamination }),
-    time: (name) => host.change({ time: name as Settings['time'] }),
-    view: (name) => host.change({ view: name as Settings['view'] }),
-    caustics: (on) => host.change({ caustics: on }),
-    paint: (value) => host.change({ paint: value }),
+    dirt: (contamination) => host.setDirt(contamination),
+    clock: (at) => game.setTimeOfDay(at),
+    looksBaked: () => host.looksBaked(),
+    drawnDirt: () => host.drawnDirt(),
+    time: ((name?: string) => (name === undefined ? host.time() : host.setTime(name))) as GameApi['time'],
+    view: ((name?: string) => (name === undefined ? host.view() : host.setView(name))) as GameApi['view'],
+    caustics: (on) => host.setSettings({ caustics: on }),
+    paint: (value) => host.setSettings({ paint: value }),
     mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
 
     phone: () => host.phone(),

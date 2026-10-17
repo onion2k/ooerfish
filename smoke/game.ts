@@ -87,7 +87,7 @@ export async function ready(page: Page) {
   }
 }
 
-/** A scene in the lab: the lake as dirty as that, at a time of day, from a view. */
+/** A scene: the lake as dirty as that, at a time of day, from a view. */
 export interface Scene {
   dirt: number;
   time: string;
@@ -103,7 +103,7 @@ export interface Scene {
  */
 export const STANDARD: Scene = { dirt: 0.5, time: 'day', view: 'shore' };
 
-/** The lab set to a scene through the test API, and `frames` frames stepped, so the fish and the water are on. */
+/** The page set to a scene through the test API, and `frames` frames stepped, so the fish and the water are on. */
 export async function set(page: Page, scene: Scene, frames = 120) {
   await page.evaluate(
     async ([s, n]) => {
@@ -119,10 +119,11 @@ export async function set(page: Page, scene: Scene, frames = 120) {
   );
 }
 
-/** The corners that count the milliseconds and tell how to look round, the look or cast button, and the lab's panel: not the look. */
+/** The corners that tell how to look round, the look or cast button, the pond's gauge and lines, and the menu: not the look. */
 export async function hideOverlays(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['stats', 'help', 'labPanel', 'modeButton']) document.getElementById(id)!.hidden = true;
+    for (const id of ['help', 'modeButton', 'pond', 'welcome', 'toast', 'menu'])
+      document.getElementById(id)!.hidden = true;
     // the boot cover's own display rule beats the hidden attribute, and its fade runs on the wall clock, so a picture
     // taken right after boot could catch its text fading: it is taken off the page.
     document.getElementById('boot')!.style.display = 'none';
@@ -140,7 +141,7 @@ export const PICTURES: [string, Scene][] = [
 ];
 
 /**
- * The cast the look pictures and the film throw from the shore by day: the lab a little dirty, settled this many
+ * The cast the look pictures and the film throw from the shore by day: the lake a little dirty, settled this many
  * frames, the cast's angle and power (into the water ahead and a little left), and the frames until it is landed and
  * sinking under its bobber.
  */
@@ -153,7 +154,7 @@ export const CAST_SHOT = {
 } as const;
 
 /**
- * The splash the look pictures and the film take from the boat: the lab a little dirty by day, settled this many frames,
+ * The splash the look pictures and the film take from the boat: the lake a little dirty by day, settled this many frames,
  * a pebble dropped in front of the boat, and the frames after it the picture is taken at, a third of a second, its
  * droplets fallen back and its first ripples going out.
  */
@@ -164,7 +165,7 @@ export const SPLASH_SHOT = {
   after: 20,
 } as const;
 
-/** The lab put at the splash's scene, or `scene` over it, the pebble dropped and the game stepped `after` frames. */
+/** The page put at the splash's scene, or `scene` over it, the pebble dropped and the game stepped `after` frames. */
 export async function splashing(page: Page, scene: Partial<Scene> = {}, after: number = SPLASH_SHOT.after) {
   await set(page, { ...SPLASH_SHOT.scene, ...scene }, SPLASH_SHOT.settle);
   await page.evaluate(
@@ -176,7 +177,7 @@ export async function splashing(page: Page, scene: Partial<Scene> = {}, after: n
   );
 }
 
-/** The lab put at the cast's scene, the cast thrown, and the game stepped until it is landed and sinking. */
+/** The page put at the cast's scene, the cast thrown, and the game stepped until it is landed and sinking. */
 export async function castSinking(page: Page) {
   await set(page, CAST_SHOT.scene, CAST_SHOT.settle);
   await page.evaluate((c) => {

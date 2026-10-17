@@ -1,10 +1,9 @@
 /**
  * The lake itself, without the picture or the page, a step at a time. For
- * now it is the lab's lake: its clock, its fish swimming, and the two levers
- * the lab gives whoever is looking at the water, how dirty the lake is and
- * the time of day; and what is dropped on it, a splash where it lands, told of
- * to whoever shows it. The lab moves the dirt both ways; the cure, when it
- * comes, will only ever lower it.
+ * now it is the lake: its clock, running the day round from dawn, its fish
+ * swimming, and how dirty the lake is; and what is dropped on it, a splash where it lands, told of
+ * to whoever shows it. The cure only ever lowers the dirt: each fish stowed
+ * is one more cured, kept in the save, and the lake as dirty as that says.
  *
  * Nothing here waits on anything the page does, so the same lake runs in the
  * page and in Node, and what the tests try is what is drawn.
@@ -12,7 +11,7 @@
 import { Bite, type Strike } from './bite';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { DROP_NEAR, FIGHT, FISHING, FISH_COUNT, PERCH, inside } from './lake';
+import { CLOCK, DROP_NEAR, contaminationAfter, CURE, FIGHT, FISHING, FISH_COUNT, PERCH, inside } from './lake';
 import { Progress } from './progress';
 import type { Random } from './random';
 import { Lure } from './lure';
@@ -31,6 +30,8 @@ export interface GameEvents {
   struck?(did: Strike): void;
   /** The fish was let out of the zone until the meter emptied, and slipped off with nothing lost. */
   slipped?(): void;
+  /** A fish was cured by being stowed: how many have been cured, and how many it takes to clean the lake. */
+  cured?(cured: number, toClean: number): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number): void;
 }
@@ -60,23 +61,26 @@ export class Game {
   readonly line = new Line();
   /** Whether the reel is held, which pushes the zone up the fight's bar. */
   reeling = false;
-  /** How many fish have been landed and stowed: the session's, not saved until the cure comes. */
+  /** How many fish have been landed and stowed this session; the count cured, which the save keeps, is `progress.save.cured`. */
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
   catchWeight = 0;
   private bearing = 0;
   private hookedAt = 0;
   private readonly events: GameEvents;
-  /** How dirty the lake is, from clear (0) to as sick as it gets (1). */
-  contamination = 1;
-  /** Where the day is, from midnight (0) through noon (0.5) to midnight again (1). */
-  timeOfDay = 0.5;
+  /** How dirty the lake is, from clear (0) to as sick as it gets (1): worked out from the fish cured, and only the cure lowers it. */
+  contamination: number;
+  /** How many times the lever has set the contamination, which the invariants read to tell a rise by the lever from one by any other road. */
+  levers = 0;
+  /** Where the day is, from midnight (0) through noon (0.5), up to but not reaching midnight again: one is nought. */
+  timeOfDay: number = CLOCK.startsAt;
 
   constructor(
     readonly progress: Progress,
     options: GameOptions = {},
   ) {
     this.random = options.random ?? Math.random;
+    this.contamination = contaminationAfter(progress.save.cured);
     this.events = options.events ?? {};
     const e = this.events;
     // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
@@ -99,6 +103,7 @@ export class Game {
   /** One frame of `dt` seconds. */
   step(dt: number) {
     this.t += dt;
+    this.setTimeOfDay(this.timeOfDay + dt / CLOCK.daySeconds);
     this.fish.step(dt, this.random);
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
@@ -145,6 +150,13 @@ export class Game {
     this.bite.stowed(this.fish);
     this.fish.respawn(i, this.random);
     this.lure.reelIn();
+    // the cure: the fish is cured by being put in the bucket, the lake a step cleaner, and the count kept at once
+    const save = this.progress.save;
+    save.cured = Math.min(save.cured + 1, Number.MAX_SAFE_INTEGER);
+    // never above where it is: a lake the lever has made cleaner than the count says is not made dirtier by a cure
+    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured));
+    this.persist();
+    this.events.cured?.(save.cured, CURE.toClean);
     return true;
   }
 
@@ -181,14 +193,22 @@ export class Game {
     this.events.splashed?.(x, y, size);
   }
 
-  /** How dirty the lake is, held to nought and one; what is not a number is refused, and changes nothing. */
+  /**
+   * How dirty the lake is, held to nought and one; what is not a number is refused, and changes nothing. A lever for
+   * the tests and the fuzzer's start, not the cure: it may raise the contamination, which nothing in the game does.
+   */
   setContamination(v: number) {
-    if (!Number.isNaN(v)) this.contamination = Math.min(1, Math.max(0, v));
+    if (Number.isNaN(v)) return;
+    this.contamination = Math.min(1, Math.max(0, v));
+    this.levers++;
   }
 
-  /** Where the day is, held to nought and one; what is not a finite number is refused, and changes nothing. */
+  /** Where the day is, round the clock (one is midnight again, nought); what is not a finite number is refused, and changes nothing. */
   setTimeOfDay(v: number) {
-    if (Number.isFinite(v)) this.timeOfDay = Math.min(1, Math.max(0, v));
+    if (!Number.isFinite(v)) return;
+    const at = v - Math.floor(v);
+    // a value a hair under a whole number can round to one in the subtraction, and a day never reaches it
+    this.timeOfDay = at < 1 ? at : 0;
   }
 
   /**
