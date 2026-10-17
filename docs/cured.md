@@ -160,5 +160,5 @@ call to rewrite patterns without re-handing the groups (a package change).
       fishdraw unit test, and a headless picture looked at.
 - [x] 4. **The page and the API:** the clean-pond cast line, `game.fish()` cured, the determinism hash, the
       fuzzer's reach test. Check: the end-to-end steps, `check:quick`.
-- [ ] 5. **The pass:** the full check, fuzz on seeds 1 to 24, pictures written again and looked at, perf,
+- [x] 5. **The pass:** the full check, fuzz on seeds 1 to 24, pictures written again and looked at, perf,
       bench and pace through `/gate-moved`, the mutations, `docs/cured.md` and `CLAUDE.md`, and the report.

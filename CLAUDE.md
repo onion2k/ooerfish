@@ -13,8 +13,9 @@ sick and glowing at dawn, its water seen into (the lake is seen into as it is
 cleaned, which is what the game is about), with fish swimming under it. A
 fish can be cast for, hooked, played and landed (stages 1 and 2 of
 `DESIGN.md`'s order of work), and **each fish put in the bucket is cured** and
-clears the pond a twelfth (the smallest slice of stage 3), kept in the save as
-a count; the day runs round from dawn (a first slice of stage 5). There is no
+let go in the pond, gold, where it never bites again, and clears the pond a
+twelfth (stage 3, without the cabin), kept in the save as a count; the day runs
+round from dawn (a first slice of stage 5). There is no
 panel: the old lake lab's levers are the test API's now.
 
 ## The factory
@@ -132,8 +133,19 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   fuzzer's start, counted in `game.levers`) raises it. The save keeps the count,
   never the contamination, so a retuned step is applied to a save already
   written; the invariants hold that it never rises by any other road and that
-  the count is a whole number. Fish still come after the twelfth, and are
-  counted.
+  the count is a whole number. **The pond holds as many fish as it takes to
+  clean it** (`FISH_COUNT`, which `CURE.toClean` reads), and a cured fish is
+  not replaced: `School.cured` flags it, `stow` lets it go `RELEASE.distance`
+  out from the angler with a splash, the bite passes over it before drawing its
+  chance (the bait is one only an uncured fish takes), and a load cures the
+  first `min(save.cured, FISH_COUNT)`. When all are cured (`pondClean`) nothing
+  bites and the cast line says so (`castWords`, `CLEAN_WORDS`). `fishdraw.ts`
+  draws a cured fish gold (`PALETTE.cured`, `curedFin`, `curedGlow`, at
+  `CURED_GLOW`) through per-fish `materials`, and the page hands the fish's
+  groups over again when the count cured changes (`game.drawnCured()`). The
+  invariants hold the count cured to the save and a cured fish off the bite;
+  the fuzzer starts each seed from a save part cured, so it reaches the clean
+  pond. `docs/cured.md` is the plan it was built from.
 - `src/main.ts` is the page. It turns what the game says into the water (when
   the contamination changes: `showWater`), the light (when the clock comes to
   the next look: `showLight`, each frame comparing `nearestTime` to the look's
@@ -462,7 +474,7 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the real clock:** on and off, the same seed playing the same fish,
   weather and catches either way
 - **the lake's contamination:** only ever going down, by the cure; a lake fully
-  clean, and a fish after it. `game.dirt` moves it both ways, as a lever for the
+  clean, where no fish is left to bite; a save past the pond's twelve. `game.dirt` moves it both ways, as a lever for the
   pictures, and the invariants allow a rise only where that lever was set
 - **the cabin:** the curing machine, the aquarium at its ceiling, the
   shelves, a fish named and let go

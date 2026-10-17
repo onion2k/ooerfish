@@ -47,6 +47,18 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
+  // half the pond cured, by night: six gold fish among six green, the gold's own faint warm glow all that shows them
+  // in the dark, as the user chose it (`docs/cured.md`); the water as clean as six cures make it
+  test('half cured, by night', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6 } });
+    await set(page, { dirt: 0.5, time: 'night', view: 'shore' }, 180);
+    await hideOverlays(page);
+    expect((await page.evaluate(() => window.game!.fish())).filter((f) => f.cured).length).toBe(6);
+    await expect(page.locator('#view')).toHaveScreenshot('half-cured-night.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // a pebble a third of a second after it landed in front of the boat: its fine droplets fallen back and its first
   // ripples going out in the water's own surface, bending the bed and the mirror and painting nothing; on the sick lake, whose
   // murk shows the ring only by its light and its mirror; and at night, when the mirror is all it has
