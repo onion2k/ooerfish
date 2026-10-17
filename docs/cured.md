@@ -156,7 +156,7 @@ call to rewrite patterns without re-handing the groups (a package change).
       `CURE.toClean` read from it. Check: fish and lake unit tests, seen failing first.
 - [x] 2. **Cured fish never bite; stow releases:** `bite.ts` skips cured, `Game.stow` cures and releases with a
       splash, the save rebuilds on load, and the invariants. Check: bite and game unit tests, invariants.
-- [ ] 3. **The cured look:** `fishdraw.ts` from `school.cured`, `CURED_LOOK`, re-handed on a cure. Check:
+- [x] 3. **The cured look:** `fishdraw.ts` from `school.cured`, `CURED_LOOK`, re-handed on a cure. Check:
       fishdraw unit test, and a headless picture looked at.
 - [ ] 4. **The page and the API:** the clean-pond cast line, `game.fish()` cured, the determinism hash, the
       fuzzer's reach test. Check: the end-to-end steps, `check:quick`.

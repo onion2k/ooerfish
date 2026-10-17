@@ -237,21 +237,25 @@ async function main() {
   /** Whether the screen was taller than wide when the camera was last put at a view. */
   let tall = false;
   let watered: number | null = null;
+  /** How many fish were cured when the fish's groups were last handed over, since their colour and glow go over only with the groups. */
+  let curedDrawn = -1;
   /** The water's finish and the rocks' paint, at the contamination, the time and the settings as they stand: uniforms, so written on any change and nothing recompiles. */
   function finish() {
     const water = style.clear(game.contamination, settings.caustics === 'on', time);
     rippleLife = water.ringLife ?? 0;
     renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
   }
-  /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination has changed, once a change and never once a frame. */
+  /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
-    if (watered !== game.contamination) {
+    const cured = game.fish.curedCount();
+    if (watered !== game.contamination || curedDrawn !== cured) {
       watered = game.contamination;
+      curedDrawn = cured;
       const water = style.groups(game.contamination);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      renderer.setDynamic([...water, ...fish.groups(), ...casting.groups()]);
+      renderer.setDynamic([...water, ...fish.groups(game.fish.cured), ...casting.groups()]);
     }
     finish();
     await renderer.prepare();
@@ -688,6 +692,7 @@ async function main() {
     setView: (name) => setView(name),
     looksBaked,
     drawnDirt: () => watered,
+    drawnCured: () => curedDrawn,
     time: () => time.name,
     view: () => viewName,
     mode: () => mode,

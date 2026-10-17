@@ -107,6 +107,10 @@ export const PALETTE = {
   aimBank: [0.92, 0.22, 0.15] as Colour,
   /** The glow of a fish that has eaten the waste. */
   glow: [0.55, 1, 0.3] as Colour,
+  /** A cured fish: a warm gold body, coral fins and the faint warm light they give off. */
+  cured: [1, 0.7, 0.22] as Colour,
+  curedFin: [1, 0.42, 0.38] as Colour,
+  curedGlow: [1, 0.78, 0.42] as Colour,
 
   /** The sky, straight up and at the horizon, at each time of day. */
   nightZenith: [0.01, 0.015, 0.05] as Colour,

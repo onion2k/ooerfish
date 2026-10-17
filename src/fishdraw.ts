@@ -32,6 +32,10 @@ export const FISH_PARTS: readonly string[] = [
 ];
 /** The fins glow a little less than the body, so a fish reads as a body with fins and not one shape. */
 const FIN_GLOW = 0.7;
+/** How brightly a cured fish's own light glows, softer than the green's, on its body and on its fins. */
+export const CURED_GLOW = { body: 0.25, fin: 0.12 } as const;
+/** A fish's roughness, glowing and cured. */
+const ROUGH = { glow: 0.6, cured: 0.45 } as const;
 
 export class FishDraw {
   /** Each part's placements, sixteen floats a fish. */
@@ -40,8 +44,11 @@ export class FishDraw {
   readonly joints = new Float64Array(FISH_CAPACITY * JOINTS * 3);
   private readonly spine = new Float64Array(JOINTS * 3);
 
-  /** The groups, handed to the renderer once: their placements written by `write`, as many live as it says. */
-  groups(): GameGroup[] {
+  /** The parts' meshes, lofted once on the first call, since a re-handover on a cure would only make them again. */
+  private meshes: GameGroup['mesh'][] | null = null;
+
+  private parts(): GameGroup['mesh'][] {
+    if (this.meshes) return this.meshes;
     const meshes = [];
     let front: readonly [number, number] = SWIM.nose;
     for (const [length, w, h] of SWIM.segments) {
@@ -66,12 +73,34 @@ export class FishDraw {
         [-from - dl, 0, back],
       ]),
     );
-    return meshes.map((mesh, p) => {
-      const glow = p >= SEGS ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow;
+    this.meshes = meshes;
+    return meshes;
+  }
+
+  /**
+   * The groups, handed to the renderer: their placements written by `write`, as many live as it says. Each fish is
+   * glowing green, or, where `cured` is 1, gold in its body and coral in its fins with a softer light; the renderer
+   * reads both only when groups are handed over, so they are handed over again when a cure changes `cured`.
+   */
+  groups(cured: Uint8Array): GameGroup[] {
+    return this.parts().map((mesh, p) => {
+      const fin = p >= SEGS;
       const patterns = new Float32Array(FISH_CAPACITY * PATTERN_STRIDE);
-      for (let i = 0; i < FISH_CAPACITY; i++)
-        packFlow(patterns, i * PATTERN_STRIDE, { kind: FLOW_GLOW, scale: 0, speed: 0, glow, second: PALETTE.glow });
-      return { mesh, matrices: this.matrices[p], count: 0, albedo: PALETTE.glow, roughness: 0.6, patterns };
+      const materials = new Float32Array(FISH_CAPACITY * 4);
+      for (let i = 0; i < FISH_CAPACITY; i++) {
+        const gold = cured[i] === 1;
+        const glow = gold ? (fin ? CURED_GLOW.fin : CURED_GLOW.body) : fin ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow;
+        const colour = gold ? (fin ? PALETTE.curedFin : PALETTE.cured) : PALETTE.glow;
+        packFlow(patterns, i * PATTERN_STRIDE, {
+          kind: FLOW_GLOW,
+          scale: 0,
+          speed: 0,
+          glow,
+          second: gold ? PALETTE.curedGlow : PALETTE.glow,
+        });
+        materials.set([colour[0], colour[1], colour[2], gold ? ROUGH.cured : ROUGH.glow], i * 4);
+      }
+      return { mesh, matrices: this.matrices[p], count: 0, materials, patterns };
     });
   }
 

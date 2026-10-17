@@ -169,6 +169,8 @@ export interface GameApi {
   looksBaked(): number;
   /** The contamination the water was last drawn at, which follows the game's at once when a fish is cured; null before the first. */
   drawnDirt(): number | null;
+  /** How many fish were cured when the fish were last handed to the renderer, which follows the school's at once when one is cured; -1 before the first. */
+  drawnCured(): number;
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
   /** The rocks' painted edge, on or off: with it off the same rocks are drawn plain. */
@@ -267,6 +269,7 @@ export interface DebugHost {
   /** The lake made as dirty as that, the water drawn so. */
   setDirt(contamination: number): Promise<void>;
   drawnDirt(): number | null;
+  drawnCured(): number;
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
   setTime(name: string): Promise<void>;
   time(): string;
@@ -395,6 +398,7 @@ export function createApi(host: DebugHost): GameApi {
     clock: (at) => game.setTimeOfDay(at),
     looksBaked: () => host.looksBaked(),
     drawnDirt: () => host.drawnDirt(),
+    drawnCured: () => host.drawnCured(),
     time: ((name?: string) => (name === undefined ? host.time() : host.setTime(name))) as GameApi['time'],
     view: ((name?: string) => (name === undefined ? host.view() : host.setView(name))) as GameApi['view'],
     caustics: (on) => host.setSettings({ caustics: on }),

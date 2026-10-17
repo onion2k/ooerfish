@@ -4,10 +4,12 @@
  * a landed fish hung the wrong way up.
  */
 import { FLOW_GLOW } from 'artshape-render/game/flow';
+import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { describe, expect, it } from 'vitest';
 import { FISH_CAPACITY, SWIM } from '../src/lake';
-import { FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
+import { CURED_GLOW, FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
 import { fin, loft } from '../src/meshes';
+import { PALETTE } from '../src/palette';
 import { bodyLength } from '../src/swim';
 import { newGame, settle } from './helpers';
 
@@ -21,7 +23,7 @@ function placed(draw: FishDraw, p: number, i: number) {
 describe('the fish, drawn', () => {
   it('are a group of glowing meshes for each part, each sized once at the most a lake holds', () => {
     const draw = new FishDraw();
-    const groups = draw.groups();
+    const groups = draw.groups(new Uint8Array(FISH_CAPACITY));
     expect(groups.length).toBe(FISH_PARTS.length);
     expect(FISH_PARTS).toEqual(['head', 'body', 'body', 'stalk', 'tail', 'dorsal']);
     for (const g of groups) {
@@ -129,5 +131,56 @@ describe('the meshes a fish is made of', () => {
     const ys = faces(m).map((f) => Math.sign(f.n[1]));
     expect(ys).toContain(1);
     expect(ys).toContain(-1);
+  });
+});
+
+describe('the fish, glowing or cured', () => {
+  const none = new Uint8Array(FISH_CAPACITY);
+  const colourAt = (g: { materials?: Float32Array }, i: number) => Array.from(g.materials!.subarray(i * 4, i * 4 + 4));
+  const flowAt = (g: { patterns?: Float32Array }, i: number) =>
+    Array.from(g.patterns!.subarray(i * PATTERN_STRIDE, i * PATTERN_STRIDE + 7));
+
+  it('draws every fish glowing green when none is cured, as before', () => {
+    const groups = new FishDraw().groups(none);
+    groups.forEach((g, p) => {
+      const glow = p >= SEGS ? FISH_BODY.glow * 0.7 : FISH_BODY.glow;
+      expect(g.materials!.length).toBe(FISH_CAPACITY * 4);
+      expect(g.patterns!.length).toBe(FISH_CAPACITY * PATTERN_STRIDE);
+      for (let i = 0; i < FISH_CAPACITY; i++) {
+        expect(colourAt(g, i)).toEqual([...PALETTE.glow, 0.6].map(Math.fround));
+        expect(flowAt(g, i)).toEqual([FLOW_GLOW, 0, 0, glow, ...PALETTE.glow].map(Math.fround));
+      }
+    });
+  });
+
+  it('draws a cured fish gold in its body and coral in its fins, glowing softly, and the rest as they were', () => {
+    const cured = new Uint8Array(FISH_CAPACITY);
+    cured[1] = cured[3] = 1;
+    const groups = new FishDraw().groups(cured);
+    groups.forEach((g, p) => {
+      const fin = p >= SEGS;
+      for (let i = 0; i < FISH_CAPACITY; i++) {
+        if (i === 1 || i === 3) {
+          expect(colourAt(g, i)).toEqual([...(fin ? PALETTE.curedFin : PALETTE.cured), 0.45].map(Math.fround));
+          expect(flowAt(g, i)).toEqual(
+            [FLOW_GLOW, 0, 0, fin ? CURED_GLOW.fin : CURED_GLOW.body, ...PALETTE.curedGlow].map(Math.fround),
+          );
+        } else {
+          expect(colourAt(g, i)).toEqual([...PALETTE.glow, 0.6].map(Math.fround));
+          expect(flowAt(g, i)[4]).toBe(Math.fround(PALETTE.glow[0]));
+        }
+      }
+    });
+  });
+
+  it('is written again for a school that changed, by a new set of groups, from meshes made once', () => {
+    const draw = new FishDraw();
+    const a = draw.groups(none);
+    const cured = new Uint8Array(FISH_CAPACITY).fill(1, 0, 2);
+    const b = draw.groups(cured);
+    expect(b[0].mesh).toBe(a[0].mesh);
+    expect(b[0].materials).not.toBe(a[0].materials);
+    expect(colourAt(b[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.cured).map(Math.fround));
+    expect(colourAt(a[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.glow).map(Math.fround));
   });
 });

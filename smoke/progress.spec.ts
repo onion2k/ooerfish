@@ -460,3 +460,20 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
+
+test('a cure with the water already clean still hands the fish over again, gold from the next frame', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 11 } });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  await api(() => window.game!.dirt(0));
+  expect(await api(() => window.game!.drawnDirt())).toBe(0);
+  expect(await api(() => window.game!.drawnCured()), 'a save of 11 is drawn with 11 gold').toBe(11);
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  expect(await api(() => window.game!.drawnDirt()), 'the water was clear before and after').toBe(0);
+  expect(await api(() => window.game!.drawnCured()), 'the twelfth is handed over gold').toBe(12);
+  expect(problems).toEqual([]);
+});
