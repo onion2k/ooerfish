@@ -8,7 +8,8 @@
  * stage the game's invariants are checked.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { FISH_COUNT, jettyGap } from '../src/lake';
+import { quantised } from '../src/heal';
+import { FISH_COUNT, HEAL, jettyGap } from '../src/lake';
 import { STANDARD, ready, set, start, watch } from './game';
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
@@ -417,7 +418,10 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   await api(() => window.game!.step(1));
   expect((await api(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
   expect(await meter()).toBe('92');
-  expect(await api(() => window.game!.drawnDirt()), 'the water drawn a step clearer at once').toBeCloseTo(11 / 12, 12);
+  // the water is not: it heals over `HEAL.seconds`, and has hardly moved a frame in (docs/heal.md)
+  expect(await api(() => window.game!.drawnDirt()), 'the water starts to heal, not jumps').toBeGreaterThan(
+    11 / 12 + 0.05,
+  );
   expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 1 });
   await expect(page.locator('#toast')).toBeVisible();
   await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
@@ -484,5 +488,65 @@ test('a cure with the water already clean still hands the fish over again, gold 
   await api(() => window.game!.step(1));
   expect(await api(() => window.game!.drawnDirt()), 'the water was clear before and after').toBe(0);
   expect(await api(() => window.game!.drawnCured()), 'the twelfth is handed over gold').toBe(12);
+  expect(problems).toEqual([]);
+});
+
+test('a cure heals the water over thirty seconds in steps, the gauge stepping at once, and a paused game hands over nothing', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 5 } });
+  const api = <T>(f: () => T) => page.evaluate(f);
+  const old = (await api(() => window.game!.state())).contamination;
+  expect(old).toBeCloseTo(7 / 12, 12);
+  expect(await api(() => window.game!.drawnDirt())).toBe(quantised(old, HEAL.step));
+
+  // paused with no steps: two reads of the count, across frames the page drew itself, are the same
+  const idle = await api(() => window.game!.waterHandovers());
+  await api(() => window.game!.step(0));
+  await api(() => window.game!.step(0));
+  expect(await api(() => window.game!.waterHandovers()), 'a paused page hands nothing over').toBe(idle);
+
+  expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
+  await page.locator('#catch').click();
+  await api(() => window.game!.step(1));
+  const target = (await api(() => window.game!.state())).contamination;
+  expect(target).toBeCloseTo(6 / 12, 12);
+  await expect(page.locator('#pondBar')).toHaveAttribute('aria-valuenow', '50');
+  const first = (await api(() => window.game!.drawnDirt()))!;
+  expect(Math.abs(first - old), 'the water has barely moved a frame after the cure').toBeLessThanOrEqual(HEAL.step * 4);
+  const handedAtCure = await api(() => window.game!.waterHandovers());
+
+  let last = first;
+  const steps = new Set<number>();
+  for (let s = 0; s < 30; s++) {
+    await api(() => window.game!.step(60));
+    const now = (await api(() => window.game!.drawnDirt()))!;
+    expect(now, 'the water never darkens in a heal').toBeLessThanOrEqual(last);
+    expect(now).toBe(quantised(now, HEAL.step));
+    steps.add(now);
+    last = now;
+  }
+  expect(last, 'the water ends at the new contamination').toBe(quantised(target, HEAL.step));
+  expect((await api(() => window.game!.state())).waterDirt).toBe(target);
+  expect(steps.size).toBeGreaterThan(5);
+  const handovers = (await api(() => window.game!.waterHandovers())) - handedAtCure;
+  expect(handovers, 'no more than a handover a step').toBeLessThanOrEqual(1 / 12 / HEAL.step + 2);
+  expect(handovers).toBeGreaterThan(5);
+
+  // healed, the page hands nothing over for a further second
+  const done = await api(() => window.game!.waterHandovers());
+  await api(() => window.game!.step(60));
+  expect(await api(() => window.game!.waterHandovers())).toBe(done);
+  expect(await api(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('the lever draws the water at once, quantised', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true });
+  await page.evaluate(() => window.game!.dirt(0.3));
+  expect(await page.evaluate(() => window.game!.drawnDirt())).toBe(quantised(0.3, HEAL.step));
+  expect((await page.evaluate(() => window.game!.state())).waterDirt).toBe(0.3);
   expect(problems).toEqual([]);
 });

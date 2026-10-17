@@ -124,7 +124,7 @@ without a handover (a package change, which would allow every frame).
 
 - [x] 1. **The heal in the game:** `heal.ts`, `HEAL`, `Game.waterDirt`, the invariants and the hash. Check: unit
       tests seen failing first, `check:quick`, fuzz on seeds 1 to 24.
-- [ ] 2. **The page draws the heal:** quantised drawing, the handover only on a step, droplets, `state()` and the
+- [x] 2. **The page draws the heal:** quantised drawing, the handover only on a step, droplets, `state()` and the
       handover count. Check: the end-to-end steps.
 - [ ] 3. **The pass:** the full check, the frame during a heal measured, pictures (`healing` new, clean ones
       re-taken after the heal) looked at, the mutations, `CLAUDE.md`, `docs/heal.md` and the report.

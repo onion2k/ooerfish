@@ -20,9 +20,10 @@ import { Gesture, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
+import { quantised } from './heal';
 import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
-import { PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
+import { HEAL, PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
 import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { waterPoint } from './pick';
@@ -101,8 +102,8 @@ async function main() {
   const events: GameEvents = {
     splashed(x, y, size) {
       log(`splashed ${x.toFixed(1)},${y.toFixed(1)}`);
-      // the droplets thrown up, once, in the lake's colour as it is now
-      renderer.emit(splashBurst(x, y, size, game.contamination));
+      // the droplets thrown up, once, in the colour the water is drawn at (the quantised heal), so they match what they land on
+      renderer.emit(splashBurst(x, y, size, waterShown()));
     },
     nibbled: () => log('nibbled'),
     bitten: () => {
@@ -238,28 +239,60 @@ async function main() {
   /** Whether the screen was taller than wide when the camera was last put at a view. */
   let tall = false;
   let watered: number | null = null;
+  /** How many times the water's groups have been handed over since boot: a count, for the test API. */
+  let handovers = 0;
+  /** The wait on `prepare` that is under way, if one is, and how many handovers have asked for one while it ran: see `prepared`. */
+  let preparing: Promise<void> | null = null;
+  let prepareAsked = 0;
   /** How many fish were cured when the fish's groups were last handed over, since their colour and glow go over only with the groups. */
   let curedDrawn = -1;
+  /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
+  function waterShown(): number {
+    return quantised(game.waterDirt, HEAL.step);
+  }
   /** The water's finish and the rocks' paint, at the contamination, the time and the settings as they stand: uniforms, so written on any change and nothing recompiles. */
   function finish() {
-    const water = style.clear(game.contamination, settings.caustics === 'on', time);
+    const water = style.clear(waterShown(), settings.caustics === 'on', time);
     rippleLife = water.ringLife ?? 0;
     renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
   }
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
     const cured = game.fish.curedCount();
-    if (watered !== game.contamination || curedDrawn !== cured) {
-      watered = game.contamination;
+    const dirt = waterShown();
+    if (watered !== dirt || curedDrawn !== cured) {
+      watered = dirt;
       curedDrawn = cured;
-      const water = style.groups(game.contamination);
+      handovers++;
+      const water = style.groups(dirt);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
       renderer.setDynamic([...water, ...fish.groups(game.fish.cured), ...casting.groups()]);
     }
     finish();
-    await renderer.prepare();
+    await prepared();
+  }
+  /**
+   * `renderer.prepare()` as one wait at a time: a handover made while one is under way (a heal's steps stepped faster
+   * than the GPU settles, as the test API does) does not start a second, it asks for one more when the first ends, so
+   * the frames queue nothing and the last handover is always the one waited on.
+   */
+  function prepared(): Promise<void> {
+    if (preparing) {
+      prepareAsked++;
+      return preparing;
+    }
+    preparing = (async () => {
+      let seen: number;
+      do {
+        seen = prepareAsked;
+        await renderer.prepare();
+      } while (prepareAsked !== seen);
+    })().finally(() => {
+      preparing = null;
+    });
+    return preparing;
   }
   /** The lake made as dirty as that, and the water drawn so. */
   async function setDirt(v: number) {
@@ -616,6 +649,9 @@ async function main() {
     // play compares a name and nothing more; the environments are all baked, so this is a uniform write
     const want = nearestTime(game.timeOfDay);
     if (want !== time) void showLight(want);
+    // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
+    // costs a comparison and nothing else
+    if (watered !== waterShown()) void showWater();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
@@ -684,6 +720,7 @@ async function main() {
     setView: (name) => setView(name),
     looksBaked,
     drawnDirt: () => watered,
+    waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
     time: () => time.name,
     view: () => viewName,

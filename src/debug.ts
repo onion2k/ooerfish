@@ -48,6 +48,8 @@ export interface GameState {
   frame: number;
   paused: boolean;
   contamination: number;
+  /** The contamination the water shows, which heals toward `contamination` after a cure. */
+  waterDirt: number;
   timeOfDay: number;
 }
 
@@ -169,8 +171,10 @@ export interface GameApi {
   clock(at: number): void;
   /** How many of the four looks' environments are baked: all four once the first frame is up, so a step in play bakes none. */
   looksBaked(): number;
-  /** The contamination the water was last drawn at, which follows the game's at once when a fish is cured; null before the first. */
+  /** The contamination the water was last handed over at, in whole `HEAL.step`s, which follows the game's `waterDirt` as it heals after a cure; null before the first. */
   drawnDirt(): number | null;
+  /** How many times the water's groups have been handed over since boot. */
+  waterHandovers(): number;
   /** How many fish were cured when the fish were last handed to the renderer, which follows the school's at once when one is cured; -1 before the first. */
   drawnCured(): number;
   /** The water's caustics, on or off. */
@@ -271,6 +275,7 @@ export interface DebugHost {
   /** The lake made as dirty as that, the water drawn so. */
   setDirt(contamination: number): Promise<void>;
   drawnDirt(): number | null;
+  waterHandovers(): number;
   drawnCured(): number;
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
   setTime(name: string): Promise<void>;
@@ -314,6 +319,7 @@ export function createApi(host: DebugHost): GameApi {
       frame: host.frame(),
       paused: host.paused(),
       contamination: game.contamination,
+      waterDirt: game.waterDirt,
       timeOfDay: game.timeOfDay,
     }),
     fish() {
@@ -405,6 +411,7 @@ export function createApi(host: DebugHost): GameApi {
     clock: (at) => game.setTimeOfDay(at),
     looksBaked: () => host.looksBaked(),
     drawnDirt: () => host.drawnDirt(),
+    waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
     time: ((name?: string) => (name === undefined ? host.time() : host.setTime(name))) as GameApi['time'],
     view: ((name?: string) => (name === undefined ? host.view() : host.setView(name))) as GameApi['view'],

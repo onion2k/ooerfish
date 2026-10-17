@@ -18,6 +18,7 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { HEAL } from '../src/lake';
 import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
@@ -365,6 +366,8 @@ async function pond(page: Page, scene: 'welcome' | 'playing' | 'clean') {
     await page.locator('#catch').click();
     await page.evaluate(() => window.game!.step(1));
     await expect(page.locator('#toast')).toContainText('The Duck Pond is clean!');
+    // the water heals to the cure's level over `HEAL.seconds`, so the clean pond is pictured after the heal
+    await page.evaluate((n) => window.game!.step(n), HEAL.seconds * 60);
   }
 }
 
