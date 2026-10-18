@@ -151,13 +151,30 @@
     overflow-wrap: anywhere;
     user-select: all;
   }
-  #pairingClose {
+  /* the buttons on a card: the panels' own rounded edge and faint line, a shade lighter than the card so they read
+     as something to press and not the browser's grey */
+  #pairingClose,
+  #startAgain button {
     font: inherit;
     font-weight: 700;
     color: var(--ink);
     min-width: 96px;
     min-height: 44px;
+    padding: 0 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
     cursor: pointer;
+    touch-action: manipulation;
+  }
+  #pairingClose:hover,
+  #startAgain button:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  #pairingClose:focus-visible,
+  #startAgain button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
   }
   /* the question before a wipe: the pairing card's own look, over the game */
   #startAgain {
@@ -196,14 +213,6 @@
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-  }
-  #startAgain button {
-    font: inherit;
-    font-weight: 700;
-    color: var(--ink);
-    min-width: 96px;
-    min-height: 44px;
-    cursor: pointer;
   }
   #boot {
     position: fixed;
@@ -419,9 +428,10 @@
     outline: 3px solid #9fd0ff;
     outline-offset: 2px;
   }
-  /* a touch screen has no keys to name: the hint is for a keyboard and a mouse */
+  /* a touch screen has no keys to name: the hint is for a keyboard and a mouse, and so is the welcome's "or C" */
   @media (hover: none) {
-    #help {
+    #help,
+    .keys {
       display: none;
     }
   }
@@ -607,7 +617,9 @@
   </div>
 </div>
 <div class="panel" id="welcome" hidden>
-  Welcome home. The pond's fish are glowing: catch them to clean it up.<br /><small>press Cast, or C, to start</small>
+  Welcome home. The pond's fish are glowing: catch them to clean it up.<br /><small
+    >press Cast<span class="keys">, or C,</span> to start</small
+  >
 </div>
 <div class="panel" id="toast" hidden></div>
 <div class="panel" id="castLine" hidden></div>

@@ -242,6 +242,16 @@ for (const bp of BREAKPOINTS) {
           if (bp.touch && help) failures.add(`${still}: the keyboard hint shows on a touch screen`);
           if (!bp.touch && moment === 'look' && !help)
             failures.add(`${still}: the keyboard hint is hidden with a mouse`);
+          // and so does the welcome's "or C", which a touch screen leaves out and a mouse keeps
+          if (moment === 'welcome') {
+            const words = await page.evaluate(
+              () => (document.querySelector('#welcome small') as HTMLElement).innerText,
+            );
+            if (bp.touch && words.includes('C,'))
+              failures.add(`${still}: the welcome names the C key on a touch screen`);
+            if (!bp.touch && !words.includes('C,'))
+              failures.add(`${still}: the welcome leaves out the C key with a mouse`);
+          }
         };
 
         expect(await page.evaluate(() => window.game!.layout()), 'the layout in force').toBe(
