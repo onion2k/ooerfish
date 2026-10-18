@@ -142,5 +142,5 @@ existing portrait framing).
 - [x] 2. **The three layouts and the hint:** the CSS. Check: `smoke/layout.spec.ts` green at every breakpoint.
 - [x] 3. **Start again:** the menu item, the dialog and the reset. Check: its end-to-end test, and the unit test of
       `Progress.reset()`.
-- [ ] 4. **The pass:** the full check, pictures written and each looked at, perf at each breakpoint, the
+- [x] 4. **The pass:** the full check, pictures written and each looked at, perf at each breakpoint, the
       mutations, `CLAUDE.md`, `docs/layout.md` and the report.

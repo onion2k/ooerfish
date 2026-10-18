@@ -335,6 +335,16 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   tuned on a real phone. `game.phone()` reads the pairing and `game.pair({ room, key })` opens the overlay on a fixed
   one so a picture holds still. A gesture from the phone in look mode goes to cast at the Shore view; nothing is
   saved. `scripts/phonemonkey.ts` plays a phone at random for the fuzzer and a busy room of phones for the leak run.
+- **The screen's layout** (`docs/layout.md`): the overlays are placed by the screen's shape, never its width.
+  `layoutFor(width, height)` in `src/layout.ts` is the one rule (portrait taller than wide; sideways no more than
+  `SIDEWAYS_MAX_HEIGHT`, 500, tall; desk the rest), the page sets it on `<html data-layout>` and the CSS in
+  `index.html` keys off that. Portrait keeps the fight on the grass at the foot (the bar bottom left, its height a
+  clamp on the screen's, Reel bottom right, the words above it, the card a strip); sideways keeps one slim top row
+  and the bar thin on the left; desk is the base rules. `(hover: none)` hides the keyboard hint. The phone's pictures
+  are taken on the user's Pixel 7a, 412×915. `smoke/layout.spec.ts` holds eight screens by eight moments: no two
+  overlays meet, none covers the bobber, the line's end or the hooked fish (`game.onScreen()`), all inside the
+  screen; `game.layout()` reads which is in force. **Start again** is behind the ⋯ menu: a question first, Keep
+  playing focused, then `Progress.reset()` and a reload; `game.startAgain()` opens it but cannot confirm it.
 - `src/settings.ts` reads the address, which holds only the viewer's and the
   tests' switches, `caustics` and `paint` (beside `seed`, `paused` and `rung`,
   read where they are used), and refuses what it does not know by name; it is
@@ -450,7 +460,8 @@ For anything new, check what it does, from `DESIGN.md`:
 - **save:** saved, reloaded, and loaded from an old save without the field
 - **scale:** many at once, at capacity (`FISH_CAPACITY`); and what it costs
   a frame at that many
-- **phone:** narrow screen, and a slower GPU: which rung it steps down to
+- **phone:** narrow screen, held upright and sideways, a tablet both ways, and a desk window squeezed to either
+  shape: the layout each takes, held by `smoke/layout.spec.ts`; and a slower GPU: which rung it steps down to
 - **the mode:** look and cast, each view picked from each, the button and
   the key, a drag, a tap and a hold in each, and cast again while out
 - **the rung:** full and lean, each time of day and view on each; the governor

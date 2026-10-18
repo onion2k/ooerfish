@@ -276,6 +276,61 @@ test.describe('on a phone', () => {
   });
 });
 
+/**
+ * The fight laid out at each shape of screen beyond the desk and the Pixel 7a (`docs/layout.md`): a phone held
+ * sideways, its bar thin on the left and the words and card a strip at the foot; and a tablet held upright, the
+ * phone's layout with a taller bar. At each, a bite, the fight and the landing, the pond clear of everything.
+ */
+for (const [shape, viewport] of [
+  ['sideways', { width: 915, height: 412 }],
+  ['tablet', { width: 820, height: 1180 }],
+] as const)
+  test.describe(`laid out ${shape}`, () => {
+    test.use({ viewport, hasTouch: true, isMobile: true });
+
+    for (const moment of ['bite', 'fight', 'landed'] as const)
+      test(moment, async ({ page }) => {
+        const problems = watch(page);
+        await start(page, { seed: 11, paused: true });
+        await set(page, STANDARD, 30);
+        await page.evaluate(async (m) => {
+          const g = window.game!;
+          await g.mode('cast');
+          g.fishTo(m);
+          g.step(1);
+        }, moment);
+        await expect(page).toHaveScreenshot(`${shape}-${moment}.png`, TOLERANCE);
+        expect(problems).toEqual([]);
+      });
+  });
+
+/** The question before Start again, at the Pixel 7a and at a desk: the card over the dimmed lake, Keep playing focused. */
+test.describe('starting again', () => {
+  test('the question at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.startAgain());
+    await expect(page.locator('#startAgainKeep')).toBeFocused();
+    await expect(page).toHaveScreenshot('start-again-desk.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the question at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => window.game!.startAgain());
+      await expect(page.locator('#startAgainKeep')).toBeFocused();
+      await expect(page).toHaveScreenshot('start-again-phone.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
 /** A pairing that holds still, with an address of its own, so that the QR code and the text under it are the same every run on any port. */
 const FIXED_PAIRING = { room: 'fixedroom00', key: 'fixedkey0000000000000000', origin: 'https://lake.test' };
 
