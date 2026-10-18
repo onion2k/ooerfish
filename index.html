@@ -159,6 +159,52 @@
     min-height: 44px;
     cursor: pointer;
   }
+  /* the question before a wipe: the pairing card's own look, over the game */
+  #startAgain {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 7, 12, 0.78);
+    z-index: 10;
+  }
+  #startAgain[hidden] {
+    display: none;
+  }
+  #startAgain .card {
+    width: min(320px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 16px;
+    background: #1a1824;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    text-align: center;
+  }
+  #startAgain h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+  }
+  #startAgain p {
+    margin: 4px 0 12px;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  #startAgain .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  #startAgain button {
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    cursor: pointer;
+  }
   #boot {
     position: fixed;
     inset: 0;
@@ -416,6 +462,12 @@
   html[data-layout='portrait'] #welcome {
     top: 172px;
   }
+  /* with a mouse the hint stands under the Cast button, three lines at a phone's width, so the welcome waits below it */
+  @media (hover: hover) {
+    html[data-layout='portrait'] #welcome {
+      top: 220px;
+    }
+  }
   html[data-layout='portrait'] #gauge {
     top: auto;
     right: auto;
@@ -479,9 +531,27 @@
     top: 12px;
     right: 68px;
   }
+  /* below the top row, whose pond gauge ends at 67 px */
   html[data-layout='sideways'] #welcome,
   html[data-layout='sideways'] #toast {
-    top: 64px;
+    top: 76px;
+  }
+  /* with a mouse the hint keeps to one line beside the Cast button, so the top row stays one row */
+  html[data-layout='sideways'] #hud {
+    flex-direction: row;
+    align-items: center;
+    max-width: none;
+  }
+  html[data-layout='sideways'] #help {
+    white-space: nowrap;
+  }
+  /* and the phone's line, which stands beside Cast on a touch screen, goes under the menu where the hint cannot reach */
+  @media (hover: hover) {
+    html[data-layout='sideways'] #phoneStatus {
+      top: 76px;
+      left: auto;
+      right: 12px;
+    }
   }
   html[data-layout='sideways'] #gauge {
     --bar-width: 22px;
@@ -552,6 +622,16 @@
     <button type="button" id="pairingClose">Close</button>
   </div>
 </div>
+<div id="startAgain" role="dialog" aria-modal="true" aria-labelledby="startAgainTitle" hidden>
+  <div class="card">
+    <h2 id="startAgainTitle">Start again?</h2>
+    <p>Every fish you have cured goes back to glowing, and the pond to sick.</p>
+    <div class="buttons">
+      <button type="button" id="startAgainKeep">Keep playing</button>
+      <button type="button" id="startAgainConfirm">Start again</button>
+    </div>
+  </div>
+</div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">
@@ -585,6 +665,7 @@
   </button>
   <div class="panel" id="menuList" role="menu" hidden>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
+    <button id="startAgainButton" type="button" role="menuitem">Start again</button>
   </div>
 </div>
 <div id="hud">

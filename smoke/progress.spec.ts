@@ -616,3 +616,96 @@ test('the lever draws the water at once, quantised', async ({ page }) => {
   expect((await page.evaluate(() => window.game!.state())).waterDirt).toBe(0.3);
   expect(problems).toEqual([]);
 });
+
+/**
+ * Start again, played as a user does it. No `save` is handed to `start`: its init script writes the save on every load,
+ * and the reload that Start again makes would put the old one back. The fish is cured in the page's own store instead,
+ * in a fresh context, so the player's storage is never touched.
+ */
+test.describe('Start again', () => {
+  const DIALOG = '#startAgain';
+  const saved = (page: Page) => page.evaluate(() => JSON.parse(window.game!.save()) as { cured: number });
+  const stored = (page: Page) => page.evaluate(() => localStorage.getItem('ooerfish-save-v1'));
+  const openFromMenu = async (page: Page) => {
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Start again' }).click();
+    await expect(page.locator(DIALOG)).toBeVisible();
+  };
+  /** A page with one fish cured and kept in its own store. */
+  const withOneCured = async (page: Page) => {
+    await start(page, { seed: 7, paused: true });
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    await page.locator('#catch').click();
+    await page.evaluate(() => window.game!.step(1));
+    expect((await saved(page)).cured).toBe(1);
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+  };
+
+  test('asks first, and Keep playing, Escape and a click outside each leave the save as it was', async ({ page }) => {
+    const problems = watch(page);
+    await withOneCured(page);
+    await openFromMenu(page);
+    await expect(page.locator(DIALOG)).toContainText(
+      'Start again? Every fish you have cured goes back to glowing, and the pond to sick.',
+    );
+    await expect(page.locator(DIALOG)).toHaveAttribute('role', 'dialog');
+    await expect(page.locator(DIALOG)).toHaveAttribute('aria-modal', 'true');
+
+    await page.getByRole('button', { name: 'Keep playing' }).click();
+    await expect(page.locator(DIALOG)).toBeHidden();
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+
+    await openFromMenu(page);
+    await page.keyboard.press('Escape');
+    await expect(page.locator(DIALOG)).toBeHidden();
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+
+    await openFromMenu(page);
+    await page.mouse.click(3, 3);
+    await expect(page.locator(DIALOG)).toBeHidden();
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect((await page.evaluate(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
+    expect(problems).toEqual([]);
+  });
+
+  test('Start again wipes the save and reloads onto a sick pond with no gifts and the welcome showing', async ({
+    page,
+  }) => {
+    await withOneCured(page);
+    await openFromMenu(page);
+    const reloaded = page.waitForEvent('load');
+    await page.locator('#startAgainConfirm').click();
+    await reloaded;
+    await ready(page);
+    expect(await stored(page)).toBeNull();
+    expect(await saved(page)).toEqual({ cured: 0 });
+    expect((await page.evaluate(() => window.game!.state())).contamination).toBe(1);
+    expect(Object.values(await page.evaluate(() => window.game!.gear())).some(Boolean)).toBe(false);
+    await expect(page.locator('#welcome')).toBeVisible();
+  });
+
+  test('by keyboard: the menu, the item, and Keep playing focused first so a stray Enter keeps playing', async ({
+    page,
+  }) => {
+    await withOneCured(page);
+    await page.locator('#menuButton').focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('menuitem', { name: 'Pair a phone' }).focus();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('menuitem', { name: 'Start again' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator(DIALOG)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep playing' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator(DIALOG)).toBeHidden();
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+  });
+
+  test('the test API opens the dialog as the menu does, and keys over it do nothing in the game', async ({ page }) => {
+    await start(page, { seed: 7, paused: true });
+    await page.evaluate(() => window.game!.startAgain());
+    await expect(page.locator(DIALOG)).toBeVisible();
+    await page.keyboard.press('KeyC');
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+  });
+});

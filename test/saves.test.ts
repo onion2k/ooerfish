@@ -67,6 +67,16 @@ describe('saves from every shape the game has written', () => {
     expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
   });
 
+  it('starts over: a save of seven cured is wiped in memory and in the store, and a new load finds none', () => {
+    const store = memoryStore('{"cured": 7}');
+    const progress = new Progress(store);
+    expect(progress.save.cured).toBe(7);
+    progress.reset();
+    expect(progress.save).toEqual({ cured: 0 });
+    expect(store.json).toBeNull();
+    expect(new Progress(store).save).toEqual({ cured: 0 });
+  });
+
   it('has the shape the game writes now: a new field means a new file here', () => {
     const game = new Game(new Progress(memoryStore()));
     game.persist();

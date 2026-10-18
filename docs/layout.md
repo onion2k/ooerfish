@@ -48,9 +48,9 @@ The user also wants a way to reset the pond: there is no Start again today.
 ## Acceptance criteria
 
 1. At each breakpoint (desk 1280×800; Pixel 7a 412×915; small phone 360×800; phone sideways 915×412; tablet
-   820×1180 and 1180×820), the page takes the layout its shape says. A test reads which layout is in force, from a
+   820×1180 and 1180×820; and, added in part 3, a desk window narrowed to 412×915 and flattened to 915×412, with a mouse, so the hint shows in the phone's layouts), the page takes the layout its shape says. A test reads which layout is in force, from a
    data attribute the CSS keys off or from the computed positions.
-2. At each breakpoint, at the moments look, cast, bite, fight, landed and cured, no two visible overlays intersect.
+2. At each breakpoint, at the moments welcome (a game begun afresh, added in part 3), look, cast, bite, fight, landed, cured and the Start again question, no two visible overlays intersect.
    During the fight, none covers the hooked fish's, the line end's or the bobber's point on the screen. The test API
    gains `game.onScreen()`, which gives those points through the page's `toScreen`.
 3. On a touch screen (`hasTouch`) the hint is hidden; with a mouse it shows, as today.
@@ -140,7 +140,7 @@ existing portrait framing).
 - [x] 1. **The overlap test and the test API:** `onScreen()`, `layout()` and `smoke/layout.spec.ts`. Check: it fails
       on today's layout at the phone, sideways and tablet breakpoints (seen failing first) and passes at the desk.
 - [x] 2. **The three layouts and the hint:** the CSS. Check: `smoke/layout.spec.ts` green at every breakpoint.
-- [ ] 3. **Start again:** the menu item, the dialog and the reset. Check: its end-to-end test, and the unit test of
+- [x] 3. **Start again:** the menu item, the dialog and the reset. Check: its end-to-end test, and the unit test of
       `Progress.reset()`.
 - [ ] 4. **The pass:** the full check, pictures written and each looked at, perf at each breakpoint, the
       mutations, `CLAUDE.md`, `docs/layout.md` and the report.

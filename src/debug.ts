@@ -205,6 +205,11 @@ export interface GameApi {
    * likewise names the address the code carries, so a picture does not depend on the port the smoke is served on.
    */
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
+  /**
+   * Opens the question before Start again as the menu's item does, resolving once it is shown, for the pictures. There
+   * is no way to answer it here: the answer is tested by pressing its buttons, as a player does.
+   */
+  startAgain(): Promise<void>;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -292,6 +297,7 @@ export interface DebugHost {
   /** The phone's reading, and the overlay opened (on a fixed room for tests). */
   phone(): PhoneReading;
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
+  startAgain(): Promise<void>;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
   setSettings(next: Partial<Settings>): Promise<void>;
   /** The lake made as dirty as that, the water drawn so. */
@@ -445,6 +451,7 @@ export function createApi(host: DebugHost): GameApi {
 
     phone: () => host.phone(),
     pair: (fixed) => host.pair(fixed),
+    startAgain: () => host.startAgain(),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),

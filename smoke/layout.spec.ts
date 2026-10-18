@@ -20,6 +20,9 @@ const BREAKPOINTS = [
   { name: 'phone sideways 915x412', width: 915, height: 412, touch: true },
   { name: 'tablet 820x1180', width: 820, height: 1180, touch: true },
   { name: 'tablet sideways 1180x820', width: 1180, height: 820, touch: true },
+  // a desk's window narrowed or flattened: the phone's layouts with a mouse, so the keyboard hint shows in them
+  { name: 'narrow desk window 412x915', width: 412, height: 915, touch: false },
+  { name: 'short desk window 915x412', width: 915, height: 412, touch: false },
 ] as const;
 
 /**
@@ -38,6 +41,7 @@ const BREAKPOINTS = [
  *   catch       the landed fish's card.
  *   biteMark    the "!" over the bobber while the strike's window is open: it is meant to stand there, so it alone
  *               may contain the bobber's point.
+ *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
  */
@@ -68,10 +72,19 @@ const POINT_MARGIN = 6;
 /** Tolerated overlap between two boxes, in pixels, for the rounding of a laid-out edge. */
 const EDGE_SLACK = 0.5;
 
-type Moment = 'look' | 'cast' | 'bite' | 'fight' | 'landed' | 'cured';
-const MOMENTS: Moment[] = ['look', 'cast', 'bite', 'fight', 'landed', 'cured'];
+type Moment = 'welcome' | 'look' | 'cast' | 'bite' | 'fight' | 'landed' | 'cured' | 'start again';
+const MOMENTS: Moment[] = ['welcome', 'look', 'cast', 'bite', 'fight', 'landed', 'cured', 'start again'];
 /** The fewest overlays a moment must show, so a selector that finds nothing fails and does not pass in silence. */
-const AT_LEAST: Record<Moment, number> = { look: 3, cast: 3, bite: 4, fight: 5, landed: 4, cured: 3 };
+const AT_LEAST: Record<Moment, number> = {
+  welcome: 4,
+  look: 3,
+  cast: 3,
+  bite: 4,
+  fight: 5,
+  landed: 4,
+  cured: 3,
+  'start again': 1,
+};
 
 interface Box {
   id: string;
@@ -98,19 +111,32 @@ async function boxes(page: Page): Promise<Box[]> {
         if (r.width <= 0 || r.height <= 0) continue;
         out.push({ id, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
+      // the question before Start again is a modal over the whole screen: its card is the box to hold inside the screen
+      const card = document.querySelector<HTMLElement>('#startAgain:not([hidden]) .card');
+      if (card) {
+        const r = card.getBoundingClientRect();
+        out.push({ id: 'startAgainCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
       return out;
     },
     OVERLAYS as readonly string[],
   );
 }
 
-/** The page played to a moment, from a save of three cured, seeded and paused. */
+/**
+ * The page played to a moment, from a save of three cured, seeded and paused; but the welcome is a game begun afresh,
+ * with no save, since the welcome line shows only before the first fish is cured and the first cast.
+ */
 async function reach(page: Page, moment: Moment) {
-  await start(page, { seed: 7, paused: true, save: { cured: 3 } });
+  await start(page, { seed: 7, paused: true, ...(moment === 'welcome' ? {} : { save: { cured: 3 } }) });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
     const g = window.game!;
-    if (m === 'look') return true;
+    if (m === 'look' || m === 'welcome') return true;
+    if (m === 'start again') {
+      await g.startAgain();
+      return true;
+    }
     if (m === 'cast') {
       await g.mode('cast');
       g.step(30);
@@ -166,6 +192,8 @@ for (const bp of BREAKPOINTS) {
             for (let b = a + 1; b < all.length; b++) {
               const p = all[a],
                 q = all[b];
+              // the dialog is modal, so it lies over the other overlays by design, as the pairing overlay does
+              if (p.id === 'startAgainCard' || q.id === 'startAgainCard') continue;
               if (
                 Math.min(p.right, q.right) - Math.max(p.left, q.left) > EDGE_SLACK &&
                 Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > EDGE_SLACK

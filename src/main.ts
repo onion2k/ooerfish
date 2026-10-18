@@ -466,10 +466,39 @@ async function main() {
     showMenu(false);
     void openPairing();
   });
+
+  // Start again asks first, in a small dialog of the page's own. Keep playing is focused so a stray Enter keeps
+  // playing; Keep playing, Escape or a click outside the card close it and change nothing, and Start again has the
+  // save wiped by the progress itself (the page decides nothing about it) and the page loaded afresh.
+  const startAgain = byId('startAgain');
+  const keepPlaying = byId<HTMLButtonElement>('startAgainKeep');
+  const openStartAgain = () => {
+    showMenu(false);
+    startAgain.hidden = false;
+    keepPlaying.focus();
+    return Promise.resolve();
+  };
+  const closeStartAgain = () => {
+    startAgain.hidden = true;
+    menuButton.focus();
+  };
+  byId('startAgainButton').addEventListener('click', () => void openStartAgain());
+  keepPlaying.addEventListener('click', closeStartAgain);
+  startAgain.addEventListener('pointerdown', (e) => {
+    if (e.target === startAgain) closeStartAgain();
+  });
+  byId('startAgainConfirm').addEventListener('click', () => {
+    game.progress.reset();
+    location.reload();
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!menuList.hidden && e.target instanceof Node && !byId('menu').contains(e.target)) showMenu(false);
   });
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !startAgain.hidden) {
+      closeStartAgain();
+      return;
+    }
     if (e.key === 'Escape' && !menuList.hidden) {
       showMenu(false);
       menuButton.focus();
@@ -494,7 +523,7 @@ async function main() {
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the page's own buttons, where the key is only what it presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement && e.target.closest('#catch, #modeButton, #pairing, #menu') !== null;
+    e.target instanceof HTMLElement && e.target.closest('#catch, #modeButton, #pairing, #startAgain, #menu') !== null;
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
@@ -736,6 +765,7 @@ async function main() {
     settings: () => ({ ...settings }),
     phone: () => overlay?.reading() ?? NO_PHONE,
     pair: (fixed) => openPairing(fixed),
+    startAgain: () => openStartAgain(),
     setSettings,
     setDirt,
     setTime,
