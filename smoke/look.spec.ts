@@ -35,6 +35,8 @@ import { connect, openPhone, pairingFromOverlay } from './phoneside';
  * (`judging.ts`) is that drift measured and widened, a handful of pixels and no share, and the test below that
  * holds the gate to a button still fails it.
  */
+/** The phone the pictures are taken on: the user's Pixel 7a, 1080 by 2400 at a device pixel ratio of 2.625 (`docs/layout.md`). */
+const PIXEL_7A = { width: 412, height: 915 };
 const TOLERANCE = { maxDiffPixels: GRASS_WOBBLE, threshold: 0.02 };
 
 test.describe('what it looks like', () => {
@@ -235,7 +237,7 @@ test.describe('what it looks like', () => {
 });
 
 test.describe('on a phone', () => {
-  test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
 
   test('the lake from the shore', async ({ page }) => {
     const problems = watch(page);
@@ -293,7 +295,7 @@ test.describe('pairing a phone', () => {
   });
 
   test.describe('on a phone', () => {
-    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
 
     test('the overlay at a phone’s width', async ({ page }) => {
       const problems = watch(page);
@@ -403,7 +405,7 @@ test.describe('the pond at a desk’s width', () => {
 });
 
 test.describe('the pond on a phone', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
 
   for (const scene of ['welcome', 'playing', 'clean'] as const)
     test(`${scene}`, async ({ page }) => {
@@ -419,7 +421,7 @@ test.describe('the pond on a phone', () => {
           const line = await box(id);
           expect(cast.y + cast.height, `${id} is under the Cast button`).toBeLessThanOrEqual(line.y);
           expect(line.x).toBeGreaterThanOrEqual(0);
-          expect(line.x + line.width).toBeLessThanOrEqual(390);
+          expect(line.x + line.width).toBeLessThanOrEqual(PIXEL_7A.width);
         }
       await expect(page).toHaveScreenshot(`phone-pond-${scene}.png`, TOLERANCE);
       expect(problems).toEqual([]);

@@ -139,7 +139,7 @@ existing portrait framing).
 
 - [x] 1. **The overlap test and the test API:** `onScreen()`, `layout()` and `smoke/layout.spec.ts`. Check: it fails
       on today's layout at the phone, sideways and tablet breakpoints (seen failing first) and passes at the desk.
-- [ ] 2. **The three layouts and the hint:** the CSS. Check: `smoke/layout.spec.ts` green at every breakpoint.
+- [x] 2. **The three layouts and the hint:** the CSS. Check: `smoke/layout.spec.ts` green at every breakpoint.
 - [ ] 3. **Start again:** the menu item, the dialog and the reset. Check: its end-to-end test, and the unit test of
       `Progress.reset()`.
 - [ ] 4. **The pass:** the full check, pictures written and each looked at, perf at each breakpoint, the

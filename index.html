@@ -373,50 +373,152 @@
     outline: 3px solid #9fd0ff;
     outline-offset: 2px;
   }
-  @media (max-width: 600px) {
-    #reelButton {
-      bottom: 180px;
-      right: 16px;
-    }
-    #gauge {
-      bottom: 150px;
-      right: 114px;
-    }
-    #catch {
-      bottom: 160px;
-    }
-    #castLine {
-      bottom: 76px;
-      max-width: calc(100% - 32px);
-    }
+  /* a touch screen has no keys to name: the hint is for a keyboard and a mouse */
+  @media (hover: none) {
     #help {
       display: none;
     }
-    /* the pond's gauge takes the top left, so the Cast button stands under it, and the lines under that */
-    #hud {
-      top: 76px;
-      bottom: auto;
-    }
-    #welcome,
-    #toast {
-      top: 134px;
-    }
-    /* the gauge is too wide for the bucket to stand left of the menu here, so the bucket keeps the corner and the menu
-       and the phone's line take the Cast button's row, on the right */
-    #bucket {
-      right: 16px;
-    }
-    #menu {
-      top: 76px;
-    }
-    #phoneStatus {
-      top: 80px;
-      right: 72px;
-    }
-    #toast {
-      white-space: normal;
-      width: calc(100% - 32px);
-    }
+  }
+  /* The screen's shape, set on the document from layout.ts (the one rule for which layout a screen takes). The base
+     rules above are the desk's; these two move the overlays for a screen taller than wide, and for a short wide one,
+     so that in the fight nothing stands over the pond where the line and the fish are. */
+
+  /* portrait: a phone or a tablet held upright. The pond keeps the whole width for itself and the top rows are for the
+     counts and buttons; the fight goes onto the grass at the foot, the bar at the left, the Reel button at the right
+     and the words above it, so the water stays clear. */
+  html[data-layout='portrait'] {
+    /* the bar fits a small phone and fills a tablet */
+    --bar-height: clamp(120px, 24vh, 300px);
+  }
+  html[data-layout='portrait'] #pond {
+    top: 12px;
+    left: 12px;
+  }
+  html[data-layout='portrait'] #menu {
+    top: 12px;
+    right: 12px;
+  }
+  /* the second row: the Cast button, and the bucket's count under the menu. All four will not stand in one row at
+     360 px, the bucket's words alone being about 140 */
+  html[data-layout='portrait'] #hud {
+    top: 75px;
+    bottom: auto;
+    left: 12px;
+  }
+  html[data-layout='portrait'] #bucket {
+    top: 75px;
+    right: 12px;
+  }
+  html[data-layout='portrait'] #phoneStatus {
+    top: 127px;
+    right: 12px;
+  }
+  html[data-layout='portrait'] #welcome {
+    top: 172px;
+  }
+  html[data-layout='portrait'] #gauge {
+    top: auto;
+    right: auto;
+    bottom: 20px;
+    left: 16px;
+  }
+  html[data-layout='portrait'] #gaugeBar,
+  html[data-layout='portrait'] #gaugeMeter {
+    height: var(--bar-height);
+  }
+  html[data-layout='portrait'] #reelButton {
+    bottom: 28px;
+    right: 20px;
+  }
+  html[data-layout='portrait'] #castLine {
+    bottom: 132px;
+    left: auto;
+    right: 16px;
+    transform: none;
+    max-width: 190px;
+    font-size: 13px;
+  }
+  html[data-layout='portrait'] #catch {
+    top: auto;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    transform: none;
+    min-width: 0;
+    padding: 8px 12px;
+  }
+  html[data-layout='portrait'] #toast {
+    top: auto;
+    bottom: 24px;
+    white-space: normal;
+    width: calc(100% - 32px);
+  }
+
+  /* sideways: a phone on its side, wide and short. One slim row at the top (the pond's gauge, the Cast button, the
+     phone's word, the bucket and the menu), the bar thin on the left edge under it, and the Reel button at the right
+     with the words and the card a strip at the foot between them. */
+  html[data-layout='sideways'] #pond {
+    top: 12px;
+    left: 12px;
+  }
+  html[data-layout='sideways'] #hud {
+    top: 12px;
+    bottom: auto;
+    left: 244px;
+  }
+  html[data-layout='sideways'] #phoneStatus {
+    top: 18px;
+    right: auto;
+    left: 364px;
+  }
+  html[data-layout='sideways'] #menu {
+    top: 12px;
+    right: 12px;
+  }
+  html[data-layout='sideways'] #bucket {
+    top: 12px;
+    right: 68px;
+  }
+  html[data-layout='sideways'] #welcome,
+  html[data-layout='sideways'] #toast {
+    top: 64px;
+  }
+  html[data-layout='sideways'] #gauge {
+    --bar-width: 22px;
+    --meter-width: 8px;
+    top: 72px;
+    right: auto;
+    bottom: auto;
+    left: 12px;
+    width: auto;
+    padding: 5px;
+  }
+  html[data-layout='sideways'] #gaugeBar,
+  html[data-layout='sideways'] #gaugeMeter {
+    height: clamp(100px, calc(100vh - 130px), 280px);
+  }
+  html[data-layout='sideways'] #gaugeWords {
+    display: none;
+  }
+  html[data-layout='sideways'] #reelButton {
+    bottom: 14px;
+    right: 14px;
+    width: 76px;
+    height: 76px;
+    font-size: 14px;
+  }
+  html[data-layout='sideways'] #castLine {
+    bottom: 12px;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  html[data-layout='sideways'] #catch {
+    bottom: 12px;
+    padding: 6px 12px;
+    min-width: 0;
+  }
+  html[data-layout='sideways'] #catch small {
+    display: none;
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>

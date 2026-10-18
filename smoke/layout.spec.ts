@@ -23,18 +23,6 @@ const BREAKPOINTS = [
 ] as const;
 
 /**
- * The breakpoints whose layout is not yet made for them, so their spec is `fixme` until it is. Part 2 of
- * `docs/layout.md` (the three layouts) removes every name from this set; the desk is never in it.
- */
-const FIXME = new Set<string>([
-  'Pixel 7a 412x915',
-  'small phone 360x800',
-  'phone sideways 915x412',
-  'tablet 820x1180',
-  'tablet sideways 1180x820',
-]);
-
-/**
  * The overlays: every top-level, fixed-position thing the page lays over the canvas, by id. A box inside one of
  * these is part of it, so it is not listed on its own.
  *   pond        the lake's gauge, top left.
@@ -154,8 +142,6 @@ for (const bp of BREAKPOINTS) {
 
     for (const moment of MOMENTS)
       test(moment, async ({ page }) => {
-        // part 2 of docs/layout.md removes this: these breakpoints still have today's single layout
-        test.fixme(FIXME.has(bp.name), 'the layouts for this screen are part 2 of docs/layout.md');
         const problems = watch(page);
         await reach(page, moment);
         // a set, so the same two boxes seen at every look of the fight are said once
