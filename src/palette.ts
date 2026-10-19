@@ -138,3 +138,35 @@ export function mix(a: Colour, b: Colour, k: number): Colour {
   const j = 1 - k;
   return [a[0] * j + b[0] * k, a[1] * j + b[1] * k, a[2] * j + b[2] * k];
 }
+
+/**
+ * The room inside the cabin, a part to a colour (`ROOM_PARTS` in `cabinroom.ts`): warm timber and plaster, a
+ * blue blanket on a white bed, and a lamp and a window that glow. First guesses, as the cabin's were.
+ */
+export const ROOM_COLOURS = {
+  floor: [0.46, 0.31, 0.18] as Colour,
+  walls: [0.74, 0.64, 0.47] as Colour,
+  ceiling: [0.5, 0.37, 0.24] as Colour,
+  bed: [0.38, 0.25, 0.14] as Colour,
+  bedding: [0.9, 0.87, 0.8] as Colour,
+  blanket: [0.22, 0.42, 0.6] as Colour,
+  window: [0.34, 0.22, 0.12] as Colour,
+  glass: [1, 0.86, 0.56] as Colour,
+  door: [0.42, 0.27, 0.15] as Colour,
+  shade: [0.78, 0.34, 0.2] as Colour,
+  bulb: [1, 0.9, 0.62] as Colour,
+  // the furniture: wood a shade apart, iron, cloth and the small bright things that make a room lived in
+  table: [0.52, 0.36, 0.2] as Colour,
+  chair: [0.45, 0.3, 0.16] as Colour,
+  mug: [0.25, 0.55, 0.55] as Colour,
+  stove: [0.16, 0.16, 0.18] as Colour,
+  shelf: [0.4, 0.27, 0.15] as Colour,
+  books: [0.55, 0.2, 0.18] as Colour,
+  jar: [0.5, 0.75, 0.55] as Colour,
+  rug: [0.3, 0.5, 0.62] as Colour,
+  chest: [0.36, 0.22, 0.12] as Colour,
+  frame: [0.3, 0.2, 0.1] as Colour,
+  canvas: [0.85, 0.82, 0.7] as Colour,
+  peg: [0.28, 0.19, 0.11] as Colour,
+  coat: [0.7, 0.5, 0.2] as Colour,
+};

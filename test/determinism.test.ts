@@ -14,6 +14,13 @@ describe('the same seed gives the same game', () => {
     expect(run.checkpoints.length).toBe(12);
   });
 
+  it('plays a night out the same, twice: a yawn and a waking are hashed', () => {
+    // a little before midnight, so the yawn, the waking and the morning after are all inside the run
+    const run = playTwice({ seed: 2, frames: 1500, every: 30, startsAt: 0.99 });
+    expect(run.diverged, run.note).toBe(null);
+    expect(run.days, 'the day went up').toBeGreaterThan(1);
+  });
+
   it('hashes what a lake is, so anything moved shows', () => {
     const one = newGame(5).game;
     const two = newGame(5).game;

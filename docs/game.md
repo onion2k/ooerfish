@@ -13,7 +13,7 @@ and nothing a player does changes the lake. The user wants the panel gone and th
 The intended outcome: a player opens the page straight onto a sick Duck Pond with a welcome line, goes fishing while
 the day runs from dawn round to night and on, and **every fish landed and put in the bucket is cured and clears the
 pond a step**, kept in the save, until the pond is clean. That is the smallest slice of stage 3 (the cure) that gives
-the removed slider a player's meaning, and a first slice of stage 5 (the day's clock, without its end).
+the removed slider a player's meaning, and a first slice of stage 5 (the day's clock; its end came after, `docs/day.md`).
 
 Mocks (real screenshots, seed 3): `~/Library/Application Support/Claude/side-session-notes/local_1aadb9a7-0359-41ea-a082-399dd985bcfb/mock/game-mocks.html`.
 **Chosen by the user, 16 Oct 2026:** straight in with a welcome line (1B), the glow gauge (2B), a line and the gauge
@@ -21,15 +21,15 @@ stepping when a fish is cured (3A), and a stepping clock now.
 
 ## What replaces each lab lever
 
-| Lever                | For the player                                                                                                                                                                                                                                        | Kept for tests as                                                                  |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Contamination slider | The cure: each fish stowed lowers it by `1 / CURE.toClean` (12, an estimate); saved as a count of fish cured, so a retuned step re-derives it                                                                                                         | `game.dirt(x)`, setting it directly, as today                                      |
-| Time of day          | The game's clock: `timeOfDay` runs on by game time, a day in `CLOCK.daySeconds` (720, an estimate), from dawn, round past midnight and on (no end of day until stage 5); the look steps to the nearest of the four times (`nearestTime` in `look.ts`) | `game.time(name)` sets the clock there; it runs on from it                         |
-| View                 | Look (free orbit) and Cast (the Shore view), as now; on a tall screen the Shore view takes the `phone` framing by itself                                                                                                                              | `game.view(name)`, all four views, for the pictures (`half-boat`)                  |
-| Caustics, paint      | Gone from the screen; they were comparisons                                                                                                                                                                                                           | the address (`?caustics=off`, `?paint=off`, refused by name otherwise) and the API |
-| Drop a pebble        | Kept as play: a tap on the water in look mode already drops one                                                                                                                                                                                       | `game.drop`, `game.dropNear` (the perf gate's splashes)                            |
-| Reel in              | Dropped: casting again already reels in (`Game.cast` calls `reelIn`)                                                                                                                                                                                  | `game.reelIn()`                                                                    |
-| `#stats` readout     | Dropped                                                                                                                                                                                                                                               | `game.measureFrame()`, the perf gate                                               |
+| Lever                | For the player                                                                                                                                                                                                                                     | Kept for tests as                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Contamination slider | The cure: each fish stowed lowers it by `1 / CURE.toClean` (12, an estimate); saved as a count of fish cured, so a retuned step re-derives it                                                                                                      | `game.dirt(x)`, setting it directly, as today                                      |
+| Time of day          | The game's clock: `timeOfDay` runs on by game time, a day in `CLOCK.daySeconds` (720, an estimate), from dawn, round to midnight, where the day ends (`docs/day.md`); the look steps to the nearest of the four times (`nearestTime` in `look.ts`) | `game.time(name)` sets the clock there; it runs on from it                         |
+| View                 | Look (free orbit) and Cast (the Shore view), as now; on a tall screen the Shore view takes the `phone` framing by itself                                                                                                                           | `game.view(name)`, all four views, for the pictures (`half-boat`)                  |
+| Caustics, paint      | Gone from the screen; they were comparisons                                                                                                                                                                                                        | the address (`?caustics=off`, `?paint=off`, refused by name otherwise) and the API |
+| Drop a pebble        | Kept as play: a tap on the water in look mode already drops one                                                                                                                                                                                    | `game.drop`, `game.dropNear` (the perf gate's splashes)                            |
+| Reel in              | Dropped: casting again already reels in (`Game.cast` calls `reelIn`)                                                                                                                                                                               | `game.reelIn()`                                                                    |
+| `#stats` readout     | Dropped                                                                                                                                                                                                                                            | `game.measureFrame()`, the perf gate                                               |
 
 **The address stops holding game state.** `dirt`, `time` and `view` leave `Settings`; the address is no longer written
 back (`history.replaceState` goes). What stays is the viewer's and the tests': `seed`, `paused`, `rung`, `caustics`,
@@ -61,8 +61,8 @@ Measured by grep: almost everything already goes through `window.game`, not the 
 4. The tap: the gauge steps down, the water steps clearer at once, a line says "Cured! The pond clears a little." for
    `HEARD_FOR` of game time. Saved.
 5. The twelfth: "The Duck Pond is clean!" Fish still come and are caught; the pond stays at 0.
-6. The day: every three minutes or so the light steps (dawn, day, dusk, night, dawn…). Not saved: a reload starts at
-   dawn. The water's look and the fish's glow already follow the time.
+6. The day: every three minutes or so the light steps (dawn, day, dusk, night). At midnight the day ends
+   (`docs/day.md`, built after this). The time is not saved: a reload starts at dawn. The water's look and the fish's glow already follow the time.
 7. Reload: gauge and water as left.
 
 ## Figures, measured or called estimates
@@ -117,7 +117,8 @@ stops); the lake's contamination (only down; fully clean); the fish (one caught 
 
 ## Out of scope
 
-The cabin, curing machine and aquarium; fish that look cured; the day's end, sleep and saving the time; a blended sky;
+The cabin, curing machine and aquarium; fish that look cured; saving the time (the day's end and sleep came after,
+`docs/day.md`); a blended sky;
 a clock on the HUD; the journal; sound; a menu, options, Continue or New game (so no way yet to reset a cleaned pond:
 named as the next thing); the boat as play; more lakes; contamination changing fish numbers.
 

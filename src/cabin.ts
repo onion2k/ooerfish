@@ -36,7 +36,7 @@ const SUNK = 0.2;
  * A frame on the ground at a point, right-handed like the world: x toward the lake's middle, y along the shore, z up,
  * written as a place into the world's own frame.
  */
-function placeAt(origin: {
+export function placeAt(origin: {
   x: number;
   y: number;
   inward: readonly [number, number];

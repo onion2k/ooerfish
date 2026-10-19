@@ -14,6 +14,7 @@ import { School, steerTo } from './fish';
 import { Line } from './line';
 import {
   CLOCK,
+  NIGHT,
   DROP_NEAR,
   contaminationAfter,
   HEAL,
@@ -32,6 +33,7 @@ import { drawTemper, fightFor, gearFor, type Gear, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
 import { Splashes } from './splash';
+import { fadeAt, pastMidnight, type Place } from './night';
 
 /** What happens, for whoever shows it. Every one may be left out. */
 export interface GameEvents {
@@ -55,6 +57,10 @@ export interface GameEvents {
   gifted?(name: string, words: string): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number, temper: Temper): void;
+  /** The day's end began, at midnight or by choice: the player yawns and the screen starts to fade. */
+  yawned?(): void;
+  /** The player woke in the cabin, on this day. */
+  woke?(day: number): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
@@ -108,12 +114,21 @@ export class Game {
   levers = 0;
   /** Where the day is, from midnight (0) through noon (0.5), up to but not reaching midnight again: one is nought. */
   timeOfDay: number = CLOCK.startsAt;
+  /** Which day of play it is, from one: the save's, and up by one on each waking. */
+  day: number;
+  /** Where the player is: at the pond, yawning at the day's end, or in the cabin; only at the pond does the game run. */
+  place: Place = 'pond';
+  /** The seconds stepped since the yawn began, or since the player woke; the fade is worked out from it. */
+  private fadeElapsed = 0;
+  /** Midnight has passed with a fish still on the line or landed, and the yawn is waiting for the fight to be settled. */
+  private midnightWaits = false;
 
   constructor(
     readonly progress: Progress,
     options: GameOptions = {},
   ) {
     this.random = options.random ?? Math.random;
+    this.day = progress.save.day;
     this.contamination = contaminationAfter(progress.save.cured);
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
@@ -139,10 +154,20 @@ export class Game {
 
   /** One frame of `dt` seconds. */
   step(dt: number) {
+    // away from the pond only the fade moves: the clock, the fish, the lure and the water hold until the player is back
+    if (this.place !== 'pond') return this.stepNight(dt);
     this.t += dt;
     this.healElapsed += dt;
     this.waterDirt = healToward(this.healFrom, this.healTo, this.healElapsed, HEAL.seconds);
-    this.setTimeOfDay(this.timeOfDay + dt / CLOCK.daySeconds);
+    const before = this.timeOfDay;
+    this.setTimeOfDay(before + dt / CLOCK.daySeconds);
+    // only a step carries the clock across midnight, so the lever (`setTimeOfDay`) never makes one; a fish on the line
+    // or landed holds the yawn off, the clock running on, and it comes on the first step after the fight is settled
+    if (pastMidnight(before, this.timeOfDay)) this.midnightWaits = true;
+    if (this.midnightWaits && !this.fighting) {
+      this.yawn();
+      return;
+    }
     this.fish.step(dt, this.random);
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
@@ -151,6 +176,62 @@ export class Game {
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
+  }
+
+  /** True with a fish hooked or landed, which the day's end waits for. */
+  private get fighting(): boolean {
+    return this.bite.phase === 'hooked' || this.bite.phase === 'landed';
+  }
+
+  /** How faded the screen is, from nought to one: the yawn's fade out and the waking's fade in. */
+  fade(): number {
+    return fadeAt(this.place, this.fadeElapsed, NIGHT.fadeOut, NIGHT.fadeIn);
+  }
+
+  /** The player goes to bed early, from the pond or the cabin; refused, and nothing changed, with a fish hooked or landed or while yawning. */
+  sleep(): boolean {
+    if (this.place === 'yawning' || this.fighting) return false;
+    this.yawn();
+    return true;
+  }
+
+  /** The player goes down from the cabin to the pond, where the clock runs on from dawn; refused anywhere else, and while yawning. */
+  out(): boolean {
+    if (this.place !== 'cabin') return false;
+    this.place = 'pond';
+    this.fadeElapsed = 0;
+    return true;
+  }
+
+  /** The yawn begins: the lure is reeled in (a coming or nibbling fish lets go), the reel let go, and the fade starts. */
+  private yawn() {
+    this.midnightWaits = false;
+    this.reelIn();
+    this.reeling = false;
+    this.place = 'yawning';
+    this.fadeElapsed = 0;
+    this.events.yawned?.();
+  }
+
+  /** A step away from the pond: the fade, and at the end of the yawn the waking. */
+  private stepNight(dt: number) {
+    this.fadeElapsed += dt;
+    if (this.place === 'yawning' && this.fadeElapsed >= NIGHT.fadeOut) this.wake();
+  }
+
+  /** Morning at the cabin on the next day, saved: dawn, the water as clean as the lake is, the splashes gone. */
+  private wake() {
+    this.day = Math.min(this.day + 1, Number.MAX_SAFE_INTEGER);
+    this.progress.save.day = this.day;
+    this.timeOfDay = CLOCK.startsAt;
+    // the night has passed, so a heal still running is over
+    this.waterDirt = this.healFrom = this.healTo = this.contamination;
+    this.healElapsed = 0;
+    this.splashes.clear();
+    this.place = 'cabin';
+    this.fadeElapsed = 0;
+    this.persist();
+    this.events.woke?.(this.day);
   }
 
   /** The player strikes: a fish biting is hooked, one nibbling lets go, and with none at the lure it is twitched. */
@@ -296,9 +377,11 @@ export class Game {
 
   /**
    * Something dropped on the water at (x, y), of `size`: a splash there now, told of. Refused, and nothing recorded or
-   * told, off the water, or where any of it is not a finite number, or of no size.
+   * told, away from the pond, off the water, or where any of it is not a finite number, or of no size.
    */
   drop(x: number, y: number, size = 1): boolean {
+    // the cabin and the yawn have no water to drop anything on, and a splash made there would hang unmoving till morning
+    if (this.place !== 'pond') return false;
     if (![x, y, size].every(Number.isFinite) || size <= 0 || !inside(x, y)) return false;
     this.splashes.add(x, y, this.t, size);
     this.events.splashed?.(x, y, size);
@@ -308,6 +391,8 @@ export class Game {
 
   /** A pebble dropped somewhere on the water near (x, y), by chance; on the water somewhere else if none is near. */
   dropNear(x: number, y: number): boolean {
+    // refused before any chance is drawn, so a refusal away from the pond moves nothing
+    if (this.place !== 'pond') return false;
     for (let tries = 0; tries < 40; tries++) {
       const a = this.random() * Math.PI * 2,
         r = Math.sqrt(this.random()) * DROP_NEAR;
@@ -319,9 +404,11 @@ export class Game {
     return this.drop(0, 0);
   }
 
-  /** A cast thrown at `angle` round the compass and `power` from nought to one; one out already is reeled in first. Refused, and nothing changed, for what is not a finite number. */
+  /** A cast thrown at `angle` round the compass and `power` from nought to one; one out already is reeled in first. Refused, and nothing changed, for what is not a finite number, and away from the pond. */
   cast(angle: number, power: number): boolean {
     if (!Number.isFinite(angle) || !Number.isFinite(power)) return false;
+    // there is no casting from the cabin or while yawning: the lure was brought in for the night and stays in
+    if (this.place !== 'pond') return false;
     // a fish on the line, or landed and waiting to be stowed, is seen to first
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return false;
     this.reelIn();

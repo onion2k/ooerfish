@@ -121,3 +121,19 @@ export function swimming(school: { count: number; x: ArrayLike<number> }): () =>
     return moved;
   };
 }
+
+/**
+ * A hand that keeps a game's clock short of midnight, for a scenario that runs longer than a day: at each asking,
+ * a clock past `before` is put back to `startsAt` by the lever, which is never a midnight, so the game never yawns
+ * and its night never stills what the scenario is timing. The pace and the fuzzer play through the night instead,
+ * since the night is theirs to reach; the bench times the lake, not the bed.
+ */
+export function heldToDay(
+  game: { timeOfDay: number; setTimeOfDay(v: number): void },
+  startsAt: number,
+  before = 0.95,
+): () => void {
+  return () => {
+    if (game.timeOfDay >= before) game.setTimeOfDay(startsAt);
+  };
+}

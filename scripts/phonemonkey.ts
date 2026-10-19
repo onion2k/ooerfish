@@ -268,6 +268,8 @@ export function crowd(game: () => Game, random: Random): Crowd {
       gesture.sync();
       if (frame % 6 !== 0) return;
       const g = game();
+      // a night passed, the player wakes in the cabin and goes down to the pond, so the room plays on
+      if (g.place === 'cabin') g.out();
       // the lake is fished, by the screen's angler for the cast and the strike and by the phone's thumb for the reel, so
       // a hold is made and let go of for as long as the room is played
       if (g.lure.phase === 'ready' || g.lure.phase === 'lying') g.cast(Math.PI / 2 + between(-0.4, 0.4), 0.6);

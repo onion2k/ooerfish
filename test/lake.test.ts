@@ -8,6 +8,8 @@ import {
   BOULDERS,
   CABIN,
   CABIN_AT,
+  CABIN_FLOOR,
+  CABIN_ROOM,
   CLIFF,
   CURE,
   FISH_CAPACITY,
@@ -93,12 +95,54 @@ describe('the lake', () => {
   });
 
   it('names its views, each looking at somewhere in or by the lake', () => {
-    expect(Object.keys(VIEWS)).toEqual(['shore', 'boat', 'overhead', 'phone']);
-    for (const [name, v] of Object.entries(VIEWS)) {
+    expect(Object.keys(VIEWS)).toEqual(['shore', 'boat', 'overhead', 'phone', 'cabin', 'cabinTall']);
+    // the cabin's two are inside it, and are its own test below
+    for (const [name, v] of Object.entries(VIEWS).filter(([n]) => !n.startsWith('cabin'))) {
       expect(Math.hypot(v.x, v.y), name).toBeLessThan(40);
       expect(v.polar, name).toBeGreaterThan(0);
       expect(v.polar, name).toBeLessThan(Math.PI / 2);
       expect(v.radius, name).toBeGreaterThan(5);
+    }
+  });
+
+  it('has a cabin room whose furniture fits in it, and whose views put the camera inside it', () => {
+    const halfU = CABIN.body.along / 2 - CABIN_ROOM.inset,
+      halfV = CABIN.body.across / 2 - CABIN_ROOM.inset;
+    const { bed, window: win, door, lamp } = CABIN_ROOM;
+    // the bed lies in the back corner, wholly in the room
+    expect(bed.width).toBeLessThan(2 * halfU);
+    expect(bed.length).toBeLessThan(2 * halfV);
+    // the window and the door are in the lake-facing wall and do not overlap there
+    expect(Math.abs(win.along) + win.width / 2).toBeLessThan(halfU);
+    expect(Math.abs(door.along) + door.width / 2).toBeLessThan(halfU);
+    expect(Math.abs(win.along - door.along)).toBeGreaterThan((win.width + door.width) / 2);
+    expect(win.sill + win.high).toBeLessThan(CABIN_ROOM.high);
+    expect(door.high).toBeLessThan(CABIN_ROOM.high);
+    // the lamp hangs inside the room, its colour a colour
+    expect(Math.abs(lamp.along)).toBeLessThan(halfU);
+    expect(Math.abs(lamp.across)).toBeLessThan(halfV);
+    expect(lamp.drop).toBeGreaterThan(0);
+    for (const c of lamp.colour) expect(c).toBeGreaterThanOrEqual(0);
+    for (const name of ['cabin', 'cabinTall'] as const) {
+      const v = VIEWS[name];
+      // where the orbit puts the camera: the target and a step back along the azimuth and polar
+      const at = [
+        v.x + v.radius * Math.sin(v.polar) * Math.cos(v.azimuth),
+        v.y + v.radius * Math.sin(v.polar) * Math.sin(v.azimuth),
+        (v.z ?? 0) + v.radius * Math.cos(v.polar),
+      ];
+      const dx = at[0] - CABIN_AT.x,
+        dy = at[1] - CABIN_AT.y;
+      const along = dx * CABIN_AT.along[0] + dy * CABIN_AT.along[1],
+        across = dx * CABIN_AT.inward[0] + dy * CABIN_AT.inward[1];
+      expect(Math.abs(along), `${name} along`).toBeLessThan(halfU);
+      expect(Math.abs(across), `${name} across`).toBeLessThan(halfV);
+      expect(at[2], `${name} eye`).toBeGreaterThan(CABIN_FLOOR + 0.8);
+      expect(at[2], `${name} eye`).toBeLessThan(CABIN_FLOOR + CABIN_ROOM.high);
+      // the orbit's own limits (main.ts): at least ten away, and a polar of 0.2 to 1.5
+      expect(v.radius, name).toBeGreaterThanOrEqual(10);
+      expect(v.polar, name).toBeGreaterThanOrEqual(0.2);
+      expect(v.polar, name).toBeLessThanOrEqual(1.5);
     }
   });
 
@@ -467,8 +511,17 @@ describe('the framing of a view for a screen', () => {
     expect(framingFor('shore', 1280 / 800)).toBe(VIEWS.shore);
     // a square screen is not tall
     expect(framingFor('shore', 1)).toBe(VIEWS.shore);
-    for (const name of ['boat', 'overhead', 'phone'] as const)
+    for (const name of ['boat', 'overhead', 'phone', 'cabinTall'] as const)
       for (const aspect of [0.46, 1.6]) expect(framingFor(name, aspect), `${name} at ${aspect}`).toBe(VIEWS[name]);
+  });
+
+  it('gives the cabin view its tall framing on a screen taller than it is wide, and no other', () => {
+    expect(framingFor('cabin', 412 / 915)).toBe(VIEWS.cabinTall);
+    expect(framingFor('cabin', 1280 / 800)).toBe(VIEWS.cabin);
+    expect(framingFor('cabin', 1)).toBe(VIEWS.cabin);
+    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor('cabin', aspect)).toBe(VIEWS.cabin);
+    // the tall framing opens the lens wider, since a room has no further back to stand
+    expect(VIEWS.cabinTall.fov!).toBeGreaterThan(VIEWS.cabin.fov!);
   });
 
   it('is the Shore view as it is for an aspect that is no number', () => {

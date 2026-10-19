@@ -9,6 +9,7 @@ import { ANGLER, CLOCK, FISH_COUNT, PERCH, RELEASE, inside } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
+import { NIGHT } from '../src/lake';
 import { DT, newGame, settle } from './helpers';
 
 describe('the lake', () => {
@@ -34,7 +35,7 @@ describe('the lake', () => {
     settle(game);
     expect(store.json).toBe(null);
     game.persist();
-    expect(store.json).toBe('{"cured":0}');
+    expect(store.json).toBe('{"cured":0,"day":1}');
   });
 });
 
@@ -69,6 +70,9 @@ describe('the day', () => {
     game.step(CLOCK.daySeconds * 0.001);
     expect(game.timeOfDay).toBeGreaterThanOrEqual(0);
     expect(game.timeOfDay).toBeCloseTo(0.0009, 6);
+    // the step across midnight began the day's end; the player wakes and goes down to the pond to fish on
+    settle(game, 120);
+    expect(game.out()).toBe(true);
     game.setTimeOfDay(0.5);
     game.step(CLOCK.daySeconds / 4);
     expect(game.timeOfDay).toBeCloseTo(0.75, 10);
@@ -208,5 +212,285 @@ describe('a hooked fish’s temper', () => {
       expect(game.bite.phase, `seed ${seed}`).toBe('landed');
       expect(landed).toEqual([[PERCH.name, game.catchWeight, game.temper]]);
     }
+  });
+});
+
+/** A game a hair before midnight, so the next step crosses it. */
+function beforeMidnight(seed = 1, json: string | null = null) {
+  const made = newGame(seed, json);
+  made.game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+  return made;
+}
+
+/** Step until the yawn is over and the player is in the cabin. */
+function sleepThrough(game: Game) {
+  for (let f = 0; f < 600 && game.place !== 'cabin'; f++) game.step(DT);
+}
+
+/** A game with a fish hooked at the lure, as a strike leaves it. */
+function fightingGame(seed = 1) {
+  const made = newGame(seed);
+  const { game } = made;
+  game.bite.phase = 'hooked';
+  game.bite.fish = 0;
+  game.fish.held = 0;
+  game.lure.phase = 'hooked';
+  game.line.start(5, fightFor(0.5, 'steady', game.gear), game.random);
+  return made;
+}
+
+describe('the day’s end', () => {
+  it('starts on day one, at the pond, with no fade', () => {
+    const { game } = newGame();
+    expect(game.day).toBe(1);
+    expect(game.place).toBe('pond');
+    expect(game.fade()).toBe(0);
+  });
+
+  it('yawns when a step carries the clock past midnight, and not at the lever', () => {
+    const told: string[] = [];
+    const game = new Game(new Progress(memoryStore()), { random: seeded(1), events: { yawned: () => told.push('y') } });
+    game.setTimeOfDay(0.999);
+    game.setTimeOfDay(0.0001);
+    game.step(DT);
+    expect(game.place, 'the lever is not a midnight').toBe('pond');
+    game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+    game.step(DT);
+    expect(game.place).toBe('yawning');
+    expect(told).toEqual(['y']);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('holds everything but the fade while yawning, and the fade rises over NIGHT.fadeOut', () => {
+    const { game } = beforeMidnight();
+    settle(game, 1);
+    expect(game.place).toBe('yawning');
+    const [t, clock, x, y] = [game.t, game.timeOfDay, game.fish.x[0], game.fish.y[0]];
+    let last = game.fade();
+    for (let f = 0; f < (NIGHT.fadeOut - 0.2) * 60; f++) {
+      game.step(DT);
+      expect(game.fade()).toBeGreaterThanOrEqual(last);
+      last = game.fade();
+    }
+    expect(game.place).toBe('yawning');
+    expect(last).toBeGreaterThan(0.8);
+    expect(last).toBeLessThan(1);
+    expect([game.t, game.timeOfDay, game.fish.x[0], game.fish.y[0]]).toEqual([t, clock, x, y]);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('waits for a fish on the line, the clock running on, and yawns once it is settled', () => {
+    const { game } = fightingGame();
+    game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+    game.step(DT);
+    expect(game.place).toBe('pond');
+    expect(game.timeOfDay).toBeLessThan(0.1);
+    // the clock keeps going while the fight does
+    const was = game.timeOfDay;
+    game.step(DT);
+    expect(game.timeOfDay).toBeGreaterThan(was);
+    // the fish slips: the yawn comes on the first step after
+    game.bite.letGo(game.t, game.fish, game.lure, true);
+    game.lure.freed(game.lure.at[0], game.lure.at[1], -game.lure.at[2]);
+    expect(game.place).toBe('pond');
+    game.step(DT);
+    expect(game.place).toBe('yawning');
+  });
+
+  it('waits for a landed fish to be stowed, and yawns on the first step after', () => {
+    const { game } = fightingGame();
+    game.bite.phase = 'landed';
+    game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+    settle(game, 300);
+    expect(game.place, 'still landed').toBe('pond');
+    expect(game.stow()).toBe(true);
+    expect(game.place, 'not by the stow itself').toBe('pond');
+    game.step(DT);
+    expect(game.place).toBe('yawning');
+    expect(game.progress.save.cured).toBe(1);
+  });
+
+  it('yawns once, and wakes once, for a midnight', () => {
+    const told: string[] = [];
+    const game = new Game(new Progress(memoryStore()), {
+      random: seeded(1),
+      events: { yawned: () => told.push('yawned'), woke: (d) => told.push(`woke ${d}`) },
+    });
+    game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+    settle(game, 300);
+    expect(told).toEqual(['yawned', 'woke 2']);
+  });
+
+  it('reels in the lure at the yawn, and a nibbling fish lets go', () => {
+    const { game } = newGame(3);
+    game.bite.phase = 'nibbling';
+    game.bite.fish = 2;
+    game.fish.held = 2;
+    game.lure.phase = 'sinking';
+    game.reel(true);
+    game.sleep();
+    expect(game.place).toBe('yawning');
+    expect(game.lure.phase).toBe('ready');
+    expect(game.bite.phase).toBe('none');
+    expect(game.fish.held).toBe(-1);
+    expect(game.reeling).toBe(false);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reels in a lure that is flying or lying on the bank', () => {
+    for (const cast of [0, 1]) {
+      const { game } = newGame(2);
+      game.cast(0.3, 1);
+      if (cast) settle(game, 30);
+      expect(game.lure.phase).not.toBe('ready');
+      game.sleep();
+      expect(game.lure.phase).toBe('ready');
+    }
+  });
+
+  it('wakes in the cabin at dawn on the next day, saved, the water healed and the splashes gone', () => {
+    const woke: number[] = [];
+    const store = memoryStore();
+    const game = new Game(new Progress(store), { random: seeded(1), events: { woke: (d) => woke.push(d) } });
+    // a heal in train: a cure just made
+    game.setContamination(1);
+    game.bite.phase = 'landed';
+    game.bite.fish = 0;
+    game.fish.held = 0;
+    game.lure.phase = 'hooked';
+    game.stow();
+    settle(game, 30);
+    expect(game.waterDirt).toBeGreaterThan(game.contamination);
+    expect(game.splashes.count).toBeGreaterThan(0);
+    game.sleep();
+    sleepThrough(game);
+    expect(game.place).toBe('cabin');
+    expect(game.day).toBe(2);
+    expect(woke).toEqual([2]);
+    expect((JSON.parse(store.json!) as { day: number }).day).toBe(2);
+    expect(game.timeOfDay).toBe(CLOCK.startsAt);
+    expect(game.waterDirt).toBe(game.contamination);
+    expect(game.splashes.count).toBe(0);
+    expect(game.fade()).toBe(1);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('lifts the fade over NIGHT.fadeIn of time stepped in the cabin', () => {
+    const { game } = newGame();
+    game.sleep();
+    sleepThrough(game);
+    expect(game.fade()).toBe(1);
+    for (let f = 0; f < (NIGHT.fadeIn / 2) * 60; f++) game.step(DT);
+    expect(game.fade()).toBeCloseTo(0.5, 1);
+    settle(game, 120);
+    expect(game.fade()).toBe(0);
+  });
+
+  it('moves nothing in the cabin but the fade, over many steps', () => {
+    const { game } = newGame(5);
+    settle(game, 200);
+    game.sleep();
+    sleepThrough(game);
+    const snap = () =>
+      JSON.stringify([
+        game.t,
+        game.timeOfDay,
+        game.waterDirt,
+        game.healElapsed,
+        game.lure.phase,
+        game.splashes.count,
+        [...game.fish.x],
+        [...game.fish.y],
+        [...game.fish.depth],
+      ]);
+    const was = snap();
+    for (let f = 0; f < 3000; f++) {
+      game.step(DT);
+      if (f % 500 === 0) expect(checkInvariants(game)).toEqual([]);
+    }
+    expect(snap()).toBe(was);
+    expect(game.place).toBe('cabin');
+  });
+
+  it('refuses a cast while yawning or in the cabin, the lure staying in', () => {
+    const { game } = newGame();
+    game.sleep();
+    expect(game.cast(0.3, 1), 'yawning').toBe(false);
+    sleepThrough(game);
+    expect(game.cast(0.3, 1), 'in the cabin').toBe(false);
+    expect(game.lure.phase).toBe('ready');
+    game.out();
+    expect(game.cast(0.3, 1)).toBe(true);
+  });
+
+  it('goes out to the pond, where the clock runs on from dawn', () => {
+    const { game } = newGame();
+    game.sleep();
+    sleepThrough(game);
+    expect(game.out()).toBe(true);
+    expect(game.place).toBe('pond');
+    expect(game.fade()).toBe(0);
+    const t = game.timeOfDay;
+    settle(game, 60);
+    expect(game.timeOfDay).toBeGreaterThan(t);
+    expect(game.out(), 'already at the pond').toBe(false);
+  });
+
+  it('refuses to go out while yawning', () => {
+    const { game } = newGame();
+    game.sleep();
+    expect(game.out()).toBe(false);
+    expect(game.place).toBe('yawning');
+  });
+
+  it('sleeps from the pond and from the cabin, a day on each time', () => {
+    const { game, store } = newGame();
+    expect(game.sleep()).toBe(true);
+    expect(game.sleep(), 'not while yawning').toBe(false);
+    sleepThrough(game);
+    expect(game.day).toBe(2);
+    expect(game.sleep(), 'from the cabin').toBe(true);
+    expect(game.place).toBe('yawning');
+    sleepThrough(game);
+    expect(game.day).toBe(3);
+    expect((JSON.parse(store.json!) as { day: number }).day).toBe(3);
+    game.out();
+    settle(game, 10);
+    expect(game.day, 'the day does not go back').toBe(3);
+  });
+
+  it('refuses to sleep with a fish hooked or landed, changing nothing', () => {
+    for (const phase of ['hooked', 'landed'] as const) {
+      const { game } = fightingGame();
+      game.bite.phase = phase;
+      expect(game.sleep(), phase).toBe(false);
+      expect(game.place, phase).toBe('pond');
+      expect(game.bite.phase, phase).toBe(phase);
+      expect(game.day, phase).toBe(1);
+    }
+  });
+
+  it('does not count a midnight it has already woken from', () => {
+    const { game } = beforeMidnight();
+    settle(game, 300);
+    expect(game.day).toBe(2);
+    game.out();
+    settle(game, 600);
+    expect(game.day).toBe(2);
+    expect(game.place).toBe('pond');
+  });
+
+  it('drops nothing away from the pond: a pebble in the cabin or the yawn is refused and changes nothing', () => {
+    const { game } = newGame(4);
+    game.sleep();
+    for (const where of ['yawning', 'cabin'] as const) {
+      expect(game.place).toBe(where);
+      expect(game.drop(0, 0)).toBe(false);
+      expect(game.dropNear(0, 0)).toBe(false);
+      expect(game.splashes.count).toBe(0);
+      if (where === 'yawning') sleepThrough(game);
+    }
+    game.out();
+    expect(game.drop(0, 0)).toBe(true);
   });
 });

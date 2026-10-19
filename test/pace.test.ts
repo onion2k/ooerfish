@@ -91,4 +91,21 @@ describe('the pace gate', () => {
     expect(run.minutes).toBeGreaterThan(0);
     expect(run.minutes).toBeLessThan(5);
   });
+
+  it('goes down from the cabin after a night and fishes on, day after day', () => {
+    const game = new Game(new Progress(memoryStore()), { random: seeded(3) });
+    const angler = new Angler(game, seeded(11));
+    // a little before midnight, so the first yawn comes inside the run
+    game.setTimeOfDay(0.99);
+    let inCabin = 0;
+    for (let f = 0; f < 60 * 60 * 25; f++) {
+      if (game.place === 'cabin') inCabin++;
+      angler.step(DT);
+    }
+    expect(game.day, 'at least two nights crossed').toBeGreaterThanOrEqual(3);
+    expect(inCabin, 'it was in the cabin, and left it at once').toBeLessThanOrEqual(game.day);
+    expect(game.place).not.toBe('cabin');
+    expect(game.bucket, 'it kept fishing through the nights').toBeGreaterThan(0);
+    expect(checkInvariants(game)).toEqual([]);
+  });
 });

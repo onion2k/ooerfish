@@ -20,7 +20,7 @@ describe('what must stay bounded', () => {
       expect(Number.isFinite(now[key])).toBe(true);
       expect(Object.keys(WATCH), `a ceiling for ${key}`).toContain(key);
     }
-    expect(now['save bytes'], 'a fresh save is {"cured":0}, eleven bytes').toBe(11);
+    expect(now['save bytes'], 'a fresh save is {"cured":0,"day":1}, nineteen bytes').toBe(19);
   });
 
   it('holds the phone to its ceilings through a busy room of phones, strangers and noise', () => {
@@ -54,5 +54,19 @@ describe('what must stay bounded', () => {
     expect(trouble({ 'heap MB': [10, 40, 70, 100, 130, 160, 190, 220, 250] }).join('\n')).toMatch(/grew all the way/);
     // a size that only ever climbs is held by its ceiling alone
     expect(trouble({ 'save bytes': [1, 2, 3, 4, 5, 6, 7, 8, 9] })).toEqual([]);
+  });
+
+  it('plays a room of phones on through a night: the game leaves the cabin and the save stays small', () => {
+    const { game } = newGame(3);
+    const room = crowd(() => game, seeded(3));
+    // two minutes before midnight, played for five
+    game.setTimeOfDay(1 - 120 / 720);
+    for (let f = 0; f < 60 * 300; f++) {
+      room.tick(f);
+      game.step(1 / 60);
+    }
+    expect(game.day, 'a night was crossed').toBeGreaterThanOrEqual(2);
+    expect(game.place).not.toBe('cabin');
+    expect(sizes(game, room)['save bytes']).toBeLessThanOrEqual(WATCH['save bytes']!.ceiling);
   });
 });

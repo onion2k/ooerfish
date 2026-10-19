@@ -27,6 +27,12 @@ export class Splashes {
     this.count = Math.min(SPLASH_CAPACITY, this.count + 1);
   }
 
+  /** Every splash gone, as the night does to a lake; the pool is kept and written into again. */
+  clear() {
+    this.count = 0;
+    this.next = 0;
+  }
+
   /** How long ago slot `i` landed, at time `t`. */
   age(i: number, t: number): number {
     return t - this.at[i];

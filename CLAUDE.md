@@ -124,9 +124,48 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
 
 - `src/game.ts` is the lake without the picture: its clock (`timeOfDay` runs on
   by game time, `CLOCK` in `lake.ts`: a day is 720 s, an estimate, from dawn,
-  round past midnight, held to [0, 1)), its fish, and the contamination, a step
+  to midnight, held to [0, 1)), its fish, and the contamination, a step
   at a time. It knows nothing of the renderer or the page. `src/fish.ts` is the
   school.
+- **The day's end** (`docs/day.md`): `Game.place` is `pond`, `yawning` or
+  `cabin`, and `Game.day` counts from 1. A step that carries the clock past
+  midnight (`pastMidnight` in `src/night.ts`, a wrap of more than half a day, so
+  the lever is never one) starts the yawn, unless a fish is hooked or landed:
+  then the clock runs on and the yawn comes on the first step after the fight
+  is settled and the fish stowed. The yawn reels the lure in (a coming or
+  nibbling fish lets go) and fades the screen over `NIGHT.fadeOut` of stepped
+  time; at its end the game wakes (`GameEvents.woke`): the day goes up and is
+  saved, the clock is dawn, a heal still running is finished, the splashes are
+  emptied, and the player is in the cabin, where `step` moves only the fade in
+  (`NIGHT.fadeIn`) and `t`, the clock, the fish, the lure and the water hold.
+  `Game.out` goes down to the pond; `Game.sleep` is bed early, from the pond or
+  the cabin, refused with a fish hooked or landed. `cast`, `drop` and `dropNear`
+  are refused away from the pond. `src/nightview.ts` is the page's side: the
+  fade (`#night`, its opacity `game.fade()`, written on change, never a CSS
+  transition, so a picture holds), the yawn's words, the morning line and the
+  "Down to the pond" button (Enter too), and "Go to bed" in the ⋯ menu, greyed
+  mid-fight; `nightWords` is the words as a pure function. Away from the pond
+  the page refuses casting, striking, reeling, aiming, pebbles, the mode and
+  `game.view(name)` and `game.time(name)`, and a paired phone's gestures are
+  ignored, not refused. The angler, the fuzzer, the phone monkey and the leak
+  run go down to the pond when they wake; the bench's long scenario holds its
+  clock short of midnight with the lever (`heldToDay` in `scripts/benching.ts`),
+  since it times the lake, not the night; determinism plays each seed from dawn
+  and from just before midnight. `game.day()`, `place()`, `fade()`, `sleep()`
+  and `out()` are the test API.
+- **The cabin's room** (`src/cabinroom.ts`): the interior the player wakes in,
+  built once at boot into the static set from `CABIN_ROOM` in `lake.ts` (walls
+  inset from the cabin's, facing in, a floor, a bed, the window's frame, the
+  door and a lamp, and the furniture in `CABIN_ROOM.furniture`: a table, chair
+  and mug under the window, a stove with its pipe on the end wall, a shelf of
+  books and a jar, a rug, a chest, a picture and a coat on a peg, `FURNITURE`
+  naming each piece's parts), painted with the wood's set, every vertex inside
+  the cabin's outer walls so no outside picture changes, each piece on the floor
+  or hung on a wall, clear of the camera's eye, the door and the window, and all
+  of it under 1500 triangles, held by `test/cabinroom.test.ts`. The `cabin` view (and `cabinTall`
+  for a tall screen, through `framingFor`) looks from the pillow at the window
+  and the door with the orbit off, and the lamp is one of the renderer's point
+  lights, lit only while `game.place` is `cabin`.
 - **The cure:** `Game.stow` counts a fish cured (`progress.save.cured`, saved
   at once, told as `GameEvents.cured`) and sets the contamination to the lesser
   of where it is and `contaminationAfter(cured)`, `1 - cured / CURE.toClean`
@@ -364,7 +403,8 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   never written back, and an old link with `dirt=`, `time=` or `view=` still
   opens the game, unread. The save lives in `progress.ts` and holds the count
   cured (default 0; a count that is not a non-negative whole number is taken for
-  none; `test/saves/` has a file for each shape). Chance comes from `random.ts`,
+  none) and the day (default 1; anything but a safe whole number of 1 or more is
+  day 1; `test/saves/` has a file for each shape). Chance comes from `random.ts`,
   handed in.
 - artshape-physics is a dependency with nothing using it: the lure and the
   bobber will be its bodies, through a `src/physics.ts` of the game's own.

@@ -67,7 +67,7 @@ describe('the fuzzer', () => {
 
   it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {
     const done: Record<string, number> = {};
-    for (let seed = 1; seed <= 8; seed++) {
+    for (let seed = 1; seed <= 12; seed++) {
       const r = fuzz(seed, 4000);
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
@@ -81,6 +81,21 @@ describe('the fuzzer', () => {
     ).toBeGreaterThan(20);
     for (const effect of ['cast', 'strike', 'reel', 'refused'])
       expect(done[`phone ${effect}`], effect).toBeGreaterThan(0);
+  });
+
+  it('reaches the night: across seeds some cross midnight and wake, some go to bed early, some are refused mid-fight, and none breaks a rule', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      // the monkey never stays in the cabin to the end of a seed it has frames left in
+      expect(r.done['frames in the cabin'], `seed ${seed}`).toBeLessThan(2500);
+    }
+    expect(done['woke at midnight'], 'a seed crossed midnight and woke').toBeGreaterThan(0);
+    expect(done['woke from bed'], 'a seed went to bed early and woke').toBeGreaterThan(0);
+    expect(done['bed refused'], 'a bed refused mid-fight').toBeGreaterThan(0);
+    expect(done['down to the pond'], 'a seed went down to the pond').toBeGreaterThan(0);
   });
 
   it('plays the same way twice from a seed', () => {

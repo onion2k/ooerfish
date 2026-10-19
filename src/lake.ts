@@ -650,33 +650,169 @@ export interface View {
   /** What the camera looks at. */
   x: number;
   y: number;
+  /** How high the target is, nought unless said: a room is looked at from a person's height, not from the ground. */
+  z?: number;
   /** How far round from east, how far down from straight overhead, and how far away. */
   azimuth: number;
   polar: number;
   radius: number;
+  /** The lens's vertical angle in degrees, the page's own unless said: a room has no further back to stand, so it opens wider. */
+  fov?: number;
 }
 
 /**
- * Where the camera may stand: on the south bank at a player's eye, out in the
- * boat, high over the middle, and the shore again framed for a phone held
- * upright, which needs to stand further back to see across.
+ * The room inside the cabin, as content, all relative to the cabin's own frame (`CABIN_AT`): `along` the shore from its
+ * middle and `across` in toward the lake from it. The walls are `inset` thick inside the cabin's outer ones, so the room
+ * is wholly in the solid block and is not seen from outside; it is `high` from the floor to the ceiling, the floor a
+ * `slab` thick. The bed lies in the back corner on the far side from the door, its head to the back wall: `legs` high,
+ * a `base` of boards, a `mattress`, and a `headboard` as high over the floor as it says. The window and the door are in
+ * the lake-facing wall, `along` from the middle, the window's `sill` over the floor, and a `frame` wide round each. The
+ * lamp hangs `drop` under the ceiling at a place, and lights `radius` round it in `colour`. `eye` is how high a
+ * sleeper's eyes are over the floor. First guesses, as the cabin's were, to be tuned once it is seen.
  */
-export const VIEWS: Record<'shore' | 'boat' | 'overhead' | 'phone', View> = {
+export const CABIN_ROOM = {
+  inset: 0.35,
+  high: 3.1,
+  slab: 0.12,
+  bed: { width: 1.8, length: 3.1, legs: 0.35, base: 0.2, mattress: 0.3, headboard: 1.25 },
+  window: { along: CABIN.window.along, width: 1.6, high: 1.3, sill: 0.9, frame: 0.14 },
+  door: { along: 0, width: CABIN.door.width, high: 2.4, frame: 0.14 },
+  lamp: {
+    along: 2,
+    across: 0.6,
+    drop: 0.85,
+    colour: [1, 0.78, 0.46] as [number, number, number],
+    radius: 14,
+    intensity: 22,
+  },
+  eye: 1.7,
+  /**
+   * The furniture, each piece in the room's frame (`across` toward the lake, `along` the shore, both from the middle) and
+   * its heights over the floor. The table stands under the window on the lake wall with the chair pulled up on the
+   * room's side and the mug on it. The stove stands against the end wall, the nearest wall to the chimney (which comes
+   * down at 2.8 along, 1.35 from that wall), its pipe rising, jogging under the ceiling to `to`, inside the chimney's footprint, and going up into it. The chest is at the bed's foot
+   * corner on its open side, where the camera over the bed's rail can see it, and the rug lies in front of the door. The
+   * shelf and the coat hang on the lake wall beside the door, where the camera sees them, and the picture in the gap
+   * between the door and the window. First guesses, to be tuned by the picture.
+   */
+  furniture: {
+    table: { across: 2.65, along: 2.6, deep: 0.9, wide: 1.3, high: 0.74, top: 0.06, leg: 0.07 },
+    chair: { across: 1.9, along: 2.6, size: 0.5, seat: 0.45, back: 0.95, leg: 0.05 },
+    mug: { across: 2.6, along: 2.85, radius: 0.08, high: 0.13 },
+    stove: {
+      across: 1.3,
+      along: 3.75,
+      wide: 0.75,
+      deep: 0.7,
+      high: 0.9,
+      legs: 0.12,
+      pipe: 0.1,
+      run: 0.3,
+      to: { across: 0.3, along: 2.9 },
+    },
+    shelf: { along: -2.8, wide: 1.4, deep: 0.26, high: 1.5, thick: 0.05 },
+    /** The books stand in a row at the shelf's far end, each a width and a height; the jar stands at the near end. */
+    books: [
+      [0.07, 0.3],
+      [0.06, 0.26],
+      [0.08, 0.32],
+      [0.05, 0.24],
+    ] as readonly (readonly [number, number])[],
+    jar: { radius: 0.1, high: 0.26 },
+    rug: { across: 2.0, along: 0, wide: 2.1, long: 1.8, thick: 0.025, border: 0.18 },
+    chest: { across: 0.45, along: 1.6, wide: 0.7, long: 1.2, high: 0.55, lid: 0.1 },
+    picture: { along: 1.28, wide: 0.5, high: 0.4, at: 1.55, frame: 0.05 },
+    coat: { along: -1.3, peg: 1.95, wide: 0.5, long: 1.0 },
+  },
+} as const;
+
+/**
+ * How high the room's floor is: over the highest ground under the cabin, which slopes up toward the back bank, so no
+ * ground shows through it. The door's sill outside is lower, a step down to the bank on the lake side.
+ */
+export const CABIN_FLOOR = ((): number => {
+  let top = -Infinity;
+  const halfU = CABIN.body.along / 2,
+    halfV = CABIN.body.across / 2;
+  for (let i = 0; i <= 8; i++)
+    for (let j = 0; j <= 8; j++) {
+      const u = -halfU + (i / 8) * 2 * halfU,
+        v = -halfV + (j / 8) * 2 * halfV;
+      top = Math.max(
+        top,
+        bareGround(
+          CABIN_AT.x + CABIN_AT.inward[0] * v + CABIN_AT.along[0] * u,
+          CABIN_AT.y + CABIN_AT.inward[1] * v + CABIN_AT.along[1] * u,
+        ),
+      );
+    }
+  return top + 0.1;
+})();
+
+/**
+ * A view from inside the room: the camera at an eye in the cabin's frame, looking toward a point of the floor's plan and
+ * `down` radians below level, `fov` wide. The orbit keeps ten units from its target and no nearer, so the target is
+ * put ten units out in front of the eye, through the wall, and the camera is what stands in the room.
+ */
+function roomView(
+  eye: { along: number; across: number; high: number },
+  toward: [number, number],
+  down: number,
+  fov: number,
+): View {
+  const world = (u: number, v: number): [number, number] => [
+    CABIN_AT.x + CABIN_AT.inward[0] * v + CABIN_AT.along[0] * u,
+    CABIN_AT.y + CABIN_AT.inward[1] * v + CABIN_AT.along[1] * u,
+  ];
+  const [cx, cy] = world(eye.along, eye.across),
+    [tx, ty] = world(...toward);
+  const l = Math.hypot(tx - cx, ty - cy);
+  const radius = 10;
+  const flat = radius * Math.cos(down);
+  const x = cx + ((tx - cx) / l) * flat,
+    y = cy + ((ty - cy) / l) * flat;
+  const z = CABIN_FLOOR + eye.high - radius * Math.sin(down);
+  return { x, y, z, azimuth: Math.atan2(cy - y, cx - x), polar: Math.PI / 2 - down, radius, fov };
+}
+
+/** The sleeper's eyes: over the pillow, at the bed's head in the back corner away from the door. */
+/** Exported so the furniture can be held clear of it by a test. */
+export const WAKING_EYE = {
+  along: CABIN.body.along / 2 - CABIN_ROOM.inset - CABIN_ROOM.bed.width / 2,
+  across: -(CABIN.body.across / 2 - CABIN_ROOM.inset) + 0.7,
+  high: CABIN_ROOM.eye,
+};
+/** Where the sleeper looks: across the room to the lake-facing wall between the door and the window. */
+const WAKING_GAZE: [number, number] = [CABIN_ROOM.window.along / 2, CABIN.body.across / 2 - CABIN_ROOM.inset];
+
+/**
+ * Where the camera may stand: on the south bank at a player's eye, out in the
+ * boat, high over the middle, the shore again framed for a phone held
+ * upright, which needs to stand further back to see across, and, inside the
+ * cabin, the bed's pillow looking at the door and the window, and the same
+ * with a wider lens for a tall screen.
+ */
+export const VIEWS: Record<'shore' | 'boat' | 'overhead' | 'phone' | 'cabin' | 'cabinTall', View> = {
   shore: { x: 0, y: 4, azimuth: -1.57, polar: 1.3, radius: 62 },
   boat: { x: 8, y: 6, azimuth: -0.9, polar: 1.42, radius: 18 },
   overhead: { x: 0, y: 0, azimuth: -1.57, polar: 0.35, radius: 110 },
   phone: { x: 0, y: 6, azimuth: -1.57, polar: 1.2, radius: 105 },
+  cabin: roomView(WAKING_EYE, WAKING_GAZE, (10 * Math.PI) / 180, 60),
+  cabinTall: roomView(WAKING_EYE, WAKING_GAZE, (10 * Math.PI) / 180, 85),
 };
 
 export type ViewName = keyof typeof VIEWS;
 
 /**
  * Where the camera stands for a view on a screen of this aspect (width over height): the Shore view takes the phone's
- * framing on a screen taller than it is wide, which the lake's whole width needs, and every other view stays as it is.
+ * framing on a screen taller than it is wide, which the lake's whole width needs, the cabin view its wider lens, and every other view stays as it is.
  * An aspect that is no positive number is not a tall screen.
  */
 export function framingFor(name: ViewName, aspect: number): View {
-  return name === 'shore' && aspect > 0 && aspect < 1 ? VIEWS.phone : VIEWS[name];
+  const tall = aspect > 0 && aspect < 1;
+  if (tall && name === 'shore') return VIEWS.phone;
+  if (tall && name === 'cabin') return VIEWS.cabinTall;
+  return VIEWS[name];
 }
 
 /**
@@ -704,6 +840,12 @@ export function contaminationAfter(cured: number): number {
  * from there round past midnight, with no end of day until the day has one.
  */
 export const CLOCK = { daySeconds: 720, startsAt: 0.25 } as const;
+
+/**
+ * The day's end: how long the screen takes to fade to the night while the player yawns, and to fade in again on waking
+ * in the cabin, in seconds of time stepped (never the wall clock, so a picture holds still). First guesses, soft and quick.
+ */
+export const NIGHT = { fadeOut: 1.5, fadeIn: 1 } as const;
 
 /**
  * How many splashes may be live on a lake at once, which fixes the pool and what is drawn of it (how long one is seen

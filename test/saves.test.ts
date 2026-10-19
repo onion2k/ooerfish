@@ -24,6 +24,8 @@ const KEPT: Record<string, Record<string, unknown>> = {
   '01-empty.json': { cured: 0 },
   // the cure: a count of fish cured, from which the lake's contamination is worked out
   '02-cured.json': { cured: 5 },
+  // the day's end: the number of the day, from one
+  '03-day.json': { cured: 5, day: 4 },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -57,14 +59,21 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0 });
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0 });
-    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0 });
+    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1 });
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1 });
+    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0, day: 1 });
     // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
     for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
-      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({ cured: 0 });
+      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({ cured: 0, day: 1 });
     // and one that is, is kept, with whatever else the save said left alone
     expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
+  });
+
+  it('reads the day as a whole number of one or more, and anything else as day one', () => {
+    expect(new Progress(memoryStore('{"day": 9}')).save.day).toBe(9);
+    expect(new Progress(memoryStore('{"cured": 3}')).save.day, 'an old save has none').toBe(1);
+    for (const bad of ['0', '-2', '2.5', '"3"', 'null', '[4]', '1e400', '9007199254740993', 'true'])
+      expect(new Progress(memoryStore(`{"day": ${bad}}`)).save.day, bad).toBe(1);
   });
 
   it('starts over: a save of seven cured is wiped in memory and in the store, and a new load finds none', () => {
@@ -72,9 +81,9 @@ describe('saves from every shape the game has written', () => {
     const progress = new Progress(store);
     expect(progress.save.cured).toBe(7);
     progress.reset();
-    expect(progress.save).toEqual({ cured: 0 });
+    expect(progress.save).toEqual({ cured: 0, day: 1 });
     expect(store.json).toBeNull();
-    expect(new Progress(store).save).toEqual({ cured: 0 });
+    expect(new Progress(store).save).toEqual({ cured: 0, day: 1 });
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {

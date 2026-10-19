@@ -19,7 +19,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { HEAL } from '../src/lake';
-import { CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
+import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
 
@@ -49,6 +49,19 @@ test.describe('what it looks like', () => {
       await expect(page.locator('#view')).toHaveScreenshot(`${name}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
+
+  // the room inside the cabin (`docs/day.md`): the player woken at dawn, seen from the pillow with the bed's foot below,
+  // the door and the window across the room and the lamp lit above; the world only, and the outside pictures unchanged
+  // show that it is not seen through the walls
+  test('the cabin at dawn', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, CABIN_DAWN, 60);
+    await hideOverlays(page);
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    await expect(page.locator('#view')).toHaveScreenshot('cabin-dawn.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
 
   // half the pond cured, by night: six gold fish among six green, the gold's own faint warm glow all that shows them
   // in the dark, as the user chose it (`docs/cured.md`); the water as clean as six cures make it
@@ -490,6 +503,44 @@ test.describe('the phone as the rod', () => {
       .poll(() => phone.evaluate(() => (document.getElementById('gaugeFish') as unknown as SVGElement).style.bottom))
       .toBe(per(meter.fishAt));
     await expect(phone).toHaveScreenshot('rod-reel.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The day's end with the real HUD over the real page (`docs/day.md`): the yawn with the screen half faded and its
+ * words, and the morning in the cabin with its line and the button, at a desk's width and a phone's. Seeded and paused.
+ */
+async function night(page: Page, scene: 'yawn' | 'morning') {
+  await start(page, { seed: 11, paused: true, save: { cured: 4, day: 1 } });
+  await page.evaluate(async (m) => {
+    const g = window.game!;
+    g.step(60);
+    await g.dirt(0.5);
+    await g.sleep();
+    // the yawn pictured half faded (0.75 s of its 1.5), the morning after the fade has lifted
+    g.step(m === 'yawn' ? 45 : 160);
+  }, scene);
+  expect(await page.evaluate(() => window.game!.place())).toBe(scene === 'yawn' ? 'yawning' : 'cabin');
+}
+
+test.describe('the day’s end at a desk’s width', () => {
+  for (const scene of ['yawn', 'morning'] as const)
+    test(scene, async ({ page }) => {
+      const problems = watch(page);
+      await night(page, scene);
+      await expect(page).toHaveScreenshot(`desk-${scene}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+});
+
+test.describe('the morning on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('morning', async ({ page }) => {
+    const problems = watch(page);
+    await night(page, 'morning');
+    await expect(page).toHaveScreenshot('phone-morning.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
 });

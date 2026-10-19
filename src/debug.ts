@@ -19,6 +19,7 @@ import { careful } from './angler';
 import type { Game } from './game';
 import { flight } from './cast';
 import type { Layout } from './layout';
+import type { Place } from './night';
 import type { Mode } from './mode';
 import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
@@ -161,12 +162,14 @@ export interface GameApi {
    * refused. Without a name, says which look the page is lit with now.
    */
   time(): string;
+  /** Refused, and nothing changed, away from the pond: time is stopped in the cabin and while yawning. */
   time(name: string): Promise<void>;
   /**
    * The camera put at the view of that name (shore, boat, overhead or phone), look mode unless the page's mode put it
    * there. Without a name, says which view the camera was last put at.
    */
   view(): string;
+  /** Says `cabin` inside. A view picked is refused, and nothing changed, away from the pond (yawning, or in the cabin). */
   view(name: string): Promise<void>;
   /**
    * The clock put at a point of the day, from midnight (0) round to midnight again (1, which is nought), without
@@ -252,6 +255,17 @@ export interface GameApi {
   onScreen(): { bobber: Point | null; line: Point | null; fish: Point | null };
   /** Which layout the page is in (portrait, sideways or desk), as `layoutFor` says of the screen's shape. */
   layout(): Layout;
+
+  /** Which day of play it is, from one. */
+  day(): number;
+  /** Where the player is: at the `pond`, `yawning` at the day's end, or in the `cabin`. */
+  place(): Place;
+  /** How faded the screen is to the night, from nought (clear) to one (black): the game's own, stepped with it. */
+  fade(): number;
+  /** Go to bed, as the menu's item does, from the pond or the cabin; says whether it began the night, which it does not with a fish hooked or landed or while yawning. */
+  sleep(): Promise<boolean>;
+  /** Go down to the pond from the cabin, as the button does, look mode at the Shore view and the clock running; resolves once the camera is ready, saying whether the player came out. */
+  out(): Promise<boolean>;
 }
 
 /** A point on the page. */
@@ -315,6 +329,8 @@ export interface DebugHost {
   /** The page's mode, and putting the page in one as its button does. */
   mode(): Mode;
   setMode(to: Mode): Promise<void>;
+  /** Down from the cabin to the pond, the camera at the shore. */
+  out(): Promise<boolean>;
 }
 
 export function createApi(host: DebugHost): GameApi {
@@ -443,8 +459,19 @@ export function createApi(host: DebugHost): GameApi {
     drawnDirt: () => host.drawnDirt(),
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
-    time: ((name?: string) => (name === undefined ? host.time() : host.setTime(name))) as GameApi['time'],
-    view: ((name?: string) => (name === undefined ? host.view() : host.setView(name))) as GameApi['view'],
+    // time is stopped away from the pond, and the cabin's view is the one place to look from there: both let go unanswered
+    time: ((name?: string) =>
+      name === undefined
+        ? host.time()
+        : game.place === 'pond'
+          ? host.setTime(name)
+          : Promise.resolve()) as GameApi['time'],
+    view: ((name?: string) =>
+      name === undefined
+        ? host.view()
+        : game.place === 'pond'
+          ? host.setView(name)
+          : Promise.resolve()) as GameApi['view'],
     caustics: (on) => host.setSettings({ caustics: on }),
     paint: (value) => host.setSettings({ paint: value }),
     mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
@@ -475,5 +502,11 @@ export function createApi(host: DebugHost): GameApi {
     },
     onScreen: () => host.onScreen(),
     layout: () => host.layout(),
+
+    day: () => game.day,
+    place: () => game.place,
+    fade: () => game.fade(),
+    sleep: () => Promise.resolve(game.sleep()),
+    out: () => host.out(),
   };
 }

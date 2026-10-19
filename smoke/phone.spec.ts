@@ -405,6 +405,49 @@ test('a phone that reloads comes back to the same room and is the phone again', 
   await expect(phone.locator('#status')).not.toContainText('already has a phone');
 });
 
+test('a phone’s pad does nothing while the player yawns or sleeps in the cabin, is heard again at the pond, and is told nothing of it', async ({
+  page,
+  context,
+}) => {
+  const problems = watch(page);
+  await start(page, { seed: 3, paused: true, query: { phonelink: 'local' } });
+  await page.evaluate(() => window.game!.pair());
+  const { url } = await pairingFromOverlay(page);
+  const phone = await openPhone(context, url, 'none');
+  await connect(phone);
+  await expect.poll(() => page.evaluate(() => window.game!.phone().paired)).toBe(true);
+  await page.evaluate(() => window.game!.sleep());
+  const drag = async () => {
+    await thumbDown(phone, { x: 0.5, y: 0.4 });
+    await thumbTo(phone, { x: 0.5, y: 0.7 });
+    await thumbUp(phone);
+    await page.evaluate(() => window.game!.step(1));
+  };
+  // yawning, and then in the cabin: a drag back and let go casts nothing, aims nothing and does not put the page in cast mode
+  for (const place of ['yawning', 'cabin']) {
+    if (place === 'cabin') await page.evaluate(() => window.game!.step(120));
+    expect(await page.evaluate(() => window.game!.place())).toBe(place);
+    const before = await page.evaluate(() => window.game!.phone());
+    await drag();
+    expect(await page.evaluate(() => window.game!.lure().phase), `no cast while ${place}`).toBe('ready');
+    expect(await page.evaluate(() => window.game!.preview())).toBeNull();
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    // nothing refused, and it is still the phone
+    expect(await page.evaluate(() => window.game!.phone())).toMatchObject({
+      paired: true,
+      refused: before.refused,
+      lastRefusal: before.lastRefusal,
+    });
+    await expect(phone.locator('#status')).not.toContainText('already has a phone');
+  }
+  // down at the pond the same drag casts again
+  await page.evaluate(() => window.game!.out());
+  await drag();
+  expect(await page.evaluate(() => window.game!.lure().phase)).not.toBe('ready');
+  expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
 test('the overlay closes by its button and by Escape, and Pair a phone shows it again with the same code', async ({
   page,
 }) => {

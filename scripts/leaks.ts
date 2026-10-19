@@ -109,6 +109,8 @@ export interface LeakRun {
   /** Every size, sampled once a game minute. */
   samples: Record<string, number[]>;
   problems: string[];
+  /** The day the game ended on: above one, the run crossed a midnight, a yawn and a waking, which is what it must do. */
+  days: number;
   /** Real seconds it took. */
   seconds: number;
 }
@@ -128,12 +130,20 @@ export function leakRun({ seed, minutes }: LeakOptions): LeakRun {
       }
       for (const [key, n] of Object.entries(sizes(game, room))) (samples[key] ??= []).push(n);
     }
-    return { seed, minutes, samples, problems: trouble(samples), seconds: (performance.now() - started) / 1000 };
+    return {
+      seed,
+      minutes,
+      samples,
+      problems: trouble(samples),
+      days: game.day,
+      seconds: (performance.now() - started) / 1000,
+    };
   } catch (err) {
     return {
       seed,
       minutes,
       samples,
+      days: 0,
       problems: [`seed ${seed}: threw ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`],
       seconds: (performance.now() - started) / 1000,
     };

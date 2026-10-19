@@ -214,6 +214,64 @@
     justify-content: center;
     gap: 8px;
   }
+  /* the day's end: the cover that fades the screen to the night and back, its opacity the game's own fade written by the
+     page as it changes (never a transition on the wall clock, so a picture holds still), over everything of the
+     game's but a dialog; the yawn's words and the morning line and button stand over it, so they read on the dark */
+  #night {
+    position: fixed;
+    inset: 0;
+    background: #05040a;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #night[hidden] {
+    display: none;
+  }
+  #yawn,
+  #morning,
+  #downButton {
+    z-index: 6;
+  }
+  #yawn {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: calc(100% - 32px);
+    text-align: center;
+    font-size: 22px;
+  }
+  #morning {
+    top: 26px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    text-align: center;
+    text-wrap: balance;
+    font-size: 18px;
+  }
+  #downButton {
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 160px;
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+  #downButton:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
+  }
+  #yawn[hidden],
+  #morning[hidden],
+  #downButton[hidden],
+  #hud[hidden] {
+    display: none;
+  }
   #boot {
     position: fixed;
     inset: 0;
@@ -423,6 +481,13 @@
   #menuList button:focus-visible {
     background: rgba(255, 255, 255, 0.12);
   }
+  /* Go to bed while a fish is on the line or landed, or while yawning: there, and greyed */
+  #menuList button:disabled {
+    cursor: default;
+    color: var(--dim);
+    opacity: 0.55;
+    background: none;
+  }
   #menuButton:focus-visible,
   #menuList button:focus-visible {
     outline: 3px solid #9fd0ff;
@@ -509,6 +574,13 @@
     min-width: 0;
     padding: 8px 12px;
   }
+  /* the morning line stands where the welcome does (the Cast button is not in the cabin), and the button at the foot */
+  html[data-layout='portrait'] #morning {
+    top: 172px;
+  }
+  html[data-layout='portrait'] #downButton {
+    bottom: 28px;
+  }
   html[data-layout='portrait'] #toast {
     top: auto;
     bottom: 24px;
@@ -543,8 +615,15 @@
   }
   /* below the top row, whose pond gauge ends at 67 px */
   html[data-layout='sideways'] #welcome,
+  html[data-layout='sideways'] #morning,
   html[data-layout='sideways'] #toast {
     top: 76px;
+  }
+  html[data-layout='sideways'] #downButton {
+    bottom: 14px;
+  }
+  html[data-layout='sideways'] #yawn {
+    font-size: 18px;
   }
   /* with a mouse the hint keeps to one line beside the Cast button, so the top row stays one row */
   html[data-layout='sideways'] #hud {
@@ -677,6 +756,7 @@
   </button>
   <div class="panel" id="menuList" role="menu" hidden>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
+    <button id="bedButton" type="button" role="menuitem">Go to bed</button>
     <button id="startAgainButton" type="button" role="menuitem">Start again</button>
   </div>
 </div>
@@ -684,6 +764,10 @@
   <button class="panel" id="modeButton" type="button" hidden>Cast</button>
   <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>
 </div>
+<div id="night" aria-hidden="true" hidden></div>
+<div class="panel" id="yawn" role="status" hidden></div>
+<div class="panel" id="morning" role="status" hidden></div>
+<button class="panel" id="downButton" type="button" hidden>Down to the pond</button>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>
 </div>

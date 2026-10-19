@@ -52,6 +52,7 @@ async function main() {
       .map(([k, n]) => `${k} ${n}`)
       .join(', ')}`,
   );
+  console.log(`  days played: ${runs.map((r) => r.days).join(', ')}`);
   if (args.includes('--show'))
     for (const r of runs) {
       console.log(`  seed ${r.seed}:`);

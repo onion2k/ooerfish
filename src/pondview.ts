@@ -136,16 +136,19 @@ export class PondView {
       this.was.clean = clean;
       el.gauge.classList.toggle('clean', w.clean);
     }
-    const welcome = w.welcome ? 'on' : 'off';
+    // away from the pond (yawning, or in the cabin) the pond's own lines are not said, and their time stands still
+    const away = g.place !== 'pond';
+    const welcome = w.welcome && !away ? 'on' : 'off';
     if (welcome !== this.was.welcome) {
       this.was.welcome = welcome;
-      el.welcome.hidden = !w.welcome;
+      el.welcome.hidden = welcome === 'off';
     }
-    const toast = w.toast ? `${w.toast.lead}|${w.toast.bold}` : '';
+    const said = away ? null : w.toast;
+    const toast = said ? `${said.lead}|${said.bold}` : '';
     if (toast !== this.was.toast) {
       this.was.toast = toast;
-      el.toast.hidden = !w.toast;
-      if (w.toast) el.toast.innerHTML = `${w.toast.lead} <b>${w.toast.bold}</b>`;
+      el.toast.hidden = !said;
+      if (said) el.toast.innerHTML = `${said.lead} <b>${said.bold}</b>`;
     }
   }
 }

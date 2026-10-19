@@ -148,11 +148,17 @@ test('the day runs from dawn: the light steps when the clock crosses into the ne
     // the frame across the step is inside its budget, as it is on either side
     expect(await api(() => window.game!.measureFrame()), `a frame of ${to}`).toBeLessThan(8);
   }
-  // and the clock wrapped at midnight, still a time of the day
+  // and the clock wrapped at midnight, still a time of the day, with the yawn begun
   await page.evaluate(() => window.game!.clock(0.9999));
-  await play(page, 120, 'past midnight');
+  await play(page, 20, 'past midnight');
   expect((await api(() => window.game!.state())).timeOfDay).toBeLessThan(0.01);
   expect(await api(() => window.game!.time())).toBe('night');
+  expect(await api(() => window.game!.place())).toBe('yawning');
+  // the night passes, and the player comes down to the pond at dawn
+  await play(page, 100, 'the night');
+  await page.evaluate(() => window.game!.out());
+  expect((await api(() => window.game!.state())).timeOfDay).toBe(0.25);
+  expect(await api(() => window.game!.time())).toBe('dawn');
 
   // paused, the clock stands still, however many frames the page draws
   const at = (await api(() => window.game!.state())).timeOfDay;
@@ -420,7 +426,7 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   expect(await api(() => window.game!.drawnDirt()), 'the water starts to heal, not jumps').toBeGreaterThan(
     11 / 12 + 0.05,
   );
-  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 1 });
+  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 1, day: 1 });
   await expect(page.locator('#toast')).toBeVisible();
   await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
   expect(await api(() => window.game!.events())).toContain('cured 1/12');
@@ -467,7 +473,7 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   await api(() => window.game!.step(1200));
   await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
   expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
-  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12 });
+  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12, day: 1 });
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -638,7 +644,7 @@ test.describe('Start again', () => {
     await page.locator('#catch').click();
     await page.evaluate(() => window.game!.step(1));
     expect((await saved(page)).cured).toBe(1);
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
   };
 
   test('asks first, and Keep playing, Escape and a click outside each leave the save as it was', async ({ page }) => {
@@ -653,17 +659,17 @@ test.describe('Start again', () => {
 
     await page.getByRole('button', { name: 'Keep playing' }).click();
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
 
     await openFromMenu(page);
     await page.keyboard.press('Escape');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
 
     await openFromMenu(page);
     await page.mouse.click(3, 3);
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
     expect(problems).toEqual([]);
   });
@@ -678,7 +684,7 @@ test.describe('Start again', () => {
     await reloaded;
     await ready(page);
     expect(await stored(page)).toBeNull();
-    expect(await saved(page)).toEqual({ cured: 0 });
+    expect(await saved(page)).toEqual({ cured: 0, day: 1 });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBe(1);
     expect(Object.values(await page.evaluate(() => window.game!.gear())).some(Boolean)).toBe(false);
     await expect(page.locator('#welcome')).toBeVisible();
@@ -692,13 +698,15 @@ test.describe('Start again', () => {
     await page.keyboard.press('Enter');
     await page.getByRole('menuitem', { name: 'Pair a phone' }).focus();
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('menuitem', { name: 'Go to bed' })).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Start again' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(DIALOG)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Keep playing' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1 });
+    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
   });
 
   test('the test API opens the dialog as the menu does, and keys over it do nothing in the game', async ({ page }) => {
@@ -707,5 +715,219 @@ test.describe('Start again', () => {
     await expect(page.locator(DIALOG)).toBeVisible();
     await page.keyboard.press('KeyC');
     expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+  });
+});
+
+/**
+ * The day's end (`docs/day.md`): midnight, the yawn and the fade, waking in the cabin on the next day, and down to the
+ * pond. Seeded and paused, stepped through the test API, so no wait is on a clock.
+ */
+test.describe('the day ends', () => {
+  const api =
+    <T>(f: () => T) =>
+    (page: Page) =>
+      page.evaluate(f);
+  const place = api(() => window.game!.place());
+  const day = api(() => window.game!.day());
+  const state = api(() => window.game!.state());
+
+  test('the day ends at midnight and the player wakes at the cabin, then goes down to the pond', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 5, paused: true });
+    await play(page, 30, 'a half second of the day');
+    expect(await day(page)).toBe(1);
+    await expect(page.locator('#night')).toBeHidden();
+    await expect(page.locator('#modeButton')).toBeVisible();
+
+    // just short of midnight: a few frames carry the clock across it, and the yawn begins
+    await page.evaluate(() => window.game!.clock(0.9995));
+    await play(page, 30, 'midnight crossed');
+    expect(await place(page)).toBe('yawning');
+    expect(await page.evaluate(() => window.game!.events())).toContain('yawned');
+    await expect(page.locator('#yawn')).toHaveText('Yawn… time for bed');
+    await expect(page.locator('#night')).toBeVisible();
+    // the Cast button and the rod's words are not there, and Go to bed is greyed
+    await expect(page.locator('#modeButton')).toBeHidden();
+    await expect(page.locator('#castLine')).toBeHidden();
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to bed' })).toBeDisabled();
+    await page.locator('#menuButton').click();
+
+    // the fade rises with stepped time, and the page writes what the game says
+    let last = await page.evaluate(() => window.game!.fade());
+    const frozen = await state(page);
+    for (let k = 0; k < 8; k++) {
+      await page.evaluate(() => window.game!.step(10));
+      const f = await page.evaluate(() => window.game!.fade());
+      if (await place(page).then((p) => p !== 'yawning')) break;
+      expect(f, 'the fade rises').toBeGreaterThan(last);
+      const shown = Number(await page.locator('#night').evaluate((el) => (el as HTMLElement).style.opacity));
+      expect(shown).toBeCloseTo(f, 2);
+      last = f;
+    }
+    // the yawn holds time: the clock and the game's time do not move
+    expect((await state(page)).t).toBe(frozen.t);
+
+    await play(page, 90, 'the yawn over');
+    expect(await place(page)).toBe('cabin');
+    expect(await day(page)).toBe(2);
+    expect(await page.evaluate(() => window.game!.events())).toContain('woke 2');
+    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({ cured: 0, day: 2 });
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.time()), 'the page is lit as dawn').toBe('dawn');
+    await expect(page.locator('#morning')).toHaveText('Day 2. Morning at the cabin.');
+    await expect(page.locator('#downButton')).toBeVisible();
+    await expect(page.locator('#yawn')).toBeHidden();
+    await expect(page.locator('#welcome')).toBeHidden();
+
+    // the fade lifts over a second of stepped time
+    await play(page, 70, 'the fade lifted');
+    await expect(page.locator('#night')).toBeHidden();
+    expect(await page.evaluate(() => window.game!.fade())).toBe(0);
+
+    // game time is stopped in the cabin: three hundred frames move nothing
+    const woken = await state(page);
+    const fish = await page.evaluate(() => window.game!.fish());
+    await play(page, 300, 'five seconds in the cabin');
+    const later = await state(page);
+    expect(later.t, 'game time holds').toBe(woken.t);
+    expect(later.timeOfDay, 'the clock holds at dawn').toBe(0.25);
+    expect(await page.evaluate(() => window.game!.fish())).toEqual(fish);
+
+    // the rod is not theirs here: C, space, a tap and a drag do nothing, and the camera is not turned
+    const camera = await page.evaluate(() => window.game!.camera());
+    await page.keyboard.press('KeyC');
+    await page.keyboard.down('Space');
+    await page.keyboard.up('Space');
+    const box = (await page.locator('#view').boundingBox())!;
+    const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.click(mid.x, mid.y);
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x + 160, mid.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await play(page, 30, 'keys and a drag in the cabin');
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    expect(await page.evaluate(() => window.game!.lure().phase)).toBe('ready');
+    expect(await page.evaluate(() => window.game!.splashes()).then((s) => s.filter((x) => x.age < 5))).toEqual([]);
+    expect(await place(page)).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.camera())).toEqual(camera);
+    await expect(page.locator('#modeButton')).toBeHidden();
+
+    // down to the pond: Enter, as the button does; the Shore view, dawn, look mode, and the clock runs
+    await page.keyboard.press('Enter');
+    await page.evaluate(() => window.game!.step(1));
+    expect(await place(page)).toBe('pond');
+    expect(await page.evaluate(() => [window.game!.view(), window.game!.mode()])).toEqual(['shore', 'look']);
+    await expect(page.locator('#morning')).toBeHidden();
+    await expect(page.locator('#downButton')).toBeHidden();
+    await expect(page.locator('#modeButton')).toBeVisible();
+    await play(page, 120, 'two seconds at the pond');
+    const out = await state(page);
+    expect(out.t).toBeGreaterThan(woken.t + 1.9);
+    expect(out.timeOfDay).toBeGreaterThan(0.25);
+    expect(await page.evaluate(() => window.game!.time())).toBe('dawn');
+    expect(problems).toEqual([]);
+  });
+
+  test('the Down to the pond button brings the player down to the pond', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 5, paused: true });
+    await page.evaluate(() => window.game!.sleep());
+    await play(page, 100, 'to the cabin');
+    expect(await place(page)).toBe('cabin');
+    await page.getByRole('button', { name: 'Down to the pond' }).click();
+    await page.evaluate(() => window.game!.step(1));
+    expect(await place(page)).toBe('pond');
+    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+    expect(problems).toEqual([]);
+  });
+
+  test('midnight with a fish on the line runs on until it is landed and put in the bucket, and then the yawn comes', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 7, paused: true, save: { cured: 3 } });
+    expect(await page.evaluate(() => window.game!.fishTo('fight'))).toBe(true);
+    // midnight is crossed with the fish hooked: the clock wraps, and the day does not end
+    await page.evaluate(() => window.game!.clock(0.9999));
+    await play(page, 20, 'midnight crossed mid-fight');
+    expect((await state(page)).timeOfDay).toBeLessThan(0.1);
+    expect(await place(page), 'the day waits for the fish').toBe('pond');
+    expect(await page.evaluate(() => window.game!.fishing().phase)).toBe('hooked');
+    // Go to bed is refused mid-fight, by the game and in the menu
+    expect(await page.evaluate(() => window.game!.sleep())).toBe(false);
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to bed' })).toBeDisabled();
+    await page.locator('#menuButton').click();
+    // the fight is played to its end
+    await page.evaluate(() => {
+      const g = window.game!;
+      for (let f = 0; f < 7200 && g.fishing().phase === 'hooked'; f++) {
+        const k = g.fishing();
+        g.reel(k.fishAt > k.zone + k.width / 2);
+        g.step(1);
+      }
+      g.reel(false);
+    });
+    expect(await page.evaluate(() => window.game!.fishing().phase)).toBe('landed');
+    // landed and not yet in the bucket still holds the day open
+    await play(page, 60, 'a landed fish by the rod');
+    expect(await place(page)).toBe('pond');
+    await page.locator('#catch').click();
+    await play(page, 2, 'the fish stowed');
+    expect(await place(page)).toBe('yawning');
+    await play(page, 100, 'the night');
+    expect(await place(page)).toBe('cabin');
+    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({ cured: 4, day: 2 });
+    expect(problems).toEqual([]);
+  });
+
+  test('Go to bed in the menu ends the day at once, from the pond and from the cabin, with no question', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 9, paused: true });
+    // from cast mode, the page looks again once the night begins
+    await page.evaluate(() => window.game!.mode('cast'));
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Go to bed' }).click();
+    await expect(page.locator('#startAgain')).toBeHidden();
+    await expect(page.locator('#menuList')).toBeHidden();
+    expect(await place(page)).toBe('yawning');
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    await play(page, 100, 'the first night');
+    expect([await place(page), await day(page)]).toEqual(['cabin', 2]);
+
+    // again from the cabin: the morning, then the next
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Go to bed' }).click();
+    expect(await place(page)).toBe('yawning');
+    await play(page, 100, 'the second night');
+    expect([await place(page), await day(page)]).toEqual(['cabin', 3]);
+    await expect(page.locator('#morning')).toHaveText('Day 3. Morning at the cabin.');
+    expect(problems).toEqual([]);
+  });
+
+  test('a load on day 3 opens at the pond at dawn on that day, and the next morning is day 4, which a reload keeps', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2, day: 3 } });
+    expect(await day(page)).toBe(3);
+    expect(await place(page)).toBe('pond');
+    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+    expect((await state(page)).timeOfDay).toBe(0.25);
+    await page.evaluate(() => window.game!.sleep());
+    await play(page, 100, 'a night');
+    await expect(page.locator('#morning')).toHaveText('Day 4. Morning at the cabin.');
+    // a reload from the cabin opens at the pond on the day saved
+    await page.reload();
+    await ready(page);
+    expect(await day(page)).toBe(4);
+    expect(await place(page)).toBe('pond');
+    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+    await expect(page.locator('#morning')).toBeHidden();
+    expect(problems).toEqual([]);
   });
 });

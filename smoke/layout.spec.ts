@@ -41,6 +41,9 @@ const BREAKPOINTS = [
  *   catch       the landed fish's card.
  *   biteMark    the "!" over the bobber while the strike's window is open: it is meant to stand there, so it alone
  *               may contain the bobber's point.
+ *   yawn        the words while the screen fades to the night.
+ *   morning     the line on waking in the cabin.
+ *   downButton  Down to the pond, beside the morning line.
  *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
@@ -58,6 +61,9 @@ const OVERLAYS = [
   'reelButton',
   'catch',
   'biteMark',
+  'yawn',
+  'morning',
+  'downButton',
 ] as const;
 
 /**
@@ -72,8 +78,19 @@ const POINT_MARGIN = 6;
 /** Tolerated overlap between two boxes, in pixels, for the rounding of a laid-out edge. */
 const EDGE_SLACK = 0.5;
 
-type Moment = 'welcome' | 'look' | 'cast' | 'bite' | 'fight' | 'landed' | 'cured' | 'start again';
-const MOMENTS: Moment[] = ['welcome', 'look', 'cast', 'bite', 'fight', 'landed', 'cured', 'start again'];
+type Moment = 'welcome' | 'look' | 'cast' | 'bite' | 'fight' | 'landed' | 'cured' | 'start again' | 'yawn' | 'morning';
+const MOMENTS: Moment[] = [
+  'welcome',
+  'look',
+  'cast',
+  'bite',
+  'fight',
+  'landed',
+  'cured',
+  'start again',
+  'yawn',
+  'morning',
+];
 /** The fewest overlays a moment must show, so a selector that finds nothing fails and does not pass in silence. */
 const AT_LEAST: Record<Moment, number> = {
   welcome: 4,
@@ -84,6 +101,9 @@ const AT_LEAST: Record<Moment, number> = {
   landed: 4,
   cured: 3,
   'start again': 1,
+  // the gauge, the menu and the words; and, in the cabin, the line and the button with them
+  yawn: 3,
+  morning: 4,
 };
 
 interface Box {
@@ -136,6 +156,12 @@ async function reach(page: Page, moment: Moment) {
     if (m === 'start again') {
       await g.startAgain();
       return true;
+    }
+    if (m === 'yawn' || m === 'morning') {
+      // to bed from the pond: the screen half dark and yawning, or woken in the cabin with the fade lifted
+      await g.sleep();
+      g.step(m === 'yawn' ? 45 : 160);
+      return g.place() === (m === 'yawn' ? 'yawning' : 'cabin');
     }
     if (m === 'cast') {
       await g.mode('cast');

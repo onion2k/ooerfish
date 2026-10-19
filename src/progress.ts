@@ -4,7 +4,7 @@
  * a field a save does not have takes its default, and a field it has that
  * the game no longer knows is left alone.
  *
- * What is kept so far is the cure: how many fish have been cured. The
+ * What is kept so far is the cure, how many fish have been cured, and the day's number. The
  * lake's contamination is worked out from the count and not kept itself, so
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
@@ -12,6 +12,8 @@
 export interface Save {
   /** How many fish have been landed and cured, from nought; the lake is clean once it reaches what the cure asks. */
   cured: number;
+  /** Which day of play it is, from one: a whole number that goes up on waking at the cabin and never down. */
+  day: number;
 }
 
 /** Where the save is kept. */
@@ -66,7 +68,7 @@ export function memoryStore(json: string | null = null): SaveStore & { json: str
   };
 }
 
-const fresh = (): Save => ({ cured: 0 });
+const fresh = (): Save => ({ cured: 0, day: 1 });
 
 export class Progress {
   readonly save: Save;
@@ -87,6 +89,7 @@ export class Progress {
     const said = raw as Record<string, unknown>;
     if (typeof said.cured === 'number' && Number.isSafeInteger(said.cured) && said.cured >= 0)
       this.save.cured = said.cured;
+    if (typeof said.day === 'number' && Number.isSafeInteger(said.day) && said.day >= 1) this.save.day = said.day;
   }
 
   persist() {

@@ -112,6 +112,35 @@ test('works each lever through the test API, with no panel on the page and nothi
   await page.evaluate(() => window.game!.view('moon'));
   expect(await page.evaluate(() => window.game!.view())).toBe('overhead');
 
+  // the day: the first, at the pond, the screen clear; to bed and the screen fades, the cabin is the view there, and the
+  // pond's levers (a view, a time) are let go while the player is away from it
+  const api = <T>(f: () => T) => page.evaluate(f);
+  expect(await api(() => [window.game!.day(), window.game!.place(), window.game!.fade()])).toEqual([1, 'pond', 0]);
+  expect(await api(() => window.game!.sleep())).toBe(true);
+  expect(await api(() => window.game!.place())).toBe('yawning');
+  expect(await api(() => window.game!.sleep()), 'already yawning').toBe(false);
+  await page.evaluate(() => window.game!.step(60));
+  expect(await api(() => window.game!.fade())).toBeCloseTo(1 / 1.5, 2);
+  await page.evaluate(() => window.game!.view('boat'));
+  expect(await api(() => window.game!.view()), 'a view is refused while yawning').toBe('overhead');
+  await page.evaluate(() => window.game!.step(60));
+  expect(await api(() => [window.game!.day(), window.game!.place()])).toEqual([2, 'cabin']);
+  expect(await api(() => window.game!.view())).toBe('cabin');
+  expect(await api(() => window.game!.time()), 'the look followed the clock to dawn').toBe('dawn');
+  await page.evaluate(() => window.game!.view('shore'));
+  await page.evaluate(() => window.game!.time('night'));
+  expect(await api(() => window.game!.view()), 'a view is refused in the cabin').toBe('cabin');
+  expect(await api(() => window.game!.time()), 'a time is refused in the cabin').toBe('dawn');
+  expect((await state()).timeOfDay).toBe(0.25);
+  expect(await api(() => window.game!.out())).toBe(true);
+  expect(await api(() => [window.game!.place(), window.game!.view(), window.game!.mode()])).toEqual([
+    'pond',
+    'shore',
+    'look',
+  ]);
+  expect(await api(() => window.game!.out()), 'nowhere to come down from').toBe(false);
+  await page.evaluate(() => window.game!.view('overhead'));
+
   // none of it is in the address, which is not written back, and a reload starts the game over
   expect(await href(), 'the address is as it was').toBe(url);
   // and it is only what the test asked for: no dirt, time or view written into it, at the boot or after

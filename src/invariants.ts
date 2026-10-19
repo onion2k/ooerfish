@@ -15,6 +15,7 @@
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
 import {
+  CLOCK,
   FIGHT,
   FISHING,
   FISH_CAPACITY,
@@ -35,7 +36,19 @@ const spine = new Float64Array((SWIM.segments.length + 1) * 3);
 const EACH = 3;
 
 /** What each game's contamination was when the rules were last asked, and how many times the lever had been set: a rise with the lever unmoved is a fault. */
-const seen = new WeakMap<Game, { contamination: number; waterDirt: number; levers: number }>();
+const seen = new WeakMap<
+  Game,
+  {
+    contamination: number;
+    waterDirt: number;
+    levers: number;
+    day: number;
+    place: string;
+    t: number;
+    timeOfDay: number;
+    fish: Float64Array;
+  }
+>();
 
 export function checkInvariants(game: Game): string[] {
   const out: string[] = [];
@@ -129,7 +142,30 @@ export function checkInvariants(game: Game): string[] {
     out.push(`the water is cleaner than the lake: ${game.waterDirt} against ${game.contamination}`);
   if (was && was.levers === game.levers && game.waterDirt > was.waterDirt)
     out.push(`the water's dirt rose from ${was.waterDirt} to ${game.waterDirt}, and no lever was set`);
-  seen.set(game, { contamination: game.contamination, waterDirt: game.waterDirt, levers: game.levers });
+  out.push(...nightRules(game, was));
+  const now = was ?? {
+    contamination: 0,
+    waterDirt: 0,
+    levers: 0,
+    day: 0,
+    place: '',
+    t: 0,
+    timeOfDay: 0,
+    fish: new Float64Array(FISH_CAPACITY * 3),
+  };
+  now.contamination = game.contamination;
+  now.waterDirt = game.waterDirt;
+  now.levers = game.levers;
+  now.day = game.day;
+  now.place = game.place;
+  now.t = game.t;
+  now.timeOfDay = game.timeOfDay;
+  for (let i = 0; i < Math.min(fish.count, FISH_CAPACITY); i++) {
+    now.fish[i * 3] = fish.x[i];
+    now.fish[i * 3 + 1] = fish.y[i];
+    now.fish[i * 3 + 2] = fish.depth[i];
+  }
+  seen.set(game, now);
   const { cured } = game.progress.save;
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
   else if (fish.curedCount() !== Math.min(cured, FISH_COUNT))
@@ -142,6 +178,48 @@ export function checkInvariants(game: Game): string[] {
       out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${cured} cured earns it ${gear[g.id]}`);
   if (game.bite.gear !== game.gear) out.push('the bite has not the gear the game holds');
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
+  return out;
+}
+
+/**
+ * The day's end: the day a whole number from one, never back and the save's; the place one of three; the fade within
+ * nought and one; and away from the pond, in the cabin and yawning, the lake held still (the time, the clock and every
+ * fish where they were when the rules were last asked in the same place), the lure ready, no fish hooked or landed, and
+ * in the cabin the clock at dawn.
+ */
+function nightRules(
+  game: Game,
+  was: { day: number; place: string; t: number; timeOfDay: number; fish: Float64Array } | undefined,
+): string[] {
+  const out: string[] = [];
+  const { day, place } = game;
+  if (!Number.isSafeInteger(day) || day < 1) out.push(`the day is ${day}`);
+  else if (was && day < was.day) out.push(`the day went back from ${was.day} to ${day}`);
+  if (game.progress.save.day !== day) out.push(`the day is ${day}, but the save says ${game.progress.save.day}`);
+  if (!['pond', 'yawning', 'cabin'].includes(place)) return [...out, `the player is at ${String(place)}`];
+  const fade = game.fade();
+  if (!(fade >= 0 && fade <= 1)) out.push(`the fade is ${fade}`);
+  if (place === 'pond') return out;
+  if (game.lure.phase !== 'ready') out.push(`the lure is ${game.lure.phase}, with the player ${place}`);
+  if (game.bite.phase === 'hooked' || game.bite.phase === 'landed')
+    out.push(`a fish is ${game.bite.phase}, with the player ${place}`);
+  if (place === 'cabin' && game.timeOfDay !== CLOCK.startsAt)
+    out.push(`the clock is at ${game.timeOfDay} in the cabin, not at dawn`);
+  // the lake holds still from one asking to the next while the player stays away from it
+  if (was && was.place === place) {
+    if (game.t !== was.t) out.push(`the time moved from ${was.t} to ${game.t}, with the player ${place}`);
+    if (game.timeOfDay !== was.timeOfDay)
+      out.push(`the clock moved from ${was.timeOfDay} to ${game.timeOfDay}, with the player ${place}`);
+    for (let i = 0; i < Math.min(game.fish.count, FISH_CAPACITY); i++)
+      if (
+        game.fish.x[i] !== was.fish[i * 3] ||
+        game.fish.y[i] !== was.fish[i * 3 + 1] ||
+        game.fish.depth[i] !== was.fish[i * 3 + 2]
+      ) {
+        out.push(`fish ${i} moved, with the player ${place}`);
+        break;
+      }
+  }
   return out;
 }
 

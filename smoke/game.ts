@@ -95,6 +95,8 @@ export interface Scene {
   caustics?: 'on' | 'off';
   /** The page's mode, look unless said, put after the view: cast puts the camera at the shore whatever the view. */
   mode?: 'look' | 'cast';
+  /** The player first put in the cabin the way the game does it: the clock carried past midnight, and the yawn stepped through to the waking. */
+  cabin?: boolean;
 }
 
 /**
@@ -103,11 +105,19 @@ export interface Scene {
  */
 export const STANDARD: Scene = { dirt: 0.5, time: 'day', view: 'shore' };
 
+/** The room at dawn: the player woken in the cabin, seen from the pillow, the lake behind its walls half cleaned. */
+export const CABIN_DAWN: Scene = { dirt: 0.5, time: 'dawn', view: 'cabin', cabin: true };
+
 /** The page set to a scene through the test API, and `frames` frames stepped, so the fish and the water are on. */
 export async function set(page: Page, scene: Scene, frames = 120) {
   await page.evaluate(
     async ([s, n]) => {
       const g = window.game!;
+      if (s.cabin) {
+        // just short of midnight, then a step past it starts the yawn, and the yawn's own seconds wake the player in the cabin
+        g.clock(0.9995);
+        g.step(150);
+      }
       await g.dirt(s.dirt);
       await g.time(s.time);
       await g.view(s.view);
@@ -122,7 +132,18 @@ export async function set(page: Page, scene: Scene, frames = 120) {
 /** The corners that tell how to look round, the look or cast button, the pond's gauge and lines, the menu and the bucket: not the look. */
 export async function hideOverlays(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['help', 'modeButton', 'pond', 'welcome', 'toast', 'menu', 'bucket'])
+    for (const id of [
+      'help',
+      'modeButton',
+      'pond',
+      'welcome',
+      'toast',
+      'menu',
+      'bucket',
+      'morning',
+      'downButton',
+      'yawn',
+    ])
       document.getElementById(id)!.hidden = true;
     // the boot cover's own display rule beats the hidden attribute, and its fade runs on the wall clock, so a picture
     // taken right after boot could catch its text fading: it is taken off the page.

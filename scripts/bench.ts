@@ -29,10 +29,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { careful } from '../src/angler';
 import { Game } from '../src/game';
-import { FISH_CAPACITY } from '../src/lake';
+import { CLOCK, FISH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
-import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, swimming, type Seen } from './benching';
+import { AGREE, TOLERANCE, agreed, bestRatio, did, heldToDay, judge, swimming, type Seen } from './benching';
 
 const BASELINE = 'scripts/bench-baseline.json';
 /** How many times each scenario is run: four let a slow moment through often enough to wobble the figure by a tenth. */
@@ -73,12 +73,20 @@ const SCENARIOS: Scenario[] = [
   {
     name: "the lab's fish swimming",
     // a step of six fish costs a few ten-thousandths of a millisecond: long enough to be well clear of the machine's
-    // passing noise
+    // passing noise, and longer than a day, so the clock is held short of midnight or the night would still the fish
     frames: 40000,
     busy: [1, 1],
     setup: () => {
       const game = settled(1);
-      return { game, frame: () => game.step(DT), busy: swimming(game.fish) };
+      const hold = heldToDay(game, CLOCK.startsAt);
+      return {
+        game,
+        frame: () => {
+          hold();
+          game.step(DT);
+        },
+        busy: swimming(game.fish),
+      };
     },
   },
   {

@@ -246,8 +246,11 @@ Each stage is a feature, built and verified before the next, every gate green at
    curing machine and the aquarium are not._
 4. **The journal and the junk treasures.**
 5. **The calendar:** the day, the cabin morning, the end of a day, sleeping through.
-   _A first slice is in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
-   dawn, day, dusk and night. The day's end, sleep, the cabin morning and saving the time are not._
+   _Two slices are in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
+   dawn, day, dusk and night; and the day ends (19 Oct 2026): at midnight, once no fish is on the line, the player
+   yawns and the screen fades, and they wake at dawn in the cabin's room on the next day, which the save keeps,
+   with "Go to bed" in the menu for an early night. Sleeping through, the cabin morning's things and saving the
+   time are not._
 6. **The seasons, the moon and the weather.**
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.

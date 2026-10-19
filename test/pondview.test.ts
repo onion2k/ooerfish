@@ -220,4 +220,21 @@ describe('the pond view', () => {
     expect(el.gauge.classes.has('clean')).toBe(true);
     expect(el.toast.innerHTML).toContain('The Duck Pond is clean!');
   });
+  it('keeps the welcome and the cure’s line away while the player is not at the pond, and brings them back', () => {
+    const { game, el, pond } = view();
+    pond.cured(1, CURE.toClean);
+    game.sleep();
+    pond.show();
+    expect(el.welcome.hidden, 'no welcome while yawning').toBe(true);
+    expect(el.toast.hidden, 'no toast while yawning').toBe(true);
+    for (let f = 0; f < 200; f++) game.step(DT);
+    expect(game.place).toBe('cabin');
+    pond.show();
+    expect(el.welcome.hidden, 'no welcome in the cabin').toBe(true);
+    game.out();
+    pond.show();
+    expect(el.toast.hidden, 'the cure’s line is said again at the pond, its time not run down in the cabin').toBe(
+      false,
+    );
+  });
 });

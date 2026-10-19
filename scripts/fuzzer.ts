@@ -23,6 +23,8 @@ import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 const DT = 1 / 60;
 /** How many frames between checks, when nothing has just been done; after anything done, the check is at once. */
 const CHECK_EVERY = 10;
+/** How many frames the monkey stays in the cabin, at most, before it goes down to the pond. */
+const CABIN_STAY = 90;
 /** How many of the last things done a failure reports. */
 const LOG_TAIL = 25;
 
@@ -59,7 +61,11 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     landed: 0,
     cured: 0,
     gifted: 0,
+    yawned: 0,
+    woke: 0,
   };
+  // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
+  const bed = { chosen: false };
   const count = (what: string) => () => {
     happened[what]++;
   };
@@ -73,6 +79,14 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     landed: count('landed'),
     cured: count('cured'),
     gifted: count('gifted'),
+    yawned: count('yawned'),
+    // a waking is counted by how it came: a bed chosen (the action sets `bed`), or midnight
+    woke: () => {
+      happened.woke++;
+      done[bed.chosen ? 'woke from bed' : 'woke at midnight'] =
+        (done[bed.chosen ? 'woke from bed' : 'woke at midnight'] ?? 0) + 1;
+      bed.chosen = false;
+    },
   };
   const log: string[] = [];
   let frame = 0;
@@ -115,12 +129,17 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     const makePhone = () => phoneMonkey(() => game, random, phoned);
     let phone: PhoneMonkey = makePhone();
     let busy = 0;
+    // the frames since the player woke in the cabin; one who stays too long goes down to the pond
+    let inCabin = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     // what the clean pond saw, from nought so a monkey that never reached it shows as nought and not as missing
     done['clean frames'] = 0;
     done['clean casts'] = 0;
     done['bites in a clean pond'] = 0;
     done['most cured'] = 0;
+    // the night, from nought so a monkey that never reached it shows as nought and not as missing
+    for (const what of ['woke at midnight', 'woke from bed', 'bed refused', 'down to the pond', 'frames in the cabin'])
+      done[what] = 0;
     /** A cast, counted when it is thrown into a pond with no uncured fish left. */
     const cast = (angle: number, power: number) => {
       const into = game.pondClean;
@@ -153,7 +172,17 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         2,
         () => {
           // one of the four times of day, or anywhere between, as the test API may say; the clock runs on from it
-          game.setTimeOfDay(random() < 0.5 ? [0, 0.25, 0.5, 0.75][Math.floor(random() * 4)] : random() * 1.2 - 0.1);
+          // the test API refuses the clock away from the pond, where time is stopped, so the monkey does not set it there
+          if (game.place !== 'pond') return did('time refused');
+          // a fifth of the time just short of midnight, so the day's end is reached in a seed's few frames
+          const u = random();
+          game.setTimeOfDay(
+            u < 0.2
+              ? 1 - between(0.0005, 0.04)
+              : u < 0.6
+                ? [0, 0.25, 0.5, 0.75][Math.floor(random() * 4)]
+                : random() * 1.2 - 0.1,
+          );
           did('time');
         },
       ],
@@ -226,6 +255,35 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         },
       ],
       [
+        0.5,
+        () => {
+          // to bed early: from the pond or the cabin, and now and then in the middle of a fight, where it is refused and
+          // must change nothing at all
+          const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+          const was = nightState(game);
+          if (game.sleep()) bed.chosen = true;
+          else if (fighting) {
+            done['bed refused']++;
+            if (nightState(game) !== was)
+              throw new Error(`a bed refused mid-fight changed the game: ${was} then ${nightState(game)}`);
+          }
+          did('go to bed');
+        },
+      ],
+      [
+        2,
+        () => {
+          // down from the cabin to the pond, or the door tried from the pond or mid-yawn, where it does nothing
+          const was = nightState(game);
+          const from = game.place;
+          const went = game.out();
+          if (went) done['down to the pond']++;
+          else if (from !== 'cabin' && nightState(game) !== was)
+            throw new Error(`the door changed the game from the ${from}`);
+          did('down to the pond');
+        },
+      ],
+      [
         1,
         () => {
           // saved, and loaded again into a new lake as a reload would: what was saved must be kept
@@ -236,6 +294,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           phone = makePhone();
+          bed.chosen = false;
+          inCabin = 0;
           did('reload');
         },
       ],
@@ -278,6 +338,16 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         acted = true;
       }
       phone.tick(frame);
+      // the player does not stay in the cabin for the rest of the game: after a moment the door is tried
+      if (game.place === 'cabin') {
+        done['frames in the cabin']++;
+        if (++inCabin > CABIN_STAY) {
+          game.out();
+          done['down to the pond']++;
+          did('leave the cabin');
+          inCabin = 0;
+        }
+      } else inCabin = 0;
       game.step(page.paused ? 0 : DT);
       done['most cured'] = Math.max(done['most cured'], game.fish.curedCount());
       if (game.pondClean) {
@@ -297,4 +367,11 @@ export function fuzz(seed: number, frames: number): FuzzResult {
   } catch (err) {
     return fail([`threw: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`]);
   }
+}
+
+/** What a refused bed or a door that opens nothing must leave alone, as one string to compare. */
+function nightState(game: Game): string {
+  return [game.place, game.day, game.t, game.timeOfDay, game.bite.phase, game.lure.phase, game.splashes.count].join(
+    ' ',
+  );
 }

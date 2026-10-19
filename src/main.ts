@@ -8,11 +8,12 @@
 import './fight.css';
 import { createContext } from 'artshape-render/gpu/context';
 import { Orbit } from 'artshape-render/gpu/camera';
-import { LightPool } from 'artshape-render/game/lights';
+import { LightPool, type PointLight } from 'artshape-render/game/lights';
 import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
+import { lampAt, roomGroups } from './cabinroom';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
@@ -23,10 +24,12 @@ import { frameCost } from './frame-cost';
 import { quantised } from './heal';
 import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
-import { HEAL, PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
+import { CABIN_ROOM, HEAL, PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
 import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
+import { NightView } from './nightview';
 import { waterPoint } from './pick';
+import { ROOM_COLOURS } from './palette';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
@@ -131,6 +134,17 @@ async function main() {
       void showWater();
       pond.cured(cured, toClean);
     },
+    yawned: () => {
+      log('yawned');
+      // the night is begun from look or from cast: an aim begun and a reel held are let go, and the page looks
+      showMode('look');
+      aim = null;
+    },
+    woke: (day) => {
+      log(`woke ${day}`);
+      // the player wakes in the cabin, and the camera is put at the pillow
+      void setView('cabin', true);
+    },
     gifted: (name, words) => {
       log(`gifted ${name}`);
       pond.gifted(name, words);
@@ -166,14 +180,33 @@ async function main() {
     await renderer.setGrass(to === 'full' ? field : null, GRASS_OPTIONS);
   }
   // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on;
-  // the cabin and the jetty are built once and stand still
+  // the cabin, the room inside it and the jetty are built once and stand still; the room is wholly inside the cabin's
+  // solid walls, so it is drawn and never seen until the camera is put in it
   const mists = fallMists();
-  renderer.setStatic([...scene.static(scenery.kit), ...fallGroups(), ...cabinGroups(), ...jettyGroups()]);
+  renderer.setStatic([
+    ...scene.static(scenery.kit),
+    ...fallGroups(),
+    ...cabinGroups(),
+    ...roomGroups(ROOM_COLOURS),
+    ...jettyGroups(),
+  ]);
   await setRung(rung);
   // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
   // grass has no second clock of its own
   renderer.wind = BREEZE;
-  renderer.setLights(new LightPool(LIGHT_CAPACITY));
+  // the pool of lights holds the cabin's lamp only, written once; it is counted live while the player is in the cabin
+  // and not at the pond, so a frame outside pays nothing for it
+  const lights = new LightPool(LIGHT_CAPACITY);
+  const lamp: PointLight = {
+    position: lampAt(),
+    radius: CABIN_ROOM.lamp.radius,
+    colour: [...CABIN_ROOM.lamp.colour],
+    intensity: CABIN_ROOM.lamp.intensity,
+  };
+  lights.set(0, lamp);
+  lights.clear();
+  renderer.setLights(lights);
+  let lampLit = false;
 
   // the foam rings the shore and the boulders from the lake's field, made once and before the first frame
   renderer.setShoreField(shoreField());
@@ -233,17 +266,26 @@ async function main() {
   const casting = new CastDraw();
   /** What a cast is being aimed at, while one is: the preview is drawn from it. */
   let aim: Aim | null = null;
-  const look = (x: number, y: number, view: { azimuth?: number; polar?: number; radius?: number }) => {
+  /** The lens the page was made with, which every view but the room's keeps. */
+  const lens = renderer.camera.fov;
+  const look = (
+    x: number,
+    y: number,
+    view: { azimuth?: number; polar?: number; radius?: number; z?: number; fov?: number },
+  ) => {
     // the orbit moves the camera only while it is on, so it is on while the camera is put there, and as it was after
     const was = orbit.enabled;
     orbit.enabled = true;
     // the momentum of a drag is let die away first: left in, it carries the view past where it is put
     for (let i = 0; i < 40; i++) orbit.update();
-    cam.target = [x, y, 0];
+    cam.target = [x, y, view.z ?? 0];
+    cam.fov = view.fov ?? lens;
     orbit.setSpherical(view);
     for (let i = 0; i < 400; i++) orbit.update();
     orbit.enabled = was;
   };
+  /** Whether a drag turns the camera: in look mode at the pond, and never in the room, where the bed's pillow is the one place to look from, nor while the screen fades. */
+  const orbitOn = () => orbits(mode) && viewName !== 'cabin' && game.place === 'pond';
   /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
   let time: TimeOfDay = nearestTime(game.timeOfDay);
   let viewName: ViewName = 'shore';
@@ -340,7 +382,7 @@ async function main() {
     look(v.x, v.y, v);
     aim = null;
     // look turns the camera by a drag in every view; cast holds it still behind the angler, where a drag aims
-    orbit.enabled = orbits(mode);
+    orbit.enabled = orbitOn();
     await renderer.prepare();
   }
   // a screen turned on its side while the camera is held at the shore in cast mode is framed again, for the new shape;
@@ -368,12 +410,16 @@ async function main() {
    */
   let castText = '';
   function showCast() {
-    const text = castWords({
-      bite: game.bite.phase,
-      lure: game.lure.phase,
-      heard: game.t < heard.until ? heard.text : null,
-      clean: game.pondClean,
-    });
+    // there is no line to speak of away from the pond: yawning and in the cabin it is brought in
+    const text =
+      game.place !== 'pond'
+        ? ''
+        : castWords({
+            bite: game.bite.phase,
+            lure: game.lure.phase,
+            heard: game.t < heard.until ? heard.text : null,
+            clean: game.pondClean,
+          });
     if (text === castText) return;
     castText = text;
     castLine.textContent = text;
@@ -383,16 +429,28 @@ async function main() {
   // the gesture rules are src/gesture.ts's; the page turns its events into theirs and does what is the page's own: the
   // pointer capture, the camera and the picking of a point on the water
   const tapInverse = new Float32Array(16);
+  /** Whether the player is at the pond, where the game runs and the rod is theirs. */
+  const atPond = () => game.place === 'pond';
   const gestures = new Gesture(
     {
-      cast: (angle, power) => void game.cast(angle, power),
-      strike: () => void game.strike(),
-      reel: (on) => game.reel(on),
+      // away from the pond (yawning, or in the cabin) the player can do nothing with the rod: a cast, a strike, a reel, an
+      // aim, a pebble and a call for cast mode are each let go unanswered, which a paired phone's are too, and nothing
+      // is told back; only letting go (a reel off, an aim cleared) is always heard
+      cast: (angle, power) => {
+        if (atPond()) game.cast(angle, power);
+      },
+      strike: () => {
+        if (atPond()) game.strike();
+      },
+      reel: (on) => {
+        if (!on || atPond()) game.reel(on);
+      },
       setAim: (to) => {
-        aim = to;
+        if (to === null || atPond()) aim = to;
       },
       // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
       pebble: (x, y) => {
+        if (!atPond()) return;
         cam.update();
         if (!invertInto(tapInverse, cam.viewProjection)) return;
         const box = canvas.getBoundingClientRect();
@@ -410,7 +468,9 @@ async function main() {
         };
       },
       // a phone's first gesture, in look mode, puts the page in cast mode at the Shore view
-      wantCast: () => void setMode('cast'),
+      wantCast: () => {
+        if (atPond()) void setMode('cast');
+      },
     },
     PHONE,
   );
@@ -466,6 +526,21 @@ async function main() {
     showMenu(false);
     void openPairing();
   });
+
+  // Go to bed is the day's end at once, from the pond or the cabin, with no question since nothing is lost; the game
+  // refuses it with a fish on the line or landed, and the item is greyed then (`NightView`)
+  byId('bedButton').addEventListener('click', () => {
+    showMenu(false);
+    game.sleep();
+  });
+  // Down to the pond, from the cabin: the clock runs on from dawn, the page looks, and the camera is at the Shore view
+  async function goOut(): Promise<boolean> {
+    if (!game.out()) return false;
+    showMode('look');
+    await setView('shore', true);
+    return true;
+  }
+  byId('downButton').addEventListener('click', () => void goOut());
 
   // Start again asks first, in a small dialog of the page's own. Keep playing is focused so a stray Enter keeps
   // playing; Keep playing, Escape or a click outside the card close it and change nothing, and Start again has the
@@ -523,8 +598,14 @@ async function main() {
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the page's own buttons, where the key is only what it presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement && e.target.closest('#catch, #modeButton, #pairing, #startAgain, #menu') !== null;
+    e.target instanceof HTMLElement &&
+    e.target.closest('#catch, #modeButton, #downButton, #pairing, #startAgain, #menu') !== null;
   window.addEventListener('keydown', (e) => {
+    // Enter brings the player down from the cabin, as the button does
+    if (e.key === 'Enter' && !e.repeat && game.place === 'cabin' && !onControl(e)) {
+      void goOut();
+      return;
+    }
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
       return;
@@ -582,6 +663,20 @@ async function main() {
     HEARD_FOR,
   );
 
+  const night = new NightView(
+    {
+      fade: byId('night'),
+      yawn: byId('yawn'),
+      morning: byId('morning'),
+      down: byId('downButton'),
+      bed: byId<HTMLButtonElement>('bedButton'),
+    },
+    () => game,
+  );
+  const hud = byId('hud');
+  /** Whether the Cast button and its hint are hidden, which they are away from the pond. */
+  let hudAway = false;
+
   /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
   function showMode(to: Mode) {
     if (to !== 'cast') {
@@ -589,13 +684,15 @@ async function main() {
       gestures.handle({ type: 'left-cast' });
     }
     mode = to;
-    orbit.enabled = orbits(mode);
+    orbit.enabled = orbitOn();
     const words = wording(mode);
     modeButton.textContent = words.button;
     help.textContent = words.hint;
   }
   /** A mode event: the mode it makes, and the camera put at the shore if it says so, resolving once that is ready. */
   async function setMode(event: ModeEvent) {
+    // there is no casting away from the pond: C and the test API's mode are let go there
+    if (!atPond()) return;
     const step = nextMode(mode, event);
     showMode(step.mode);
     if (step.camera === 'shore') await setView('shore', true);
@@ -629,6 +726,22 @@ async function main() {
     showCast();
     fightView.show();
     pond.show();
+    night.show();
+    const away = !atPond();
+    if (away !== hudAway) {
+      hudAway = away;
+      hud.hidden = away;
+    }
+    // the lamp is lit while the player is in the cabin and out at the pond, and the camera comes back to the shore when
+    // they go down to it; each is a change of a flag and a count, never made anew
+    const inCabin = game.place === 'cabin';
+    if (inCabin !== lampLit) {
+      lampLit = inCabin;
+      if (inCabin) lights.set(0, lamp);
+      else lights.clear();
+      renderer.setLights(lights);
+      if (!inCabin && game.place === 'pond' && viewName === 'cabin') void setView('shore', true);
+    }
   };
 
   /** Whether a frame is being measured: the frame loop stands still while one is. */
@@ -696,6 +809,9 @@ async function main() {
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
   function draw(dt: number) {
+    // a drag turns the camera only at the pond: the yawn and the cabin switch it off, and the way back switches it on
+    const turns = orbitOn();
+    if (orbit.enabled !== turns) orbit.enabled = turns;
     orbit.update();
     cam.update();
     // the renderer's clock is the game's at the water's pace, so a paused lake is still and a test that steps it draws
@@ -770,6 +886,7 @@ async function main() {
     setDirt,
     setTime,
     setView: (name) => setView(name),
+    out: () => goOut(),
     looksBaked,
     drawnDirt: () => watered,
     waterHandovers: () => handovers,
@@ -783,7 +900,8 @@ async function main() {
   let last = performance.now();
   const frame = (now: number) => {
     requestAnimationFrame(frame);
-    const dt = Math.min((now - last) / 1000, 1 / 20);
+    // never negative: the first frame's stamp can come before the time read when the loop was set up
+    const dt = Math.max(0, Math.min((now - last) / 1000, 1 / 20));
     last = now;
     if (measuring) return;
     // the phone's word and bar, by the page's clock and the game's state, so a paused game sends a bar that holds still

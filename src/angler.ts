@@ -5,7 +5,8 @@
  * speeds), stows what it lands, and casts again. A lure on the bank it reels in and casts again.
  *
  * Its chance is its own, so what it decides does not shift what the lake does, and the same seeds play the same day.
- * It does only what a player could: it calls the game's cast, strike, reel and stow, and reads what the page shows.
+ * A midnight yawns it into bed and it wakes in the cabin, from where it goes down to the pond at once, so a run that
+ * crosses a night plays on. It does only what a player could: it calls the game's cast, strike, reel and stow, and reads what the page shows.
  */
 import type { Game } from './game';
 import type { Random } from './random';
@@ -40,6 +41,8 @@ export class Angler {
   /** What the angler does this frame, then the lake on by `dt`. */
   step(dt: number) {
     const g = this.game;
+    // a night passed, the angler wakes in the cabin and goes straight down to the pond, as a player at the door would
+    if (g.place === 'cabin') g.out();
     const { phase } = g.bite;
     if (phase === 'hooked') this.seen[this.frames++ % this.seen.length] = g.line.fishAt;
     else this.frames = 0;

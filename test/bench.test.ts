@@ -6,7 +6,11 @@
  * run of it showing.
  */
 import { describe, expect, it } from 'vitest';
-import { AGREE, TOLERANCE, agreed, bestRatio, did, judge, swimming } from '../scripts/benching';
+import { AGREE, TOLERANCE, agreed, bestRatio, did, heldToDay, judge, swimming } from '../scripts/benching';
+import { Game } from '../src/game';
+import { CLOCK } from '../src/lake';
+import { Progress, memoryStore } from '../src/progress';
+import { seeded } from '../src/random';
 
 describe('the bench', () => {
   it('holds a figure both ways, faster as much as slower', () => {
@@ -104,5 +108,25 @@ describe('whether the school is swimming', () => {
     const few = swimming({ count: 2, x: school.x });
     school.x[2] = 10;
     expect(few()).toBe(false);
+  });
+});
+
+describe('a scenario held to the day', () => {
+  it('keeps the lab’s fish swimming through what would be a night', () => {
+    // the longest scenario runs eleven game minutes, past midnight, and a game left to itself would yawn there and
+    // sit in the cabin with its fish stilled: the lever puts the clock back short of midnight, and the lever is never
+    // a midnight, so every frame is a frame of fish swimming
+    const game = new Game(new Progress(memoryStore()), { random: seeded(1) });
+    const hold = heldToDay(game, CLOCK.startsAt);
+    const busy = swimming(game.fish);
+    let still = 0;
+    for (let f = 0; f < 40000; f++) {
+      hold();
+      game.step(1 / 60);
+      if (f > 180 && !busy()) still++;
+    }
+    expect(game.place).toBe('pond');
+    expect(game.day).toBe(1);
+    expect(still).toBe(0);
   });
 });
