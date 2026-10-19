@@ -14,7 +14,8 @@
  */
 import type { Game } from './game';
 import type { GestureEvent } from './gesture';
-import { FIGHT, PERCH } from './lake';
+import { FIGHT, KINDS } from './lake';
+import type { Temper } from './fight';
 import { PALETTE, type Colour } from './palette';
 
 /** The elements of the bar and the button, which the screen and the phone each have. */
@@ -35,6 +36,8 @@ export interface FightElements extends BarElements {
   card: HTMLButtonElement;
   name: HTMLElement;
   weight: HTMLElement;
+  /** The small line on the card that says what a tap does. */
+  hint: HTMLElement;
   bucket: HTMLElement;
 }
 
@@ -45,6 +48,10 @@ export type ToScreen = (x: number, y: number, z: number) => { x: number; y: numb
 /** How fast the Strike button pulses while the window is open, in radians of game time a second; how high over the bobber the mark stands, in world units. */
 const PULSE_RATE = 14;
 const MARK_HIGH = 1.4;
+
+/** What a tap on the card does: cure a fish and put it in the bucket, or haul a drum up onto the bank. */
+const CURE_HINT = 'tap to cure it and put it in the bucket';
+const HAUL_HINT = 'tap to haul it up onto the bank';
 
 /** A share of the bar as a per cent, to a tenth, so a still bar writes nothing. */
 const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
@@ -89,6 +96,23 @@ export function blankPicture(): FightPicture {
   };
 }
 
+/** What the landed fish's card says: the temper and kind, the weight, and both as one line ("a feisty pike, 3.62 kg"). */
+export interface CardWords {
+  name: string;
+  weight: string;
+  line: string;
+}
+
+/**
+ * The card's words for a catch, as a pure function so a test needs no page; `kind` is an index into `KINDS`, or `'drum'`
+ * for a drum of waste, which has no temper and says so ("a drum of waste, 42.00 kg").
+ */
+export function cardWords(kind: number | 'drum', temper: Temper, weight: number): CardWords {
+  const name = kind === 'drum' ? 'drum of waste' : `${temper} ${KINDS[kind].name}`;
+  const kg = `${weight.toFixed(2)} kg`;
+  return { name, weight: kg, line: `a ${name}, ${kg}` };
+}
+
 /**
  * The fight as the bar and the button show it, worked out from the game and nothing else. It writes into `into` when
  * given one and hands it back, so the phone's thirty a second do not each make an object.
@@ -109,7 +133,16 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
   into.biting = biting;
   // by the game's clock, so a picture is the same every run
   into.pulse = biting ? Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20 : 0;
-  into.words = hooked ? (g.line.inZone() ? 'in the zone' : 'out of the zone') : '';
+  // a drum has no zone to be in: it is hauled while the reel is held and waits when it is let go
+  into.words = hooked
+    ? g.catchDrum
+      ? g.reeling
+        ? 'hauling'
+        : 'waiting'
+      : g.line.inZone()
+        ? 'in the zone'
+        : 'out of the zone'
+    : '';
   into.button = !live ? '' : hooked ? 'Reel' : 'Strike';
   return into;
 }
@@ -192,8 +225,10 @@ export class FightView {
     button.addEventListener('click', (e) => {
       if (e.detail === 0) gesture({ type: 'activate', source: 'button' });
     });
+    // a fish on the card goes in the bucket and a drum is hauled up; each is refused for the other
     card.addEventListener('click', () => {
-      this.game().stow();
+      const g = this.game();
+      if (!g.stow()) g.haul();
     });
   }
 
@@ -222,8 +257,10 @@ export class FightView {
       this.was.card = card;
       el.card.hidden = !card;
       if (card) {
-        el.name.textContent = `${g.temper} ${PERCH.name}`;
-        el.weight.textContent = `${g.catchWeight.toFixed(2)} kg`;
+        const words = cardWords(g.catchDrum ? 'drum' : g.catchKind, g.temper, g.catchWeight);
+        el.name.textContent = words.name;
+        el.weight.textContent = words.weight;
+        el.hint.textContent = g.catchDrum ? HAUL_HINT : CURE_HINT;
       }
     }
 

@@ -13,8 +13,10 @@
 import {
   FISH_ABOVE_BED,
   FISH_CAPACITY,
+  FISH_KINDS,
   FISH_SHALLOWEST,
   FISH_SHORE,
+  KINDS,
   SWIM,
   bedDepth,
   boulderGap,
@@ -71,6 +73,8 @@ export class School {
   private readonly lastDepth = new Float64Array(FISH_CAPACITY);
   /** Which fish are cured, one for yes: kept in the pond, healthy, and never drawn to the lure. Sized once. */
   readonly cured = new Uint8Array(FISH_CAPACITY);
+  /** Each fish's kind, an index into `KINDS`, fixed by its slot and kept when a fish is respawned. Sized once. */
+  readonly kind = new Uint8Array(FISH_CAPACITY);
   count = 0;
   /** The fish the bite is steering, which the wander leaves alone; minus one for none. */
   held = -1;
@@ -82,9 +86,37 @@ export class School {
    */
   fill(n: number, random: Random, cured = 0) {
     this.count = Math.min(n, FISH_CAPACITY);
-    for (let i = 0; i < this.count; i++) this.place(i, random);
+    for (let i = 0; i < this.count; i++) {
+      this.kind[i] = FISH_KINDS[i % FISH_KINDS.length];
+      this.place(i, random);
+    }
     this.cured.fill(0);
     this.cured.fill(1, 0, Math.max(0, Math.min(cured, this.count)));
+  }
+
+  /**
+   * The fish cured on a load, by kind: of each kind the first `perKind[k]` of its slots (a journal's count of what was
+   * caught, which cannot cure more than the kind has), and then, if that is fewer than `total`, the rest in slot order,
+   * as a save without a journal always was. No more than `total` are cured, and no chance is drawn.
+   */
+  cureLoaded(perKind: readonly number[], total: number) {
+    this.cured.fill(0);
+    const want = Math.min(total, this.count);
+    const had = new Array<number>(perKind.length).fill(0);
+    let n = 0;
+    for (let i = 0; i < this.count && n < want; i++) {
+      const k = this.kind[i];
+      if (had[k] < (perKind[k] ?? 0)) {
+        had[k]++;
+        this.cured[i] = 1;
+        n++;
+      }
+    }
+    for (let i = 0; i < this.count && n < want; i++)
+      if (!this.cured[i]) {
+        this.cured[i] = 1;
+        n++;
+      }
   }
 
   /** Fish `i` let into the lake afresh, somewhere in it by chance: a landed fish's place taken by another, a new one that glows. */
@@ -130,7 +162,9 @@ export class School {
     this.y[i] = y;
     this.heading[i] = random() * Math.PI * 2;
     this.speed[i] = SPEED[0] + random() * (SPEED[1] - SPEED[0]);
-    this.keeps[i] = 0.2 + random() * 0.5;
+    // the same one draw as ever, put into the band of the fish's kind
+    const [near, far] = KINDS[this.kind[i]].keeps;
+    this.keeps[i] = near + random() * (far - near);
     this.depth[i] = depthRange(x, y)[1] * this.keeps[i];
     // a beat of its own, by its place in the school and not by chance, so the stream the seed gives is not moved
     this.phase[i] = (i * 2.399963) % (Math.PI * 2);

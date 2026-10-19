@@ -10,6 +10,7 @@
  */
 import { healToward } from './heal';
 import { Bite, type Strike } from './bite';
+import { Drums, drumPlaces } from './drums';
 import { School, steerTo } from './fish';
 import { Line } from './line';
 import {
@@ -21,15 +22,18 @@ import {
   CURE,
   GEAR,
   FIGHT,
+  DRUMS,
   FISHING,
   FISH_COUNT,
-  PERCH,
+  KINDS,
   RELEASE,
   ANGLER,
   inside,
+  bedDepth,
 } from './lake';
+import { recorded } from './journal';
 import { Progress } from './progress';
-import { drawTemper, fightFor, gearFor, type Gear, type Temper } from './fight';
+import { drawTemper, drumFight, fightFor, gearFor, type Gear, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
 import { Splashes } from './splash';
@@ -41,7 +45,7 @@ export interface GameEvents {
   splashed?(x: number, y: number, size: number): void;
   /** A fish at the lure nibbled it (the bobber twitches), bit it (the bobber dips and the window opens), was hooked, or let go. */
   nibbled?(): void;
-  bitten?(): void;
+  bitten?(heavy?: boolean): void;
   hooked?(): void;
   missed?(): void;
   /** The player struck, and what it did: a twitch of the lure with no fish there, too soon at a nibble, or hooked. */
@@ -55,6 +59,8 @@ export interface GameEvents {
    * words of `GEAR`. A load that has the gift already tells nothing.
    */
   gifted?(name: string, words: string): void;
+  /** A drum of waste was hauled up by a tap on its card: how many are hauled, and how many there are. */
+  hauled?(hauled: number, drums: number): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number, temper: Temper): void;
   /** The day's end began, at midnight or by choice: the player yawns and the screen starts to fade. */
@@ -82,6 +88,8 @@ export class Game {
   /** Where chance comes from: replaced by the test API's `seed`. */
   random: Random;
   readonly fish = new School();
+  /** The drums of waste on the bed, from a seed of their own and not the game's chance. */
+  readonly drums = new Drums(drumPlaces(DRUMS, { inside, bedDepth, from: [ANGLER.x, ANGLER.y] }));
   readonly splashes = new Splashes();
   readonly lure = new Lure();
   readonly bite: Bite;
@@ -92,6 +100,10 @@ export class Game {
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
   catchWeight = 0;
+  /** The kind (an index into `KINDS`) of the fish on the line or landed, set when it was hooked. */
+  catchKind = 0;
+  /** Whether what is on the line or landed is a drum of waste and not a fish. */
+  catchDrum = false;
   /** The temper of the fish on the line or landed, drawn when it was hooked. */
   temper: Temper = 'steady';
   /** The gifts the cure count has earned, in force from the next fight (and the bite's next window); a load has its own, untold. */
@@ -129,7 +141,8 @@ export class Game {
   ) {
     this.random = options.random ?? Math.random;
     this.day = progress.save.day;
-    this.contamination = contaminationAfter(progress.save.cured);
+    this.contamination = contaminationAfter(progress.save.cured, progress.save.drums);
+    this.drums.load(progress.save.drums);
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
     this.gear = gearFor(progress.save.cured);
@@ -141,15 +154,22 @@ export class Game {
         e.nibbled?.();
         this.ring(FISHING.nibbleRing);
       },
-      bitten: () => {
-        e.bitten?.();
-        this.ring(FISHING.biteRing);
+      bitten: (heavy) => {
+        e.bitten?.(heavy);
+        this.ring(heavy ? DRUMS.ring : FISHING.biteRing);
       },
       hooked: () => e.hooked?.(),
       missed: () => e.missed?.(),
     });
     this.bite.gear = this.gear;
-    this.fish.fill(FISH_COUNT, () => this.random(), progress.save.cured);
+    this.fish.fill(FISH_COUNT, () => this.random());
+    // the cured are as many of each kind as the journal says were caught; a save without a journal, or with one that
+    // accounts for fewer than were cured, has the rest cured in slot order, as every save once was
+    const { cured, journal } = progress.save;
+    this.fish.cureLoaded(
+      KINDS.map((k) => journal[k.id]?.caught ?? 0),
+      cured,
+    );
   }
 
   /** One frame of `dt` seconds. */
@@ -172,7 +192,7 @@ export class Game {
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
     if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
-    this.bite.step(this.t, dt, this.fish, this.lure, this.random);
+    this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.drums);
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
@@ -238,13 +258,16 @@ export class Game {
   strike(): Strike {
     const did = this.bite.strike(this.t, this.fish, this.lure);
     if (did !== 'none') this.events.struck?.(did);
-    if (did === 'hooked') {
+    if (did === 'hooked' && this.bite.drum >= 0) this.hookDrum();
+    else if (did === 'hooked') {
+      this.catchDrum = false;
       const i = this.bite.fish;
       const [lx, ly] = FIGHT.landAt;
-      this.catchWeight =
-        Math.round((PERCH.weight[0] + this.random() * (PERCH.weight[1] - PERCH.weight[0])) * 100) / 100;
+      this.catchKind = this.fish.kind[i];
+      const [least, most] = KINDS[this.catchKind].weight;
+      this.catchWeight = Math.round((least + this.random() * (most - least)) * 100) / 100;
       // a heavier fish fights harder: its heft is where its weight lies between the least and most of its kind
-      const heft = (this.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
+      const heft = (this.catchWeight - least) / (most - least);
       // the temper is drawn next, one draw after the weight and before the line's own (where the fish first darts)
       this.temper = drawTemper(this.random);
       this.line.start(
@@ -263,19 +286,38 @@ export class Game {
     return did;
   }
 
+  /** A drum snagged and struck: hauled by its own profile, the lure at the drum, and no chance drawn for weight or temper. */
+  private hookDrum() {
+    const i = this.bite.drum;
+    const [lx, ly] = FIGHT.landAt;
+    const [x, y] = [this.drums.x[i], this.drums.y[i]];
+    this.catchDrum = true;
+    this.catchWeight = DRUMS.weight;
+    this.temper = 'steady';
+    this.line.start(Math.hypot(x - lx, y - ly), drumFight(this.gear), this.random);
+    this.bearing = Math.atan2(y - ly, x - lx);
+    this.hookedAt = this.t;
+    this.lure.phase = 'hooked';
+    this.lure.at[0] = x;
+    this.lure.at[1] = y;
+    this.lure.at[2] = -Math.max(0, bedDepth(x, y) - 0.3);
+  }
+
   /** The reel held, or let go. */
   reel(on: boolean) {
     this.reeling = on === true;
   }
 
-  /** True when every fish in the pond is cured: nothing is left to take the bait. */
+  /** True when every fish in the pond is cured and every drum hauled: nothing is left to take the bait or to clean. */
   get pondClean(): boolean {
-    return this.fish.count > 0 && this.fish.curedCount() === this.fish.count;
+    return (
+      this.fish.count > 0 && this.fish.curedCount() === this.fish.count && this.drums.hauledCount() === this.drums.count
+    );
   }
 
   /** The landed fish put in the bucket, cured, and let go in the pond near the angler with a splash; false with none landed. */
   stow(): boolean {
-    if (this.bite.phase !== 'landed') return false;
+    if (this.bite.phase !== 'landed' || this.bite.drum >= 0) return false;
     const i = this.bite.fish;
     this.bucket++;
     this.bite.stowed(this.fish);
@@ -284,8 +326,11 @@ export class Game {
     // the cure: the fish is cured by being put in the bucket, the lake a step cleaner, and the count kept at once
     const save = this.progress.save;
     save.cured = Math.min(save.cured + 1, Number.MAX_SAFE_INTEGER);
+    // and written in the journal under the fish's kind (the slot's own, the same as the kind it was hooked as)
+    const id = KINDS[this.fish.kind[i]].id;
+    save.journal[id] = recorded(save.journal[id], this.catchWeight, this.day);
     // never above where it is: a lake the lever has made cleaner than the count says is not made dirtier by a cure
-    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured));
+    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured, save.drums));
     // the water follows, from where it is now and not from where it was, so two cures close together never jump
     this.healFrom = this.waterDirt;
     this.healTo = this.contamination;
@@ -296,6 +341,29 @@ export class Game {
     const had = this.gear;
     this.gear = this.bite.gear = gearFor(save.cured);
     for (const g of GEAR) if (this.gear[g.id] && !had[g.id]) this.events.gifted?.(g.name, g.words);
+    return true;
+  }
+
+  /**
+   * The landed drum of waste hauled up onto the bank, by a tap on its card: it is gone from the bed for good, the count
+   * hauled is kept at once, and the contamination falls to what the formula says (never up, as a cure never raises it).
+   * False with none landed, and with a fish landed, which is `stow`'s.
+   */
+  haul(): boolean {
+    if (this.bite.phase !== 'landed' || this.bite.drum < 0) return false;
+    const i = this.bite.drum;
+    this.bite.stowed(this.fish);
+    this.lure.reelIn();
+    this.drums.haul(i);
+    const save = this.progress.save;
+    save.drums = this.drums.hauledCount();
+    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured, save.drums));
+    // the water heals to it from where it is, as after a cure
+    this.healFrom = this.waterDirt;
+    this.healTo = this.contamination;
+    this.healElapsed = 0;
+    this.persist();
+    this.events.hauled?.(save.drums, DRUMS.count);
     return true;
   }
 
@@ -323,6 +391,7 @@ export class Game {
 
   /** The fight on by `dt`: the zone and the meter, and the fish swimming to keep to it along its bearing, swaying, with the lure in its mouth. */
   private fight(dt: number) {
+    if (this.catchDrum) return this.fightDrum(dt);
     const i = this.bite.fish;
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
     const [lx, ly] = FIGHT.landAt;
@@ -343,7 +412,24 @@ export class Game {
     } else if (was === 'landed') {
       this.bite.landed();
       this.reeling = false;
-      this.events.landed?.(PERCH.name, this.catchWeight, this.temper);
+      this.events.landed?.(KINDS[this.catchKind].name, this.catchWeight, this.temper);
+    }
+  }
+
+  /** A drum hauled on by `dt`: the lure is drawn in along the line toward the landing, the drum on the bed beneath it staying put until it is hauled. */
+  private fightDrum(dt: number) {
+    const was = this.line.step(dt, this.reeling, this.contamination, this.random);
+    const [lx, ly] = FIGHT.landAt;
+    const b = Math.min(Math.PI / 2 + HOOKED.wide, Math.max(Math.PI / 2 - HOOKED.wide, this.bearing));
+    const [x, y] = [lx + Math.cos(b) * this.line.out, ly + Math.sin(b) * this.line.out];
+    this.lure.at[0] = x;
+    this.lure.at[1] = y;
+    this.lure.at[2] = -Math.min(Math.max(0, bedDepth(x, y) - 0.3), 0.3 + this.line.out * 0.08);
+    // a drum never slips: it is landed when the meter is full, and waits otherwise
+    if (was === 'landed') {
+      this.bite.landed();
+      this.reeling = false;
+      this.events.landed?.('drum of waste', this.catchWeight, this.temper);
     }
   }
 

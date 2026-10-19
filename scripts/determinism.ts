@@ -77,6 +77,8 @@ export function hashGame(game: Game): string {
     eat(fish.keeps[i]);
     // which fish are cured, since two lakes that differ only in that are not the same lake
     eat(fish.cured[i]);
+    // and of what kind, which the weight, the look and the depth it keeps to all follow
+    eat(fish.kind[i]);
     // the stroke too, which only the drawing reads, so a picture of a fish is held to the seed as its place is
     eat(fish.phase[i]);
     eat(fish.turn[i]);
@@ -84,6 +86,15 @@ export function hashGame(game: Game): string {
     eat(fish.pace[i]);
     eat(fish.vigour[i]);
   }
+  // the drums on the bed: where each lies and whether it is hauled, and which one the bite has snagged
+  const { drums } = game;
+  eat(drums.count);
+  for (let i = 0; i < drums.count; i++) {
+    eat(drums.x[i]);
+    eat(drums.y[i]);
+    eat(drums.hauled[i]);
+  }
+  eat(game.bite.drum);
   const { splashes } = game;
   eat(splashes.count);
   eat(splashes.next);

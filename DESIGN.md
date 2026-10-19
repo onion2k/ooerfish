@@ -245,6 +245,12 @@ Each stage is a feature, built and verified before the next, every gate green at
    contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The cabin, the
    curing machine and the aquarium are not._
 4. **The journal and the junk treasures.**
+   _A first slice is in (19 Oct 2026): three kinds of fish, each at a depth of its own (sunny bream in the
+   shallows, glowing perch in the middle, pike near the bed, 4/5/3 of the pond's twelve), two drums of waste on
+   the pond's bed that are snagged by a lure lying beside them, hauled with a slow steady reel and clean the pond
+   two fish's worth each, and a journal behind the menu that stops the clock. The pond holds what it takes to
+   clean it, with drums: twelve fish and two drums at two fish each, sixteen cleans. The aquarium, the shelves,
+   the other junk and the journal's drawings are not._
 5. **The calendar:** the day, the cabin morning, the end of a day, sleeping through.
    _Two slices are in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
    dawn, day, dusk and night; and the day ends (19 Oct 2026): at midnight, once no fish is on the line, the player
@@ -268,5 +274,6 @@ Each stage is a feature, built and verified before the next, every gate green at
 - How many lakes, and each one's fish.
 - The townsfolk's names and faces, and the story's words.
 - The sound: where its assets come from, and what it may cost of the download.
+- What a drum of waste is worth in the cleaning (two fish's, an estimate), and how many the lakes after the first hold.
 - How big the aquarium may grow, and the ceiling `leaks` holds it to.
 - The new repo's name, and when it is made.

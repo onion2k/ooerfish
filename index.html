@@ -154,7 +154,8 @@
   /* the buttons on a card: the panels' own rounded edge and faint line, a shade lighter than the card so they read
      as something to press and not the browser's grey */
   #pairingClose,
-  #startAgain button {
+  #startAgain button,
+  #journal button {
     font: inherit;
     font-weight: 700;
     color: var(--ink);
@@ -168,16 +169,19 @@
     touch-action: manipulation;
   }
   #pairingClose:hover,
-  #startAgain button:hover {
+  #startAgain button,
+  #journal button:hover {
     background: rgba(255, 255, 255, 0.14);
   }
   #pairingClose:focus-visible,
-  #startAgain button:focus-visible {
+  #startAgain button,
+  #journal button:focus-visible {
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
-  /* the question before a wipe: the pairing card's own look, over the game */
-  #startAgain {
+  /* the question before a wipe, and the journal's page: the pairing card's own look, over the game */
+  #startAgain,
+  #journal {
     position: fixed;
     inset: 0;
     display: grid;
@@ -186,10 +190,12 @@
     background: rgba(8, 7, 12, 0.78);
     z-index: 10;
   }
-  #startAgain[hidden] {
+  #startAgain[hidden],
+  #journal[hidden] {
     display: none;
   }
-  #startAgain .card {
+  #startAgain .card,
+  #journal .card {
     width: min(320px, 100%);
     max-height: 100%;
     overflow: auto;
@@ -199,20 +205,97 @@
     border-radius: 12px;
     text-align: center;
   }
-  #startAgain h2 {
+  #startAgain h2,
+  #journal h2 {
     margin: 0 0 4px;
     font-size: 17px;
   }
-  #startAgain p {
+  #startAgain p,
+  #journal p {
     margin: 4px 0 12px;
     color: var(--dim);
     font-size: 13px;
   }
-  #startAgain .buttons {
+  #startAgain .buttons,
+  #journal .buttons {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
+  }
+  /* the journal's page is wider than the question and reads left to right: each kind a name and, under it, what is
+     known of it; the junk's line below, and the button at the foot */
+  #journal .card {
+    width: min(380px, 100%);
+    text-align: left;
+  }
+  #journal h2 {
+    text-align: center;
+  }
+  #journalKinds {
+    list-style: none;
+    margin: 8px 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  #journalKinds b {
+    display: block;
+    font-size: 15px;
+  }
+  #journalKinds span {
+    display: block;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  /* a kind caught reads in the ink, one not yet caught in the dim, so the difference is the words' and the tone's both */
+  #journalKinds .caught span {
+    color: var(--ink);
+  }
+  #journalDrums {
+    margin: 12px 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--ink);
+  }
+  #journal .buttons {
+    justify-content: center;
+  }
+  /* sideways there is little height: the card fills the screen's, the three kinds in a row of columns, and the name
+     and its words kept close */
+  html[data-layout='sideways'] #journal {
+    padding: 8px;
+  }
+  html[data-layout='sideways'] #journal .card {
+    width: min(640px, 100%);
+    padding: 10px 14px;
+  }
+  html[data-layout='sideways'] #journal h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  html[data-layout='sideways'] #journalKinds {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 6px 0;
+  }
+  html[data-layout='sideways'] #journalKinds b {
+    font-size: 13px;
+  }
+  html[data-layout='sideways'] #journalKinds span {
+    font-size: 12px;
+  }
+  html[data-layout='sideways'] #journalDrums {
+    margin: 6px 0;
+    padding-top: 6px;
+    font-size: 12px;
+  }
+  html[data-layout='sideways'] #journal button {
+    min-height: 36px;
+  }
+  /* portrait: the whole width of a phone, less its gutter, and the words a little larger to be read held at arm's length */
+  html[data-layout='portrait'] #journal .card {
+    width: 100%;
   }
   /* the day's end: the cover that fades the screen to the night and back, its opacity the game's own fade written by the
      page as it changes (never a transition on the wall clock, so a picture holds still), over everything of the
@@ -723,6 +806,16 @@
     </div>
   </div>
 </div>
+<div id="journal" role="dialog" aria-modal="true" aria-labelledby="journalTitle" hidden>
+  <div class="card">
+    <h2 id="journalTitle">Journal</h2>
+    <ul id="journalKinds"></ul>
+    <p id="journalDrums"></p>
+    <div class="buttons">
+      <button type="button" id="journalClose">Close</button>
+    </div>
+  </div>
+</div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">
@@ -739,7 +832,8 @@
 </div>
 <button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
 <button class="panel" id="catch" type="button" hidden>
-  <b id="catchName"></b><span id="catchWeight"></span><small>tap to cure it and put it in the bucket</small>
+  <b id="catchName"></b><span id="catchWeight"></span
+  ><small id="catchHint">tap to cure it and put it in the bucket</small>
 </button>
 <div class="panel" id="bucket" hidden></div>
 <div id="menu">
@@ -755,6 +849,7 @@
     ⋯
   </button>
   <div class="panel" id="menuList" role="menu" hidden>
+    <button id="journalButton" type="button" role="menuitem">Journal</button>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
     <button id="bedButton" type="button" role="menuitem">Go to bed</button>
     <button id="startAgainButton" type="button" role="menuitem">Start again</button>

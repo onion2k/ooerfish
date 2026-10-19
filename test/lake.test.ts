@@ -12,6 +12,8 @@ import {
   CABIN_ROOM,
   CLIFF,
   CURE,
+  DRUMS,
+  contaminationAfter,
   FISH_CAPACITY,
   FISH_COUNT,
   DECK,
@@ -43,9 +45,63 @@ import {
   framingFor,
 } from '../src/lake';
 
+describe('the cleaning', () => {
+  const total = FISH_COUNT + DRUMS.count * DRUMS.worth;
+
+  it('is the sum of the fish cured and the drums hauled at their worth, over all of them', () => {
+    expect(contaminationAfter(0, 0), 'sick at the start').toBe(1);
+    for (const [cured, drums] of [
+      [1, 0],
+      [5, 0],
+      [0, 1],
+      [0, 2],
+      [3, 1],
+      [11, 1],
+      [12, 1],
+    ])
+      expect(contaminationAfter(cured, drums), `${cured} cured, ${drums} hauled`).toBeCloseTo(
+        1 - (cured + drums * DRUMS.worth) / total,
+        12,
+      );
+  });
+
+  it('falls a sixteenth for a fish and an eighth for a drum', () => {
+    expect(contaminationAfter(1, 0)).toBeCloseTo(15 / 16, 12);
+    expect(contaminationAfter(0, 1)).toBeCloseTo(14 / 16, 12);
+    expect(contaminationAfter(0, DRUMS.count)).toBeCloseTo(12 / 16, 12);
+  });
+
+  it('leaves a quarter of the dirt with every fish cured and no drum hauled, and none with all of both', () => {
+    expect(contaminationAfter(FISH_COUNT, 0)).toBeCloseTo(0.25, 12);
+    expect(contaminationAfter(FISH_COUNT, DRUMS.count)).toBe(0);
+  });
+
+  it('stays clean past the pond’s own counts, and never rises as either grows', () => {
+    expect(contaminationAfter(99, 99)).toBe(0);
+    let was = 1;
+    for (let c = 0; c <= FISH_COUNT + 2; c++)
+      for (let d = 0; d <= DRUMS.count; d++) {
+        const now = contaminationAfter(c, d);
+        expect(now).toBeGreaterThanOrEqual(0);
+        expect(now).toBeLessThanOrEqual(1);
+        if (d > 0) expect(now).toBeLessThanOrEqual(contaminationAfter(c, d - 1));
+        if (c > 0) expect(now).toBeLessThanOrEqual(contaminationAfter(c - 1, d));
+        was = now;
+      }
+    expect(was).toBe(0);
+  });
+
+  it('puts the drums in the content: two, worth two fish each, and they are counted into the cure', () => {
+    expect(DRUMS.count).toBe(2);
+    expect(DRUMS.worth).toBe(2);
+    expect(CURE.total).toBe(total);
+  });
+});
+
 describe('the lake', () => {
   it('holds as many fish as it takes to clean it, said once, and no more than the pools hold', () => {
     expect(CURE.toClean).toBe(FISH_COUNT);
+    expect(CURE.total, 'the drums are counted in').toBe(FISH_COUNT + DRUMS.count * DRUMS.worth);
     expect(FISH_COUNT).toBeLessThanOrEqual(FISH_CAPACITY);
   });
 

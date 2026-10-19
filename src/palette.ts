@@ -107,6 +107,13 @@ export const PALETTE = {
   aimBank: [0.92, 0.22, 0.15] as Colour,
   /** The glow of a fish that has eaten the waste. */
   glow: [0.55, 1, 0.3] as Colour,
+  /** The sunny bream's glow, a warm yellow, and the pike's, a blue-green. */
+  glowBream: [1, 0.85, 0.25] as Colour,
+  glowPike: [0.2, 0.9, 0.8] as Colour,
+  /** A drum of waste on the bed: a hazard yellow, the darker bands round it, and the black atom on its lid. */
+  drum: [0.95, 0.6, 0.04] as Colour,
+  drumBand: [0.5, 0.26, 0.02] as Colour,
+  drumAtom: [0.02, 0.02, 0.025] as Colour,
   /** A cured fish: a warm gold body, coral fins and the faint warm light they give off. */
   cured: [1, 0.7, 0.22] as Colour,
   curedFin: [1, 0.42, 0.38] as Colour,

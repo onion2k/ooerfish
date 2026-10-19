@@ -73,9 +73,24 @@ export class Lure {
     this.sink(0);
   }
 
+  /** How deep the line or the bed lets it sink under its bobber. */
+  private stop(): number {
+    return Math.max(0, Math.min(CAST.lineDepth, bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed));
+  }
+
+  /**
+   * Whether it lies on the bed: sunk under its bobber as far as the bed lets it, which is short of the line's depth.
+   * Where the bed is deeper than the line reaches it hangs in the water and is on nothing.
+   */
+  get onBed(): boolean {
+    if (this.phase !== 'sinking') return false;
+    const bed = bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed;
+    return bed <= CAST.lineDepth && this.depth >= bed - 1e-9;
+  }
+
   /** Sunk on by `dt`, until the line or the bed stops it. */
   private sink(dt: number) {
-    const stop = Math.max(0, Math.min(CAST.lineDepth, bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed));
+    const stop = this.stop();
     this.depth = Math.min(stop, this.depth + CAST.sink * dt);
     this.at[0] = this.bobber[0];
     this.at[1] = this.bobber[1];

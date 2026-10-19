@@ -105,3 +105,24 @@ export function pathPoints(angle: number, power: number, n: number, out: Float64
   }
   return inside(out[(n - 1) * 3], out[(n - 1) * 3 + 1]);
 }
+
+/**
+ * The cast that lands at (x, y), over flat water: aimed at it from the rod's tip, its power found by halving between
+ * none and full until the flight is as far from the tip as the point is. A point past the reach gets full power. For
+ * the test API and the tests, which put a lure where they want it.
+ */
+export function aimAt(x: number, y: number): { angle: number; power: number } {
+  const dx = x - TIP[0],
+    dy = y - TIP[1];
+  const angle = Math.atan2(dy, dx),
+    want = Math.hypot(dx, dy);
+  let lo = 0,
+    hi = 1;
+  for (let k = 0; k < 40; k++) {
+    const mid = (lo + hi) / 2;
+    const f = flight(angle, mid);
+    if (Math.hypot(f.landing[0] - TIP[0], f.landing[1] - TIP[1]) < want) lo = mid;
+    else hi = mid;
+  }
+  return { angle, power: (lo + hi) / 2 };
+}

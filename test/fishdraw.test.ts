@@ -6,7 +6,7 @@
 import { FLOW_GLOW } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { describe, expect, it } from 'vitest';
-import { FISH_CAPACITY, SWIM } from '../src/lake';
+import { FISH_CAPACITY, FISH_KINDS, KINDS, SWIM } from '../src/lake';
 import { CURED_GLOW, FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
 import { fin, loft } from '../src/meshes';
 import { PALETTE } from '../src/palette';
@@ -47,7 +47,8 @@ describe('the fish, drawn', () => {
     expect(draw.write(game.fish)).toBe(game.fish.count);
     for (let i = 0; i < game.fish.count; i++) {
       const head = placed(draw, 0, i);
-      const len = SWIM.segments[0][0];
+      const size = KINDS[game.fish.kind[i]].scale;
+      const len = SWIM.segments[0][0]; // the placement's own x is already scaled
       // the head's back, a head's length behind its nose along its own x, is where the school has the fish
       expect(head.at[0] - head.x[0] * len).toBeCloseTo(game.fish.x[i], 5);
       expect(head.at[1] - head.x[1] * len).toBeCloseTo(game.fish.y[i], 5);
@@ -70,9 +71,9 @@ describe('the fish, drawn', () => {
       expect(Array.from(draw.matrices[SEGS + 1].subarray(i * 16, i * 16 + 16))).toEqual(
         Array.from(draw.matrices[1].subarray(i * 16, i * 16 + 16)),
       );
-      // each placement is a turn with no stretch: the meshes are built at their own size
-      expect(Math.hypot(...head.x)).toBeCloseTo(1, 5);
-      expect(Math.hypot(...head.z)).toBeCloseTo(1, 5);
+      // each placement is a turn stretched evenly by its kind's scale: the meshes are built at the shape's own size
+      expect(Math.hypot(...head.x)).toBeCloseTo(size, 5);
+      expect(Math.hypot(...head.z)).toBeCloseTo(size, 5);
       expect(head.z[2], 'its back up').toBeGreaterThan(0.8);
     }
   });
@@ -88,7 +89,7 @@ describe('the fish, drawn', () => {
       expect(draw.write(game.fish, 1, hang, t)).toBe(game.fish.count);
       const head = placed(draw, 0, 1);
       expect(head.at[2], 'its nose at the line’s end').toBeCloseTo(end[2], 1);
-      expect(head.x[2], 'nose up').toBeGreaterThan(0.95);
+      expect(head.x[2] / KINDS[game.fish.kind[1]].scale, 'nose up').toBeGreaterThan(0.95);
       tails.push(placed(draw, SEGS, 1).at[0]);
     }
     expect(new Set(tails.map((x) => x.toFixed(4))).size, 'it flaps').toBeGreaterThan(1);
@@ -171,6 +172,47 @@ describe('the fish, glowing or cured', () => {
         }
       }
     });
+  });
+
+  it('draws every slot in its kind’s glow, in the body and the second light, and a cured one gold whatever its kind', () => {
+    const kind = Uint8Array.from({ length: FISH_CAPACITY }, (_, i) => FISH_KINDS[i % FISH_KINDS.length]);
+    const cured = new Uint8Array(FISH_CAPACITY);
+    cured[0] = cured[1] = cured[2] = 1;
+    const groups = new FishDraw().groups(cured, kind);
+    groups.forEach((g, p) => {
+      const fin = p >= SEGS;
+      for (let i = 0; i < FISH_CAPACITY; i++) {
+        const glow = PALETTE[KINDS[kind[i]].glow];
+        const want = cured[i] ? (fin ? PALETTE.curedFin : PALETTE.cured) : glow;
+        expect(colourAt(g, i).slice(0, 3), `slot ${i} part ${p}`).toEqual(Array.from(want).map(Math.fround));
+        expect(flowAt(g, i).slice(4), `slot ${i} second light`).toEqual(
+          Array.from(cured[i] ? PALETTE.curedGlow : glow).map(Math.fround),
+        );
+      }
+    });
+    expect(new Set(KINDS.map((k) => k.glow)).size, 'three different glows').toBe(3);
+  });
+
+  it('stretches each fish’s placements by its kind’s scale, and a landed fish hung by it too', () => {
+    const { game } = newGame(2);
+    settle(game, 50);
+    const draw = new FishDraw();
+    draw.write(game.fish);
+    for (let i = 0; i < game.fish.count; i++) {
+      const m = draw.matrices[0].subarray(i * 16, i * 16 + 16);
+      expect(Math.hypot(m[0], m[1], m[2]), `fish ${i}`).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
+      expect(Math.hypot(m[4], m[5], m[6])).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
+      expect(Math.hypot(m[8], m[9], m[10])).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
+    }
+    const pike = FISH_KINDS.indexOf(2),
+      bream = FISH_KINDS.indexOf(0);
+    const len = (i: number) => {
+      draw.write(game.fish, i, [0, 0, -2]);
+      const a = draw.joints.subarray(i * 15, i * 15 + 3),
+        b = draw.joints.subarray(i * 15 + 12, i * 15 + 15);
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    };
+    expect(len(pike) / len(bream)).toBeCloseTo(1.35 / 0.85, 2);
   });
 
   it('is written again for a school that changed, by a new set of groups, from meshes made once', () => {

@@ -65,6 +65,25 @@ describe('the fuzzer', () => {
     expect(done['clean casts'], 'casts made into a clean pond').toBeGreaterThan(0);
   });
 
+  it('reaches every kind, a drum hauled, and a pond cleaned by cures and hauls: across seeds 1 to 24', () => {
+    const done: Record<string, number> = {},
+      happened: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
+    }
+    for (const kind of ['bream', 'perch', 'pike'])
+      expect(done[`caught ${kind}`], `a ${kind} caught`).toBeGreaterThan(0);
+    expect(done['lie on the bed'], 'casts left to lie on the bed').toBeGreaterThan(0);
+    expect(done['drum snagged'], 'a drum snagged').toBeGreaterThan(0);
+    expect(happened.hauled, 'a drum hauled').toBeGreaterThan(0);
+    expect(done['start drums'], 'seeds that start with a drum hauled').toBeGreaterThan(0);
+    expect(done['start journal'], 'seeds that start with a journal').toBeGreaterThan(0);
+    expect(done['pond cleaned by a haul'], 'ponds whose last cleaning was a haul').toBeGreaterThan(0);
+  });
+
   it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 12; seed++) {

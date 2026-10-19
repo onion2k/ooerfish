@@ -17,13 +17,15 @@
  */
 import { careful } from './angler';
 import type { Game } from './game';
-import { flight } from './cast';
+import { aimAt, flight } from './cast';
 import type { Layout } from './layout';
 import type { Place } from './night';
 import type { Mode } from './mode';
 import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
+import type { Journal } from './journal';
+import { ANGLER, KINDS, bedDepth } from './lake';
 import { seeded } from './random';
 import type { SceneryFigures } from './scene';
 import type { Settings } from './settings';
@@ -72,10 +74,24 @@ export interface LureState {
   bobber: [number, number];
 }
 
+/** A drum of waste: where it lies on the bed, and whether it has been hauled up for good. */
+/** What `fishTo` fishes for: a drum on the bed, or a kind of fish by its id. */
+export type Quarry = 'drum' | 'bream' | 'perch' | 'pike';
+
+export interface DrumState {
+  x: number;
+  y: number;
+  /** How deep the bed is under it. */
+  bed: number;
+  hauled: boolean;
+}
+
 /** A fish, where it is. */
 export interface FishingState {
   phase: string;
   fish: number;
+  /** The drum snagged, hooked or landed, or minus one. */
+  drum: number;
   tension: number;
   out: number;
   pulling: boolean;
@@ -97,6 +113,8 @@ export interface Fish {
   depth: number;
   /** Cured: gold, let go in the pond, and never drawn to the lure. */
   cured: boolean;
+  /** Its kind: an index into `KINDS`. */
+  kind: number;
 }
 
 export interface GameApi {
@@ -115,6 +133,8 @@ export interface GameApi {
 
   state(): GameState;
   fish(): Fish[];
+  /** Each drum of waste on the bed, where it lies and whether it is hauled. */
+  drums(): DrumState[];
   /** Every splash in the pool, live or over. */
   splashes(): Splash[];
   /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
@@ -136,8 +156,12 @@ export interface GameApi {
   strike(): string;
   /** The reel held or let go, as holding the screen, the Reel button or space does. */
   reel(on: boolean): void;
+  /** The save's journal: for each kind caught, by its id, how many, the best weight and the day of the first. */
+  journal(): Journal;
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
   stow(): boolean;
+  /** The landed drum of waste hauled up onto the bank, as a tap on its card does; false with none landed. */
+  haul(): boolean;
   /** The gifts in force, a flag for each (line, reel, rod, bobber, bait): what the cure count earns, from the next fight. */
   gear(): Record<string, boolean>;
   /** The fishing: the bite's phase and its fish, the line's strain and length, whether the fish darts, the bar, and the bucket. */
@@ -147,7 +171,7 @@ export interface GameApi {
    * under way with the fish in the zone and the meter past half; or a fish landed and waiting by the rod. For the pictures, which want each moment
    * the same every run; says whether it got there.
    */
-  fishTo(moment: 'bite' | 'fight' | 'landed'): boolean;
+  fishTo(moment: 'bite' | 'fight' | 'landed', quarry?: Quarry): boolean;
   /** Where the cast being aimed will land, and whether on the water; null when none is aimed. */
   preview(): { x: number; y: number; z: number; onWater: boolean } | null;
   /** A pebble dropped on the water at (x, y); says whether it landed, which off the water it does not. */
@@ -213,6 +237,11 @@ export interface GameApi {
    * is no way to answer it here: the answer is tested by pressing its buttons, as a player does.
    */
   startAgain(): Promise<void>;
+  /**
+   * Opens the journal's page as the menu's item does, resolving once it is shown, or closes it again with `false`. While
+   * it is open the page does not step the game, whether a frame of its own or a step the test asks for.
+   */
+  openJournal(open?: boolean): Promise<void>;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -312,6 +341,7 @@ export interface DebugHost {
   phone(): PhoneReading;
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
   startAgain(): Promise<void>;
+  openJournal(open: boolean): Promise<void>;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
   setSettings(next: Partial<Settings>): Promise<void>;
   /** The lake made as dirty as that, the water drawn so. */
@@ -373,6 +403,16 @@ export function createApi(host: DebugHost): GameApi {
         y: fish.y[i],
         depth: fish.depth[i],
         cured: fish.cured[i] === 1,
+        kind: fish.kind[i],
+      }));
+    },
+    drums() {
+      const { drums } = game;
+      return Array.from({ length: drums.count }, (_, i) => ({
+        x: drums.x[i],
+        y: drums.y[i],
+        bed: bedDepth(drums.x[i], drums.y[i]),
+        hauled: drums.hauled[i] === 1,
       }));
     },
     splashes() {
@@ -397,10 +437,13 @@ export function createApi(host: DebugHost): GameApi {
     strike: () => game.strike(),
     reel: (on) => game.reel(on),
     stow: () => game.stow(),
+    haul: () => game.haul(),
+    journal: () => JSON.parse(JSON.stringify(game.progress.save.journal)) as Journal,
     gear: () => ({ ...game.gear }),
     fishing: () => ({
       phase: game.bite.phase,
       fish: game.bite.fish,
+      drum: game.bite.drum,
       tension: game.line.tension,
       out: game.line.out,
       pulling: game.line.pulling,
@@ -413,18 +456,68 @@ export function createApi(host: DebugHost): GameApi {
       fishAt: game.line.fishAt,
       meter: game.line.meter,
     }),
-    fishTo(moment) {
+    fishTo(moment, quarry) {
       // each frame as the page's own step does it, the lake on and drawn, so what follows in the picture is the same
       const frame = () => {
         host.simulate(1 / 60);
         host.draw(1 / 60);
       };
-      game.cast(Math.PI / 2 + 0.15, 0.55);
-      for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
+      const want = quarry === undefined || quarry === 'drum' ? -1 : KINDS.findIndex((k) => k.id === quarry);
+      /**
+       * Fished for where the nearest uncured fish that `wanted` lies, the lure left to sink through its water. A bite by a
+       * fish that is not `wanted` is let go and the cast thrown again, since the sink is the player's choice and it
+       * passes every kind's water on the way down.
+       */
+      const fishFor = (wanted: (i: number) => boolean): boolean => {
+        const dist = (i: number) => Math.hypot(game.fish.x[i] - ANGLER.x, game.fish.y[i] - ANGLER.y);
+        for (let attempt = 0; attempt < 12; attempt++) {
+          let near = -1;
+          for (let i = 0; i < game.fish.count; i++) {
+            if (!wanted(i) || game.fish.cured[i]) continue;
+            if (near < 0 || dist(i) < dist(near)) near = i;
+          }
+          if (near < 0) return false;
+          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near]);
+          if (!game.cast(angle, power)) return false;
+          for (let f = 0; f < 2400 && game.bite.phase !== 'biting'; f++) {
+            frame();
+            if (game.bite.fish >= 0 && game.bite.phase !== 'none' && !wanted(game.bite.fish)) break;
+          }
+          if (game.bite.phase === 'biting' && wanted(game.bite.fish)) return true;
+          game.reelIn();
+        }
+        return false;
+      };
+      if (quarry === 'drum') {
+        // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
+        const i = game.drums.hauled.indexOf(0);
+        if (i < 0) return false;
+        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i]);
+        if (!game.cast(angle, power)) return false;
+        for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
+      } else if (want >= 0) {
+        if (!fishFor((i) => game.fish.kind[i] === want)) return false;
+      } else {
+        // the middle of the lake first, as it always was; and, with a bite never coming in the water that is in the
+        // band, where the nearest uncured fish lies, since the fish keep to depths and a cast to the middle may find none
+        game.cast(Math.PI / 2 + 0.15, 0.55);
+        for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
+        if (game.bite.phase !== 'biting') {
+          game.reelIn();
+          fishFor(() => true);
+        }
+      }
       if (moment === 'bite') return game.bite.phase === 'biting';
       game.strike();
       for (let f = 0; f < 7200 && game.bite.phase === 'hooked'; f++) {
         const { line } = game;
+        if (quarry === 'drum') {
+          // a drum has no zone to keep: it is hauled by holding the reel, and the fight is pictured a few seconds in
+          if (moment === 'fight' && f > 300 && line.meter > 0.5) break;
+          game.reel(true);
+          frame();
+          continue;
+        }
         // a fight is pictured a few seconds in, the fish in the zone and the meter past half
         if (moment === 'fight' && f > 300 && line.inZone() && line.meter > 0.5) break;
         game.reel(careful(line.zone, line.zoneSpeed, line.fishAt, line.figures.width));
@@ -479,6 +572,7 @@ export function createApi(host: DebugHost): GameApi {
     phone: () => host.phone(),
     pair: (fixed) => host.pair(fixed),
     startAgain: () => host.startAgain(),
+    openJournal: (open = true) => host.openJournal(open),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),

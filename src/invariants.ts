@@ -5,7 +5,10 @@
  * The time is a number and not before the start. Every fish is a number,
  * in the water, below the surface and above the bed, and there are no more
  * than a lake holds; and every joint of its body as it is drawn is below the
- * surface and above the bed too. The contamination is within nought and one and never rises but by the lever, the count cured is a whole number, and the time of day is in [0, 1). There
+ * surface and above the bed too. The contamination is within nought and one, never rises but by the lever, and is the formula's for the
+ * fish cured and the drums hauled unless the lever has set it; the count cured is a whole number, the drums hauled are
+ * from none to the pond's and the save's, and none of them is the bite's; the journal is in its kinds' ranges, no
+ * later than today and no more than the fish cured; and the time of day is in [0, 1). There
  * are no more splashes than the pool holds, each on the water, none landed
  * after now, every number a number.
  *
@@ -16,18 +19,80 @@ import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
 import {
   CLOCK,
+  DRUMS,
   FIGHT,
   FISHING,
   FISH_CAPACITY,
   FISH_COUNT,
   GEAR,
   SPLASH_CAPACITY,
+  KINDS,
   SWIM,
   bedDepth,
+  contaminationAfter,
   ground,
   inside,
 } from './lake';
 import { poseFish } from './swim';
+
+/**
+ * The journal's rules. Each entry is of a kind the game knows, a whole count of one or more, a best weight within its
+ * kind's range (nought is none: a save could not vouch for it) and a first day that is a whole number up to today
+ * (nought is none); and the counts together are at most the fish cured, since a catch cures a fish.
+ *
+ * The fish cured of each kind are the journal's count of it, at most the kind's slots, where the journal accounts for
+ * every cure. It does not when it accounts for fewer than the pond has cured (`accounted` below the count cured, held
+ * to the pond's twelve): that is an old save, whose leftover cures were made in slot order and may lie in any kind, so
+ * a kind then holds at least what the journal says and no fewer. A stow cures a fish of one kind and counts it in that
+ * kind, so the leftover is the same for the whole of play.
+ */
+function journalRules(game: Game, out: string[]) {
+  const { journal, cured } = game.progress.save;
+  const { fish } = game;
+  const known = new Set<string>(KINDS.map((k) => k.id));
+  let caught = 0;
+  let sound = true;
+  for (const [id, e] of Object.entries(journal)) {
+    if (!e) continue;
+    if (!known.has(id)) {
+      out.push(`the journal has a kind not known: ${id}`);
+      sound = false;
+      continue;
+    }
+    const kind = KINDS.find((k) => k.id === id)!;
+    if (!Number.isSafeInteger(e.caught) || e.caught < 1) {
+      out.push(`the journal's ${id} has caught ${e.caught}`);
+      sound = false;
+      continue;
+    }
+    caught += e.caught;
+    const [least, most] = kind.weight;
+    if (!(e.best === 0 || (e.best >= least && e.best <= most)))
+      out.push(`the journal's best ${id} is ${e.best} kg, outside ${least} to ${most}`);
+    if (!Number.isSafeInteger(e.first) || e.first < 0)
+      out.push(`the journal's ${id} was first caught on day ${e.first}`);
+    else if (e.first > game.day)
+      out.push(`the journal's ${id} was first caught on day ${e.first}, but it is day ${game.day}`);
+  }
+  if (caught > cured) out.push(`the journal counts ${caught} caught, but only ${cured} are cured`);
+  if (!sound) return;
+  const slots = KINDS.map(() => 0);
+  const curedOf = KINDS.map(() => 0);
+  for (let i = 0; i < fish.count; i++) {
+    slots[fish.kind[i]]++;
+    curedOf[fish.kind[i]] += fish.cured[i];
+  }
+  const said = KINDS.map((k, n) => Math.min(journal[k.id]?.caught ?? 0, slots[n]));
+  const accounted = said.reduce((a, b) => a + b, 0);
+  const whole = accounted >= Math.min(cured, FISH_COUNT);
+  KINDS.forEach((k, n) => {
+    const wrong = whole ? curedOf[n] !== said[n] : curedOf[n] < said[n];
+    if (wrong)
+      out.push(
+        `${k.id}: ${curedOf[n]} fish are cured, but the journal says ${journal[k.id]?.caught ?? 0} caught of ${slots[n]} slots`,
+      );
+  });
+}
 
 /** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
 const spine = new Float64Array((SWIM.segments.length + 1) * 3);
@@ -82,7 +147,7 @@ export function checkInvariants(game: Game): string[] {
       bent.push(`fish ${i}'s stroke is not a number`);
       continue;
     }
-    poseFish(spine, SWIM, fish, i, bedDepth);
+    poseFish(spine, SWIM, fish, i, bedDepth, KINDS[fish.kind[i]].scale);
     for (let k = 0; k < spine.length; k += 3) {
       const jx = spine[k],
         jy = spine[k + 1],
@@ -136,6 +201,13 @@ export function checkInvariants(game: Game): string[] {
   const was = seen.get(game);
   if (was && was.levers === game.levers && game.contamination > was.contamination)
     out.push(`the contamination rose from ${was.contamination} to ${game.contamination}, and no lever was set`);
+  // and unless the lever has set it, it is exactly what the formula says of the fish cured and the drums hauled
+  if (game.levers === 0) {
+    const { cured, drums } = game.progress.save;
+    const truth = contaminationAfter(cured, drums);
+    if (Math.abs(game.contamination - truth) > 1e-9)
+      out.push(`the contamination is ${game.contamination}, but ${cured} cured and ${drums} hauled make it ${truth}`);
+  }
   // the water the page shows lies between the truth and sick, and like the truth it only falls but by the lever
   if (!(game.waterDirt >= 0 && game.waterDirt <= 1)) out.push(`the water's dirt is ${game.waterDirt}`);
   else if (game.waterDirt < game.contamination)
@@ -177,6 +249,14 @@ export function checkInvariants(game: Game): string[] {
     if (game.gear[g.id] !== gear[g.id])
       out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${cured} cured earns it ${gear[g.id]}`);
   if (game.bite.gear !== game.gear) out.push('the bite has not the gear the game holds');
+  // the drums hauled are a count from none to the pond's, the save's, and each is gone from the bed for good
+  const hauled = game.drums.hauledCount();
+  if (!Number.isSafeInteger(game.progress.save.drums) || game.progress.save.drums < 0)
+    out.push(`the save says ${game.progress.save.drums} drums hauled`);
+  else if (hauled < 0 || hauled > DRUMS.count) out.push(`${hauled} drums are hauled, of ${DRUMS.count} in the pond`);
+  else if (hauled !== game.progress.save.drums)
+    out.push(`${hauled} drums are hauled, but the save says ${game.progress.save.drums}`);
+  journalRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }
@@ -234,9 +314,21 @@ function fishingRules(game: Game): string[] {
   const { bite, fish, lure, line } = game;
   const phases = ['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'];
   if (!phases.includes(bite.phase)) return [`the bite is ${String(bite.phase)}`];
+  // the quarry is a fish or a drum, and a hauled drum is never the bite's
+  if (!Number.isInteger(bite.drum) || bite.drum < -1 || bite.drum >= game.drums.count)
+    return [`the bite has drum ${bite.drum}, of ${game.drums.count}`];
+  if (bite.drum >= 0 && game.drums.hauled[bite.drum]) out.push(`drum ${bite.drum} is hauled, but it is the bite's`);
   if (bite.phase === 'none') {
     if (bite.fish !== -1) out.push(`no fish is at the lure, but the bite has fish ${bite.fish}`);
+    if (bite.drum !== -1) out.push(`no drum is at the lure, but the bite has drum ${bite.drum}`);
     if (fish.held !== -1) out.push(`no fish is at the lure, but the school holds fish ${fish.held}`);
+  } else if (bite.drum >= 0) {
+    if (bite.fish !== -1) out.push(`the bite is ${bite.phase} with drum ${bite.drum} and fish ${bite.fish}`);
+    if (fish.held !== -1) out.push(`drum ${bite.drum} is ${bite.phase}, but the school holds fish ${fish.held}`);
+    if (!['biting', 'hooked', 'landed'].includes(bite.phase)) out.push(`drum ${bite.drum} is ${bite.phase}`);
+    if (bite.phase === 'hooked' || bite.phase === 'landed') {
+      if (lure.phase !== 'hooked') out.push(`drum ${bite.drum} is ${bite.phase}, but the lure is ${lure.phase}`);
+    } else if (lure.phase !== 'sinking') out.push(`drum ${bite.drum} is ${bite.phase} at a lure that is ${lure.phase}`);
   } else {
     if (!Number.isInteger(bite.fish) || bite.fish < 0 || bite.fish >= fish.count)
       return [...out, `the bite is ${bite.phase} with fish ${bite.fish}, of ${fish.count}`];

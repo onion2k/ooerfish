@@ -1,7 +1,8 @@
 /** What a fish's size and temper do to its fight: the figures `fightFor` hands the line, and the odds of a temper. */
 import { describe, expect, it } from 'vitest';
-import { drawTemper, fightFor, type Temper } from '../src/fight';
-import { FIGHT, TEMPERS } from '../src/lake';
+import { drawTemper, drumFight, fightFor, gearFor, type Temper } from '../src/fight';
+import { Line } from '../src/line';
+import { DRUMS, FIGHT, TEMPERS } from '../src/lake';
 import { seeded } from '../src/random';
 
 const TEMPER_NAMES: Temper[] = ['calm', 'steady', 'feisty'];
@@ -94,5 +95,78 @@ describe('drawTemper', () => {
     let n = 0;
     drawTemper(() => (n++, 0.5));
     expect(n).toBe(1);
+  });
+});
+
+describe('drumFight', () => {
+  /** A drum hooked 20 out and played a second at a time with the reel held or not, by a line that draws no chance. */
+  function play(gear = gearFor(0)) {
+    const line = new Line();
+    line.start(20, drumFight(gear), () => {
+      throw new Error('a drum draws no chance');
+    });
+    return line;
+  }
+
+  it('is a profile with no darts and no drain: the fill is the drum’s own, the rest the fish’s base', () => {
+    const f = drumFight(gearFor(0));
+    expect(f.drum).toBe(true);
+    expect(f.drain).toBe(0);
+    expect(f.fill).toBe(DRUMS.fill);
+    expect(f.width).toBe(FIGHT.width);
+    expect(f.push).toBe(FIGHT.push);
+    expect(fightFor(0.5, 'steady').drum, 'a fish’s fight is not a drum’s').toBe(false);
+  });
+
+  it('never darts: the drum stays where it was hooked on the bar, however long it is played', () => {
+    const line = play();
+    const at = line.fishAt;
+    for (let f = 0; f < 60 * 60; f++) {
+      line.step(1 / 60, f % 90 < 45, 1, () => {
+        throw new Error('a drum draws no chance');
+      });
+      expect(line.fishAt).toBe(at);
+      expect(line.pulling).toBe(false);
+    }
+  });
+
+  it('never slips, and just waits when the reel is let go', () => {
+    const line = play();
+    const meter = line.meter;
+    for (let f = 0; f < 60 * 120; f++) {
+      expect(line.step(1 / 60, false, 1, () => 0)).toBe('fighting');
+    }
+    expect(line.meter, 'let go, it waits where it was').toBe(meter);
+  });
+
+  it('lands with the reel held, at the drum’s own rate, and not before', () => {
+    const line = play();
+    let seconds = 0;
+    let did = 'fighting';
+    while (did === 'fighting' && seconds < 120) {
+      did = line.step(1 / 60, true, 1, () => 0);
+      seconds += 1 / 60;
+    }
+    expect(did).toBe('landed');
+    // from the meter's start to full at the fill a second
+    expect(seconds).toBeCloseTo((1 - FIGHT.meterStart) / DRUMS.fill, 0);
+  });
+
+  it('draws the line in as the meter fills, and holds it as it waits', () => {
+    const line = play();
+    const out = line.out;
+    for (let f = 0; f < 120; f++) line.step(1 / 60, true, 0, () => 0);
+    const drawn = line.out;
+    expect(drawn).toBeLessThan(out);
+    for (let f = 0; f < 120; f++) line.step(1 / 60, false, 0, () => 0);
+    expect(line.out).toBe(drawn);
+  });
+
+  it('is eased by the reel’s gift, and by nothing else', () => {
+    const base = drumFight(gearFor(0));
+    const reel = drumFight(gearFor(4));
+    expect(reel.fill).toBeGreaterThan(base.fill);
+    expect(reel.push).toBeGreaterThan(base.push);
+    expect(drumFight(gearFor(2)).fill).toBe(base.fill);
   });
 });

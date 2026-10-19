@@ -23,6 +23,34 @@ function left(j: Float64Array, k: number, x: number, y: number, heading: number)
 }
 
 describe("a fish's body, posed", () => {
+  it('lies a scaled segment’s length from joint to joint when the fish is scaled, a pike long and a bream small', () => {
+    for (const scale of [0.85, 1, 1.35]) {
+      const j = joints();
+      pose(j, SWIM, 0, 0, -2, 0.7, 0.1, 0.3, 1.1, SWIM.amp, ANCHOR * scale, scale);
+      for (let k = 0; k < N - 1; k++) {
+        const [ax, ay, az] = at(j, k),
+          [bx, by, bz] = at(j, k + 1);
+        expect(Math.hypot(ax - bx, ay - by, az - bz)).toBeCloseTo(SWIM.segments[k][0] * scale, 9);
+      }
+    }
+  });
+
+  it('poses a scaled fish’s whole spine scale times as far, nose to tail fin, straight and still', () => {
+    const school = new School();
+    school.fill(1, seeded(3));
+    const long = joints(),
+      one = joints();
+    school.pace[0] = 0;
+    school.turn[0] = 0;
+    school.rise[0] = 0;
+    school.vigour[0] = 1;
+    school.phase[0] = 0;
+    poseFish(one, SWIM, school, 0, () => 20, 1);
+    poseFish(long, SWIM, school, 0, () => 20, 1.35);
+    const span = (j: Float64Array) => Math.hypot(j[0] - j[(N - 1) * 3], j[1] - j[(N - 1) * 3 + 1]);
+    expect(span(long) / span(one)).toBeCloseTo(1.35, 1);
+  });
+
   it('is as long as FISH_BODY says, nose to tail', () => {
     expect(L).toBeCloseTo(1.7, 6);
   });

@@ -16,6 +16,8 @@ import type { Random } from './random';
 export type Fight = 'fighting' | 'slipped' | 'landed';
 
 const within = (random: Random, [lo, hi]: readonly [number, number]) => lo + random() * (hi - lo);
+/** How taut the line is while a drum is being hauled in. */
+const HAULING_TENSION = 0.6;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export class Line {
@@ -51,6 +53,14 @@ export class Line {
     this.out = Math.min(FIGHT.spool, Math.max(0, out));
     this.zone = 0;
     this.zoneSpeed = 0;
+    if (figures.drum) {
+      // a drum is dead weight: it sits in the middle of the bar for good and draws no chance
+      this.fishAt = this.target = 0.5;
+      this.pulling = false;
+      this.timer = Infinity;
+      this.tension = FIGHT.calm;
+      return;
+    }
     this.fishAt = within(random, FIGHT.hookedAt);
     this.dart(random);
     this.strain();
@@ -58,6 +68,7 @@ export class Line {
 
   /** On by `dt`, the reel held or not, in a lake as sick as `hot` (from nought to one). */
   step(dt: number, holding: boolean, hot: number, random: Random): Fight {
+    if (this.figures.drum) return this.haul(dt, holding);
     // the fish: a dart to its target at its speed, and a rest once it is there or the dart has gone on too long
     this.timer -= dt;
     if (this.pulling) {
@@ -90,6 +101,26 @@ export class Line {
     if (this.meter >= 1) return 'landed';
     if (this.meter <= 0) return 'slipped';
     return 'fighting';
+  }
+
+  /**
+   * A drum on by `dt`: the zone moves as ever, but the meter fills at a steady rate while the reel is held and stays
+   * where it is when it is not, so a drum is landed by holding and never slipped. The line is drawn in as it fills.
+   */
+  private haul(dt: number, holding: boolean): Fight {
+    this.zoneSpeed += (holding ? this.figures.push : -this.figures.fall) * dt;
+    this.zoneSpeed *= Math.pow(FIGHT.drag, dt);
+    this.zone += this.zoneSpeed * dt;
+    const top = 1 - this.figures.width;
+    if (this.zone <= 0 || this.zone >= top) {
+      this.zone = clamp(this.zone, 0, top);
+      this.zoneSpeed = 0;
+    }
+    if (holding) this.meter = clamp(this.meter + this.figures.fill * dt, 0, 1);
+    this.out = Math.min(FIGHT.spool, this.reach * (1 - this.meter));
+    // a drum has no zone to be out of: the line is calm waiting, and tauter while it is hauled
+    this.tension = holding ? HAULING_TENSION : FIGHT.calm;
+    return this.meter >= 1 ? 'landed' : 'fighting';
   }
 
   /** Whether the fish is in the player's zone. */

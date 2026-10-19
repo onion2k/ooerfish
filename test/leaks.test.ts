@@ -15,12 +15,12 @@ describe('what must stay bounded', () => {
   it('reads the sizes off a game, and has a ceiling for every one', () => {
     const { game } = newGame();
     const now = sizes(game);
-    for (const key of ['fish', 'splashes', 'save bytes', 'heap MB']) {
+    for (const key of ['fish', 'splashes', 'save bytes', 'journal kinds', 'drums hauled', 'heap MB']) {
       expect(Object.keys(now), `${key} measured`).toContain(key);
       expect(Number.isFinite(now[key])).toBe(true);
       expect(Object.keys(WATCH), `a ceiling for ${key}`).toContain(key);
     }
-    expect(now['save bytes'], 'a fresh save is {"cured":0,"day":1}, nineteen bytes').toBe(19);
+    expect(now['save bytes'], 'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{}}, forty-two bytes').toBe(42);
   });
 
   it('holds the phone to its ceilings through a busy room of phones, strangers and noise', () => {

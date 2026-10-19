@@ -1,6 +1,6 @@
 /** The fight's snapshot: what the bar and the button show, as plain numbers and words that a phone could draw from. */
 import { describe, expect, it } from 'vitest';
-import { fightPicture } from '../src/fightview';
+import { cardWords, fightPicture } from '../src/fightview';
 import { Game } from '../src/game';
 import { careful } from '../src/angler';
 import { DT, newGame } from './helpers';
@@ -120,5 +120,26 @@ describe('fightPicture', () => {
       b = hooked(3);
     expect(fightPicture(a)).toEqual(fightPicture(b));
     expect(fightPicture(a)).toEqual(fightPicture(a));
+  });
+});
+
+describe('cardWords', () => {
+  it('names a drum of waste, with no temper, and its weight', () => {
+    expect(cardWords('drum', 'steady', 42)).toEqual({
+      name: 'drum of waste',
+      weight: '42.00 kg',
+      line: 'a drum of waste, 42.00 kg',
+    });
+    expect(cardWords('drum', 'feisty', 42).name, 'a drum has no temper').toBe('drum of waste');
+  });
+
+  it('names the temper, the kind and the weight, for each kind', () => {
+    expect(cardWords(2, 'feisty', 3.62).line).toBe('a feisty pike, 3.62 kg');
+    expect(cardWords(0, 'calm', 0.5).line).toBe('a calm sunny bream, 0.50 kg');
+    expect(cardWords(1, 'steady', 1.234)).toEqual({
+      name: 'steady glowing perch',
+      weight: '1.23 kg',
+      line: 'a steady glowing perch, 1.23 kg',
+    });
   });
 });

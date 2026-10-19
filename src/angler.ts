@@ -15,6 +15,12 @@ import type { Random } from './random';
 export const REACTION = 15;
 /** How far ahead it reads the zone's speed: it lets go this many seconds early, so the zone does not swing past. */
 const LEAD = 0.15;
+/**
+ * How long it leaves a sunk lure with no fish at it before reeling in to cast again, in seconds. Each kind keeps to a
+ * depth of its own and the lure stops at the line's depth, so a lure left there for ever would wait for a kind that
+ * is not in that water; a player lets the lure sink through the bands again, and so does this hand.
+ */
+export const PATIENCE = 12;
 /** The cast it aims: due north from the shore at about the power that reaches the middle, and how far it varies either. */
 const AIM = { angle: Math.PI / 2, power: 0.62, spread: 0.25, powerSpread: 0.08 } as const;
 
@@ -32,6 +38,8 @@ export class Angler {
   /** Where the fish was on the bar at the start of each of the last frames of the fight, sized once. */
   private readonly seen = new Float64Array(REACTION + 1);
   private frames = 0;
+  /** How long the lure has sunk with no fish at it, in seconds. */
+  private waited = 0;
 
   constructor(
     private readonly game: Game,
@@ -47,13 +55,19 @@ export class Angler {
     if (phase === 'hooked') this.seen[this.frames++ % this.seen.length] = g.line.fishAt;
     else this.frames = 0;
     if (phase === 'landed') g.stow();
-    else if (phase === 'biting') g.strike();
+    else if (phase === 'biting') {
+      // a heavy dip is a drum of waste snagged on the bed, which it is not fishing for: it reels in and casts again,
+      // the pace being the minutes to land fish (a drum is hauled by whoever plays for the cleaning)
+      if (g.bite.drum >= 0) g.reelIn();
+      else g.strike();
+    }
     if (g.bite.phase === 'hooked') {
       // until it has watched the fish for a reaction, it goes by where the fish is now
       const at = this.frames > REACTION ? this.seen[(this.frames - 1 - REACTION) % this.seen.length] : g.line.fishAt;
       g.reel(careful(g.line.zone, g.line.zoneSpeed, at, g.line.figures.width));
     } else g.reel(false);
-    if (g.lure.phase === 'lying') g.reelIn();
+    this.waited = g.lure.phase === 'sinking' && phase === 'none' ? this.waited + dt : 0;
+    if (g.lure.phase === 'lying' || this.waited > PATIENCE) g.reelIn();
     if (g.lure.phase === 'ready')
       g.cast(AIM.angle + (this.random() * 2 - 1) * AIM.spread, AIM.power + (this.random() * 2 - 1) * AIM.powerSpread);
     g.step(dt);

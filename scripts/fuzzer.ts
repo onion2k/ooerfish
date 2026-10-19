@@ -16,7 +16,8 @@ import { careful } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
-import { FISH_COUNT, GEAR } from '../src/lake';
+import { aimAt } from '../src/cast';
+import { DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -63,6 +64,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     gifted: 0,
     yawned: 0,
     woke: 0,
+    hauled: 0,
   };
   // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
   const bed = { chosen: false };
@@ -80,6 +82,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     cured: count('cured'),
     gifted: count('gifted'),
     yawned: count('yawned'),
+    hauled: count('hauled'),
     // a waking is counted by how it came: a bed chosen (the action sets `bed`), or midnight
     woke: () => {
       happened.woke++;
@@ -113,7 +116,31 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     done['start cured'] = curedAtStart;
     // the gifts the part-cured start already holds, so some seeds fish with gear from the first frame
     done['start gifts'] = GEAR.filter((g) => curedAtStart >= g.at).length;
-    let store = memoryStore(JSON.stringify({ cured: curedAtStart }));
+    // a returning player's drums and journal, from a stream of their own as well: every fish cured has its drums hauled, or all but one;
+    // any other pond has none to every drum hauled; seven saves in ten keep a journal, which says
+    // of some of the cured what kind each was, and the rest are an old save's, cured in slot order
+    const { drumsAtStart, journalAtStart } = (() => {
+      const pick = seeded(seed * 17 + 3);
+      // every fish cured leaves the pond clean only if the drums are hauled too: half of those starts leave one on the bed
+      const drums =
+        curedAtStart === FISH_COUNT ? DRUMS.count - (pick() < 0.5 ? 1 : 0) : Math.floor(pick() * (DRUMS.count + 1));
+      const journal: Record<string, { caught: number; best: number; first: number }> = {};
+      if (pick() < 0.7) {
+        const room = KINDS.map((_, i) => FISH_KINDS.filter((f) => f === i).length);
+        for (let n = 0; n < curedAtStart; n++) {
+          const k = Math.floor(pick() * KINDS.length);
+          if (room[k] < 1) continue;
+          room[k]--;
+          const [least, most] = KINDS[k].weight;
+          const e = (journal[KINDS[k].id] ??= { caught: 0, best: least + pick() * (most - least), first: 1 });
+          e.caught++;
+        }
+      }
+      return { drumsAtStart: drums, journalAtStart: journal };
+    })();
+    done['start drums'] = drumsAtStart;
+    done['start journal'] = Object.keys(journalAtStart).length;
+    let store = memoryStore(JSON.stringify({ cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart }));
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
@@ -129,12 +156,15 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     const makePhone = () => phoneMonkey(() => game, random, phoned);
     let phone: PhoneMonkey = makePhone();
     let busy = 0;
+    let snagged = false;
     // the frames since the player woke in the cabin; one who stays too long goes down to the pond
     let inCabin = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     // what the clean pond saw, from nought so a monkey that never reached it shows as nought and not as missing
     done['clean frames'] = 0;
     done['clean casts'] = 0;
+    for (const what of ['lie on the bed', 'drum snagged', 'pond cleaned by a haul']) done[what] = 0;
+    for (const k of KINDS) done[`caught ${k.id}`] = 0;
     done['bites in a clean pond'] = 0;
     done['most cured'] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
@@ -144,6 +174,25 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     const cast = (angle: number, power: number) => {
       const into = game.pondClean;
       if (game.cast(angle, power) && into) done['clean casts']++;
+    };
+    /** A cast aimed at a drum still on the bed (any spot, if all are hauled) and left to sink and lie there. */
+    const castToBed = () => {
+      const open = Array.from({ length: game.drums.count }, (_, i) => i).filter((i) => !game.drums.hauled[i]);
+      const i = open.length ? open[Math.floor(random() * open.length)] : Math.floor(random() * game.drums.count);
+      const { angle, power } = aimAt(game.drums.x[i] + between(-1, 1), game.drums.y[i] + between(-1, 1));
+      cast(angle, power);
+    };
+    /** What is landed taken in: a fish stowed, counted by its kind, or a drum hauled; false when nothing was landed. */
+    const land = (): boolean => {
+      const i = game.bite.fish;
+      const kind = i >= 0 ? KINDS[game.fish.kind[i]].id : '';
+      if (game.stow()) {
+        done[`caught ${kind}`] = (done[`caught ${kind}`] ?? 0) + 1;
+        return true;
+      }
+      if (!game.haul()) return false;
+      if (game.pondClean) done['pond cleaned by a haul']++;
+      return true;
     };
     const did = (what: string) => {
       done[what] = (done[what] ?? 0) + 1;
@@ -206,6 +255,15 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         },
       ],
       [
+        2,
+        () => {
+          // a cast left to sink to the bed by a drum, where it may snag
+          castToBed();
+          busy = Math.floor(between(120, 600));
+          did('lie on the bed');
+        },
+      ],
+      [
         1,
         () => {
           game.reelIn();
@@ -231,7 +289,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       [
         1,
         () => {
-          game.stow();
+          // a landed drum is hauled where a landed fish is stowed, so a drum snagged does not hold the rod for good
+          land();
           did('stow');
         },
       ],
@@ -329,9 +388,14 @@ export function fuzz(seed: number, frames: number): FuzzResult {
             game.reel(page.holding);
           }
         }
-        if (game.bite.phase === 'landed') game.stow();
-        if (game.lure.phase === 'ready' || game.lure.phase === 'lying')
-          cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+        if (game.bite.phase === 'landed') land();
+        if (game.lure.phase === 'ready' || game.lure.phase === 'lying') {
+          // now and then the lure is thrown to lie by a drum, where the bed is reached; mostly out to the fish
+          if (random() < 0.3) {
+            castToBed();
+            done['lie on the bed']++;
+          } else cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+        }
       } else if (busy > 0) busy--;
       else {
         act();
@@ -349,6 +413,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         }
       } else inCabin = 0;
       game.step(page.paused ? 0 : DT);
+      if (game.bite.drum >= 0 && !snagged) done['drum snagged']++;
+      snagged = game.bite.drum >= 0;
       done['most cured'] = Math.max(done['most cured'], game.fish.curedCount());
       if (game.pondClean) {
         done['clean frames']++;

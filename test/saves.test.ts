@@ -9,7 +9,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { Progress, memoryStore } from '../src/progress';
+import { DRUMS, KINDS } from '../src/lake';
+import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 
 const DIR = new URL('saves/', import.meta.url);
@@ -26,6 +27,19 @@ const KEPT: Record<string, Record<string, unknown>> = {
   '02-cured.json': { cured: 5 },
   // the day's end: the number of the day, from one
   '03-day.json': { cured: 5, day: 4 },
+  // the drums of waste: a count hauled up from the bed
+  '04-drums.json': { cured: 5, day: 4, drums: 1 },
+  // the journal: what each kind has had caught, its best weight and the day of the first
+  '05-journal.json': {
+    cured: 5,
+    day: 4,
+    drums: 1,
+    journal: {
+      bream: { caught: 2, best: 0.85, first: 2 },
+      perch: { caught: 2, best: 1.9, first: 1 },
+      pike: { caught: 1, best: 3.1, first: 4 },
+    },
+  },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -59,12 +73,17 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1 });
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1 });
-    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0, day: 1 });
+    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
     // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
     for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
-      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({ cured: 0, day: 1 });
+      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({
+        cured: 0,
+        day: 1,
+        drums: 0,
+        journal: {},
+      });
     // and one that is, is kept, with whatever else the save said left alone
     expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
   });
@@ -76,14 +95,86 @@ describe('saves from every shape the game has written', () => {
       expect(new Progress(memoryStore(`{"day": ${bad}}`)).save.day, bad).toBe(1);
   });
 
+  it('reads the drums hauled as a whole number held to the drums there are, and anything else as none', () => {
+    expect(new Progress(memoryStore('{"drums": 1}')).save.drums).toBe(1);
+    expect(new Progress(memoryStore('{"cured": 3}')).save.drums, 'an old save has none').toBe(0);
+    expect(new Progress(memoryStore('{"drums": 0}')).save.drums).toBe(0);
+    expect(new Progress(memoryStore(`{"drums": ${DRUMS.count}}`)).save.drums).toBe(DRUMS.count);
+    expect(new Progress(memoryStore('{"drums": 9}')).save.drums, 'past the pond’s drums').toBe(DRUMS.count);
+    for (const bad of ['-1', '1.5', '"1"', 'null', '[1]', '1e400', '9007199254740993', 'true'])
+      expect(new Progress(memoryStore(`{"drums": ${bad}}`)).save.drums, bad).toBe(0);
+  });
+
+  describe('the journal', () => {
+    const journalOf = (j: string, rest = '"cured": 9, "day": 5') =>
+      new Progress(memoryStore(`{${rest}, "journal": ${j}}`)).save.journal;
+    const good = { caught: 2, best: 0.5, first: 3 };
+
+    it('is empty for an old save, and an entry is kept as it was written', () => {
+      expect(new Progress(memoryStore('{"cured": 3}')).save.journal).toEqual({});
+      expect(journalOf('{"bream": {"caught": 2, "best": 0.5, "first": 3}}')).toEqual({ bream: good });
+    });
+
+    it('is none when it is not an object', () => {
+      for (const bad of ['null', '4', '"x"', '[1]', 'true']) expect(journalOf(bad), bad).toEqual({});
+    });
+
+    it('drops an entry for a kind the game does not know, and keeps the others', () => {
+      expect(
+        journalOf('{"eel": {"caught": 1, "best": 1, "first": 1}, "bream": {"caught": 2, "best": 0.5, "first": 3}}'),
+      ).toEqual({
+        bream: good,
+      });
+    });
+
+    it('takes a count that is not a whole number of one or more for none: the entry is dropped', () => {
+      for (const bad of ['-1', '0', '1.5', '"2"', 'null', '[2]', '1e400', '9007199254740993'])
+        expect(journalOf(`{"bream": {"caught": ${bad}, "best": 0.5, "first": 3}}`), bad).toEqual({});
+    });
+
+    it('takes a best weight outside its kind’s range for none: the entry keeps its count and first day with no best', () => {
+      const [least, most] = KINDS[0].weight;
+      for (const bad of [least - 0.01, most + 0.01, 0, -1, 'null', '"1"', '[1]', '1e400'])
+        expect(journalOf(`{"bream": {"caught": 2, "best": ${bad}, "first": 3}}`), String(bad)).toEqual({
+          bream: { caught: 2, best: 0, first: 3 },
+        });
+      // the range’s ends are kept
+      expect(journalOf(`{"bream": {"caught": 2, "best": ${least}, "first": 3}}`).bream!.best).toBe(least);
+      expect(journalOf(`{"bream": {"caught": 2, "best": ${most}, "first": 3}}`).bream!.best).toBe(most);
+    });
+
+    it('takes a first day that is not a whole number of one or more for none, and one after today too', () => {
+      for (const bad of ['0', '-2', '2.5', '"3"', 'null', '[4]', '1e400', '9007199254740993', '6'])
+        expect(journalOf(`{"bream": {"caught": 2, "best": 0.5, "first": ${bad}}}`), bad).toEqual({
+          bream: { caught: 2, best: 0.5, first: 0 },
+        });
+      // today (day 5) is allowed
+      expect(journalOf('{"bream": {"caught": 2, "best": 0.5, "first": 5}}').bream!.first).toBe(5);
+    });
+
+    it('is none when it claims more catches than fish cured, which no play could have written', () => {
+      expect(journalOf('{"bream": {"caught": 4, "best": 0.5, "first": 1}}', '"cured": 3, "day": 5')).toEqual({});
+      expect(journalOf('{"bream": {"caught": 3, "best": 0.5, "first": 1}}', '"cured": 3, "day": 5')).toEqual({
+        bream: { caught: 3, best: 0.5, first: 1 },
+      });
+    });
+
+    it('is written again in the shape it was read, with a missing best or first as nought', () => {
+      const store = memoryStore('{"cured": 2, "day": 2, "journal": {"pike": {"caught": 1, "best": 99, "first": 2}}}');
+      const game = new Game(new Progress(store));
+      game.persist();
+      expect((JSON.parse(store.json!) as Save).journal).toEqual({ pike: { caught: 1, best: 0, first: 2 } });
+    });
+  });
+
   it('starts over: a save of seven cured is wiped in memory and in the store, and a new load finds none', () => {
     const store = memoryStore('{"cured": 7}');
     const progress = new Progress(store);
     expect(progress.save.cured).toBe(7);
     progress.reset();
-    expect(progress.save).toEqual({ cured: 0, day: 1 });
+    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
     expect(store.json).toBeNull();
-    expect(new Progress(store).save).toEqual({ cured: 0, day: 1 });
+    expect(new Progress(store).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {

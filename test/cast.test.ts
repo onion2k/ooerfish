@@ -1,6 +1,6 @@
 /** The cast: its flight as a sum, and the lure through its states, headless. */
 import { describe, expect, it } from 'vitest';
-import { flight, flightAt, pathPoints, rodTip } from '../src/cast';
+import { aimAt, flight, flightAt, pathPoints, rodTip } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { BOULDERS, CAST, bedDepth, boulderGap, ground, inside } from '../src/lake';
@@ -157,5 +157,26 @@ describe('the lure', () => {
     game.lure.depth = 1;
     game.lure.phase = 'swimming' as never;
     expect(checkInvariants(game).join('\n')).toMatch(/the lure is swimming/);
+  });
+});
+
+describe('aimAt', () => {
+  it('throws a cast that lands where it is aimed, on the water, from near to far', () => {
+    for (const [x, y] of [
+      [0, -10],
+      [4, 0],
+      [-6, 10],
+      [0, 8],
+    ] as const) {
+      const { angle, power } = aimAt(x, y);
+      const f = flight(angle, power);
+      expect(f.onWater, `${x},${y}`).toBe(true);
+      expect(Math.hypot(f.landing[0] - x, f.landing[1] - y), `${x},${y}`).toBeLessThan(0.05);
+    }
+  });
+
+  it('is the same twice, and full power for a point past the reach', () => {
+    expect(aimAt(3, 4)).toEqual(aimAt(3, 4));
+    expect(aimAt(0, 500).power).toBeGreaterThan(0.999);
   });
 });

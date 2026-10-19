@@ -5,7 +5,7 @@
  * content tables itself. The gifts the cure count has earned (`gearFor`) are a further argument, and ease the figures
  * they name; the bobber's and the bait's belong to the bite, which asks `windowFor` and `noticeFor`.
  */
-import { FIGHT, FISHING, GEAR, SIZE, TEMPERS } from './lake';
+import { DRUMS, FIGHT, FISHING, GEAR, SIZE, TEMPERS } from './lake';
 import type { Random } from './random';
 
 export type Temper = (typeof TEMPERS)[number]['name'];
@@ -30,6 +30,8 @@ export interface FightFigures {
   width: number;
   push: number;
   fall: number;
+  /** Whether this is a drum of waste's hauling and not a fish's fight: no darts, a steady fill while held, never a slip. */
+  drum: boolean;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -92,5 +94,22 @@ export function fightFor(heft: number, temper: Temper, gear: Gear = NO_GEAR): Fi
     width,
     push: FIGHT.push * (gear.reel ? gift('reel').times : 1),
     fall: FIGHT.fall,
+    drum: false,
+  };
+}
+
+/**
+ * The profile a drum of waste is hauled by, for the `Line` to play: the fish's base figures (the zone, how the reel
+ * pushes it), but no darts, a meter that fills steadily at the drum's own rate while the reel is held and just waits
+ * when it is let go, and one that never drains, so a drum never slips. The reel's gift speeds the hauling as it does
+ * the zone; the other gifts are for a fish. It draws no chance.
+ */
+export function drumFight(gear: Gear = NO_GEAR): FightFigures {
+  return {
+    ...fightFor(0, 'steady', gear),
+    dart: 0,
+    drain: 0,
+    fill: DRUMS.fill * (gear.reel ? gift('reel').times : 1),
+    drum: true,
   };
 }

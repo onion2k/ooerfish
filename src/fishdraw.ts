@@ -1,6 +1,6 @@
 /**
  * The fish as they are drawn: a chain of low-poly segments each, head, body, stalk and tail fin, with a fin on its
- * back, glowing in the glow's green with a light of their own (the renderer's `FLOW_GLOW`). Each segment is laid along
+ * back, glowing in its kind's colour (the glow's green for the perch) with a light of their own (the renderer's `FLOW_GLOW`). Each segment is laid along
  * the spine `swim.ts` poses from the school's stroke, so a fish flexes as it swims and bends into its turns; the
  * renderer has no skinning, and without the chain a fish is one stiff shape sliding through the water. The water is
  * seen through, so they are seen, dimmed and tinted by the water over them.
@@ -10,7 +10,7 @@
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
 import type { School } from './fish';
-import { FISH_CAPACITY, SWIM, bedDepth } from './lake';
+import { FISH_CAPACITY, KIND_INDEX, KINDS, SWIM, bedDepth } from './lake';
 import { frame } from './matrix';
 import { fin, loft } from './meshes';
 import { PALETTE } from './palette';
@@ -80,9 +80,11 @@ export class FishDraw {
   /**
    * The groups, handed to the renderer: their placements written by `write`, as many live as it says. Each fish is
    * glowing green, or, where `cured` is 1, gold in its body and coral in its fins with a softer light; the renderer
-   * reads both only when groups are handed over, so they are handed over again when a cure changes `cured`.
+   * reads both only when groups are handed over, so they are handed over again when a cure changes `cured`. An uncured
+   * fish glows the colour of its kind (`kind` indexes `KINDS`, the glowing perch where none is given), a cured one is
+   * gold whatever it was.
    */
-  groups(cured: Uint8Array): GameGroup[] {
+  groups(cured: Uint8Array, kind: Uint8Array = new Uint8Array(FISH_CAPACITY).fill(KIND_INDEX.perch)): GameGroup[] {
     return this.parts().map((mesh, p) => {
       const fin = p >= SEGS;
       const patterns = new Float32Array(FISH_CAPACITY * PATTERN_STRIDE);
@@ -90,13 +92,14 @@ export class FishDraw {
       for (let i = 0; i < FISH_CAPACITY; i++) {
         const gold = cured[i] === 1;
         const glow = gold ? (fin ? CURED_GLOW.fin : CURED_GLOW.body) : fin ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow;
-        const colour = gold ? (fin ? PALETTE.curedFin : PALETTE.cured) : PALETTE.glow;
+        const glowing = PALETTE[KINDS[kind[i]].glow];
+        const colour = gold ? (fin ? PALETTE.curedFin : PALETTE.cured) : glowing;
         packFlow(patterns, i * PATTERN_STRIDE, {
           kind: FLOW_GLOW,
           scale: 0,
           speed: 0,
           glow,
-          second: gold ? PALETTE.curedGlow : PALETTE.glow,
+          second: gold ? PALETTE.curedGlow : glowing,
         });
         materials.set([colour[0], colour[1], colour[2], gold ? ROUGH.cured : ROUGH.glow], i * 4);
       }
@@ -112,21 +115,24 @@ export class FishDraw {
     const n = Math.min(fish.count, FISH_CAPACITY);
     const j = this.spine;
     for (let i = 0; i < n; i++) {
+      const size = KINDS[fish.kind[i]].scale;
       if (i === hung)
         pose(
           j,
           SWIM,
           at[0],
           at[1],
-          at[2],
+          // `at` is the middle of a fish of the shape's own length; a bigger fish's middle hangs lower, so its nose is still at the line's end
+          at[2] - (bodyLength(SWIM) * (size - 1)) / 2,
           fish.heading[i],
           Math.PI / 2,
           0,
           t * SWIM.flap * Math.PI * 2,
           SWIM.flapAmp,
-          bodyLength(SWIM) / 2,
+          (bodyLength(SWIM) * size) / 2,
+          size,
         );
-      else poseFish(j, SWIM, fish, i, bedDepth);
+      else poseFish(j, SWIM, fish, i, bedDepth, size);
       this.joints.set(j, i * JOINTS * 3);
       const lx = -Math.sin(fish.heading[i]),
         ly = Math.cos(fish.heading[i]);
@@ -146,6 +152,9 @@ export class FishDraw {
           ly,
           0,
         );
+        // the unit axes stretched to the kind's size, so the lofted mesh is that much longer, wider and deeper
+        const o = i * 16;
+        for (let c = 0; c < 12; c++) if (c % 4 !== 3) this.matrices[p][o + c] *= size;
       }
       // the tail fin carries on the stalk's line from its end, and the dorsal rides the first body segment
       const tail = this.matrices[SEGS],

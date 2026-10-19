@@ -109,16 +109,26 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: 'a fish fought and landed',
-    // a cast to the middle, struck on the bite, played by the bar, landed, stowed and cast again, over and over
+    // a cast to the middle, struck on the bite, played by the bar, landed, stowed and cast again, over and over; a
+    // lure that has waited five seconds with nothing coming is reeled in and cast a little further, since a fish
+    // now comes only to a lure near its own depth, and the casts in turn reach the shallows, the middle and the deep
     frames: 20000,
     busy: [0.6, 1],
     setup: () => {
       const game = settled(1);
+      const POWERS = [0.62, 0.5, 0.75, 0.68];
+      let cast = 0,
+        waited = 0;
       return {
         game,
         frame: () => {
           const { phase } = game.bite;
-          if (game.lure.phase === 'ready') game.cast(Math.PI / 2, 0.62);
+          waited = phase === 'none' && game.lure.phase !== 'ready' ? waited + 1 : 0;
+          if (waited > 300) {
+            game.reelIn();
+            waited = 0;
+          }
+          if (game.lure.phase === 'ready') game.cast(Math.PI / 2, POWERS[cast++ % POWERS.length]);
           if (phase === 'biting') game.strike();
           game.reel(
             phase === 'hooked' &&

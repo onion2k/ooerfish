@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Angler } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { CURE } from '../src/lake';
+import { CURE, DRUMS, contaminationAfter } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT } from './helpers';
@@ -29,8 +29,9 @@ function fishUntil(game: Game, n: number, each?: () => void, seed = 5) {
 const cured = (game: Game) => game.progress.save.cured;
 
 describe('the cure', () => {
-  it('takes twelve fish to clean the lake, an estimate to be tuned by playing', () => {
-    expect(CURE).toEqual({ toClean: 12 });
+  it('takes twelve fish and two drums, worth two fish each, to clean the lake: sixteen fish’s worth, estimates to be tuned by playing', () => {
+    expect(CURE).toEqual({ toClean: 12, total: 16 });
+    expect(CURE.total).toBe(CURE.toClean + DRUMS.count * DRUMS.worth);
   });
 
   it('starts sick with none cured', () => {
@@ -42,22 +43,24 @@ describe('the cure', () => {
     expect(game.contamination).toBe(1);
   });
 
-  it('lowers the contamination by a twelfth for each fish stowed, tells of it, and saves it', () => {
+  it('lowers the contamination by a sixteenth for each fish stowed, tells of it, and saves it', () => {
     const { game, store, told } = cureGame();
     for (let k = 1; k <= 3; k++) {
       fishUntil(game, k);
-      expect(game.contamination).toBeCloseTo(1 - k / CURE.toClean, 12);
+      expect(game.contamination).toBeCloseTo(1 - k / CURE.total, 12);
       expect(told.at(-1)).toEqual([k, CURE.toClean]);
       expect(told.length, 'told once a fish').toBe(k);
       // saved at once, as a count of fish and not as the contamination, so a retuned step re-derives it
-      expect(JSON.parse(store.json!)).toEqual({ cured: k, day: 1 });
+      expect(JSON.parse(store.json!)).toEqual({ cured: k, day: 1, drums: 0, journal: expect.any(Object) as unknown });
     }
     expect(game.bucket).toBe(3);
     expect(checkInvariants(game)).toEqual([]);
   });
 
-  it('cleans the lake at the twelfth, and then nothing takes the bait, the lake staying clean', () => {
-    const { game, told } = cureGame(2);
+  it('cleans the lake only with the drums hauled, and then nothing takes the bait, the lake staying clean', () => {
+    // the drums hauled on the save, so the twelfth fish is the last of the cleaning
+    const { game, told } = cureGame(2, `{"drums": ${DRUMS.count}}`);
+    expect(game.contamination).toBeCloseTo(1 - (DRUMS.count * DRUMS.worth) / CURE.total, 12);
     fishUntil(game, CURE.toClean);
     expect(game.contamination).toBe(0);
     expect(game.pondClean).toBe(true);
@@ -73,10 +76,18 @@ describe('the cure', () => {
     expect(checkInvariants(game)).toEqual([]);
   });
 
-  it('starts from the save: the contamination is worked out from the count, and a count past the twelfth is clean', () => {
-    expect(cureGame(1, '{"cured": 5}').game.contamination).toBeCloseTo(1 - 5 / CURE.toClean, 12);
-    expect(cureGame(1, `{"cured": ${CURE.toClean}}`).game.contamination).toBe(0);
-    expect(cureGame(1, '{"cured": 40}').game.contamination).toBe(0);
+  it('leaves a quarter of the dirt at the twelfth fish with the drums on the bed', () => {
+    const { game } = cureGame(2);
+    fishUntil(game, CURE.toClean);
+    expect(game.contamination).toBeCloseTo(0.25, 12);
+    expect(game.pondClean, 'the drums are still there').toBe(false);
+  });
+
+  it('starts from the save: the contamination is worked out from the counts, and counts past the pond’s are clean', () => {
+    expect(cureGame(1, '{"cured": 5}').game.contamination).toBeCloseTo(1 - 5 / CURE.total, 12);
+    expect(cureGame(1, `{"cured": ${CURE.toClean}}`).game.contamination).toBeCloseTo(0.25, 12);
+    expect(cureGame(1, `{"cured": ${CURE.toClean}, "drums": ${DRUMS.count}}`).game.contamination).toBe(0);
+    expect(cureGame(1, '{"cured": 40, "drums": 9}').game.contamination).toBe(0);
     expect(cureGame(1, '{}').game.contamination).toBe(1);
   });
 
@@ -100,13 +111,13 @@ describe('the cure', () => {
     const { game } = cureGame(4);
     game.setContamination(0.3);
     fishUntil(game, 1);
-    // the count says eleven twelfths; the lake was already cleaner than that, and stays so
+    // the count says fifteen sixteenths; the lake was already cleaner than that, and stays so
     expect(game.contamination).toBe(0.3);
     expect(checkInvariants(game)).toEqual([]);
     // a lake the lever made dirtier than the count says is cleaned to what the count says
     game.setContamination(1);
     fishUntil(game, 2);
-    expect(game.contamination).toBeCloseTo(1 - 2 / CURE.toClean, 12);
+    expect(game.contamination).toBeCloseTo(contaminationAfter(2, 0), 12);
   });
 
   it('is a count that must be a whole number of fish, and is checked as one', () => {

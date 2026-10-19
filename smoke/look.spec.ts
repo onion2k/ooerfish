@@ -18,7 +18,7 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { HEAL } from '../src/lake';
+import { FISH_KINDS, HEAL } from '../src/lake';
 import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
@@ -80,7 +80,7 @@ test.describe('what it looks like', () => {
   test('healing, a fifth of the way through', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true, save: { cured: 5 } });
-    await set(page, { dirt: 7 / 12, time: 'day', view: 'shore' }, 60);
+    await set(page, { dirt: 11 / 16, time: 'day', view: 'shore' }, 60);
     const was = await page.evaluate(() => {
       const g = window.game!;
       if (!g.fishTo('landed') || !g.stow()) throw new Error('no fish to cure');
@@ -90,7 +90,7 @@ test.describe('what it looks like', () => {
     const now = await page.evaluate(() => window.game!.state());
     expect(now.contamination).toBeCloseTo(was, 12);
     expect(now.waterDirt).toBeGreaterThan(now.contamination);
-    expect(now.waterDirt).toBeLessThan(7 / 12);
+    expect(now.waterDirt).toBeLessThan(11 / 16);
     await hideOverlays(page);
     await expect(page.locator('#view')).toHaveScreenshot('healing.png', TOLERANCE);
     expect(problems).toEqual([]);
@@ -130,6 +130,62 @@ test.describe('what it looks like', () => {
       await expect(page.locator('#view')).toHaveScreenshot(`fish-swimming-${time}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
+
+  // the three kinds under the clean water, side by side: the small yellow bream, the green perch and the long blue-green
+  // pike, found as the trio nearest each other and looked down on, by day and at night, when each glow is what shows it
+  for (const time of ['day', 'night'] as const)
+    test(`fish-kinds-${time}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { ...STANDARD, dirt: 0, time }, 180);
+      await page.evaluate((kinds) => {
+        const g = window.game!;
+        const fish = g.fish();
+        // the nearest trio, one of each kind: the one whose farthest two are least apart
+        let best: [number, number, number] | null = null,
+          least = Infinity;
+        for (let a = 0; a < fish.length; a++)
+          for (let b = 0; b < fish.length; b++)
+            for (let c = 0; c < fish.length; c++) {
+              if (kinds[a] !== 0 || kinds[b] !== 1 || kinds[c] !== 2) continue;
+              const far = Math.max(
+                Math.hypot(fish[a].x - fish[b].x, fish[a].y - fish[b].y),
+                Math.hypot(fish[a].x - fish[c].x, fish[a].y - fish[c].y),
+                Math.hypot(fish[b].x - fish[c].x, fish[b].y - fish[c].y),
+              );
+              if (far < least) {
+                least = far;
+                best = [a, b, c];
+              }
+            }
+        const [a, b, c] = best!;
+        g.look((fish[a].x + fish[b].x + fish[c].x) / 3, (fish[a].y + fish[b].y + fish[c].y) / 3, {
+          polar: 1,
+          radius: 36,
+        });
+        g.step(0);
+      }, FISH_KINDS);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`fish-kinds-${time}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+  // a drum of waste on the bed under the clean water, by day: a hazard-yellow drum with the black atom on its lid, looked
+  // down on from near enough to read it, with the first drum still on the bed in the middle of the frame
+  test('drum-bed', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, dirt: 0, time: 'day' }, 180);
+    await page.evaluate(() => {
+      const g = window.game!;
+      const [drum] = g.drums();
+      g.look(drum.x, drum.y, { polar: 0.45, radius: 12 });
+      g.step(0);
+    });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('drum-bed.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
 
   // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
   // bobber
@@ -173,6 +229,22 @@ test.describe('what it looks like', () => {
       await page.evaluate((m) => window.game!.fishTo(m), moment);
       await hideOverlays(page);
       await expect(page.locator('#view')).toHaveScreenshot(`fishing-${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+  // the catches of the new kinds, hanging from the rod with the card shown: a pike, long and blue-green, and a drum of
+  // waste hauled in on the line, from a pond with every fish cured so that only the drum can take the bait
+  for (const [name, quarry, save] of [
+    ['pike', 'pike', undefined],
+    ['drum', 'drum', { cured: 12 }],
+  ] as const)
+    test(`fishing-landed-${name}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, ...(save ? { save } : {}) });
+      await set(page, { dirt: 0.2, time: 'day', view: 'shore' }, 30);
+      expect(await page.evaluate((q) => window.game!.fishTo('landed', q), quarry)).toBe(true);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`fishing-landed-${name}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
 
@@ -375,8 +447,9 @@ test.describe('the fight and its gifts', () => {
         g.fishTo('landed');
         g.step(1);
       });
-      const temper = (await page.evaluate(() => window.game!.fishing())).temper;
-      await expect(page.locator('#catchName')).toHaveText(`${temper} glowing perch`);
+      const { temper } = await page.evaluate(() => window.game!.fishing());
+      // the fish is whichever kind took the lure, so the card names its temper and any of the three kinds
+      await expect(page.locator('#catchName')).toHaveText(new RegExp(`^${temper} (sunny bream|glowing perch|pike)$`));
       await expect(page).toHaveScreenshot('phone-landed.png', TOLERANCE);
       expect(problems).toEqual([]);
     });
@@ -552,7 +625,8 @@ test.describe('the morning on a phone', () => {
  * each is the same every run.
  */
 async function pond(page: Page, scene: 'welcome' | 'playing' | 'clean') {
-  const save = scene === 'welcome' ? undefined : { cured: scene === 'playing' ? 8 : 11 };
+  // the clean pond has its two drums hauled, or the twelfth fish would not be the last cleaning
+  const save = scene === 'welcome' ? undefined : scene === 'playing' ? { cured: 8 } : { cured: 11, drums: 2 };
   await start(page, { seed: 11, paused: true, ...(save ? { save } : {}) });
   await page.evaluate(() => window.game!.step(60));
   if (scene === 'clean') {
@@ -597,4 +671,38 @@ test.describe('the pond on a phone', () => {
       await expect(page).toHaveScreenshot(`phone-pond-${scene}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
+});
+
+/** A save with a journal part filled: perch and pike caught, the bream not, and one drum hauled, on the second day. */
+const JOURNAL_SAVE = {
+  cured: 5,
+  day: 2,
+  drums: 1,
+  journal: { perch: { caught: 3, best: 1.87, first: 1 }, pike: { caught: 2, best: 3.62, first: 2 } },
+};
+
+test.describe('the journal', () => {
+  test('the page at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: JOURNAL_SAVE });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openJournal());
+    await expect(page.locator('#journalClose')).toBeFocused();
+    await expect(page).toHaveScreenshot('desk-journal.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the page at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: JOURNAL_SAVE });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => window.game!.openJournal());
+      await expect(page.locator('#journalClose')).toBeFocused();
+      await expect(page).toHaveScreenshot('phone-journal.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
 });

@@ -45,6 +45,8 @@ const BREAKPOINTS = [
  *   morning     the line on waking in the cabin.
  *   downButton  Down to the pond, beside the morning line.
  *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
+ *   journalCard the journal's page, a modal of the same kind: held inside the screen and left out of the overlap rule, and
+ *               its words must fit it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
  */
@@ -78,7 +80,19 @@ const POINT_MARGIN = 6;
 /** Tolerated overlap between two boxes, in pixels, for the rounding of a laid-out edge. */
 const EDGE_SLACK = 0.5;
 
-type Moment = 'welcome' | 'look' | 'cast' | 'bite' | 'fight' | 'landed' | 'cured' | 'start again' | 'yawn' | 'morning';
+type Moment =
+  | 'welcome'
+  | 'look'
+  | 'cast'
+  | 'bite'
+  | 'fight'
+  | 'landed'
+  | 'cured'
+  | 'drum card'
+  | 'start again'
+  | 'journal'
+  | 'yawn'
+  | 'morning';
 const MOMENTS: Moment[] = [
   'welcome',
   'look',
@@ -87,7 +101,9 @@ const MOMENTS: Moment[] = [
   'fight',
   'landed',
   'cured',
+  'drum card',
   'start again',
+  'journal',
   'yawn',
   'morning',
 ];
@@ -100,7 +116,9 @@ const AT_LEAST: Record<Moment, number> = {
   fight: 5,
   landed: 4,
   cured: 3,
+  'drum card': 4,
   'start again': 1,
+  journal: 1,
   // the gauge, the menu and the words; and, in the cabin, the line and the button with them
   yawn: 3,
   morning: 4,
@@ -137,6 +155,12 @@ async function boxes(page: Page): Promise<Box[]> {
         const r = card.getBoundingClientRect();
         out.push({ id: 'startAgainCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
+      // and so is the journal's page
+      const page = document.querySelector<HTMLElement>('#journal:not([hidden]) .card');
+      if (page) {
+        const r = page.getBoundingClientRect();
+        out.push({ id: 'journalCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
       return out;
     },
     OVERLAYS as readonly string[],
@@ -148,7 +172,24 @@ async function boxes(page: Page): Promise<Box[]> {
  * with no save, since the welcome line shows only before the first fish is cured and the first cast.
  */
 async function reach(page: Page, moment: Moment) {
-  await start(page, { seed: 7, paused: true, ...(moment === 'welcome' ? {} : { save: { cured: 3 } }) });
+  // the journal's page is read from a save with a journal part filled and a drum hauled, so that it has words to fit; the
+  // drum's card from a pond with every fish cured, so that only a drum can be landed
+  const save =
+    moment === 'welcome'
+      ? {}
+      : moment === 'journal'
+        ? {
+            save: {
+              cured: 3,
+              day: 2,
+              drums: 1,
+              journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
+            },
+          }
+        : moment === 'drum card'
+          ? { save: { cured: 12 } }
+          : { save: { cured: 3 } };
+  await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
     const g = window.game!;
@@ -157,6 +198,11 @@ async function reach(page: Page, moment: Moment) {
       await g.startAgain();
       return true;
     }
+    if (m === 'journal') {
+      await g.openJournal();
+      return true;
+    }
+    if (m === 'drum card') return g.fishTo('landed', 'drum');
     if (m === 'yawn' || m === 'morning') {
       // to bed from the pond: the screen half dark and yawning, or woken in the cabin with the fade lifted
       await g.sleep();
@@ -219,7 +265,8 @@ for (const bp of BREAKPOINTS) {
               const p = all[a],
                 q = all[b];
               // the dialog is modal, so it lies over the other overlays by design, as the pairing overlay does
-              if (p.id === 'startAgainCard' || q.id === 'startAgainCard') continue;
+              if (['startAgainCard', 'journalCard'].includes(p.id) || ['startAgainCard', 'journalCard'].includes(q.id))
+                continue;
               if (
                 Math.min(p.right, q.right) - Math.max(p.left, q.left) > EDGE_SLACK &&
                 Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > EDGE_SLACK
@@ -257,6 +304,16 @@ for (const bp of BREAKPOINTS) {
                   failures.add(`${where}: ${show(b)} covers the ${what} at ${at!.x.toFixed(0)},${at!.y.toFixed(0)}`);
               }
             }
+          }
+
+          // the journal's words all fit its card, with nothing left to scroll to
+          if (moment === 'journal') {
+            const fit = await page.evaluate(() => {
+              const card = document.querySelector<HTMLElement>('#journal .card')!;
+              return { scroll: card.scrollHeight, shown: card.clientHeight };
+            });
+            if (fit.scroll > fit.shown + 1)
+              failures.add(`${still}: the journal's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
           }
 
           // the keyboard hint names keys a phone does not have

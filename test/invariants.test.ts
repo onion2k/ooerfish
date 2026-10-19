@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
 import { depthRange } from '../src/fish';
 import { fightFor, gearFor } from '../src/fight';
-import { DECK, bedDepth, inside } from '../src/lake';
+import { DECK, bedDepth, contaminationAfter, inside } from '../src/lake';
 import { newGame, settle } from './helpers';
 
 describe('what must always hold', () => {
@@ -142,13 +142,132 @@ describe('the water the page shows', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/the water is cleaner than the lake/);
   });
   it('never rises unless the lever was set', () => {
-    const { game } = newGame();
-    game.contamination = 0.2;
+    // twelve cured and no drum hauled leaves a quarter of the dirt, which is the formula's, so only the rise is wrong
+    const { game } = newGame(1, '{"cured": 12}');
+    expect(game.contamination).toBe(0.25);
     game.waterDirt = 0.6;
     expect(checkInvariants(game)).toEqual([]);
     game.waterDirt = 0.7;
     expect(checkInvariants(game).join('\n')).toMatch(/the water's dirt rose from 0.6 to 0.7, and no lever was set/);
     game.setContamination(0.9);
     expect(checkInvariants(game)).toEqual([]);
+  });
+});
+
+describe('the drums of waste', () => {
+  it('holds the drums hauled to the save, and to none or the pond’s', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    game.drums.haul(0);
+    expect(checkInvariants(game).join('\n')).toMatch(/1 drums are hauled, but the save says 0/);
+    game.progress.save.drums = 1;
+    game.contamination = contaminationAfter(0, 1);
+    game.waterDirt = game.contamination;
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.save.drums = -1;
+    expect(checkInvariants(game).join('\n')).toMatch(/the save says -1 drums hauled/);
+    game.progress.save.drums = 1.5;
+    expect(checkInvariants(game).join('\n')).toMatch(/the save says 1.5 drums hauled/);
+  });
+
+  it('never has a hauled drum as the bite’s', () => {
+    const { game } = newGame();
+    game.drums.haul(1);
+    game.progress.save.drums = 1;
+    game.contamination = game.waterDirt = contaminationAfter(0, 1);
+    game.bite.drum = 1;
+    game.bite.phase = 'biting';
+    game.lure.phase = 'sinking';
+    expect(checkInvariants(game).join('\n')).toMatch(/drum 1 is hauled, but it is the bite's/);
+  });
+
+  it('keeps the quarry to a fish or a drum, and none with the bite at rest', () => {
+    const { game } = newGame();
+    game.bite.drum = 0;
+    expect(checkInvariants(game).join('\n')).toMatch(/no drum is at the lure, but the bite has drum 0/);
+    game.bite.phase = 'biting';
+    game.bite.fish = 2;
+    game.lure.phase = 'sinking';
+    expect(checkInvariants(game).join('\n')).toMatch(/with drum 0 and fish 2/);
+    game.bite.fish = -1;
+    game.bite.drum = 9;
+    expect(checkInvariants(game).join('\n')).toMatch(/the bite has drum 9, of 2/);
+  });
+
+  it('holds the contamination to the formula for the fish cured and the drums hauled, unless the lever set it', () => {
+    const { game } = newGame(1, '{"cured": 3, "drums": 1}');
+    expect(checkInvariants(game)).toEqual([]);
+    game.contamination = game.waterDirt = 0.3;
+    expect(checkInvariants(game).join('\n')).toMatch(/the contamination is 0.3, but 3 cured and 1 hauled make it/);
+    game.setContamination(0.3);
+    expect(checkInvariants(game), 'the lever may put it anywhere').toEqual([]);
+  });
+});
+
+describe('the journal', () => {
+  const journalGame = (save: object) => newGame(1, JSON.stringify(save)).game;
+  const bad = (game: ReturnType<typeof journalGame>) => checkInvariants(game).join('\n');
+
+  it('holds of a journal the load made, whole or with an old save’s leftover', () => {
+    const journal = { perch: { caught: 2, best: 1, first: 1 }, bream: { caught: 1, best: 0.5, first: 2 } };
+    expect(checkInvariants(journalGame({ cured: 3, day: 2, journal }))).toEqual([]);
+    expect(
+      checkInvariants(journalGame({ cured: 7, day: 2, journal })),
+      'four the journal does not account for',
+    ).toEqual([]);
+    expect(checkInvariants(journalGame({ cured: 5 })), 'an old save with none').toEqual([]);
+  });
+
+  it('holds each kind’s cured fish to the journal’s count of it, when the journal accounts for every cure', () => {
+    const game = journalGame({ cured: 3, day: 2, journal: { pike: { caught: 3, best: 3, first: 1 } } });
+    // move a cure from a pike to a perch: the total still agrees with the save, the kinds do not
+    const pike = Array.from({ length: game.fish.count }, (_, i) => i).filter((i) => game.fish.kind[i] === 2);
+    const perch = Array.from({ length: game.fish.count }, (_, i) => i).find((i) => game.fish.kind[i] === 1)!;
+    game.fish.cured[pike[0]] = 0;
+    game.fish.cured[perch] = 1;
+    expect(bad(game)).toMatch(/pike: 2 fish are cured, but the journal says 3 caught of 3 slots/);
+    expect(bad(game)).toMatch(/perch: 1 fish are cured, but the journal says 0 caught/);
+  });
+
+  it('lets a kind hold more cured fish than the journal says only where the journal accounts for fewer than were cured', () => {
+    const game = journalGame({ cured: 6, day: 2, journal: { pike: { caught: 1, best: 3, first: 1 } } });
+    expect(checkInvariants(game)).toEqual([]);
+    // but never fewer than it says
+    const pike = Array.from({ length: game.fish.count }, (_, i) => i).filter((i) => game.fish.kind[i] === 2);
+    game.fish.cured[pike[0]] = 0;
+    game.fish.cured[
+      Array.from({ length: game.fish.count }, (_, i) => i).find((i) => !game.fish.cured[i] && game.fish.kind[i] !== 2)!
+    ] = 1;
+    expect(bad(game)).toMatch(/pike: 0 fish are cured, but the journal says 1 caught/);
+  });
+
+  it('reports a best weight outside its kind’s range, and a best of nought as none', () => {
+    const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 1 } } });
+    game.progress.save.journal.bream!.best = 0;
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.save.journal.bream!.best = 1.5;
+    expect(bad(game)).toMatch(/the journal's best bream is 1.5 kg, outside 0.2 to 1/);
+    game.progress.save.journal.bream!.best = Number.NaN;
+    expect(bad(game)).toMatch(/the journal's best bream is NaN kg/);
+  });
+
+  it('reports a first day after today, and one that is not a whole number', () => {
+    const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 2 } } });
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.save.journal.bream!.first = 3;
+    expect(bad(game)).toMatch(/the journal's bream was first caught on day 3, but it is day 2/);
+    game.progress.save.journal.bream!.first = 1.5;
+    expect(bad(game)).toMatch(/the journal's bream was first caught on day 1.5/);
+  });
+
+  it('reports more catches than fish cured, a count that is not whole, and a kind not known', () => {
+    const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 1 } } });
+    game.progress.save.journal.perch = { caught: 1, best: 1, first: 1 };
+    expect(bad(game)).toMatch(/the journal counts 3 caught, but only 2 are cured/);
+    game.progress.save.journal.perch.caught = 0.5;
+    expect(bad(game)).toMatch(/the journal's perch has caught 0.5/);
+    delete game.progress.save.journal.perch;
+    game.progress.save.journal.eel = { caught: 0, best: 0, first: 0 };
+    expect(bad(game)).toMatch(/the journal has a kind not known: eel/);
   });
 });

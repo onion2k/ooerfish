@@ -8,6 +8,8 @@ import {
   CLOCK,
   FISH_CAPACITY,
   FISH_COUNT,
+  FISH_KINDS,
+  KINDS,
   JETTY,
   STRETCH,
   bedDepth,
@@ -325,5 +327,49 @@ describe('the cured fish', () => {
     new School().fill(FISH_COUNT, ra);
     new School().fill(FISH_COUNT, rb, 7);
     expect(rb()).toBe(ra());
+  });
+});
+
+describe('the kinds in the school', () => {
+  it('give each slot its fixed kind, four bream, five perch and three pike', () => {
+    expect(FISH_KINDS.length).toBe(FISH_COUNT);
+    const counts = [0, 0, 0];
+    for (const k of FISH_KINDS) counts[k]++;
+    expect(counts).toEqual([4, 5, 3]);
+    for (const seed of [1, 2, 3]) {
+      const { game } = newGame(seed);
+      for (let i = 0; i < FISH_COUNT; i++) expect(game.fish.kind[i]).toBe(FISH_KINDS[i]);
+    }
+  });
+
+  it('keep each fish’s depth share within its kind’s band', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { game } = newGame(seed);
+      for (let i = 0; i < game.fish.count; i++) {
+        const [near, far] = KINDS[game.fish.kind[i]].keeps;
+        expect(game.fish.keeps[i]).toBeGreaterThanOrEqual(near);
+        expect(game.fish.keeps[i]).toBeLessThanOrEqual(far);
+      }
+    }
+  });
+
+  it('draw the same number of times as one kind did, so the stream a seed gives is not moved', () => {
+    // measured on the school before kinds: seed 4 made 90 draws, and the next was this
+    const inner = seeded(4);
+    let calls = 0;
+    const school = new School();
+    school.fill(FISH_COUNT, () => (calls++, inner()));
+    expect(calls).toBe(90);
+    expect(inner()).toBe(0.47165641421452165);
+  });
+
+  it('keep the kind through a respawn and a refill', () => {
+    const school = new School();
+    school.fill(FISH_COUNT, seeded(4));
+    const kinds = Array.from(school.kind.slice(0, FISH_COUNT));
+    school.respawn(2, seeded(9));
+    expect(Array.from(school.kind.slice(0, FISH_COUNT))).toEqual(kinds);
+    school.fill(FISH_COUNT, seeded(5));
+    expect(Array.from(school.kind.slice(0, FISH_COUNT))).toEqual(kinds);
   });
 });

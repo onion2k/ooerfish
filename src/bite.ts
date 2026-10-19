@@ -12,7 +12,8 @@
  */
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
-import { FISHING, FISH_CAPACITY } from './lake';
+import type { Drums } from './drums';
+import { DRUMS, FISHING, FISH_CAPACITY } from './lake';
 import type { Lure } from './lure';
 import type { Random } from './random';
 
@@ -24,7 +25,8 @@ export type Strike = 'none' | 'twitch' | 'spooked' | 'hooked';
 /** What the bite tells, as it happens. */
 export interface BiteEvents {
   nibbled?(): void;
-  bitten?(): void;
+  /** The bobber dips; `heavy` when it is a drum of waste and not a fish that has taken the lure. */
+  bitten?(heavy?: boolean): void;
   hooked?(): void;
   /** The fish let go: the window shut, it was struck too soon, the lure went, or it was scared off. */
   missed?(): void;
@@ -38,6 +40,10 @@ export class Bite {
   phase: BitePhase = 'none';
   /** The fish at the lure, or minus one. */
   fish = -1;
+  /** The drum snagged, or minus one: the quarry is a fish or a drum, never both. */
+  drum = -1;
+  /** Until when each drum keeps from the lure, having let go. */
+  readonly drumWary = new Float64Array(DRUMS.count);
   /** How long until the next nibble or the bite, or how long the window has left. */
   timer = 0;
   /** How many nibbles are still to come before the bite. */
@@ -55,8 +61,12 @@ export class Bite {
 
   constructor(private readonly events: BiteEvents = {}) {}
 
-  /** On by `dt` to the time `t`. */
-  step(t: number, dt: number, school: School, lure: Lure, random: Random) {
+  /**
+   * On by `dt` to the time `t`. The `drums` on the bed are snagged by a lure lying on it within reach, when no fish has
+   * taken the lure first; a drum draws a chance only while one is within reach of the lure, so the fish's draws are the
+   * same with drums or without.
+   */
+  step(t: number, dt: number, school: School, lure: Lure, random: Random, drums?: Drums) {
     // a fish on the line is the fight's, and one landed waits by the rod
     if (this.phase === 'hooked' || this.phase === 'landed') return;
     if (lure.phase !== 'sinking') {
@@ -82,7 +92,24 @@ export class Bite {
         this.comingSince = t;
         this.fish = chosen;
         school.held = chosen;
+        return;
       }
+      // no fish has come: a lure lying on the bed by a drum may snag it, and a snag dips the bobber heavily at once
+      if (drums && lure.onBed) {
+        const d = drums.snagged(bx, by, DRUMS.reach, this.drumWary, t);
+        if (d >= 0 && random() < DRUMS.rate * dt) {
+          this.drum = d;
+          this.phase = 'biting';
+          this.timer = windowFor(this.gear);
+          this.events.bitten?.(true);
+        }
+      }
+      return;
+    }
+    // a drum snagged does not come, nibble or fight the lure: it holds the bobber under until the window shuts
+    if (this.drum >= 0) {
+      this.timer -= dt;
+      if (this.timer <= 1e-9) this.letGo(t, school, lure);
       return;
     }
     // coming, it swims to the lure; at it, it holds there, edging back in if it has drifted
@@ -147,6 +174,14 @@ export class Bite {
 
   /** The fish at the lure, or on the line, lets go and swims off, wary of it for a while; told as missed unless `quiet`. */
   letGo(t: number, school: School, lure: Lure, quiet = false) {
+    if (this.drum >= 0) {
+      // a drum cannot swim off: it is wary of the lure for a while and then snags it again, if it lies there still
+      this.drumWary[this.drum] = t + FISHING.wary;
+      this.drum = -1;
+      this.phase = 'none';
+      if (!quiet) this.events.missed?.();
+      return;
+    }
     const i = this.fish;
     if (i >= 0) {
       this.wary[i] = t + FISHING.wary;
@@ -163,10 +198,11 @@ export class Bite {
     this.phase = 'landed';
   }
 
-  /** The landed fish stowed: the bite is over, and the school has the fish back to steer. */
+  /** The landed fish stowed, or the landed drum hauled: the bite is over, and the school has the fish back to steer. */
   stowed(school: School) {
     school.held = -1;
     this.fish = -1;
+    this.drum = -1;
     this.phase = 'none';
   }
 }

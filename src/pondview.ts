@@ -1,12 +1,12 @@
 /**
  * The pond on the page: the glow gauge in the corner (the lake's name and a bar that empties as it is cleaned, read
  * from the game each frame), the welcome line a new player sees until the first cast, and the line said for a while
- * when a fish is cured and when the pond is clean. What it says is `pondWords`, a pure function of the game's state, so
+ * when a fish is cured, when a drum of waste is hauled and when the pond is clean. What it says is `pondWords`, a pure function of the game's state, so
  * it is tested without a page; the view writes the page only where that has changed, and does nothing of the game: the
  * player's fishing is `fightview.ts`'s, and the cure is the game's.
  */
 import type { Game } from './game';
-import { CURE, GIFT_GIVER, LAKE_NAME } from './lake';
+import { CURE, DRUMS, GIFT_GIVER, LAKE_NAME, contaminationAfter } from './lake';
 
 export interface PondElements {
   gauge: HTMLElement;
@@ -18,15 +18,24 @@ export interface PondElements {
   toast: HTMLElement;
 }
 
-/** What the words depend on: how many fish are cured, whether a cast has been made, and the line said last and until when. */
+/**
+ * What the words depend on: how many fish are cured and how many drums hauled, whether a cast has been made, and the
+ * lines said last and until when.
+ */
 export interface PondState {
   cured: number;
+  /** How many fish it takes to cure them all. */
   toClean: number;
+  /** How many drums of waste are hauled. */
+  drums: number;
   /** Whether the player has cast, this session. */
   cast: boolean;
   /** How many fish had been cured when the line was last said, and the game time it is said until. */
   toastCured: number;
   toastUntil: number;
+  /** How many drums had been hauled when the line about a haul was last said, and the game time it is said until. */
+  toastHauled: number;
+  hauledUntil: number;
   /**
    * The gift last given, and the game time its line is said from and until. A gift comes with its cure, so its line
    * waits for the cure's to end (`giftFrom` is that time) and the two never overlap.
@@ -41,7 +50,7 @@ export interface PondWords {
   name: string;
   /** Whether the welcome line is shown. */
   welcome: boolean;
-  /** The share of the glow left, from one (as sick as it starts) to nought (clean): what the bar shows. */
+  /** The share of the glow left, from one (as sick as it starts) to nought (clean): what the bar shows, the lake's own sum. */
   glow: number;
   clean: boolean;
   /** The line said for a fish cured, in a plain lead and a bold rest, or null when none is. */
@@ -50,16 +59,24 @@ export interface PondWords {
 
 /** What the page says for this state of the pond. */
 export function pondWords(s: PondState): PondWords {
-  const clean = s.cured >= s.toClean;
-  const glow = Math.max(0, 1 - s.cured / s.toClean);
+  // clean is every fish cured and every drum hauled, and the gauge is the lake's own formula for how far from it
+  const clean = s.cured >= s.toClean && s.drums >= DRUMS.count;
+  const glow = contaminationAfter(s.cured, s.drums);
   let toast: PondWords['toast'] = null;
-  if (s.t < s.toastUntil && s.toastCured > 0) {
-    if (s.toastCured === s.toClean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured.' };
+  const cureOn = s.t < s.toastUntil && s.toastCured > 0;
+  const haulOn = s.t < s.hauledUntil && s.toastHauled > 0;
+  // the newer of the two lines is the one said
+  if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
+    if (clean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
+    else toast = { lead: 'Hauled out!', bold: 'The pond clears a lot.' };
+  } else if (cureOn) {
+    if (s.toastCured === s.toClean && clean)
+      toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured.' };
     else toast = { lead: 'Cured!', bold: 'The pond clears a little.' };
   } else if (s.gift && s.t >= s.giftFrom && s.t < s.giftUntil)
     toast = { lead: `A gift from ${GIFT_GIVER}: ${s.gift.name}.`, bold: s.gift.words };
   // a player who has cured a fish is not welcomed again, on this visit or the next
-  return { name: LAKE_NAME, welcome: !s.cast && s.cured === 0, glow, clean, toast };
+  return { name: LAKE_NAME, welcome: !s.cast && s.cured === 0 && s.drums === 0, glow, clean, toast };
 }
 
 /** A share as a per cent, to a tenth, so a still bar writes nothing. */
@@ -69,6 +86,8 @@ export class PondView {
   private cast = false;
   private toastCured = 0;
   private toastUntil = -Infinity;
+  private toastHauled = 0;
+  private hauledUntil = -Infinity;
   private gift: PondState['gift'] = null;
   private giftFrom = -Infinity;
   private giftUntil = -Infinity;
@@ -92,6 +111,12 @@ export class PondView {
     this.toastUntil = this.game().t + this.heardFor;
   }
 
+  /** A drum was hauled: the line about it is said for a while, from now. */
+  hauled(hauled: number, _drums: number) {
+    this.toastHauled = hauled;
+    this.hauledUntil = this.game().t + this.heardFor;
+  }
+
   /**
    * A gift was given with the cure just told: its line is said after the cure's own, which the game has told first,
    * for as long again, so the two never share the toast.
@@ -111,9 +136,12 @@ export class PondView {
     const w = pondWords({
       cured: g.progress.save.cured,
       toClean: CURE.toClean,
+      drums: g.progress.save.drums,
       cast: this.cast,
       toastCured: this.toastCured,
       toastUntil: this.toastUntil,
+      toastHauled: this.toastHauled,
+      hauledUntil: this.hauledUntil,
       gift: this.gift,
       giftFrom: this.giftFrom,
       giftUntil: this.giftUntil,

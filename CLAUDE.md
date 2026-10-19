@@ -196,6 +196,25 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   in `main.ts`) and hands it over only when that moves, about forty times a
   cure (`game.waterHandovers()` counts them), since a handover makes buffers
   and costs about half a millisecond; the gauge steps at the cure.
+- **The kinds, the drums and the journal** (`docs/journal.md`): the pond's twelve fish are three kinds, `KINDS` in
+  `lake.ts` (sunny bream 0.2 to 1 kg in the shallows, glowing perch 0.3 to 2.4 kg in the middle, pike 1.5 to 5 kg near
+  the bed: each with a weight range, a `keeps` band the fish's one depth draw is put into, a body scale and a glow),
+  and `FISH_KINDS` gives each slot's kind, 4/5/3, fixed so the seed gives the same school. `School.kind` is a
+  `Uint8Array`; `fill` draws what it did, so the chance moves nowhere. A fish comes to the lure only within
+  `FISHING.band` (1.5) of its own depth, so the sink is the choice; the weight is drawn from the kind's range and
+  heft is its place in it, so `fightFor` and the balance tool are unchanged. **Two drums of waste** lie on the bed
+  (`DRUMS`, `src/drums.ts`: places from a seed of their own, never the game's chance). A lure lying on the bed within
+  `DRUMS.reach` may snag one, a heavy dip, and a strike hooks it; `drumFight` in `fight.ts` is its profile (no darts,
+  never slips, the reel held fills the meter), and a tap on the landed card is `Game.haul`, which keeps `save.drums`,
+  tells `GameEvents.hauled` and lowers the contamination to `contaminationAfter(cured, drums)`:
+  `1 - (cured + drums x worth) / (FISH_COUNT + DRUMS.count x worth)`, the one place it is worked out. The pond is
+  clean (`pondClean`) when every fish is cured and every drum hauled; a drum left on the bed can still be snagged when
+  all the fish are cured. **The journal** is `Save.journal` (`{ caught, best, first }` by kind id, written at each stow,
+  read field by field in `progress.ts`), its page's words are the pure `journalWords` in `src/journal.ts`, and it opens
+  from the ⋯ menu (`game.openJournal()`) and stops the game's step while open. A load cures, of each kind, as many
+  as the journal says were caught and then the rest in slot order, as an old save does. `fishdraw.ts` draws each slot
+  at its kind's scale and glow, `drumdraw.ts` the drums, and `game.fish()`, `game.drums()` and `game.journal()` read
+  them. The fuzzer starts each seed with drums and a journal from a stream of its own and casts to lie by a drum.
 - `src/main.ts` is the page. It turns what the game says into the water (when
   the contamination changes: `showWater`), the light (when the clock comes to
   the next look: `showLight`, each frame comparing `nearestTime` to the look's
@@ -354,7 +373,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   target and what was changed with the user. A sick lake's fish dart more
   often. `Game` wires them (`strike`, `reel`, `stow`, the fish
   steered along the line, `GameEvents` nibbled to landed); the figures are
-  `FISHING`, `FIGHT` and `PERCH` in `lake.ts`, tuned on measured seeds.
+  `FISHING`, `FIGHT` and `KINDS` in `lake.ts`, tuned on measured seeds.
   `castdraw.ts` bends the rod, colours the line by the tension and hangs a
   landed fish; `src/fightview.ts` is the bar, the Strike/Reel button, the
   card and the bucket. A tap strikes and a hold reels in cast mode;
@@ -403,7 +422,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   never written back, and an old link with `dirt=`, `time=` or `view=` still
   opens the game, unread. The save lives in `progress.ts` and holds the count
   cured (default 0; a count that is not a non-negative whole number is taken for
-  none) and the day (default 1; anything but a safe whole number of 1 or more is
+  none), the drums hauled (default 0, held to `DRUMS.count`), the journal (default `{}`) and the day (default 1; anything but a safe whole number of 1 or more is
   day 1; `test/saves/` has a file for each shape). Chance comes from `random.ts`,
   handed in.
 - artshape-physics is a dependency with nothing using it: the lure and the
@@ -431,6 +450,10 @@ What to copy the shape of, when building something new:
   hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
   the bench, read by `debug.ts`, posed by `swim.ts` and drawn (a chain of
   glowing segments) by `fishdraw.ts`.
+- **A kind of fish:** a line in `KINDS` (its weight, `keeps` band, scale and glow, the glow's colour in
+  `palette.ts`), slots in `FISH_KINDS`, a journal row for free (the page reads `KINDS`), a unit test in
+  `test/fish.test.ts` and `test/bite.test.ts` for its depth, a `fishTo` quarry in `debug.ts`, and a picture in
+  `fish-kinds-*`; the balance tool needs nothing, since heft is a share of the range.
 - **A painted edge on a solid:** the rocks (`src/rocks.ts`) and the cabin's
   timber (`src/cabin.ts`): a mesh `split` and `painted` once with a `set`
   named in `look.ts`'s `PAINT`, a test that it is painted and built the same

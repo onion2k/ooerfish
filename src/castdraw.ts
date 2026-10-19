@@ -10,7 +10,7 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import { pathPoints, rodTip } from './cast';
 import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
-import { ANGLER, ground } from './lake';
+import { ANGLER, DRUMS, ground } from './lake';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
@@ -220,7 +220,8 @@ export class CastDraw {
     const to = this.b;
     if (lure.phase === 'sinking') {
       let z = this.surface(lure.bobber[0], lure.bobber[1], game.t) + BOB.height * Math.sin(game.t * BOB.rate);
-      if (bite.phase === 'biting') z -= DIP;
+      // a drum pulls the bobber under harder than a fish does
+      if (bite.phase === 'biting') z -= DIP * (bite.drum >= 0 ? DRUMS.dip : 1);
       else if (bite.phase === 'nibbling' && bite.nibbledAt >= 0 && game.t - bite.nibbledAt < TWITCH.lasts)
         z -= TWITCH.depth * Math.sin((Math.PI * (game.t - bite.nibbledAt)) / TWITCH.lasts);
       // shaken while the window is open, so the bite is seen from the shore and not only read

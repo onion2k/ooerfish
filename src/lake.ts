@@ -454,9 +454,10 @@ export function onFace(x: number, y: number): boolean {
 export const FISHING = {
   // measured on 40 seeds of a cast to the middle: a bite in 11.7 s at the median and 23 s at the most; at a reach of
   // 12, a band of 3 and a chance of 0.3, a lake's six fish were too seldom near enough, and one seed in seven waited
-  // over a minute
+  // over a minute; that band of 3 let any fish come to a lure at any depth, and 1.5 holds each kind to its own water,
+  // so the sink is the player's choice of which kind to wait for
   reach: 18,
-  band: 5,
+  band: 1.5,
   notice: 0.4,
   twitchBoost: 3,
   twitchLasts: 3,
@@ -566,8 +567,48 @@ export const GEAR = [
 /** Who gives the gifts, as the toast names them: the power plant's mascot. */
 export const GIFT_GIVER = 'the Sunny Atom';
 
-/** The lab's one kind of fish, its name and the least and most it weighs, in kilograms. */
-export const PERCH = { name: 'glowing perch', weight: [0.3, 2.4] as const } as const;
+/**
+ * The kinds of fish the pond holds, in the order a kind is numbered by (`School.kind` is an index into this). Each has
+ * its name; the least and most it weighs, in kilograms; the band of the water's depth it keeps to, as shares of the
+ * deepest it may swim at its spot (a fish draws its own `keeps` within it); a body scale, one for the glowing perch's
+ * length; and the name of its glow in the palette, which `lake.ts` does not import. First guesses, tuned in play.
+ */
+export const KINDS = [
+  {
+    id: 'bream',
+    name: 'sunny bream',
+    weight: [0.2, 1] as const,
+    keeps: [0.12, 0.3] as const,
+    scale: 0.85,
+    glow: 'glowBream',
+  },
+  {
+    id: 'perch',
+    name: 'glowing perch',
+    weight: [0.3, 2.4] as const,
+    keeps: [0.3, 0.6] as const,
+    scale: 1,
+    glow: 'glow',
+  },
+  {
+    id: 'pike',
+    name: 'pike',
+    weight: [1.5, 5] as const,
+    keeps: [0.7, 0.9] as const,
+    scale: 1.35,
+    glow: 'glowPike',
+  },
+] as const;
+
+/** The kinds as an index into `KINDS`, by name. */
+export const KIND_INDEX = { bream: 0, perch: 1, pike: 2 } as const;
+
+/**
+ * The kind of each of the pond's twelve slots, fixed so the same seed gives the same school: four bream, five perch,
+ * three pike, mixed so the first fish cured are not all of one kind. A slot past the twelve (a bigger stocking, as the
+ * tests make) takes the kind of its place round again.
+ */
+export const FISH_KINDS: readonly number[] = [1, 0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1];
 
 /**
  * A fish's body and its stroke, the chunky toy chosen from the mock sheet with the subtle stroke. The body, nose to
@@ -816,11 +857,38 @@ export function framingFor(name: ViewName, aspect: number): View {
 }
 
 /**
+ * The drums of waste on the pond's bed (`docs/journal.md`): how many lie there, how many fish's worth of cleaning a
+ * drum hauled up is worth, what one weighs (in kilograms, for the card), how near the lure must lie on the bed to snag
+ * one and the chance a second that it does, and the seed their places are cut from, so no draw of the game's chance is
+ * ever spent on them. Their places are on the bed `bearing` either side of due north of the angler, between the two
+ * distances from the angler, in water `depth` deep (a lure stops on the bed only where the bed is shallower than the
+ * line lets it sink, so a drum in deeper water could never be reached), kept `margin` in from the shore and the boulders
+ * and `apart` from each other. A drum is `radius` across and `height` tall; a snag dips the bobber `dip` times as far as
+ * a fish's bite and rings the water `ring` big. Hauling it is a slow, steady reel with no darts: the meter fills at
+ * `fill` a second while the reel is held. First guesses, to be tuned in play.
+ */
+export const DRUMS = {
+  count: 2,
+  worth: 2,
+  weight: 42,
+  reach: 2.2,
+  rate: 0.6,
+  seed: 4177,
+  where: { distance: [14, 30] as const, bearing: 0.6, depth: [2, 3.6] as const, margin: 2, apart: 7 },
+  radius: 1.1,
+  height: 1.9,
+  dip: 2.2,
+  ring: 1.1,
+  fill: 0.07,
+} as const;
+
+/**
  * The cure: how many fish put in the bucket it takes to clean the lake, each lowering the contamination by a share of
  * that. It is the number of fish the pond holds, so that each is cured in turn and the last one cleans it (an estimate,
- * twelve; `DESIGN.md` sizes the cure by the player's pace, so it is tuned once the game is played).
+ * twelve; `DESIGN.md` sizes the cure by the player's pace, so it is tuned once the game is played). `total` is the
+ * cleaning the whole pond asks, in fish's worth: the fish, and the drums each worth `DRUMS.worth` of them.
  */
-export const CURE = { toClean: FISH_COUNT } as const;
+export const CURE = { toClean: FISH_COUNT, total: FISH_COUNT + DRUMS.count * DRUMS.worth } as const;
 
 /**
  * How the water heals after a cure (first guesses): the seconds of game time it takes to catch up with the lake, and
@@ -829,9 +897,12 @@ export const CURE = { toClean: FISH_COUNT } as const;
  */
 export const HEAL = { seconds: 30, step: 1 / 480 } as const;
 
-/** How sick the lake is once `cured` fish have been cured: from sick (1) down a share a fish, to clean (0), where it stays. */
-export function contaminationAfter(cured: number): number {
-  return Math.max(0, 1 - cured / CURE.toClean);
+/**
+ * How sick the lake is once `cured` fish have been cured and `drums` drums hauled: from sick (1) down a share a fish and
+ * a drum's worth of shares a drum, to clean (0), where it stays. The one place it is worked out.
+ */
+export function contaminationAfter(cured: number, drums: number): number {
+  return Math.max(0, 1 - (cured + drums * DRUMS.worth) / CURE.total);
 }
 
 /**

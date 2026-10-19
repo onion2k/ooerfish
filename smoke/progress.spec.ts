@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
-import { FIGHT, FISH_COUNT, GEAR, HEAL, jettyGap } from '../src/lake';
+import { DRUMS, FIGHT, FISH_COUNT, GEAR, HEAL, KINDS, jettyGap } from '../src/lake';
 
 /** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
 const ROD = GEAR.find((g) => g.id === 'rod')!;
@@ -252,7 +252,7 @@ test('what a strike did is said: nothing biting yet, too soon at a nibble, and t
   page,
 }) => {
   const problems = watch(page);
-  await start(page, { seed: 1, paused: true });
+  await start(page, { seed: 7, paused: true });
   const said = page.locator('#castLine');
   await page.evaluate(() => {
     const g = window.game!;
@@ -385,7 +385,11 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   // the card names the fish's temper before its kind, the one the game drew when it was hooked
   const temper = (await page.evaluate(() => window.game!.fishing())).temper;
   expect(['calm', 'steady', 'feisty']).toContain(temper);
-  await expect(page.locator('#catchName')).toHaveText(`${temper} glowing perch`);
+  const kind = await page.evaluate(() => {
+    const g = window.game!;
+    return g.fish()[g.fishing().fish].kind;
+  });
+  await expect(page.locator('#catchName')).toHaveText(`${temper} ${KINDS[kind].name}`);
   await expect(page.locator('#catchWeight')).toHaveText(/^\d\.\d\d kg$/);
   await page.locator('#catch').click();
   await play(page, 1, 'stowed');
@@ -417,16 +421,16 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   const before = (await api(() => window.game!.state())).contamination;
   expect(before).toBe(1);
 
-  // the tap on the card: a twelfth cleaner, in the game, the gauge and the save at once
+  // the tap on the card: a sixteenth cleaner, in the game, the gauge and the save at once
   await page.locator('#catch').click();
   await api(() => window.game!.step(1));
-  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
-  expect(await meter()).toBe('92');
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(15 / 16, 12);
+  expect(await meter()).toBe('94');
   // the water is not: it heals over `HEAL.seconds`, and has hardly moved a frame in (docs/heal.md)
   expect(await api(() => window.game!.drawnDirt()), 'the water starts to heal, not jumps').toBeGreaterThan(
-    11 / 12 + 0.05,
+    15 / 16 + 0.05,
   );
-  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 1, day: 1 });
+  expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 1, day: 1, drums: 0 });
   await expect(page.locator('#toast')).toBeVisible();
   await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
   expect(await api(() => window.game!.events())).toContain('cured 1/12');
@@ -439,8 +443,8 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   // reload: the gauge and the water as left, and no welcome for a player who has cured a fish
   await page.reload();
   await ready(page);
-  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
-  expect(await meter()).toBe('92');
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(15 / 16, 12);
+  expect(await meter()).toBe('94');
   await expect(page.locator('#welcome')).toBeHidden();
   expect(problems).toEqual([]);
 });
@@ -449,9 +453,9 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   page,
 }) => {
   const problems = watch(page);
-  await start(page, { seed: 11, paused: true, save: { cured: 11 } });
+  await start(page, { seed: 11, paused: true, save: { cured: 11, drums: DRUMS.count } });
   const api = <T>(f: () => T) => page.evaluate(f);
-  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(1 / 12, 12);
+  expect((await api(() => window.game!.state())).contamination).toBeCloseTo(1 / 16, 12);
   expect(await api(() => window.game!.fishTo('landed'))).toBe(true);
   await page.locator('#catch').click();
   await api(() => window.game!.step(1));
@@ -473,7 +477,7 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   await api(() => window.game!.step(1200));
   await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
   expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
-  expect(JSON.parse(await api(() => window.game!.save()))).toEqual({ cured: 12, day: 1 });
+  expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 12, day: 1, drums: DRUMS.count });
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -570,7 +574,7 @@ test('a cure heals the water over thirty seconds in steps, the gauge stepping at
   await start(page, { seed: 11, paused: true, save: { cured: 5 } });
   const api = <T>(f: () => T) => page.evaluate(f);
   const old = (await api(() => window.game!.state())).contamination;
-  expect(old).toBeCloseTo(7 / 12, 12);
+  expect(old).toBeCloseTo(11 / 16, 12);
   expect(await api(() => window.game!.drawnDirt())).toBe(quantised(old, HEAL.step));
 
   // paused with no steps: two reads of the count, across frames the page drew itself, are the same
@@ -583,8 +587,8 @@ test('a cure heals the water over thirty seconds in steps, the gauge stepping at
   await page.locator('#catch').click();
   await api(() => window.game!.step(1));
   const target = (await api(() => window.game!.state())).contamination;
-  expect(target).toBeCloseTo(6 / 12, 12);
-  await expect(page.locator('#pondBar')).toHaveAttribute('aria-valuenow', '50');
+  expect(target).toBeCloseTo(10 / 16, 12);
+  await expect(page.locator('#pondBar')).toHaveAttribute('aria-valuenow', '63');
   const first = (await api(() => window.game!.drawnDirt()))!;
   expect(Math.abs(first - old), 'the water has barely moved a frame after the cure').toBeLessThanOrEqual(HEAL.step * 4);
   const handedAtCure = await api(() => window.game!.waterHandovers());
@@ -603,7 +607,7 @@ test('a cure heals the water over thirty seconds in steps, the gauge stepping at
   expect((await api(() => window.game!.state())).waterDirt).toBe(target);
   expect(steps.size).toBeGreaterThan(5);
   const handovers = (await api(() => window.game!.waterHandovers())) - handedAtCure;
-  expect(handovers, 'no more than a handover a step').toBeLessThanOrEqual(1 / 12 / HEAL.step + 2);
+  expect(handovers, 'no more than a handover a step').toBeLessThanOrEqual(1 / 16 / HEAL.step + 2);
   expect(handovers).toBeGreaterThan(5);
 
   // healed, the page hands nothing over for a further second
@@ -644,7 +648,7 @@ test.describe('Start again', () => {
     await page.locator('#catch').click();
     await page.evaluate(() => window.game!.step(1));
     expect((await saved(page)).cured).toBe(1);
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
+    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
   };
 
   test('asks first, and Keep playing, Escape and a click outside each leave the save as it was', async ({ page }) => {
@@ -659,18 +663,18 @@ test.describe('Start again', () => {
 
     await page.getByRole('button', { name: 'Keep playing' }).click();
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
+    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
 
     await openFromMenu(page);
     await page.keyboard.press('Escape');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
+    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
 
     await openFromMenu(page);
     await page.mouse.click(3, 3);
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
-    expect((await page.evaluate(() => window.game!.state())).contamination).toBeCloseTo(11 / 12, 12);
+    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect((await page.evaluate(() => window.game!.state())).contamination).toBeCloseTo(15 / 16, 12);
     expect(problems).toEqual([]);
   });
 
@@ -684,7 +688,7 @@ test.describe('Start again', () => {
     await reloaded;
     await ready(page);
     expect(await stored(page)).toBeNull();
-    expect(await saved(page)).toEqual({ cured: 0, day: 1 });
+    expect(await saved(page)).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBe(1);
     expect(Object.values(await page.evaluate(() => window.game!.gear())).some(Boolean)).toBe(false);
     await expect(page.locator('#welcome')).toBeVisible();
@@ -706,7 +710,7 @@ test.describe('Start again', () => {
     await expect(page.getByRole('button', { name: 'Keep playing' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toEqual({ cured: 1, day: 1 });
+    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
   });
 
   test('the test API opens the dialog as the menu does, and keys over it do nothing in the game', async ({ page }) => {
@@ -772,7 +776,12 @@ test.describe('the day ends', () => {
     expect(await place(page)).toBe('cabin');
     expect(await day(page)).toBe(2);
     expect(await page.evaluate(() => window.game!.events())).toContain('woke 2');
-    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({ cured: 0, day: 2 });
+    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({
+      cured: 0,
+      day: 2,
+      drums: 0,
+      journal: {},
+    });
     expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
     expect(await page.evaluate(() => window.game!.time()), 'the page is lit as dawn').toBe('dawn');
     await expect(page.locator('#morning')).toHaveText('Day 2. Morning at the cabin.');
@@ -879,7 +888,7 @@ test.describe('the day ends', () => {
     expect(await place(page)).toBe('yawning');
     await play(page, 100, 'the night');
     expect(await place(page)).toBe('cabin');
-    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({ cured: 4, day: 2 });
+    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toMatchObject({ cured: 4, day: 2, drums: 0 });
     expect(problems).toEqual([]);
   });
 
@@ -928,6 +937,134 @@ test.describe('the day ends', () => {
     expect(await place(page)).toBe('pond');
     expect(await page.evaluate(() => window.game!.view())).toBe('shore');
     await expect(page.locator('#morning')).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The journal (`docs/journal.md`): each kind caught at its own depth and written in it, a drum hauled up, and the page
+ * stopping the clock. Seeded and paused, stepped through the test API, so no wait is on a clock.
+ */
+test.describe('the journal and the drum', () => {
+  test('each kind is caught at its depth and written in the journal', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    const api = <T>(f: () => T) => page.evaluate(f);
+
+    // a bream, then a pike: each fished for where its own kind lies, landed, and put in the bucket by its card
+    const caught: { kind: string; depth: number }[] = [];
+    for (const kind of ['bream', 'pike'] as const) {
+      expect(await page.evaluate((k) => window.game!.fishTo('landed', k), kind), `${kind} landed`).toBe(true);
+      const hooked = await api(() => {
+        const g = window.game!;
+        const f = g.fish()[g.fishing().fish];
+        return { kind: f.kind, depth: f.depth, weight: g.fishing().weight };
+      });
+      expect(hooked.kind, 'the kind landed is the kind fished for').toBe(kind === 'bream' ? 0 : 2);
+      caught.push({ kind, depth: hooked.depth });
+      await page.locator('#catch').click();
+      await play(page, 1, `a ${kind} in the bucket`);
+    }
+    expect(caught[0].depth, 'the bream was caught in shallower water than the pike').toBeLessThan(caught[1].depth);
+
+    // the save keeps both, with today as the first day and a weight within each kind's range
+    const journal = await api(() => window.game!.journal());
+    expect(Object.keys(journal).sort()).toEqual(['bream', 'pike']);
+    expect(journal.bream).toMatchObject({ caught: 1, first: 1 });
+    expect(journal.pike).toMatchObject({ caught: 1, first: 1 });
+    expect(journal.bream!.best).toBeGreaterThanOrEqual(0.2);
+    expect(journal.bream!.best).toBeLessThanOrEqual(1);
+    expect(journal.pike!.best).toBeGreaterThanOrEqual(1.5);
+    expect(journal.pike!.best).toBeLessThanOrEqual(5);
+
+    // and the page lists them, by name, with weight and day, the kind not caught saying so
+    await api(() => window.game!.openJournal());
+    await expect(page.locator('#journal')).toBeVisible();
+    const items = page.locator('#journalKinds li');
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0)).toHaveText(
+      `sunny bream1 caught, best ${journal.bream!.best.toFixed(2)} kg, first on day 1`,
+    );
+    await expect(items.nth(1)).toHaveText('glowing perchnot yet caught');
+    await expect(items.nth(2)).toHaveText(`pike1 caught, best ${journal.pike!.best.toFixed(2)} kg, first on day 1`);
+    await expect(page.locator('#journalDrums')).toHaveText('drums of waste hauled: 0 of 2');
+    expect(problems).toEqual([]);
+  });
+
+  test('a drum on the bed is hauled up and cleans the pond more', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    // every fish cured, so nothing but the drum can take the bait
+    await start(page, { seed: 1, paused: true, save: { cured: 12 } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    const meter = () => page.locator('#pondBar').getAttribute('aria-valuenow');
+    expect(await meter()).toBe('25');
+
+    // snagged and struck: a drum plays, and the reel let go leaves it waiting, the meter holding and the phase hooked
+    expect(await api(() => window.game!.fishTo('fight', 'drum'))).toBe(true);
+    expect(await api(() => window.game!.fishing().drum)).toBeGreaterThanOrEqual(0);
+    await api(() => window.game!.reel(false));
+    const held = await api(() => window.game!.fishing().meter);
+    await play(page, 1800, 'half a minute of the reel let go');
+    const waited = await api(() => window.game!.fishing());
+    expect(waited.phase, 'a drum never slips').toBe('hooked');
+    expect(waited.meter, 'and the meter does not drain').toBeGreaterThanOrEqual(held);
+
+    // reeled in with the reel held, the card names it, and the tap hauls it: the gauge falls two sixteenths
+    await api(() => window.game!.reel(true));
+    for (let k = 0; k < 120 && (await api(() => window.game!.fishing().phase)) !== 'landed'; k++)
+      await play(page, 30, 'the drum being reeled');
+    expect(await api(() => window.game!.fishing().phase)).toBe('landed');
+    await expect(page.locator('#catchName')).toHaveText('drum of waste');
+    expect(await meter(), 'the gauge has not moved before the tap').toBe('25');
+    await page.locator('#catch').click();
+    await play(page, 1, 'the drum hauled');
+    expect((await api(() => window.game!.state())).contamination).toBeCloseTo(2 / 16, 12);
+    expect(await meter()).toBe('13');
+    await expect(page.locator('#toast')).toHaveText('Hauled out! The pond clears a lot.');
+    expect(await api(() => window.game!.drums().filter((d) => d.hauled).length)).toBe(1);
+    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 12, drums: 1 });
+    expect(problems).toEqual([]);
+  });
+
+  test('the journal stops the clock while open, and the game runs on when it is closed', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    const clock = () => api(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
+    await play(page, 60, 'a second before the journal');
+    const before = await clock();
+    expect(before.t).toBeGreaterThan(0);
+
+    // from the menu's item, the page opens with focus on its button
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Journal' }).click();
+    await expect(page.locator('#journal')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
+    await play(page, 120, 'two seconds with the journal open');
+    expect(await clock(), 'game time holds').toEqual(before);
+    // keys do not reach the game
+    await page.keyboard.press('KeyC');
+    expect(await api(() => window.game!.mode())).toBe('look');
+
+    // Escape closes it, and the clock runs again
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#journal')).toBeHidden();
+    await play(page, 60, 'a second after');
+    const after = await clock();
+    expect(after.t).toBeGreaterThan(before.t);
+    expect(after.at).toBeGreaterThan(before.at);
+
+    // the backdrop closes it too, and so does the button
+    await api(() => window.game!.openJournal());
+    await expect(page.locator('#journal')).toBeVisible();
+    await page.mouse.click(2, 2);
+    await expect(page.locator('#journal')).toBeHidden();
+    await api(() => window.game!.openJournal());
+    await page.getByRole('button', { name: 'Close' }).click();
+    await expect(page.locator('#journal')).toBeHidden();
+    await api(() => window.game!.openJournal(false));
     expect(problems).toEqual([]);
   });
 });

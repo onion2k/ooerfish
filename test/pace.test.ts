@@ -1,6 +1,7 @@
 /** The pace gate: its angler, which fishes as a careful player does, and its arithmetic, which holds what it takes. */
 import { describe, expect, it } from 'vitest';
-import { Angler, REACTION, careful } from '../src/angler';
+import { Angler, PATIENCE, REACTION, careful } from '../src/angler';
+import { aimAt } from '../src/cast';
 import { FIGHT } from '../src/lake';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
@@ -10,6 +11,21 @@ import { median, moved, paceRun } from '../scripts/pace';
 import { DT } from './helpers';
 
 describe('the angler', () => {
+  it('reels in a lure that has sunk a while with no fish at it, and casts again', () => {
+    const game = new Game(new Progress(memoryStore()), { random: seeded(1) });
+    // every fish cured, so nothing ever comes and only its patience can move the lure
+    game.fish.cured.fill(1, 0, game.fish.count);
+    const angler = new Angler(game, seeded(101));
+    let casts = 0,
+      was = game.lure.phase;
+    for (let f = 0; f < (PATIENCE * 3 + 10) / DT; f++) {
+      angler.step(DT);
+      if (was !== 'flying' && game.lure.phase === 'flying') casts++;
+      was = game.lure.phase;
+    }
+    expect(casts).toBeGreaterThanOrEqual(3);
+  });
+
   it('casts, strikes only on a bite, plays the bar a reaction late, and stows what it lands', () => {
     const game = new Game(new Progress(memoryStore()), { random: seeded(1) });
     const angler = new Angler(game, seeded(101));
@@ -107,5 +123,28 @@ describe('the pace gate', () => {
     expect(game.place).not.toBe('cabin');
     expect(game.bucket, 'it kept fishing through the nights').toBeGreaterThan(0);
     expect(checkInvariants(game)).toEqual([]);
+  });
+});
+
+describe('the angler and a drum on the bed', () => {
+  it('does not strike at a drum’s heavy dip: it reels in and casts again, and never hooks one', () => {
+    const game = new Game(new Progress(memoryStore('{"cured": 12}')), { random: seeded(1) });
+    const angler = new Angler(game, seeded(101));
+    // the lure lying on the bed by a drum, in a pond with no fish left to take the bait
+    const { angle, power } = aimAt(game.drums.x[0], game.drums.y[0]);
+    game.cast(angle, power);
+    for (let f = 0; f < 60 * 30 && !game.lure.onBed; f++) game.step(DT);
+    expect(game.lure.onBed).toBe(true);
+    let dipped = 0,
+      hooked = 0;
+    for (let f = 0; f < 60 * 120; f++) {
+      if (game.bite.phase === 'biting' && game.bite.drum >= 0) dipped++;
+      angler.step(DT);
+      if (game.bite.drum >= 0 && game.bite.phase !== 'biting') hooked++;
+      expect(checkInvariants(game)).toEqual([]);
+    }
+    expect(dipped, 'a drum was snagged at least once').toBeGreaterThan(0);
+    expect(hooked, 'but none was ever hooked').toBe(0);
+    expect(game.bite.phase).not.toBe('hooked');
   });
 });

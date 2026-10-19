@@ -19,12 +19,26 @@ import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { Gesture, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
+import { DrumDraw } from './drumdraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { quantised } from './heal';
 import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
-import { CABIN_ROOM, HEAL, PHONE, SPLASH_CAPACITY, SWIM, VIEWS, WATER_PACE, framingFor, type ViewName } from './lake';
+import { journalWords } from './journal';
+import {
+  CABIN_ROOM,
+  DRUMS,
+  HEAL,
+  KINDS,
+  PHONE,
+  SPLASH_CAPACITY,
+  SWIM,
+  VIEWS,
+  WATER_PACE,
+  framingFor,
+  type ViewName,
+} from './lake';
 import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
@@ -110,8 +124,8 @@ async function main() {
       renderer.emit(splashBurst(x, y, size, waterShown()));
     },
     nibbled: () => log('nibbled'),
-    bitten: () => {
-      log('bitten');
+    bitten: (heavy) => {
+      log(heavy ? 'bitten (a drum)' : 'bitten');
       // a phone that can vibrate is asked to, once, as the strike's window opens
       overlay?.buzz();
     },
@@ -133,6 +147,12 @@ async function main() {
       // the water steps clearer at once, and the line says so; the gauge reads the save the game has just written
       void showWater();
       pond.cured(cured, toClean);
+    },
+    hauled: (hauled, drums) => {
+      log(`hauled ${hauled}/${drums}`);
+      // the drum is gone from the bed and the water steps clearer at once, and the line says so
+      void showWater();
+      pond.hauled(hauled, drums);
     },
     yawned: () => {
       log('yawned');
@@ -299,6 +319,9 @@ async function main() {
   let prepareAsked = 0;
   /** How many fish were cured when the fish's groups were last handed over, since their colour and glow go over only with the groups. */
   let curedDrawn = -1;
+  /** The drums of waste, drawn on the bed, and how many were hauled when their groups were last handed over. */
+  const drumDraw = new DrumDraw();
+  let hauledDrawn = -1;
   /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
   function waterShown(): number {
     return quantised(game.waterDirt, HEAL.step);
@@ -312,16 +335,24 @@ async function main() {
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
     const cured = game.fish.curedCount();
+    const hauled = game.drums.hauledCount();
     const dirt = waterShown();
-    if (watered !== dirt || curedDrawn !== cured) {
+    if (watered !== dirt || curedDrawn !== cured || hauledDrawn !== hauled) {
       watered = dirt;
       curedDrawn = cured;
+      hauledDrawn = hauled;
       handovers++;
       const water = style.groups(dirt);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      renderer.setDynamic([...water, ...fish.groups(game.fish.cured), ...casting.groups()]);
+      // the drums last, so the slots of the fish and the cast ahead of them are as they were
+      renderer.setDynamic([
+        ...water,
+        ...fish.groups(game.fish.cured, game.fish.kind),
+        ...casting.groups(),
+        ...drumDraw.groups(game.drums),
+      ]);
     }
     finish();
     await prepared();
@@ -566,10 +597,56 @@ async function main() {
     game.progress.reset();
     location.reload();
   });
+
+  // The journal is a page of the same kind over the game, written from `journalWords` each time it is opened and not
+  // on a frame. While it is open the page does not step the game (a frame of its own or a step a test asks for), so
+  // game time holds, as `DESIGN.md` says of the journal; it keeps drawing, and no key or tap reaches the game.
+  const journalPage = byId('journal');
+  const journalKinds = byId('journalKinds');
+  const journalDrums = byId('journalDrums');
+  const journalClose = byId<HTMLButtonElement>('journalClose');
+  let journalOpen = false;
+  const openJournal = () => {
+    showMenu(false);
+    const page = journalWords(game.progress.save.journal, KINDS, game.drums.hauledCount(), DRUMS.count);
+    journalKinds.replaceChildren(
+      ...page.rows.map((row) => {
+        const item = document.createElement('li');
+        const name = document.createElement('b');
+        const words = document.createElement('span');
+        name.textContent = row.name;
+        words.textContent = row.words;
+        if (row.caught) item.className = 'caught';
+        item.append(name, words);
+        return item;
+      }),
+    );
+    journalDrums.textContent = page.drums;
+    journalPage.hidden = false;
+    journalOpen = true;
+    journalClose.focus();
+    return Promise.resolve();
+  };
+  const closeJournal = () => {
+    if (!journalOpen) return Promise.resolve();
+    journalPage.hidden = true;
+    journalOpen = false;
+    menuButton.focus();
+    return Promise.resolve();
+  };
+  byId('journalButton').addEventListener('click', () => void openJournal());
+  journalClose.addEventListener('click', () => void closeJournal());
+  journalPage.addEventListener('pointerdown', (e) => {
+    if (e.target === journalPage) void closeJournal();
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!menuList.hidden && e.target instanceof Node && !byId('menu').contains(e.target)) showMenu(false);
   });
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && journalOpen) {
+      void closeJournal();
+      return;
+    }
     if (e.key === 'Escape' && !startAgain.hidden) {
       closeStartAgain();
       return;
@@ -598,8 +675,9 @@ async function main() {
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the page's own buttons, where the key is only what it presses
   const onControl = (e: KeyboardEvent) =>
-    e.target instanceof HTMLElement &&
-    e.target.closest('#catch, #modeButton, #downButton, #pairing, #startAgain, #menu') !== null;
+    journalOpen ||
+    (e.target instanceof HTMLElement &&
+      e.target.closest('#catch, #modeButton, #downButton, #pairing, #startAgain, #menu') !== null);
   window.addEventListener('keydown', (e) => {
     // Enter brings the player down from the cabin, as the button does
     if (e.key === 'Enter' && !e.repeat && game.place === 'cabin' && !onControl(e)) {
@@ -643,6 +721,7 @@ async function main() {
       card: byId<HTMLButtonElement>('catch'),
       name: byId('catchName'),
       weight: byId('catchWeight'),
+      hint: byId('catchHint'),
       bucket: byId('bucket'),
     },
     () => game,
@@ -795,6 +874,8 @@ async function main() {
 
   let frames = 0;
   function simulate(dt: number) {
+    // the journal open holds the game still: no time, no fish, no light moving, for a frame or a step asked for
+    if (journalOpen) return;
     frames++;
     game.step(dt);
     gestures.sync();
@@ -882,6 +963,7 @@ async function main() {
     phone: () => overlay?.reading() ?? NO_PHONE,
     pair: (fixed) => openPairing(fixed),
     startAgain: () => openStartAgain(),
+    openJournal: (open) => (open ? openJournal() : closeJournal()),
     setSettings,
     setDirt,
     setTime,

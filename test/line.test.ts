@@ -4,7 +4,7 @@ import { flight } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { fightFor } from '../src/fight';
-import { FIGHT, PERCH } from '../src/lake';
+import { FIGHT, KINDS } from '../src/lake';
 import { Line } from '../src/line';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -251,10 +251,11 @@ describe('the fight', () => {
       expect(game.bite.phase, `seed ${seed}`).toBe('landed');
       const landed = told.filter((l) => l.startsWith('landed'));
       expect(landed.length, `seed ${seed}: told once`).toBe(1);
-      const [, , , w] = landed[0].split(' ');
-      expect(landed[0]).toMatch(new RegExp(`^landed ${PERCH.name} [\\d.]+ (calm|steady|feisty)$`));
-      expect(Number(w)).toBeGreaterThanOrEqual(PERCH.weight[0]);
-      expect(Number(w)).toBeLessThanOrEqual(PERCH.weight[1]);
+      const w = landed[0].split(' ').at(-2);
+      const kind = KINDS[game.catchKind];
+      expect(landed[0]).toMatch(new RegExp(`^landed ${kind.name} [\\d.]+ (calm|steady|feisty)$`));
+      expect(Number(w)).toBeGreaterThanOrEqual(kind.weight[0]);
+      expect(Number(w)).toBeLessThanOrEqual(kind.weight[1]);
       // shown off, it waits by the rod; stowed, it is in the bucket and the lake has its fish still
       game.step(DT * 60);
       expect(game.bite.phase).toBe('landed');
@@ -272,7 +273,8 @@ describe('the fight', () => {
   it('gives the line a heft from the fish’s weight, the lightest nought and the heaviest one', () => {
     for (let seed = 1; seed <= 6; seed++) {
       const { game } = hooked(seed);
-      const share = (game.catchWeight - PERCH.weight[0]) / (PERCH.weight[1] - PERCH.weight[0]);
+      const [least, most] = KINDS[game.catchKind].weight;
+      const share = (game.catchWeight - least) / (most - least);
       expect(game.line.heft, `seed ${seed}`).toBeCloseTo(share, 9);
     }
   });
