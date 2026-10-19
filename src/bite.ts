@@ -12,8 +12,8 @@
  */
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
-import type { Drums } from './drums';
-import { DRUMS, FISHING, FISH_CAPACITY } from './lake';
+import type { BedFinds } from './bedfinds';
+import { DRUMS, FISHING, FISH_CAPACITY, TREASURES } from './lake';
 import type { Lure } from './lure';
 import type { Random } from './random';
 
@@ -25,8 +25,11 @@ export type Strike = 'none' | 'twitch' | 'spooked' | 'hooked';
 /** What the bite tells, as it happens. */
 export interface BiteEvents {
   nibbled?(): void;
-  /** The bobber dips; `heavy` when it is a drum of waste and not a fish that has taken the lure. */
-  bitten?(heavy?: boolean): void;
+  /**
+   * The bobber dips; `heavy` when it is a drum of waste and not a fish that has taken the lure, and `quarry` says which
+   * thing on the bed it was when it was one (a fish says nothing).
+   */
+  bitten?(heavy?: boolean, quarry?: 'drum' | 'treasure'): void;
   hooked?(): void;
   /** The fish let go: the window shut, it was struck too soon, the lure went, or it was scared off. */
   missed?(): void;
@@ -40,10 +43,13 @@ export class Bite {
   phase: BitePhase = 'none';
   /** The fish at the lure, or minus one. */
   fish = -1;
-  /** The drum snagged, or minus one: the quarry is a fish or a drum, never both. */
+  /** The drum snagged, or minus one: the quarry is a fish, a drum or a treasure, never two of them. */
   drum = -1;
-  /** Until when each drum keeps from the lure, having let go. */
+  /** The junk treasure snagged, or minus one. */
+  treasure = -1;
+  /** Until when each drum keeps from the lure, having let go, and each treasure. */
   readonly drumWary = new Float64Array(DRUMS.count);
+  readonly treasureWary = new Float64Array(TREASURES.count);
   /** How long until the next nibble or the bite, or how long the window has left. */
   timer = 0;
   /** How many nibbles are still to come before the bite. */
@@ -62,11 +68,11 @@ export class Bite {
   constructor(private readonly events: BiteEvents = {}) {}
 
   /**
-   * On by `dt` to the time `t`. The `drums` on the bed are snagged by a lure lying on it within reach, when no fish has
-   * taken the lure first; a drum draws a chance only while one is within reach of the lure, so the fish's draws are the
-   * same with drums or without.
+   * On by `dt` to the time `t`. The `drums` and the `treasures` on the bed are snagged by a lure lying on it within reach,
+   * the nearer of the two when both are, when no fish has taken the lure first; a draw of chance is made only while one
+   * is within reach of the lure, so the fish's draws are the same with them on the bed or without.
    */
-  step(t: number, dt: number, school: School, lure: Lure, random: Random, drums?: Drums) {
+  step(t: number, dt: number, school: School, lure: Lure, random: Random, drums?: BedFinds, treasures?: BedFinds) {
     // a fish on the line is the fight's, and one landed waits by the rod
     if (this.phase === 'hooked' || this.phase === 'landed') return;
     if (lure.phase !== 'sinking') {
@@ -94,20 +100,27 @@ export class Bite {
         school.held = chosen;
         return;
       }
-      // no fish has come: a lure lying on the bed by a drum may snag it, and a snag dips the bobber heavily at once
-      if (drums && lure.onBed) {
-        const d = drums.snagged(bx, by, DRUMS.reach, this.drumWary, t);
-        if (d >= 0 && random() < DRUMS.rate * dt) {
-          this.drum = d;
+      // no fish has come: a lure lying on the bed by a drum or a treasure may snag the nearer, and a snag dips the bobber
+      // at once (heavily for a drum, lightly for a treasure)
+      if ((drums || treasures) && lure.onBed) {
+        const d = drums ? drums.snagged(bx, by, DRUMS.reach, this.drumWary, t) : -1;
+        const k = treasures ? treasures.snagged(bx, by, TREASURES.reach, this.treasureWary, t) : -1;
+        const dd = d >= 0 ? Math.hypot(drums!.x[d] - bx, drums!.y[d] - by) : Infinity;
+        const kd = k >= 0 ? Math.hypot(treasures!.x[k] - bx, treasures!.y[k] - by) : Infinity;
+        const drum = dd <= kd;
+        if ((d >= 0 || k >= 0) && random() < (drum ? DRUMS.rate : TREASURES.rate) * dt) {
+          if (drum) this.drum = d;
+          else this.treasure = k;
           this.phase = 'biting';
           this.timer = windowFor(this.gear);
-          this.events.bitten?.(true);
+          if (drum) this.events.bitten?.(true, 'drum');
+          else this.events.bitten?.(false, 'treasure');
         }
       }
       return;
     }
-    // a drum snagged does not come, nibble or fight the lure: it holds the bobber under until the window shuts
-    if (this.drum >= 0) {
+    // a drum or a treasure snagged does not come, nibble or fight the lure: it holds the bobber under until the window shuts
+    if (this.drum >= 0 || this.treasure >= 0) {
       this.timer -= dt;
       if (this.timer <= 1e-9) this.letGo(t, school, lure);
       return;
@@ -182,6 +195,14 @@ export class Bite {
       if (!quiet) this.events.missed?.();
       return;
     }
+    if (this.treasure >= 0) {
+      // nor can a treasure: wary a while, and snagged again if the lure lies there still
+      this.treasureWary[this.treasure] = t + FISHING.wary;
+      this.treasure = -1;
+      this.phase = 'none';
+      if (!quiet) this.events.missed?.();
+      return;
+    }
     const i = this.fish;
     if (i >= 0) {
       this.wary[i] = t + FISHING.wary;
@@ -198,11 +219,12 @@ export class Bite {
     this.phase = 'landed';
   }
 
-  /** The landed fish stowed, or the landed drum hauled: the bite is over, and the school has the fish back to steer. */
+  /** The landed fish stowed, the landed drum hauled or the landed treasure kept: the bite is over, and the school has the fish back to steer. */
   stowed(school: School) {
     school.held = -1;
     this.fish = -1;
     this.drum = -1;
+    this.treasure = -1;
     this.phase = 'none';
   }
 }

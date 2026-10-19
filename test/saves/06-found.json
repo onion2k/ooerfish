@@ -1,0 +1,11 @@
+{
+  "cured": 5,
+  "day": 4,
+  "drums": 1,
+  "journal": {
+    "bream": { "caught": 2, "best": 0.85, "first": 2 },
+    "perch": { "caught": 2, "best": 1.9, "first": 1 },
+    "pike": { "caught": 1, "best": 3.1, "first": 4 }
+  },
+  "found": ["lunchbox", "bottle"]
+}

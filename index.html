@@ -253,10 +253,45 @@
     color: var(--ink);
   }
   #journalDrums {
-    margin: 12px 0;
+    margin: 12px 0 8px;
     padding-top: 10px;
     border-top: 1px solid rgba(255, 255, 255, 0.14);
     color: var(--ink);
+  }
+  /* the treasures found: a heading, how many, and a name each, the bottle's note under its own, in the same hand as the kinds */
+  #journal h3 {
+    margin: 12px 0 0;
+    font-size: 15px;
+  }
+  #journalFoundCount {
+    margin: 2px 0 8px;
+  }
+  #journalFound {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 12px;
+  }
+  #journalFound b {
+    display: block;
+    font-size: 13px;
+    font-weight: normal;
+    color: var(--dim);
+  }
+  #journalFound .caught b {
+    color: var(--ink);
+  }
+  #journalFound span {
+    display: block;
+    color: var(--dim);
+    font-size: 12px;
+    font-style: italic;
+    margin-top: 2px;
+  }
+  #journalFound li:has(span) {
+    grid-column: 1 / -1;
   }
   #journal .buttons {
     justify-content: center;
@@ -284,6 +319,25 @@
   }
   html[data-layout='sideways'] #journalKinds span {
     font-size: 12px;
+  }
+  html[data-layout='sideways'] #journal h3 {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+  html[data-layout='sideways'] #journalFoundCount {
+    margin: 0 0 4px;
+    font-size: 12px;
+  }
+  html[data-layout='sideways'] #journalFound {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px 12px;
+    margin: 0 0 4px;
+  }
+  html[data-layout='sideways'] #journalFound b {
+    font-size: 12px;
+  }
+  html[data-layout='sideways'] #journalFound span {
+    font-size: 11px;
   }
   html[data-layout='sideways'] #journalDrums {
     margin: 6px 0;
@@ -500,6 +554,24 @@
     display: block;
     color: var(--dim);
     margin-top: 8px;
+  }
+  /* a treasure's card says a line about it, and the bottle's its note: the note in quotes, in the ink, a little smaller */
+  #catch i {
+    display: block;
+    font-style: normal;
+    color: var(--dim);
+    margin-top: 6px;
+  }
+  #catch q {
+    display: block;
+    max-width: 34ch;
+    margin: 8px auto 0;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  #catch i[hidden],
+  #catch q[hidden] {
+    display: none;
   }
   #reelButton:focus-visible,
   #catch:focus-visible {
@@ -762,6 +834,14 @@
   html[data-layout='sideways'] #catch small {
     display: none;
   }
+  html[data-layout='sideways'] #catch i {
+    display: none;
+  }
+  html[data-layout='sideways'] #catch q {
+    max-width: 60ch;
+    margin-top: 4px;
+    font-size: 12px;
+  }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
 <div class="panel" id="pond" hidden>
@@ -811,6 +891,9 @@
     <h2 id="journalTitle">Journal</h2>
     <ul id="journalKinds"></ul>
     <p id="journalDrums"></p>
+    <h3 id="journalFoundTitle">Found in the pond</h3>
+    <p id="journalFoundCount"></p>
+    <ul id="journalFound" aria-labelledby="journalFoundTitle"></ul>
     <div class="buttons">
       <button type="button" id="journalClose">Close</button>
     </div>
@@ -832,7 +915,7 @@
 </div>
 <button id="reelButton" type="button" hidden aria-pressed="false">Strike</button>
 <button class="panel" id="catch" type="button" hidden>
-  <b id="catchName"></b><span id="catchWeight"></span
+  <b id="catchName"></b><span id="catchWeight"></span><i id="catchAbout" hidden></i><q id="catchNote" hidden></q
   ><small id="catchHint">tap to cure it and put it in the bucket</small>
 </button>
 <div class="panel" id="bucket" hidden></div>

@@ -20,6 +20,7 @@ import { splashBurst } from './bursts';
 import { Gesture, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { DrumDraw } from './drumdraw';
+import { TreasureDraw } from './treasuredraw';
 import { FISH_PARTS, FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { quantised } from './heal';
@@ -34,6 +35,7 @@ import {
   PHONE,
   SPLASH_CAPACITY,
   SWIM,
+  TREASURES,
   VIEWS,
   WATER_PACE,
   framingFor,
@@ -124,8 +126,8 @@ async function main() {
       renderer.emit(splashBurst(x, y, size, waterShown()));
     },
     nibbled: () => log('nibbled'),
-    bitten: (heavy) => {
-      log(heavy ? 'bitten (a drum)' : 'bitten');
+    bitten: (heavy, quarry) => {
+      log(heavy ? 'bitten (a drum)' : quarry === 'treasure' ? 'bitten (a treasure)' : 'bitten');
       // a phone that can vibrate is asked to, once, as the strike's window opens
       overlay?.buzz();
     },
@@ -153,6 +155,12 @@ async function main() {
       // the drum is gone from the bed and the water steps clearer at once, and the line says so
       void showWater();
       pond.hauled(hauled, drums);
+    },
+    found: (id) => {
+      log(`found ${id}`);
+      // the treasure leaves the bed for its shelf, and the line says so; the water is as it was
+      void showWater();
+      pond.found(id);
     },
     yawned: () => {
       log('yawned');
@@ -322,6 +330,9 @@ async function main() {
   /** The drums of waste, drawn on the bed, and how many were hauled when their groups were last handed over. */
   const drumDraw = new DrumDraw();
   let hauledDrawn = -1;
+  /** The junk treasures, on the bed or on their shelves, and how many were found when their groups were last handed over. */
+  const treasureDraw = new TreasureDraw();
+  let foundDrawn = -1;
   /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
   function waterShown(): number {
     return quantised(game.waterDirt, HEAL.step);
@@ -335,23 +346,27 @@ async function main() {
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
     const cured = game.fish.curedCount();
-    const hauled = game.drums.hauledCount();
+    const hauled = game.drums.foundCount();
+    const found = game.treasures.foundCount();
     const dirt = waterShown();
-    if (watered !== dirt || curedDrawn !== cured || hauledDrawn !== hauled) {
+    if (watered !== dirt || curedDrawn !== cured || hauledDrawn !== hauled || foundDrawn !== found) {
       watered = dirt;
       curedDrawn = cured;
       hauledDrawn = hauled;
+      foundDrawn = found;
       handovers++;
       const water = style.groups(dirt);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
       casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
-      // the drums last, so the slots of the fish and the cast ahead of them are as they were
+      // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
       renderer.setDynamic([
         ...water,
         ...fish.groups(game.fish.cured, game.fish.kind),
         ...casting.groups(),
         ...drumDraw.groups(game.drums),
+        ...drumDraw.bank(game.drums),
+        ...treasureDraw.groups(game.treasures),
       ]);
     }
     finish();
@@ -604,11 +619,20 @@ async function main() {
   const journalPage = byId('journal');
   const journalKinds = byId('journalKinds');
   const journalDrums = byId('journalDrums');
+  const journalFound = byId('journalFound');
+  const journalFoundCount = byId('journalFoundCount');
   const journalClose = byId<HTMLButtonElement>('journalClose');
   let journalOpen = false;
   const openJournal = () => {
     showMenu(false);
-    const page = journalWords(game.progress.save.journal, KINDS, game.drums.hauledCount(), DRUMS.count);
+    const page = journalWords(
+      game.progress.save.journal,
+      KINDS,
+      game.drums.foundCount(),
+      DRUMS.count,
+      TREASURES.list,
+      game.progress.save.found,
+    );
     journalKinds.replaceChildren(
       ...page.rows.map((row) => {
         const item = document.createElement('li');
@@ -622,6 +646,22 @@ async function main() {
       }),
     );
     journalDrums.textContent = page.drums;
+    journalFoundCount.textContent = page.found;
+    journalFound.replaceChildren(
+      ...page.treasures.map((row) => {
+        const item = document.createElement('li');
+        const name = document.createElement('b');
+        name.textContent = row.name;
+        if (row.found) item.className = 'caught';
+        item.append(name);
+        if (row.note) {
+          const note = document.createElement('span');
+          note.textContent = row.note;
+          item.append(note);
+        }
+        return item;
+      }),
+    );
     journalPage.hidden = false;
     journalOpen = true;
     journalClose.focus();
@@ -722,6 +762,8 @@ async function main() {
       name: byId('catchName'),
       weight: byId('catchWeight'),
       hint: byId('catchHint'),
+      about: byId('catchAbout'),
+      note: byId('catchNote'),
       bucket: byId('bucket'),
     },
     () => game,

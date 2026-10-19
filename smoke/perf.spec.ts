@@ -20,7 +20,7 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
-import { STANDARD, set, start, watch } from './game';
+import { CABIN_DAWN, STANDARD, set, start, watch } from './game';
 import { moved as hasMoved, type Figures } from './judging';
 
 const BASELINE = 'smoke/perf-baseline.json';
@@ -135,6 +135,19 @@ test('draws the water, at every time of day, splashing, within the frame budget'
     expect(ms, `the water at ${time} within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
   }
   console.log(`frame, the water: ${costs.join(', ')}`);
+  expect(problems).toEqual([]);
+});
+
+test('draws the cabin’s room with every treasure found on its shelves within the frame budget', async ({ page }) => {
+  test.setTimeout(180_000);
+  const problems = watch(page);
+  const found = ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'];
+  await start(page, { seed: 11, paused: true, save: { found } });
+  await set(page, CABIN_DAWN, 60);
+  expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+  const ms = await page.evaluate(() => window.game!.measureFrame());
+  console.log(`frame, the cabin with all six found: ${ms.toFixed(3)} ms`);
+  expect(ms, 'the cabin with six treasures on its shelves within the frame budget').toBeLessThanOrEqual(BUDGET.frameMs);
   expect(problems).toEqual([]);
 });
 

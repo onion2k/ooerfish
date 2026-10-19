@@ -25,7 +25,9 @@ import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
-import { ANGLER, KINDS, bedDepth } from './lake';
+import { ANGLER, KINDS, TREASURES, bedDepth } from './lake';
+import { bankSpot } from './drumdraw';
+import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
 import type { SceneryFigures } from './scene';
 import type { Settings } from './settings';
@@ -74,16 +76,30 @@ export interface LureState {
   bobber: [number, number];
 }
 
-/** A drum of waste: where it lies on the bed, and whether it has been hauled up for good. */
-/** What `fishTo` fishes for: a drum on the bed, or a kind of fish by its id. */
-export type Quarry = 'drum' | 'bream' | 'perch' | 'pike';
+/** What `fishTo` fishes for: a drum on the bed, a junk treasure by its id, or a kind of fish by its id. */
+export type Quarry = 'drum' | 'bream' | 'perch' | 'pike' | 'lure' | 'plush' | 'lunchbox' | 'badge' | 'bottle' | 'duck';
 
+/** A drum of waste: where it lies on the bed, and whether it has been hauled up for good. */
 export interface DrumState {
   x: number;
   y: number;
   /** How deep the bed is under it. */
   bed: number;
   hauled: boolean;
+  /** Where it stands on the bank by the cabin once hauled: x, y and z in the world. */
+  bank: [number, number, number];
+}
+
+/** A junk treasure: where it lies on the bed, whether it is found and kept, and where it stands on the cabin's shelf. */
+export interface TreasureState {
+  id: string;
+  x: number;
+  y: number;
+  /** How deep the bed is under it. */
+  bed: number;
+  found: boolean;
+  /** Where it stands on its shelf once found: x, y and z in the world. */
+  shelf: [number, number, number];
 }
 
 /** A fish, where it is. */
@@ -92,6 +108,8 @@ export interface FishingState {
   fish: number;
   /** The drum snagged, hooked or landed, or minus one. */
   drum: number;
+  /** The junk treasure snagged, hooked or landed, or minus one. */
+  treasure: number;
   tension: number;
   out: number;
   pulling: boolean;
@@ -135,6 +153,8 @@ export interface GameApi {
   fish(): Fish[];
   /** Each drum of waste on the bed, where it lies and whether it is hauled. */
   drums(): DrumState[];
+  /** Each junk treasure on the bed, where it lies, whether it is found and where it stands on the shelf once it is. */
+  treasures(): TreasureState[];
   /** Every splash in the pool, live or over. */
   splashes(): Splash[];
   /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
@@ -156,12 +176,14 @@ export interface GameApi {
   strike(): string;
   /** The reel held or let go, as holding the screen, the Reel button or space does. */
   reel(on: boolean): void;
-  /** The save's journal: for each kind caught, by its id, how many, the best weight and the day of the first. */
-  journal(): Journal;
+  /** The save's journal: for each kind caught, by its id, how many, the best weight and the day of the first; and the ids of the treasures found. */
+  journal(): { kinds: Journal; found: string[] };
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
   stow(): boolean;
   /** The landed drum of waste hauled up onto the bank, as a tap on its card does; false with none landed. */
   haul(): boolean;
+  /** The landed junk treasure kept for the shelf, as a tap on its card does; false with none landed. */
+  keep(): boolean;
   /** The gifts in force, a flag for each (line, reel, rod, bobber, bait): what the cure count earns, from the next fight. */
   gear(): Record<string, boolean>;
   /** The fishing: the bite's phase and its fish, the line's strain and length, whether the fish darts, the bar, and the bucket. */
@@ -412,7 +434,19 @@ export function createApi(host: DebugHost): GameApi {
         x: drums.x[i],
         y: drums.y[i],
         bed: bedDepth(drums.x[i], drums.y[i]),
-        hauled: drums.hauled[i] === 1,
+        hauled: drums.found[i] === 1,
+        bank: bankSpot(i).slice(0, 3) as [number, number, number],
+      }));
+    },
+    treasures() {
+      const { treasures } = game;
+      return TREASURES.list.map((t, i) => ({
+        id: t.id,
+        x: treasures.x[i],
+        y: treasures.y[i],
+        bed: bedDepth(treasures.x[i], treasures.y[i]),
+        found: treasures.found[i] === 1,
+        shelf: shelfSpot(i).slice(0, 3) as [number, number, number],
       }));
     },
     splashes() {
@@ -438,12 +472,17 @@ export function createApi(host: DebugHost): GameApi {
     reel: (on) => game.reel(on),
     stow: () => game.stow(),
     haul: () => game.haul(),
-    journal: () => JSON.parse(JSON.stringify(game.progress.save.journal)) as Journal,
+    keep: () => game.keep(),
+    journal: () => ({
+      kinds: JSON.parse(JSON.stringify(game.progress.save.journal)) as Journal,
+      found: [...game.progress.save.found],
+    }),
     gear: () => ({ ...game.gear }),
     fishing: () => ({
       phase: game.bite.phase,
       fish: game.bite.fish,
       drum: game.bite.drum,
+      treasure: game.bite.treasure,
       tension: game.line.tension,
       out: game.line.out,
       pulling: game.line.pulling,
@@ -463,6 +502,9 @@ export function createApi(host: DebugHost): GameApi {
         host.draw(1 / 60);
       };
       const want = quarry === undefined || quarry === 'drum' ? -1 : KINDS.findIndex((k) => k.id === quarry);
+      const treasure = TREASURES.list.findIndex((t) => t.id === quarry);
+      // a drum or a treasure is hauled, not played: the reel is held and the fight pictured a few seconds in
+      const hauled = quarry === 'drum' || treasure >= 0;
       /**
        * Fished for where the nearest uncured fish that `wanted` lies, the lure left to sink through its water. A bite by a
        * fish that is not `wanted` is let go and the cast thrown again, since the sink is the player's choice and it
@@ -490,9 +532,15 @@ export function createApi(host: DebugHost): GameApi {
       };
       if (quarry === 'drum') {
         // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
-        const i = game.drums.hauled.indexOf(0);
+        const i = game.drums.found.indexOf(0);
         if (i < 0) return false;
         const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i]);
+        if (!game.cast(angle, power)) return false;
+        for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
+      } else if (treasure >= 0) {
+        // the lure thrown to the treasure, if it is still on the bed, and left to lie there, where it is snagged
+        if (game.treasures.found[treasure]) return false;
+        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure]);
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (want >= 0) {
@@ -511,8 +559,8 @@ export function createApi(host: DebugHost): GameApi {
       game.strike();
       for (let f = 0; f < 7200 && game.bite.phase === 'hooked'; f++) {
         const { line } = game;
-        if (quarry === 'drum') {
-          // a drum has no zone to keep: it is hauled by holding the reel, and the fight is pictured a few seconds in
+        if (hauled) {
+          // a drum or a treasure has no zone to keep: it is hauled by holding the reel, and the fight is pictured a few seconds in
           if (moment === 'fight' && f > 300 && line.meter > 0.5) break;
           game.reel(true);
           frame();

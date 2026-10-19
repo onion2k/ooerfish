@@ -89,8 +89,10 @@ type Moment =
   | 'landed'
   | 'cured'
   | 'drum card'
+  | 'bottle card'
   | 'start again'
   | 'journal'
+  | 'journal found'
   | 'yawn'
   | 'morning';
 const MOMENTS: Moment[] = [
@@ -102,8 +104,10 @@ const MOMENTS: Moment[] = [
   'landed',
   'cured',
   'drum card',
+  'bottle card',
   'start again',
   'journal',
+  'journal found',
   'yawn',
   'morning',
 ];
@@ -117,8 +121,10 @@ const AT_LEAST: Record<Moment, number> = {
   landed: 4,
   cured: 3,
   'drum card': 4,
+  'bottle card': 4,
   'start again': 1,
   journal: 1,
+  'journal found': 1,
   // the gauge, the menu and the words; and, in the cabin, the line and the button with them
   yawn: 3,
   morning: 4,
@@ -186,9 +192,20 @@ async function reach(page: Page, moment: Moment) {
               journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
             },
           }
-        : moment === 'drum card'
-          ? { save: { cured: 12 } }
-          : { save: { cured: 3 } };
+        : moment === 'journal found'
+          ? {
+              // every treasure found, with the bottle's note the longest line of it, and a journal and a drum as well
+              save: {
+                cured: 3,
+                day: 2,
+                drums: 1,
+                journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
+                found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
+              },
+            }
+          : moment === 'drum card' || moment === 'bottle card'
+            ? { save: { cured: 12 } }
+            : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
@@ -198,11 +215,13 @@ async function reach(page: Page, moment: Moment) {
       await g.startAgain();
       return true;
     }
-    if (m === 'journal') {
+    if (m === 'journal' || m === 'journal found') {
       await g.openJournal();
       return true;
     }
     if (m === 'drum card') return g.fishTo('landed', 'drum');
+    // the bottle's card is the longest: its note is the most words a card ever holds
+    if (m === 'bottle card') return g.fishTo('landed', 'bottle');
     if (m === 'yawn' || m === 'morning') {
       // to bed from the pond: the screen half dark and yawning, or woken in the cabin with the fade lifted
       await g.sleep();
@@ -304,6 +323,24 @@ for (const bp of BREAKPOINTS) {
                   failures.add(`${where}: ${show(b)} covers the ${what} at ${at!.x.toFixed(0)},${at!.y.toFixed(0)}`);
               }
             }
+          }
+
+          // with all found, the page is longer than a short screen: its card may scroll, and must say it can, inside the screen
+          if (moment === 'journal found') {
+            const fit = await page.evaluate(() => {
+              const card = document.querySelector<HTMLElement>('#journal .card')!;
+              return {
+                scroll: card.scrollHeight,
+                shown: card.clientHeight,
+                overflow: getComputedStyle(card).overflowY,
+                close: document.getElementById('journalClose')!.getBoundingClientRect().width,
+              };
+            });
+            if (fit.scroll > fit.shown + 1 && !['auto', 'scroll'].includes(fit.overflow))
+              failures.add(
+                `${still}: the journal's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`,
+              );
+            if (fit.close <= 0) failures.add(`${still}: the journal's Close button has no size`);
           }
 
           // the journal's words all fit its card, with nothing left to scroll to

@@ -1,7 +1,7 @@
 /** The journal: an entry updated on each catch, and the words of its page. */
 import { describe, expect, it } from 'vitest';
 import { journalWords, recorded } from '../src/journal';
-import { DRUMS, KINDS } from '../src/lake';
+import { DRUMS, KINDS, TREASURES } from '../src/lake';
 
 describe('an entry on a catch', () => {
   it('starts at one, with the weight as the best and the day as the first', () => {
@@ -53,5 +53,41 @@ describe('the journal page’s words', () => {
   it('says the drums hauled of those there are', () => {
     expect(journalWords({}, KINDS, 1, 2).drums).toBe('drums of waste hauled: 1 of 2');
     expect(journalWords({}, KINDS, 0, 2).drums).toBe('drums of waste hauled: 0 of 2');
+  });
+
+  const words = (found: string[]) => journalWords({}, KINDS, 0, DRUMS.count, TREASURES.list, found);
+
+  it('lists each treasure, found or not, in order, an unfound one only as not yet found', () => {
+    const page = words(['badge']);
+    expect(page.treasures).toHaveLength(TREASURES.count);
+    expect(page.treasures.map((t) => t.found)).toEqual([false, false, false, true, false, false]);
+    expect(page.treasures[3].name).toBe(TREASURES.list[3].name);
+    for (const i of [0, 1, 2, 4, 5]) expect(page.treasures[i].name).toBe('not yet found');
+  });
+
+  it('gives the bottle’s note under its name once it is found, and no one else a note', () => {
+    const none = words([]);
+    expect(none.treasures[4].note, 'not before it is found').toBeUndefined();
+    const some = words(['bottle', 'duck', 'lure']);
+    expect(some.treasures[4].name).toBe('message bottle');
+    expect(some.treasures[4].note).toBe(TREASURES.list[4].note);
+    expect(some.treasures[4].note).toContain('the fish are glowing again');
+    for (const i of [0, 1, 2, 3, 5]) expect(some.treasures[i].note).toBeUndefined();
+  });
+
+  it('says how many are found of those there are', () => {
+    expect(words([]).found).toBe('found: 0 of 6');
+    expect(words(['lure', 'duck']).found).toBe('found: 2 of 6');
+  });
+
+  it('ignores an id it was not handed a treasure for, and keeps the drums’ line as it was', () => {
+    const page = words(['nope', 'lure']);
+    expect(page.treasures.filter((t) => t.found)).toHaveLength(1);
+    expect(page.drums).toBe('drums of waste hauled: 0 of 2');
+  });
+
+  it('is as it was with no treasures handed in', () => {
+    const page = journalWords({}, KINDS, 0, 2);
+    expect(page.treasures).toEqual([]);
   });
 });

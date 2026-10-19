@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { WATCH, grew, sizes, trouble } from '../scripts/leaks';
 import { crowd } from '../scripts/phonemonkey';
+import { TREASURES } from '../src/lake';
 import { seeded } from '../src/random';
 import { newGame } from './helpers';
 
@@ -15,12 +16,46 @@ describe('what must stay bounded', () => {
   it('reads the sizes off a game, and has a ceiling for every one', () => {
     const { game } = newGame();
     const now = sizes(game);
-    for (const key of ['fish', 'splashes', 'save bytes', 'journal kinds', 'drums hauled', 'heap MB']) {
+    for (const key of [
+      'fish',
+      'splashes',
+      'save bytes',
+      'journal kinds',
+      'drums hauled',
+      'treasures found',
+      'heap MB',
+    ]) {
       expect(Object.keys(now), `${key} measured`).toContain(key);
       expect(Number.isFinite(now[key])).toBe(true);
       expect(Object.keys(WATCH), `a ceiling for ${key}`).toContain(key);
     }
-    expect(now['save bytes'], 'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{}}, forty-two bytes').toBe(42);
+    expect(
+      now['save bytes'],
+      'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{},"found":[]}, fifty-three bytes',
+    ).toBe(53);
+    expect(WATCH['treasures found']!.ceiling).toBe(TREASURES.count);
+  });
+
+  it('keeps the save under its ceiling with every treasure found, a drum hauled and every kind caught', () => {
+    const all = JSON.stringify({
+      cured: 12,
+      day: 9,
+      drums: 2,
+      journal: {
+        bream: { caught: 4, best: 0.95, first: 2 },
+        perch: { caught: 5, best: 2.35, first: 1 },
+        pike: { caught: 3, best: 4.9, first: 4 },
+      },
+      found: TREASURES.list.map((t) => t.id),
+    });
+    const { game } = newGame(1, all);
+    const now = sizes(game);
+    expect(now['treasures found']).toBe(TREASURES.count);
+    expect(now['save bytes']).toBeLessThan(WATCH['save bytes']!.ceiling);
+    expect(
+      now['save bytes'] - 53,
+      'about a hundred and twenty bytes more than a fresh one, found alone',
+    ).toBeGreaterThan(100);
   });
 
   it('holds the phone to its ceilings through a busy room of phones, strangers and noise', () => {

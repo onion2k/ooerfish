@@ -25,11 +25,11 @@ ooergolf has (`LOOK.md` there), lighter and more whimsical: pastel water, soft e
 
 ## The loop
 
-1. **Morning at the cabin.** The wall calendar, the radio's forecast and gossip, the mail, and the aquarium.
+1. **Morning at the cabin.** The wall calendar, the radio's forecast and gossip, and the mail.
 2. **Out to a lake,** from the shore or in the boat.
 3. **Fish.** Find, cast, sink, bite, reel, land.
-4. **Cure.** The catch goes into the cabin's bubbling machine and comes out a normal, happy fish for the
-   aquarium. The lake's glow goes down.
+4. **Cure.** The catch goes into the cabin's bubbling machine and comes out a normal, happy fish, let go into the
+   pond. The lake's glow goes down.
 5. **The day ends** at midnight with a yawn and a fade, or earlier by choice, in bed at the cabin.
 
 ## The fishing
@@ -143,8 +143,8 @@ The story is told through the townsfolk's letters and the pages of a logbook, no
 
 ## The cabin
 
-- **The aquarium.** Every cured fish swims in it, can be named, and can be let go into its lake once the lake
-  is clean.
+- **No aquarium.** It was dropped on 19 Oct 2026: a cured fish goes straight back into its lake, so there is nothing
+  for a tank to hold.
 - **Bottled glow.** What the curing machine draws off is harmless lamp light: the cabin's lamps, lanterns along
   the jetty, the festival's lights.
 - **The shelves** hold the junk treasures; **the wall** the postcards and the calendar.
@@ -172,7 +172,7 @@ endurance: The Core, a catfish that swallowed a fuel rod, is Reactor Lake's.
 ## Hidden things
 
 - **The Moon Fish,** silver and naturally magical, on a cleaned lake at the full moon.
-- **A star,** hooked by casting into the moon's reflection at midnight; it twinkles in the aquarium.
+- **A star,** hooked by casting into the moon's reflection at midnight; it twinkles as it is let go.
 - **Sunny the Atom,** the giant inflatable mascot from the plant's opening day, at the bottom of the deepest
   lake. Hooked, it floats up grinning, and becomes the Glow-Down's centrepiece.
 - **The first fish cured** follows the boat on its own lake.
@@ -217,7 +217,7 @@ determinism, leaks and perf.
 
 A first list for `invariants.ts`: a fish is in the water; the line out is never more than the spool holds;
 the tension is a number of nought or more; the day is a whole number and never goes back; the time of day is
-from nought to one; a lake's contamination never rises; the aquarium holds only fish caught; and **the real
+from nought to one; a lake's contamination never rises; and **the real
 clock changes nothing but its extras**, held by a test that the same seed plays the same fish, weather and
 catches with it on and off, by a hash.
 
@@ -229,7 +229,7 @@ played, and not only the first afternoon.
 
 ### The save
 
-The day's number, what has been caught and cured and named, the aquarium, the requests open, the shore
+The day's number, what has been caught and cured, the requests open, the shore
 planted, each lake's contamination, the shelves, the boat's paint, where the player's lake is, and the
 day's real-clock fact. Each field with a default and a save in the new shape, as ooergolf's rule has it.
 
@@ -239,18 +239,24 @@ Each stage is a feature, built and verified before the next, every gate green at
 
 1. **The shore and a lake:** the Duck Pond, a cast with its preview, the lure sinking, the bobber.
 2. **A fish:** its steering, the bite, the strike, the line's tension, landing it.
-3. **The cure and the aquarium,** and the lake's contamination with its water changing colour: the heart of
+3. **The cure,** and the lake's contamination with its water changing colour: the heart of
    the cosy loop.
    _A first slice is in (16 Oct 2026): each fish put in the bucket is cured, lowering the Duck Pond's
-   contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The cabin, the
-   curing machine and the aquarium are not._
+   contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The cabin and the
+   curing machine are not._
 4. **The journal and the junk treasures.**
    _A first slice is in (19 Oct 2026): three kinds of fish, each at a depth of its own (sunny bream in the
    shallows, glowing perch in the middle, pike near the bed, 4/5/3 of the pond's twelve), two drums of waste on
    the pond's bed that are snagged by a lure lying beside them, hauled with a slow steady reel and clean the pond
    two fish's worth each, and a journal behind the menu that stops the clock. The pond holds what it takes to
-   clean it, with drums: twelve fish and two drums at two fish each, sixteen cleans. The aquarium, the shelves,
+   clean it, with drums: twelve fish and two drums at two fish each, sixteen cleans. The shelves,
    the other junk and the journal's drawings are not._
+   _A second slice is in (19 Oct 2026, `docs/junk.md`): six junk treasures lie on the Duck Pond's bed (an old lure, a
+   Sunny Atom plush, a Sunny Atom lunchbox, a "Safety First!" badge, a message bottle and the pond's rubber duck), snagged
+   by a lure left lying near them like a drum, reeled in lighter and quicker, and kept by a tap for the cabin's two
+   shelves. None cleans the pond. The bottle holds a short note, kept in the journal, whose words are a placeholder. A
+   hauled drum stands on the bank by the cabin. The other lakes' sets, their ducks and the found-and-painted lures are
+   not._
 5. **The calendar:** the day, the cabin morning, the end of a day, sleeping through.
    _Two slices are in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
    dawn, day, dusk and night; and the day ends (19 Oct 2026): at midnight, once no fish is on the line, the player
@@ -275,5 +281,5 @@ Each stage is a feature, built and verified before the next, every gate green at
 - The townsfolk's names and faces, and the story's words.
 - The sound: where its assets come from, and what it may cost of the download.
 - What a drum of waste is worth in the cleaning (two fish's, an estimate), and how many the lakes after the first hold.
-- How big the aquarium may grow, and the ceiling `leaks` holds it to.
+- The words of the junk: each treasure's line and the bottle's note are placeholders until the story's words are decided.
 - The new repo's name, and when it is made.

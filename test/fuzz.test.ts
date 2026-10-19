@@ -84,6 +84,25 @@ describe('the fuzzer', () => {
     expect(done['pond cleaned by a haul'], 'ponds whose last cleaning was a haul').toBeGreaterThan(0);
   });
 
+  it('reaches the treasures: a lure aimed at them, one snagged and kept, some seeds starting with some found, and one snagged in a clean pond', () => {
+    const done: Record<string, number> = {},
+      happened: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 4000);
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      // fish bites in a clean pond are what must not happen: a treasure may be snagged there
+      expect(r.done['bites in a clean pond'], `seed ${seed}`).toBe(0);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
+    }
+    expect(done['lie by a treasure'], 'casts aimed at a treasure').toBeGreaterThan(0);
+    expect(done['treasure snagged'], 'a treasure snagged').toBeGreaterThan(0);
+    expect(done['treasure kept'], 'a treasure kept').toBeGreaterThan(0);
+    expect(happened.found, 'a treasure found, told').toBeGreaterThan(0);
+    expect(done['start found'], 'seeds that start with a treasure found').toBeGreaterThan(0);
+    expect(done['treasure snagged in a clean pond'], 'a treasure snagged where nothing bites').toBeGreaterThan(0);
+  });
+
   it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 12; seed++) {

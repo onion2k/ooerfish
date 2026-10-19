@@ -1,8 +1,8 @@
 /** What a fish's size and temper do to its fight: the figures `fightFor` hands the line, and the odds of a temper. */
 import { describe, expect, it } from 'vitest';
-import { drawTemper, drumFight, fightFor, gearFor, type Temper } from '../src/fight';
+import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Temper } from '../src/fight';
 import { Line } from '../src/line';
-import { DRUMS, FIGHT, TEMPERS } from '../src/lake';
+import { DRUMS, FIGHT, TEMPERS, TREASURES } from '../src/lake';
 import { seeded } from '../src/random';
 
 const TEMPER_NAMES: Temper[] = ['calm', 'steady', 'feisty'];
@@ -168,5 +168,66 @@ describe('drumFight', () => {
     expect(reel.fill).toBeGreaterThan(base.fill);
     expect(reel.push).toBeGreaterThan(base.push);
     expect(drumFight(gearFor(2)).fill).toBe(base.fill);
+  });
+});
+
+describe('treasureFight', () => {
+  const noChance = () => {
+    throw new Error('a treasure draws no chance');
+  };
+  /** A treasure hooked 20 out and played with the reel held or not. */
+  function play(gear = gearFor(0)) {
+    const line = new Line();
+    line.start(20, treasureFight(gear), noChance);
+    return line;
+  }
+  /** Seconds to land with the reel held. */
+  function landsIn(figures: ReturnType<typeof drumFight>): number {
+    const line = new Line();
+    line.start(20, figures, noChance);
+    let seconds = 0;
+    let did = 'fighting';
+    while (did === 'fighting' && seconds < 300) {
+      did = line.step(1 / 60, true, 1, noChance);
+      seconds += 1 / 60;
+    }
+    expect(did).toBe('landed');
+    return seconds;
+  }
+
+  it('is the drum’s profile at a quicker fill: no darts, no drain, the treasure’s own rate', () => {
+    const f = treasureFight(gearFor(0));
+    const d = drumFight(gearFor(0));
+    expect(f.drum, 'it is played as a haul').toBe(true);
+    expect(f.dart).toBe(0);
+    expect(f.drain).toBe(0);
+    expect(f.fill).toBe(TREASURES.fill);
+    expect(f.fill, 'quicker than a drum’s').toBeGreaterThan(d.fill);
+    expect(f.fill / d.fill, 'about three times as quick').toBeCloseTo(3, 1);
+    expect({ ...f, fill: 0 }).toEqual({ ...d, fill: 0 });
+  });
+
+  it('never darts and never slips, however long it is played, and waits when the reel is let go', () => {
+    const line = play();
+    const at = line.fishAt;
+    const meter = line.meter;
+    for (let f = 0; f < 60 * 120; f++) {
+      expect(line.step(1 / 60, false, 1, noChance)).toBe('fighting');
+      expect(line.fishAt).toBe(at);
+      expect(line.pulling).toBe(false);
+    }
+    expect(line.meter).toBe(meter);
+  });
+
+  it('lands sooner than a drum, by about a third of the time, with the reel held', () => {
+    const treasure = landsIn(treasureFight(gearFor(0)));
+    const drum = landsIn(drumFight(gearFor(0)));
+    expect(treasure).toBeLessThan(drum / 2);
+    expect(treasure).toBeCloseTo((1 - FIGHT.meterStart) / TREASURES.fill, 0);
+  });
+
+  it('is eased by the reel’s gift, as a drum is', () => {
+    expect(treasureFight(gearFor(4)).fill).toBeGreaterThan(treasureFight(gearFor(0)).fill);
+    expect(treasureFight(gearFor(2)).fill).toBe(treasureFight(gearFor(0)).fill);
   });
 });

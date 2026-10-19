@@ -203,7 +203,7 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   `Uint8Array`; `fill` draws what it did, so the chance moves nowhere. A fish comes to the lure only within
   `FISHING.band` (1.5) of its own depth, so the sink is the choice; the weight is drawn from the kind's range and
   heft is its place in it, so `fightFor` and the balance tool are unchanged. **Two drums of waste** lie on the bed
-  (`DRUMS`, `src/drums.ts`: places from a seed of their own, never the game's chance). A lure lying on the bed within
+  (`DRUMS`, a `BedFinds` in `src/bedfinds.ts`: places from a seed of their own, never the game's chance). A lure lying on the bed within
   `DRUMS.reach` may snag one, a heavy dip, and a strike hooks it; `drumFight` in `fight.ts` is its profile (no darts,
   never slips, the reel held fills the meter), and a tap on the landed card is `Game.haul`, which keeps `save.drums`,
   tells `GameEvents.hauled` and lowers the contamination to `contaminationAfter(cured, drums)`:
@@ -215,6 +215,22 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   as the journal says were caught and then the rest in slot order, as an old save does. `fishdraw.ts` draws each slot
   at its kind's scale and glow, `drumdraw.ts` the drums, and `game.fish()`, `game.drums()` and `game.journal()` read
   them. The fuzzer starts each seed with drums and a journal from a stream of its own and casts to lie by a drum.
+  **Six junk treasures** (`docs/junk.md`) lie on the bed as well, a second `BedFinds` (`TREASURES` in `lake.ts`: an old
+  lure, a Sunny Atom plush and lunchbox, a "Safety First!" badge, a message bottle and the rubber duck, each with its id,
+  name, card line, weight, size and place on the shelves, the bottle a note) placed from a seed of its own clear of the
+  drums (`places(spec, world, avoid)`) in a band nearer than the pace angler's lure lies. `Bite.step` takes both sets and
+  snags the nearer unfound thing in reach by one draw (a treasure at the drum's rate and reach), so the quarry
+  (`Bite.fish`, `drum`, `treasure`) is at most one, and a treasure's dip is lighter (`TREASURES.dip`). `treasureFight`
+  is the drum's profile at three times the fill; the landed card (`cardWords({ treasure })`) names it, says its line
+  and the bottle's note; a tap is `Game.keep`, which adds its id to `save.found` (read in `progress.ts`: known, once
+  each, held to six), tells `GameEvents.found` and cleans nothing. `contaminationAfter` and `pondClean` read cures and
+  drums alone, and a treasure can be snagged in a clean pond (the fuzzer counts fish bites there, and a treasure
+  snag apart). `src/treasuredraw.ts` draws each model (a few primitives, painted, under sixty triangles) once, at
+  `TREASURES.bedScale` on the bed and `shelfScale` on its shelf in the cabin (`CABIN_ROOM.furniture` has a second
+  shelf, `shelfUpper`), one placement a part that moves with the count found, handed over only when it changes; a hauled
+  drum stands on the bank by the cabin (`bankSpot`, `DrumDraw.bank`). `journalWords` lists the treasures found (the
+  bottle's note under its name) under "Found in the pond". `game.treasures()`, `keep()` and `fishTo('landed',
+'<id>')` are the test API.
 - `src/main.ts` is the page. It turns what the game says into the water (when
   the contamination changes: `showWater`), the light (when the clock comes to
   the next look: `showLight`, each frame comparing `nearestTime` to the look's
@@ -450,6 +466,11 @@ What to copy the shape of, when building something new:
   hashed by `scripts/determinism.ts`, watched by `scripts/leaks.ts`, timed by
   the bench, read by `debug.ts`, posed by `swim.ts` and drawn (a chain of
   glowing segments) by `fishdraw.ts`.
+- **A thing on the bed:** a drum or a treasure: a `BedFinds` (`bedfinds.ts`) from a spec in `lake.ts` and a seed of its
+  own, a quarry index on `Bite` and a wary list, a fight profile in `fight.ts`, a landing in `Game` (`haul`, `keep`)
+  that saves what it must, an invariant for each rule (known, once, on the bed, the bite's never found), a hash in
+  `scripts/determinism.ts`, a ceiling in `scripts/leaks.ts`, an aimed cast in the fuzzer, its models in `drumdraw.ts`
+  or `treasuredraw.ts`, a `fishTo` quarry, and pictures of it on the bed and where it ends up.
 - **A kind of fish:** a line in `KINDS` (its weight, `keeps` band, scale and glow, the glow's colour in
   `palette.ts`), slots in `FISH_KINDS`, a journal row for free (the page reads `KINDS`), a unit test in
   `test/fish.test.ts` and `test/bite.test.ts` for its depth, a `fishTo` quarry in `debug.ts`, and a picture in
@@ -572,8 +593,8 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the lake's contamination:** only ever going down, by the cure; a lake fully
   clean, where no fish is left to bite; a save past the pond's twelve. `game.dirt` moves it both ways, as a lever for the
   pictures, and the invariants allow a rise only where that lever was set
-- **the cabin:** the curing machine, the aquarium at its ceiling, the
-  shelves, a fish named and let go
+- **the cabin:** the curing machine and the shelves (a cured fish is let go
+  into the pond at once, so nothing is kept in a tank)
 
 ## Verifying in a browser
 

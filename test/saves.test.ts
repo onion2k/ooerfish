@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { DRUMS, KINDS } from '../src/lake';
+import { DRUMS, KINDS, TREASURES } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -39,6 +39,18 @@ const KEPT: Record<string, Record<string, unknown>> = {
       perch: { caught: 2, best: 1.9, first: 1 },
       pike: { caught: 1, best: 3.1, first: 4 },
     },
+  },
+  // the junk treasures: the ids of what has been found on the bed and kept for the shelf
+  '06-found.json': {
+    cured: 5,
+    day: 4,
+    drums: 1,
+    journal: {
+      bream: { caught: 2, best: 0.85, first: 2 },
+      perch: { caught: 2, best: 1.9, first: 1 },
+      pike: { caught: 1, best: 3.1, first: 4 },
+    },
+    found: ['lunchbox', 'bottle'],
   },
 };
 
@@ -73,9 +85,15 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
-    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({
+      cured: 0,
+      day: 1,
+      drums: 0,
+      journal: {},
+      found: [],
+    });
     // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
     for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
       expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({
@@ -83,6 +101,7 @@ describe('saves from every shape the game has written', () => {
         day: 1,
         drums: 0,
         journal: {},
+        found: [],
       });
     // and one that is, is kept, with whatever else the save said left alone
     expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
@@ -167,14 +186,46 @@ describe('saves from every shape the game has written', () => {
     });
   });
 
+  describe('the treasures found', () => {
+    const foundOf = (j: string) => new Progress(memoryStore(`{"cured": 3, "found": ${j}}`)).save.found;
+
+    it('is empty for an old save, and the ids are kept as written', () => {
+      expect(new Progress(memoryStore('{"cured": 3}')).save.found).toEqual([]);
+      expect(foundOf('["duck", "lure"]')).toEqual(['duck', 'lure']);
+      expect(foundOf('[]')).toEqual([]);
+    });
+
+    it('drops an id the game does not know, and keeps the others', () => {
+      expect(foundOf('["nope", "badge", 4, null, "Badge"]')).toEqual(['badge']);
+    });
+
+    it('drops repeats, keeping the first of each', () => {
+      expect(foundOf('["duck", "lure", "duck", "lure", "plush"]')).toEqual(['duck', 'lure', 'plush']);
+    });
+
+    it('is none when it is not a list, and never longer than the treasures there are', () => {
+      for (const bad of ['null', '4', '"lure"', '{"lure": 1}', 'true']) expect(foundOf(bad), bad).toEqual([]);
+      const all = TREASURES.list.map((t) => t.id);
+      expect(foundOf(JSON.stringify([...all, ...all, 'extra']))).toEqual(all);
+      expect(foundOf(JSON.stringify(all)).length).toBe(TREASURES.count);
+    });
+
+    it('is written again as it was read, with the unknown and the repeats gone', () => {
+      const store = memoryStore('{"cured": 2, "found": ["bottle", "bottle", "x"]}');
+      const game = new Game(new Progress(store));
+      game.persist();
+      expect((JSON.parse(store.json!) as Save).found).toEqual(['bottle']);
+    });
+  });
+
   it('starts over: a save of seven cured is wiped in memory and in the store, and a new load finds none', () => {
     const store = memoryStore('{"cured": 7}');
     const progress = new Progress(store);
     expect(progress.save.cured).toBe(7);
     progress.reset();
-    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
     expect(store.json).toBeNull();
-    expect(new Progress(store).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(new Progress(store).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {

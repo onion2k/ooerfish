@@ -4,13 +4,13 @@
  * a field a save does not have takes its default, and a field it has that
  * the game no longer knows is left alone.
  *
- * What is kept so far is the cure, how many fish have been cured, how many drums of waste hauled, the day's number, and
- * the journal of what each kind has had caught. The
+ * What is kept so far is the cure, how many fish have been cured, how many drums of waste hauled, the day's number, the
+ * journal of what each kind has had caught, and the ids of the junk treasures found on the bed. The
  * lake's contamination is worked out from the count and not kept itself, so
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
  */
-import { DRUMS, KINDS } from './lake';
+import { DRUMS, KINDS, TREASURES } from './lake';
 import type { Journal } from './journal';
 
 export interface Save {
@@ -22,6 +22,8 @@ export interface Save {
   drums: number;
   /** What each kind of fish has had caught, by the kind's id: how many, the best weight and the day of the first. */
   journal: Journal;
+  /** The ids of the treasures found and kept for the shelf, in the order they were found, each once and never more than the pond has. */
+  found: string[];
 }
 
 /** Where the save is kept. */
@@ -105,7 +107,20 @@ function readJournal(raw: unknown, cured: number, day: number): Journal {
   return caught > cured ? {} : out;
 }
 
-const fresh = (): Save => ({ cured: 0, day: 1, drums: 0, journal: {} });
+/**
+ * The treasures found as anyone may have written them: a list, of which an id the pond has no treasure for, and a
+ * repeat of one already kept, is dropped, so what is kept is known, unique, in order, and no longer than the treasures
+ * there are. Anything that is not a list is none.
+ */
+function readFound(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const known = new Set(TREASURES.list.map((t) => t.id));
+  const out: string[] = [];
+  for (const id of raw) if (typeof id === 'string' && known.has(id) && !out.includes(id)) out.push(id);
+  return out;
+}
+
+const fresh = (): Save => ({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
 
 export class Progress {
   readonly save: Save;
@@ -130,6 +145,7 @@ export class Progress {
       this.save.drums = Math.min(said.drums, DRUMS.count);
     if (typeof said.day === 'number' && Number.isSafeInteger(said.day) && said.day >= 1) this.save.day = said.day;
     this.save.journal = readJournal(said.journal, this.save.cured, this.save.day);
+    this.save.found = readFound(said.found);
   }
 
   persist() {

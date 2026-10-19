@@ -752,6 +752,8 @@ export const CABIN_ROOM = {
       to: { across: 0.3, along: 2.9 },
     },
     shelf: { along: -2.8, wide: 1.4, deep: 0.26, high: 1.5, thick: 0.05 },
+    /** The second shelf, above the first on the same wall, where the junk treasures found stand with the lower one's free end. */
+    shelfUpper: { along: -2.8, wide: 1.4, deep: 0.26, high: 2.0, thick: 0.05 },
     /** The books stand in a row at the shelf's far end, each a width and a height; the jar stands at the near end. */
     books: [
       [0.07, 0.3],
@@ -880,6 +882,104 @@ export const DRUMS = {
   dip: 2.2,
   ring: 1.1,
   fill: 0.07,
+  /** Where a hauled drum stands on the bank, in the cabin's frame (`across` toward the lake, `along` the shore): in front of it, off the jetty's path. */
+  bank: [
+    { across: 6.4, along: 3.8 },
+    { across: 6.4, along: 6.2 },
+  ] as readonly { across: number; along: number }[],
+} as const;
+
+/** What the content says of one junk treasure: see `TREASURES`. */
+export interface TreasureSpec {
+  id: string;
+  /** What it is called on the card and in the journal, lower case, "a" put before it. */
+  name: string;
+  /** The line the card says of it, a placeholder until the story's words are decided. */
+  line: string;
+  /** What it weighs, in kilograms, for the card. */
+  weight: number;
+  /** How big its model is, at a scale of one: the radius it fits in and how tall it stands, in world units. */
+  size: { radius: number; high: number };
+  /** Where it stands in the cabin: on the lower or the upper shelf, `along` the shore from the room's middle. */
+  shelf: { on: 'lower' | 'upper'; along: number };
+  /** What a message in it says, if it holds one. */
+  note?: string;
+}
+
+/**
+ * The junk treasures on the Duck Pond's bed (`docs/junk.md`), six, which come up on the line and are kept on the cabin's
+ * shelves. They lie where `seed` puts them (never the game's chance), in the band `where` says: between two distances
+ * of the angler and `bearing` either side of due north, in water `depth` deep, `margin` in from the shore and the
+ * boulders, `apart` from each other and from each drum. The band is nearer than the drums' and than where the pace
+ * angler's lure lies, so the pace gate does not meet them. A lure lying on the bed within `reach` of one snags it by
+ * `rate` a second (the drum's own, as the user chose), the bobber dips `dip` times as far as a fish's bite (a drum's
+ * is more) and rings the water `ring` big. Hauling is the drum's slow steady reel at three times its fill, since a
+ * treasure is a light thing. The models are drawn `bedScale` times their size on the bed, so that they are seen through
+ * the water, and `shelfScale` times it on a shelf. None of them cleans the pond. Each `size` is what its model in
+ * `treasuredraw.ts` measures, at a scale of one, held by a test. First guesses, the lines and the note a placeholder.
+ */
+export const TREASURES = {
+  count: 6,
+  seed: 6211,
+  reach: DRUMS.reach,
+  rate: DRUMS.rate,
+  where: { distance: [8, 21] as const, bearing: 0.9, depth: [2, 3.6] as const, margin: 2, apart: 4 },
+  dip: 1.4,
+  ring: 0.8,
+  fill: DRUMS.fill * 3,
+  bedScale: 1.8,
+  shelfScale: 0.28,
+  list: [
+    {
+      id: 'lure',
+      name: 'old lure',
+      line: 'A rusty spinner, still shiny where it counts.',
+      weight: 0.1,
+      size: { radius: 0.55, high: 0.17 },
+      shelf: { on: 'lower', along: -2.95 },
+    },
+    {
+      id: 'plush',
+      name: 'Sunny Atom plush',
+      line: 'The Sunny Atom, soggy but smiling.',
+      weight: 0.4,
+      size: { radius: 0.4, high: 0.74 },
+      shelf: { on: 'upper', along: -3.3 },
+    },
+    {
+      id: 'lunchbox',
+      name: 'Sunny Atom lunchbox',
+      line: 'Empty, thank goodness.',
+      weight: 0.6,
+      size: { radius: 0.41, high: 0.43 },
+      shelf: { on: 'upper', along: -2.99 },
+    },
+    {
+      id: 'badge',
+      name: '"Safety First!" badge',
+      line: "Safety First! (They weren't.)",
+      weight: 0.05,
+      size: { radius: 0.42, high: 0.08 },
+      shelf: { on: 'lower', along: -2.66 },
+    },
+    {
+      id: 'bottle',
+      name: 'message bottle',
+      line: 'Corked, and not empty.',
+      weight: 0.3,
+      size: { radius: 0.5, high: 0.23 },
+      shelf: { on: 'upper', along: -2.68 },
+      note: "If you're reading this, the fish are glowing again. Bring them home. — E.",
+    },
+    {
+      id: 'duck',
+      name: 'rubber duck',
+      line: "The Duck Pond's own rubber duck.",
+      weight: 0.2,
+      size: { radius: 0.41, high: 0.56 },
+      shelf: { on: 'upper', along: -2.38 },
+    },
+  ] as readonly TreasureSpec[],
 } as const;
 
 /**

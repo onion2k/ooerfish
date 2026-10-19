@@ -92,9 +92,19 @@ export function hashGame(game: Game): string {
   for (let i = 0; i < drums.count; i++) {
     eat(drums.x[i]);
     eat(drums.y[i]);
-    eat(drums.hauled[i]);
+    eat(drums.found[i]);
   }
   eat(game.bite.drum);
+  // the junk treasures the same way: where each lies, whether it is found, and which one the bite has snagged
+  const { treasures } = game;
+  eat(treasures.count);
+  for (let i = 0; i < treasures.count; i++) {
+    eat(treasures.x[i]);
+    eat(treasures.y[i]);
+    eat(treasures.found[i]);
+  }
+  eat(game.bite.treasure);
+  eat(game.catchTreasure);
   const { splashes } = game;
   eat(splashes.count);
   eat(splashes.next);

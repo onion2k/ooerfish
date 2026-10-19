@@ -51,7 +51,13 @@ describe('the cure', () => {
       expect(told.at(-1)).toEqual([k, CURE.toClean]);
       expect(told.length, 'told once a fish').toBe(k);
       // saved at once, as a count of fish and not as the contamination, so a retuned step re-derives it
-      expect(JSON.parse(store.json!)).toEqual({ cured: k, day: 1, drums: 0, journal: expect.any(Object) as unknown });
+      expect(JSON.parse(store.json!)).toEqual({
+        cured: k,
+        day: 1,
+        drums: 0,
+        journal: expect.any(Object) as unknown,
+        found: [],
+      });
     }
     expect(game.bucket).toBe(3);
     expect(checkInvariants(game)).toEqual([]);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
 import { depthRange } from '../src/fish';
 import { fightFor, gearFor } from '../src/fight';
-import { DECK, bedDepth, contaminationAfter, inside } from '../src/lake';
+import { DECK, DRUMS, TREASURES, bedDepth, contaminationAfter, inside } from '../src/lake';
 import { newGame, settle } from './helpers';
 
 describe('what must always hold', () => {
@@ -158,7 +158,7 @@ describe('the drums of waste', () => {
   it('holds the drums hauled to the save, and to none or the pond’s', () => {
     const { game } = newGame();
     expect(checkInvariants(game)).toEqual([]);
-    game.drums.haul(0);
+    game.drums.find(0);
     expect(checkInvariants(game).join('\n')).toMatch(/1 drums are hauled, but the save says 0/);
     game.progress.save.drums = 1;
     game.contamination = contaminationAfter(0, 1);
@@ -172,7 +172,7 @@ describe('the drums of waste', () => {
 
   it('never has a hauled drum as the bite’s', () => {
     const { game } = newGame();
-    game.drums.haul(1);
+    game.drums.find(1);
     game.progress.save.drums = 1;
     game.contamination = game.waterDirt = contaminationAfter(0, 1);
     game.bite.drum = 1;
@@ -269,5 +269,82 @@ describe('the journal', () => {
     delete game.progress.save.journal.perch;
     game.progress.save.journal.eel = { caught: 0, best: 0, first: 0 };
     expect(bad(game)).toMatch(/the journal has a kind not known: eel/);
+  });
+});
+
+describe('the treasures on the bed', () => {
+  const bad = (game: ReturnType<typeof newGame>['game']) => checkInvariants(game).join('\n');
+
+  it('holds of a new lake, a load that has found some, and a lake played a while', () => {
+    expect(checkInvariants(newGame(1, '{"found": ["lure", "duck"]}').game)).toEqual([]);
+    const { game } = newGame(2);
+    settle(game, 300);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('holds the ids found to known ones, once each, and no more than there are', () => {
+    const { game } = newGame();
+    game.progress.save.found = ['nope'];
+    expect(bad(game)).toMatch(/the save has a treasure not known: nope/);
+    game.progress.save.found = ['lure', 'lure'];
+    expect(bad(game)).toMatch(/the save has the treasure lure twice/);
+    game.progress.save.found = [...TREASURES.list.map((t) => t.id), 'duck'];
+    expect(bad(game)).toMatch(/the save has 7 treasures found, of 6 in the pond/);
+  });
+
+  it('holds the treasures found on the bed to the save’s ids', () => {
+    const { game } = newGame();
+    game.treasures.find(1);
+    expect(bad(game)).toMatch(/treasure plush is found, but the save does not say so/);
+    game.progress.save.found = ['plush'];
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.save.found = ['duck'];
+    expect(bad(game)).toMatch(/treasure duck is in the save, but it is still on the bed/);
+  });
+
+  it('never has a found treasure as the bite’s, and the quarry at most one thing', () => {
+    const { game } = newGame();
+    game.treasures.find(1);
+    game.progress.save.found = ['plush'];
+    game.bite.treasure = 1;
+    game.bite.phase = 'biting';
+    game.lure.phase = 'sinking';
+    expect(bad(game)).toMatch(/treasure 1 is found, but it is the bite's/);
+    const two = newGame().game;
+    two.bite.phase = 'biting';
+    two.lure.phase = 'sinking';
+    two.bite.drum = 0;
+    two.bite.treasure = 2;
+    expect(bad(two)).toMatch(/with drum 0 and treasure 2/);
+    const three = newGame().game;
+    three.bite.phase = 'biting';
+    three.lure.phase = 'sinking';
+    three.bite.fish = 1;
+    three.bite.treasure = 2;
+    expect(bad(three)).toMatch(/with treasure 2 and fish 1/);
+    const none = newGame().game;
+    none.bite.treasure = 0;
+    expect(bad(none)).toMatch(/no treasure is at the lure, but the bite has treasure 0/);
+    none.bite.treasure = 9;
+    expect(bad(none)).toMatch(/the bite has treasure 9, of 6/);
+  });
+
+  it('holds each treasure under the water on the bed, and clear of the drums', () => {
+    const { game } = newGame();
+    game.treasures.x[0] = 1000;
+    expect(bad(game)).toMatch(/treasure 0 is not on the bed under the water/);
+    const near = newGame().game;
+    near.treasures.x[1] = near.drums.x[0] + 0.5;
+    near.treasures.y[1] = near.drums.y[0];
+    expect(bad(near)).toMatch(/treasure 1 lies .* from drum 0, under the .* apart/);
+    expect(DRUMS.count).toBeGreaterThan(0);
+  });
+
+  it('leaves the cleaning to the formula: finding treasures moves nothing of it', () => {
+    const { game } = newGame(1, '{"cured": 3, "drums": 1, "found": ["lure", "duck", "bottle"]}');
+    expect(game.contamination).toBeCloseTo(contaminationAfter(3, 1), 12);
+    expect(checkInvariants(game)).toEqual([]);
+    game.contamination = game.waterDirt = contaminationAfter(3, 1) - 0.05;
+    expect(bad(game)).toMatch(/the contamination is .*, but 3 cured and 1 hauled make it/);
   });
 });

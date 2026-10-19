@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { flight } from '../src/cast';
 import { Game } from '../src/game';
 import { Bite } from '../src/bite';
-import { DRUMS, FISHING, KIND_INDEX } from '../src/lake';
+import { DRUMS, FISHING, KIND_INDEX, TREASURES } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
-import { DT, castAtDrum, cureAll, lieByDrum } from './helpers';
+import { DT, castAtDrum, cureAll, lieByDrum, lieByTreasure } from './helpers';
 
 const NORTH = Math.PI / 2;
 
@@ -468,7 +468,7 @@ describe('a drum on the bed and the lure', () => {
 
   it('never snags a hauled drum, however long the lure lies by it', () => {
     const game = beside();
-    game.drums.haul(0);
+    game.drums.find(0);
     expect(snagIn(game, 60)).toBe(-1);
     expect(game.bite.phase).toBe('none');
   });
@@ -526,5 +526,149 @@ describe('a drum on the bed and the lure', () => {
     expect(game.bite.phase).toBe('coming');
     expect(game.bite.fish).toBe(0);
     expect(game.bite.drum).toBe(-1);
+  });
+});
+
+describe('a treasure on the bed and the lure', () => {
+  /** A pond with every fish cured, the lure lying on the bed beside treasure `i`, and the bite not yet stepped. */
+  function beside(i = 0, seed = 1) {
+    const { game } = lake(seed);
+    cureAll(game);
+    lieByTreasure(game, i);
+    expect(game.lure.phase).toBe('sinking');
+    expect(game.lure.onBed, 'the lure lies on the bed').toBe(true);
+    expect(game.bite.phase).toBe('none');
+    return game;
+  }
+  /** The bite stepped with a chance that always snags, for `seconds`; what it took, as 'treasure 2' or 'drum 0', or ''. */
+  function snagIn(game: Game, seconds = 3): string {
+    let t = game.t;
+    for (let f = 0; f < seconds / DT; f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+      if (game.bite.phase !== 'none')
+        return game.bite.treasure >= 0
+          ? `treasure ${game.bite.treasure}`
+          : game.bite.drum >= 0
+            ? `drum ${game.bite.drum}`
+            : 'fish';
+    }
+    return '';
+  }
+
+  it('snags a lure lying on the bed within reach, with every fish cured, and dips the bobber lightly', () => {
+    const told: [boolean | undefined, string | undefined][] = [];
+    const game = beside(3);
+    const bite = new Bite({ bitten: (heavy, quarry) => told.push([heavy, quarry]) });
+    let t = game.t;
+    for (let f = 0; f < 200 && bite.phase === 'none'; f++)
+      bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+    expect(bite.treasure).toBe(3);
+    expect(bite.phase).toBe('biting');
+    expect(bite.fish, 'no fish is the bite’s').toBe(-1);
+    expect(bite.drum, 'nor a drum').toBe(-1);
+    expect(told, 'a treasure is not heavy, and says what it is').toEqual([[false, 'treasure']]);
+    expect(TREASURES.dip, 'lighter than a drum’s').toBeLessThan(DRUMS.dip);
+    expect(TREASURES.dip, 'but more than a fish’s').toBeGreaterThan(1);
+  });
+
+  it('is hooked by a strike inside the window, and let go with none, wary of the lure a while', () => {
+    const game = beside(1);
+    expect(snagIn(game)).toBe('treasure 1');
+    expect(game.bite.strike(game.t, game.fish, game.lure)).toBe('hooked');
+    expect(game.bite.phase).toBe('hooked');
+    const slow = beside(1);
+    expect(snagIn(slow)).toBe('treasure 1');
+    let late = slow.t;
+    for (let f = 0; f < 120 && slow.bite.phase === 'biting'; f++)
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums, slow.treasures);
+    expect(slow.bite.phase).toBe('none');
+    expect(slow.bite.treasure).toBe(-1);
+    expect(slow.bite.treasureWary[1]).toBeGreaterThan(late);
+    for (let f = 0; f < 60 * (FISHING.wary - 2); f++)
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums, slow.treasures);
+    expect(slow.bite.phase, 'wary, it is not snagged again at once').toBe('none');
+  });
+
+  it('is not snagged by a lure still sinking, out of reach, or hanging over water too deep for the bed', () => {
+    const { game } = lake();
+    cureAll(game);
+    const far = beside();
+    far.treasures.x[0] += TREASURES.reach + 1;
+    far.treasures.x[1] += 1000;
+    expect(snagIn(far, 20), 'out of reach').toBe('');
+    const deep = beside();
+    deep.lure.depth = 1;
+    expect(deep.lure.onBed).toBe(false);
+    expect(snagIn(deep, 20)).toBe('');
+  });
+
+  it('is never snagged once found, however long the lure lies by it', () => {
+    const game = beside(2);
+    game.treasures.find(2);
+    expect(snagIn(game, 60)).toBe('');
+    expect(game.bite.phase).toBe('none');
+  });
+
+  it('takes the nearer of a drum and a treasure, either way round', () => {
+    const near = beside(0);
+    // a drum a little way off the lure, the treasure under it
+    near.drums.x[0] = near.lure.bobber[0] + 1.2;
+    near.drums.y[0] = near.lure.bobber[1];
+    expect(snagIn(near)).toBe('treasure 0');
+    const drumNear = beside(0);
+    drumNear.drums.x[0] = drumNear.lure.bobber[0] + 0.1;
+    drumNear.drums.y[0] = drumNear.lure.bobber[1];
+    drumNear.treasures.x[0] = drumNear.lure.bobber[0] + 1.2;
+    drumNear.treasures.y[0] = drumNear.lure.bobber[1];
+    expect(snagIn(drumNear)).toBe('drum 0');
+    expect(drumNear.bite.treasure, 'never two at once').toBe(-1);
+  });
+
+  it('draws one chance a step while one is in reach and none when nothing is, drum or treasure', () => {
+    const game = beside();
+    let draws = 0;
+    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1), game.drums, game.treasures);
+    expect(draws).toBe(1);
+    const far = beside();
+    far.treasures.x.fill(5000);
+    far.drums.x.fill(5000);
+    draws = 0;
+    far.bite.step(far.t + DT, DT, far.fish, far.lure, () => (draws++, 1), far.drums, far.treasures);
+    expect(draws).toBe(0);
+  });
+
+  it('gives a fish coming first the lure, over a treasure beside it', () => {
+    const game = beside();
+    game.fish.cured[0] = 0;
+    game.fish.x[0] = game.lure.bobber[0] + 2;
+    game.fish.y[0] = game.lure.bobber[1];
+    game.fish.depth[0] = game.lure.depth;
+    let t = game.t;
+    for (let f = 0; f < 10 && game.bite.phase === 'none'; f++)
+      game.bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+    expect(game.bite.phase).toBe('coming');
+    expect(game.bite.fish).toBe(0);
+    expect(game.bite.treasure).toBe(-1);
+  });
+
+  it('can snag in a clean pond, where no fish can bite', () => {
+    const game = beside();
+    game.drums.loadFirst(DRUMS.count);
+    expect(game.pondClean, 'every fish cured, every drum hauled').toBe(true);
+    expect(snagIn(game)).toBe('treasure 0');
+    expect(game.bite.fish).toBe(-1);
+  });
+
+  it('is let go of by the bite’s own letGo and stowed away with the quarry', () => {
+    const game = beside();
+    snagIn(game);
+    game.bite.letGo(game.t, game.fish, game.lure);
+    expect(game.bite.treasure).toBe(-1);
+    expect(game.bite.phase).toBe('none');
+    snagIn(game);
+    game.bite.phase = 'landed';
+    game.bite.stowed(game.fish);
+    expect(game.bite.treasure).toBe(-1);
   });
 });

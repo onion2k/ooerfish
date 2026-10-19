@@ -56,9 +56,10 @@ export class Angler {
     else this.frames = 0;
     if (phase === 'landed') g.stow();
     else if (phase === 'biting') {
-      // a heavy dip is a drum of waste snagged on the bed, which it is not fishing for: it reels in and casts again,
-      // the pace being the minutes to land fish (a drum is hauled by whoever plays for the cleaning)
-      if (g.bite.drum >= 0) g.reelIn();
+      // a dip with a drum of waste or a junk treasure on the bed behind it is not a fish, which is what it is fishing for:
+      // it reels in and casts again, the pace being the minutes to land fish (a drum is hauled by whoever plays for the
+      // cleaning, and a treasure by whoever wants the shelf)
+      if (g.bite.drum >= 0 || g.bite.treasure >= 0) g.reelIn();
       else g.strike();
     }
     if (g.bite.phase === 'hooked') {

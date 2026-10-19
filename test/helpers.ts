@@ -36,3 +36,18 @@ export function lieByDrum(game: Game, i: number) {
     game.t += DT;
   }
 }
+
+/** A cast at treasure `i` that lands on it. Says whether it was thrown. */
+export function castAtTreasure(game: Game, i: number): boolean {
+  const { angle, power } = aimAt(game.treasures.x[i], game.treasures.y[i]);
+  return game.cast(angle, power);
+}
+
+/** A cast at treasure `i`, stepped until the lure lies on the bed beside it (the bite untouched). */
+export function lieByTreasure(game: Game, i: number) {
+  castAtTreasure(game, i);
+  for (let f = 0; f < 60 * 30 && !game.lure.onBed; f++) {
+    game.lure.step(game.t, DT);
+    game.t += DT;
+  }
+}

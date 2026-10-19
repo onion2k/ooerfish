@@ -36,6 +36,8 @@ export interface PondState {
   /** How many drums had been hauled when the line about a haul was last said, and the game time it is said until. */
   toastHauled: number;
   hauledUntil: number;
+  /** Until when the line about a treasure kept is said, in game time: it is the last one's, kept and not counted. */
+  foundUntil: number;
   /**
    * The gift last given, and the game time its line is said from and until. A gift comes with its cure, so its line
    * waits for the cure's to end (`giftFrom` is that time) and the two never overlap.
@@ -65,8 +67,11 @@ export function pondWords(s: PondState): PondWords {
   let toast: PondWords['toast'] = null;
   const cureOn = s.t < s.toastUntil && s.toastCured > 0;
   const haulOn = s.t < s.hauledUntil && s.toastHauled > 0;
-  // the newer of the two lines is the one said
-  if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
+  const foundOn = s.t < s.foundUntil;
+  // the newest of the lines is the one said: a treasure kept, a drum hauled or a fish cured
+  if (foundOn && (!haulOn || s.foundUntil > s.hauledUntil) && (!cureOn || s.foundUntil > s.toastUntil)) {
+    toast = { lead: 'Found!', bold: "It's for the shelf." };
+  } else if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
     if (clean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
     else toast = { lead: 'Hauled out!', bold: 'The pond clears a lot.' };
   } else if (cureOn) {
@@ -88,6 +93,7 @@ export class PondView {
   private toastUntil = -Infinity;
   private toastHauled = 0;
   private hauledUntil = -Infinity;
+  private foundUntil = -Infinity;
   private gift: PondState['gift'] = null;
   private giftFrom = -Infinity;
   private giftUntil = -Infinity;
@@ -117,6 +123,11 @@ export class PondView {
     this.hauledUntil = this.game().t + this.heardFor;
   }
 
+  /** A treasure was kept for the shelf: the line about it is said for a while, from now. It cleans nothing, so the gauge does not move. */
+  found(_id: string) {
+    this.foundUntil = this.game().t + this.heardFor;
+  }
+
   /**
    * A gift was given with the cure just told: its line is said after the cure's own, which the game has told first,
    * for as long again, so the two never share the toast.
@@ -142,6 +153,7 @@ export class PondView {
       toastUntil: this.toastUntil,
       toastHauled: this.toastHauled,
       hauledUntil: this.hauledUntil,
+      foundUntil: this.foundUntil,
       gift: this.gift,
       giftFrom: this.giftFrom,
       giftUntil: this.giftUntil,

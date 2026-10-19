@@ -187,6 +187,58 @@ test.describe('what it looks like', () => {
     expect(problems).toEqual([]);
   });
 
+  // a treasure lying on the bed under the clean water, by day and by night: looked down on from near enough to read it,
+  // the lunchbox in the middle of the frame (`docs/junk.md`)
+  for (const time of ['day', 'night'] as const)
+    test(time === 'day' ? 'treasure-bed' : 'treasure-bed-night', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { ...STANDARD, dirt: 0, time }, 180);
+      await page.evaluate(() => {
+        const g = window.game!;
+        const box = g.treasures().find((t) => t.id === 'lunchbox')!;
+        g.look(box.x, box.y, { polar: 0.45, radius: 12 });
+        g.step(0);
+      });
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(
+        time === 'day' ? 'treasure-bed.png' : 'treasure-bed-night.png',
+        TOLERANCE,
+      );
+      expect(problems).toEqual([]);
+    });
+
+  // the two drums hauled up, standing on the bank beside the cabin, seen from across the water
+  test('drums-by-cabin', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6, drums: 2 } });
+    await set(page, { ...STANDARD, dirt: 0.3, time: 'day' }, 180);
+    await page.evaluate(() => {
+      const g = window.game!;
+      const [a, b] = g.drums();
+      g.look((a.bank[0] + b.bank[0]) / 2, (a.bank[1] + b.bank[1]) / 2, { polar: 1.15, radius: 34 });
+      g.step(0);
+    });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('drums-by-cabin.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // the shelves in the cabin with all six treasures found standing on them, seen from the pillow
+  test('cabin-shelves', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, {
+      seed: 11,
+      paused: true,
+      save: { found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'] },
+    });
+    await set(page, CABIN_DAWN, 60);
+    await hideOverlays(page);
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    await expect(page.locator('#view')).toHaveScreenshot('cabin-shelves.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
   // bobber
   for (const [name, act] of [
@@ -237,6 +289,7 @@ test.describe('what it looks like', () => {
   for (const [name, quarry, save] of [
     ['pike', 'pike', undefined],
     ['drum', 'drum', { cured: 12 }],
+    ['bottle', 'bottle', { cured: 12 }],
   ] as const)
     test(`fishing-landed-${name}`, async ({ page }) => {
       const problems = watch(page);
@@ -702,6 +755,48 @@ test.describe('the journal', () => {
       await page.evaluate(() => window.game!.openJournal());
       await expect(page.locator('#journalClose')).toBeFocused();
       await expect(page).toHaveScreenshot('phone-journal.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
+/** Every treasure found, with a journal part filled and a drum hauled, on the second day: the longest page the journal has. */
+const FOUND_SAVE = {
+  ...JOURNAL_SAVE,
+  found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
+};
+
+test.describe('the journal with every treasure found', () => {
+  test('the page at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: FOUND_SAVE });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openJournal());
+    await expect(page.locator('#journalClose')).toBeFocused();
+    await expect(page).toHaveScreenshot('desk-journal-found.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the page at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: FOUND_SAVE });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => window.game!.openJournal());
+      await expect(page.locator('#journalClose')).toBeFocused();
+      await expect(page).toHaveScreenshot('phone-journal-found.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+    // the bottle's card on a phone: the note is the longest words a card holds
+    test('the bottle landed, at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 12 } });
+      await set(page, { dirt: 0.2, time: 'day', view: 'phone' }, 30);
+      expect(await page.evaluate(() => window.game!.fishTo('landed', 'bottle'))).toBe(true);
+      await expect(page).toHaveScreenshot('phone-landed-bottle.png', TOLERANCE);
       expect(problems).toEqual([]);
     });
   });

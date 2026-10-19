@@ -5,7 +5,7 @@
  * content tables itself. The gifts the cure count has earned (`gearFor`) are a further argument, and ease the figures
  * they name; the bobber's and the bait's belong to the bite, which asks `windowFor` and `noticeFor`.
  */
-import { DRUMS, FIGHT, FISHING, GEAR, SIZE, TEMPERS } from './lake';
+import { DRUMS, FIGHT, FISHING, GEAR, SIZE, TEMPERS, TREASURES } from './lake';
 import type { Random } from './random';
 
 export type Temper = (typeof TEMPERS)[number]['name'];
@@ -112,4 +112,14 @@ export function drumFight(gear: Gear = NO_GEAR): FightFigures {
     fill: DRUMS.fill * (gear.reel ? gift('reel').times : 1),
     drum: true,
   };
+}
+
+/**
+ * The profile a junk treasure is hauled by: the drum's, no darts and no drain and never a slip, at the treasure's own
+ * quicker fill (a light thing comes up about three times as fast as a drum). Played as a haul by the `Line` (`drum` is
+ * the line's word for it), and the reel's gift eases it as it does a drum's. It draws no chance.
+ */
+export function treasureFight(gear: Gear = NO_GEAR): FightFigures {
+  const drum = drumFight(gear);
+  return { ...drum, fill: TREASURES.fill * (gear.reel ? gift('reel').times : 1) };
 }

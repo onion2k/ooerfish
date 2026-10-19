@@ -13,6 +13,7 @@ const state = (over: Partial<PondState> = {}): PondState => ({
   toastUntil: -Infinity,
   toastHauled: 0,
   hauledUntil: -Infinity,
+  foundUntil: -Infinity,
   gift: null,
   giftFrom: -Infinity,
   giftUntil: -Infinity,
@@ -74,6 +75,30 @@ describe('what the pond says', () => {
     const both = state({ toastCured: 3, toastUntil: 4, toastHauled: 1, hauledUntil: 5, drums: 1, cured: 3, t: 1 });
     expect(pondWords(both).toast?.lead).toBe('Hauled out!');
     expect(pondWords({ ...both, toastUntil: 6 }).toast?.lead).toBe('Cured!');
+  });
+
+  it('says a treasure was kept, for a while after: "Found! It\'s for the shelf."', () => {
+    const said = (over: Partial<PondState>) => pondWords(state({ foundUntil: 2, ...over })).toast;
+    expect(said({ t: 1 })).toEqual({ lead: 'Found!', bold: "It's for the shelf." });
+    expect(said({ t: 2 }), 'over at the time').toBe(null);
+    expect(said({ t: 1, cured: 5 })?.lead, 'a treasure is not a cure').toBe('Found!');
+  });
+
+  it('says the newest of a cure’s, a haul’s and a treasure’s line', () => {
+    const all = state({
+      toastCured: 3,
+      toastUntil: 4,
+      toastHauled: 1,
+      hauledUntil: 5,
+      foundUntil: 6,
+      drums: 1,
+      cured: 3,
+      t: 1,
+    });
+    expect(pondWords(all).toast?.lead).toBe('Found!');
+    expect(pondWords({ ...all, foundUntil: 4.5 }).toast?.lead).toBe('Hauled out!');
+    expect(pondWords({ ...all, foundUntil: 4.5, hauledUntil: 3 }).toast?.lead).toBe('Found!');
+    expect(pondWords({ ...all, foundUntil: 3.5, hauledUntil: 3 }).toast?.lead).toBe('Cured!');
   });
 
   it('says a fish was cured for a while after, in the words of the mock, and not after it', () => {
@@ -257,6 +282,32 @@ describe('the pond view', () => {
     for (let f = 0; f < 60 * 2 + 5; f++) game.step(DT);
     pond.show();
     expect(el.toast.hidden).toBe(true);
+  });
+
+  it('says a treasure kept, for the shelf, and leaves the gauge where it was', () => {
+    const { game, el, pond } = view();
+    pond.show();
+    const before = el.gone.style.width;
+    pond.found('lunchbox');
+    pond.show();
+    expect(el.toast.hidden).toBe(false);
+    expect(el.toast.innerHTML).toContain('Found!');
+    expect(el.toast.innerHTML).toContain("It's for the shelf.");
+    expect(el.gone.style.width, 'a treasure cleans nothing').toBe(before);
+    for (let f = 0; f < 60 * 2 + 5; f++) game.step(DT);
+    pond.show();
+    expect(el.toast.hidden).toBe(true);
+  });
+
+  it('says the newer of a cure’s line and a treasure’s', () => {
+    const { game, el, pond } = view();
+    game.progress.save.cured = 1;
+    game.contamination = contaminationAfter(1, 0);
+    pond.cured(1, CURE.toClean);
+    for (let f = 0; f < 30; f++) game.step(DT);
+    pond.found('duck');
+    pond.show();
+    expect(el.toast.innerHTML).toContain('Found!');
   });
 
   it('turns the gauge clean at the last fish cured and the last drum hauled, and says so', () => {

@@ -8,7 +8,9 @@
  * surface and above the bed too. The contamination is within nought and one, never rises but by the lever, and is the formula's for the
  * fish cured and the drums hauled unless the lever has set it; the count cured is a whole number, the drums hauled are
  * from none to the pond's and the save's, and none of them is the bite's; the journal is in its kinds' ranges, no
- * later than today and no more than the fish cured; and the time of day is in [0, 1). There
+ * later than today and no more than the fish cured; the junk treasures found are known ones, each once, no more than
+ * the pond has, the save's, and none of them is the bite's, which is at most one thing, and the treasures that lie on the
+ * bed lie in the water, clear of the drums; and the time of day is in [0, 1). There
  * are no more splashes than the pool holds, each on the water, none landed
  * after now, every number a number.
  *
@@ -26,6 +28,7 @@ import {
   FISH_COUNT,
   GEAR,
   SPLASH_CAPACITY,
+  TREASURES,
   KINDS,
   SWIM,
   bedDepth,
@@ -34,6 +37,40 @@ import {
   inside,
 } from './lake';
 import { poseFish } from './swim';
+
+/**
+ * The junk treasures' rules. The ids kept are known, each once, and no more than the pond has; the treasures found on the
+ * bed are exactly the ones the save names; and each lies on the bed in the water, in the depths the content says and clear
+ * of the shore, and apart from every drum. Nothing here is the cleaning's: that is the formula's alone.
+ */
+function treasureRules(game: Game, out: string[]) {
+  const { found } = game.progress.save;
+  const { treasures, drums } = game;
+  const known = new Set<string>(TREASURES.list.map((t) => t.id));
+  const seen = new Set<string>();
+  if (!Array.isArray(found)) return void out.push('the save has no list of treasures found');
+  for (const id of found) {
+    if (!known.has(id)) out.push(`the save has a treasure not known: ${String(id)}`);
+    else if (seen.has(id)) out.push(`the save has the treasure ${id} twice`);
+    seen.add(id);
+  }
+  if (found.length > TREASURES.count)
+    out.push(`the save has ${found.length} treasures found, of ${TREASURES.count} in the pond`);
+  TREASURES.list.forEach((t, i) => {
+    if (treasures.found[i] && !seen.has(t.id)) out.push(`treasure ${t.id} is found, but the save does not say so`);
+    if (!treasures.found[i] && seen.has(t.id)) out.push(`treasure ${t.id} is in the save, but it is still on the bed`);
+    const [x, y] = [treasures.x[i], treasures.y[i]];
+    const bed = bedDepth(x, y);
+    const [least, most] = TREASURES.where.depth;
+    if (!inside(x, y, TREASURES.where.margin) || !(bed >= least && bed <= most))
+      out.push(`treasure ${i} is not on the bed under the water, at ${x}, ${y}`);
+    for (let d = 0; d < drums.count; d++) {
+      const gap = Math.hypot(x - drums.x[d], y - drums.y[d]);
+      if (gap < TREASURES.where.apart)
+        out.push(`treasure ${i} lies ${gap.toFixed(2)} from drum ${d}, under the ${TREASURES.where.apart} apart`);
+    }
+  });
+}
 
 /**
  * The journal's rules. Each entry is of a kind the game knows, a whole count of one or more, a best weight within its
@@ -250,13 +287,14 @@ export function checkInvariants(game: Game): string[] {
       out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${cured} cured earns it ${gear[g.id]}`);
   if (game.bite.gear !== game.gear) out.push('the bite has not the gear the game holds');
   // the drums hauled are a count from none to the pond's, the save's, and each is gone from the bed for good
-  const hauled = game.drums.hauledCount();
+  const hauled = game.drums.foundCount();
   if (!Number.isSafeInteger(game.progress.save.drums) || game.progress.save.drums < 0)
     out.push(`the save says ${game.progress.save.drums} drums hauled`);
   else if (hauled < 0 || hauled > DRUMS.count) out.push(`${hauled} drums are hauled, of ${DRUMS.count} in the pond`);
   else if (hauled !== game.progress.save.drums)
     out.push(`${hauled} drums are hauled, but the save says ${game.progress.save.drums}`);
   journalRules(game, out);
+  treasureRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }
@@ -314,21 +352,30 @@ function fishingRules(game: Game): string[] {
   const { bite, fish, lure, line } = game;
   const phases = ['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'];
   if (!phases.includes(bite.phase)) return [`the bite is ${String(bite.phase)}`];
-  // the quarry is a fish or a drum, and a hauled drum is never the bite's
+  // the quarry is a fish, a drum or a treasure, never two, and a hauled drum or a kept treasure is never the bite's
   if (!Number.isInteger(bite.drum) || bite.drum < -1 || bite.drum >= game.drums.count)
     return [`the bite has drum ${bite.drum}, of ${game.drums.count}`];
-  if (bite.drum >= 0 && game.drums.hauled[bite.drum]) out.push(`drum ${bite.drum} is hauled, but it is the bite's`);
+  if (!Number.isInteger(bite.treasure) || bite.treasure < -1 || bite.treasure >= game.treasures.count)
+    return [`the bite has treasure ${bite.treasure}, of ${game.treasures.count}`];
+  if (bite.drum >= 0 && game.drums.found[bite.drum]) out.push(`drum ${bite.drum} is hauled, but it is the bite's`);
+  if (bite.treasure >= 0 && game.treasures.found[bite.treasure])
+    out.push(`treasure ${bite.treasure} is found, but it is the bite's`);
   if (bite.phase === 'none') {
     if (bite.fish !== -1) out.push(`no fish is at the lure, but the bite has fish ${bite.fish}`);
     if (bite.drum !== -1) out.push(`no drum is at the lure, but the bite has drum ${bite.drum}`);
+    if (bite.treasure !== -1) out.push(`no treasure is at the lure, but the bite has treasure ${bite.treasure}`);
     if (fish.held !== -1) out.push(`no fish is at the lure, but the school holds fish ${fish.held}`);
-  } else if (bite.drum >= 0) {
-    if (bite.fish !== -1) out.push(`the bite is ${bite.phase} with drum ${bite.drum} and fish ${bite.fish}`);
-    if (fish.held !== -1) out.push(`drum ${bite.drum} is ${bite.phase}, but the school holds fish ${fish.held}`);
-    if (!['biting', 'hooked', 'landed'].includes(bite.phase)) out.push(`drum ${bite.drum} is ${bite.phase}`);
+  } else if (bite.drum >= 0 || bite.treasure >= 0) {
+    // a thing on the bed: neither comes, nibbles nor fights, so it is only ever biting, hooked or landed, at the lure
+    const what = bite.drum >= 0 ? `drum ${bite.drum}` : `treasure ${bite.treasure}`;
+    if (bite.drum >= 0 && bite.treasure >= 0)
+      out.push(`the bite is ${bite.phase} with drum ${bite.drum} and treasure ${bite.treasure}`);
+    if (bite.fish !== -1) out.push(`the bite is ${bite.phase} with ${what} and fish ${bite.fish}`);
+    if (fish.held !== -1) out.push(`${what} is ${bite.phase}, but the school holds fish ${fish.held}`);
+    if (!['biting', 'hooked', 'landed'].includes(bite.phase)) out.push(`${what} is ${bite.phase}`);
     if (bite.phase === 'hooked' || bite.phase === 'landed') {
-      if (lure.phase !== 'hooked') out.push(`drum ${bite.drum} is ${bite.phase}, but the lure is ${lure.phase}`);
-    } else if (lure.phase !== 'sinking') out.push(`drum ${bite.drum} is ${bite.phase} at a lure that is ${lure.phase}`);
+      if (lure.phase !== 'hooked') out.push(`${what} is ${bite.phase}, but the lure is ${lure.phase}`);
+    } else if (lure.phase !== 'sinking') out.push(`${what} is ${bite.phase} at a lure that is ${lure.phase}`);
   } else {
     if (!Number.isInteger(bite.fish) || bite.fish < 0 || bite.fish >= fish.count)
       return [...out, `the bite is ${bite.phase} with fish ${bite.fish}, of ${fish.count}`];

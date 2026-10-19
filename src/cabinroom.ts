@@ -260,10 +260,14 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
   const onWall = (b: Parameters<typeof block>[0], along: number, wy: number, depth: number, z0: number, z1: number) =>
     block(b, place, wall - depth, wall, along - wy / 2, along + wy / 2, floor + z0, floor + z1);
   const { shelf: sh, jar: jr } = fur;
+  // two shelves, one above the other, a plank on a bracket at each end: the lower holds the books and the jar, and both the
+  // junk treasures found, which are drawn by `treasuredraw.ts` standing on their tops
   const shelfMesh = built((b) => {
-    onWall(b, sh.along, sh.wide, sh.deep, sh.high, sh.high + sh.thick);
-    for (const sy of [-1, 1])
-      onWall(b, sh.along + sy * (sh.wide / 2 - 0.12), 0.04, sh.deep - 0.04, sh.high - 0.2, sh.high);
+    for (const s of [sh, fur.shelfUpper]) {
+      onWall(b, s.along, s.wide, s.deep, s.high, s.high + s.thick);
+      for (const sy of [-1, 1])
+        onWall(b, s.along + sy * (s.wide / 2 - 0.12), 0.04, s.deep - 0.04, s.high - 0.2, s.high);
+    }
   });
   const shelfTop = sh.high + sh.thick;
   const booksMesh = built((b) => {

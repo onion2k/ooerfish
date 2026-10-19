@@ -688,7 +688,7 @@ test.describe('Start again', () => {
     await reloaded;
     await ready(page);
     expect(await stored(page)).toBeNull();
-    expect(await saved(page)).toEqual({ cured: 0, day: 1, drums: 0, journal: {} });
+    expect(await saved(page)).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBe(1);
     expect(Object.values(await page.evaluate(() => window.game!.gear())).some(Boolean)).toBe(false);
     await expect(page.locator('#welcome')).toBeVisible();
@@ -781,6 +781,7 @@ test.describe('the day ends', () => {
       day: 2,
       drums: 0,
       journal: {},
+      found: [],
     });
     expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
     expect(await page.evaluate(() => window.game!.time()), 'the page is lit as dawn').toBe('dawn');
@@ -952,24 +953,29 @@ test.describe('the journal and the drum', () => {
     await start(page, { seed: 1, paused: true });
     const api = <T>(f: () => T) => page.evaluate(f);
 
+    // the kinds keep to depths of their own: the bream's water is shallower than the pike's, as the school stands
+    const mean = (kind: number) =>
+      page.evaluate((k) => {
+        const of = window.game!.fish().filter((f) => f.kind === k);
+        return of.reduce((n, f) => n + f.depth, 0) / of.length;
+      }, kind);
+    expect(await mean(0), 'the bream keep shallower than the pike').toBeLessThan(await mean(2));
+
     // a bream, then a pike: each fished for where its own kind lies, landed, and put in the bucket by its card
-    const caught: { kind: string; depth: number }[] = [];
     for (const kind of ['bream', 'pike'] as const) {
       expect(await page.evaluate((k) => window.game!.fishTo('landed', k), kind), `${kind} landed`).toBe(true);
       const hooked = await api(() => {
         const g = window.game!;
-        const f = g.fish()[g.fishing().fish];
-        return { kind: f.kind, depth: f.depth, weight: g.fishing().weight };
+        return { kind: g.fish()[g.fishing().fish].kind, weight: g.fishing().weight };
       });
       expect(hooked.kind, 'the kind landed is the kind fished for').toBe(kind === 'bream' ? 0 : 2);
-      caught.push({ kind, depth: hooked.depth });
       await page.locator('#catch').click();
       await play(page, 1, `a ${kind} in the bucket`);
     }
-    expect(caught[0].depth, 'the bream was caught in shallower water than the pike').toBeLessThan(caught[1].depth);
 
     // the save keeps both, with today as the first day and a weight within each kind's range
-    const journal = await api(() => window.game!.journal());
+    const { kinds: journal, found: kept } = await api(() => window.game!.journal());
+    expect(kept, 'no treasure is found yet').toEqual([]);
     expect(Object.keys(journal).sort()).toEqual(['bream', 'pike']);
     expect(journal.bream).toMatchObject({ caught: 1, first: 1 });
     expect(journal.pike).toMatchObject({ caught: 1, first: 1 });
@@ -1065,6 +1071,127 @@ test.describe('the journal and the drum', () => {
     await page.getByRole('button', { name: 'Close' }).click();
     await expect(page.locator('#journal')).toBeHidden();
     await api(() => window.game!.openJournal(false));
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The junk treasures (`docs/junk.md`): one lying on the bed is snagged, reeled in, kept for the shelf by its card, and
+ * told in the journal; the bottle holds a note; and the shelves in the cabin show what has been found. Seeded and
+ * paused, stepped through the test API.
+ */
+test.describe('the treasures on the bed', () => {
+  test('a treasure on the bed is found and kept for the shelf', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    // every fish cured, so nothing but a drum or a treasure can take the bait
+    await start(page, { seed: 1, paused: true, save: { cured: 12 } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    const meter = () => page.locator('#pondBar').getAttribute('aria-valuenow');
+    expect(await meter()).toBe('25');
+    expect((await api(() => window.game!.treasures())).filter((t) => t.found)).toHaveLength(0);
+
+    // snagged, struck and reeled in with the reel held: the card names it and says its line
+    expect(await api(() => window.game!.fishTo('landed', 'lunchbox'))).toBe(true);
+    expect(await api(() => window.game!.fishing().treasure)).toBe(2);
+    await expect(page.locator('#catchName')).toHaveText('Sunny Atom lunchbox');
+    await expect(page.locator('#catchAbout')).toHaveText('Empty, thank goodness.');
+    await expect(page.locator('#catchNote')).toBeHidden();
+    expect(await meter(), 'the gauge has not moved before the tap').toBe('25');
+
+    // the tap keeps it: the toast, the save, the shelf, and the gauge where it was
+    await page.locator('#catch').click();
+    await play(page, 1, 'the treasure kept');
+    await expect(page.locator('#toast')).toHaveText("Found! It's for the shelf.");
+    expect(await meter(), 'a treasure cleans nothing').toBe('25');
+    expect((await api(() => window.game!.state())).contamination).toBeCloseTo(0.25, 12);
+    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({
+      cured: 12,
+      drums: 0,
+      found: ['lunchbox'],
+    });
+    expect((await api(() => window.game!.treasures())).map((t) => t.found)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    expect(await api(() => window.game!.fishing().phase)).toBe('none');
+
+    // the journal lists it under what was found in the pond, the rest not yet found
+    await api(() => window.game!.openJournal());
+    const found = page.locator('#journalFound li');
+    await expect(found).toHaveCount(6);
+    await expect(found.nth(2)).toContainText('Sunny Atom lunchbox');
+    await expect(found.nth(0)).toHaveText('not yet found');
+    await expect(page.locator('#journalDrums')).toHaveText('drums of waste hauled: 0 of 2');
+    expect(problems).toEqual([]);
+  });
+
+  test('the bottle’s note is read on the card and kept in the journal', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 12 } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    const note = "If you're reading this, the fish are glowing again. Bring them home. — E.";
+    expect(await api(() => window.game!.fishTo('landed', 'bottle'))).toBe(true);
+    await expect(page.locator('#catchName')).toHaveText('message bottle');
+    await expect(page.locator('#catchNote')).toBeVisible();
+    await expect(page.locator('#catchNote')).toHaveText(note);
+    await page.locator('#catch').click();
+    await play(page, 1, 'the bottle kept');
+    await api(() => window.game!.openJournal());
+    await expect(page.locator('#journalFound li').nth(4)).toContainText(note);
+    expect(problems).toEqual([]);
+  });
+
+  test('go to bed, and the treasures found stand on the shelves the cabin’s view sees', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    const found = ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'];
+    await start(page, { seed: 1, paused: true, save: { cured: 12, found } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    expect((await api(() => window.game!.treasures())).every((t) => t.found)).toBe(true);
+    expect(await api(() => window.game!.sleep())).toBe(true);
+    await play(page, 200, 'the yawn and the waking');
+    expect(await api(() => window.game!.place())).toBe('cabin');
+    await expect.poll(() => api(() => window.game!.view())).toBe('cabin');
+    // every treasure's place on the shelves is on the screen from the pillow
+    const spots = await api(() => {
+      const g = window.game!;
+      return g.treasures().map((t) => ({ id: t.id, at: g.project(t.shelf[0], t.shelf[1], t.shelf[2]) }));
+    });
+    const size = page.viewportSize()!;
+    for (const s of spots) {
+      expect(s.at, `${s.id} is in front of the camera`).not.toBeNull();
+      expect(s.at!.x, `${s.id} across`).toBeGreaterThan(0);
+      expect(s.at!.x).toBeLessThan(size.width);
+      expect(s.at!.y, `${s.id} down`).toBeGreaterThan(0);
+      expect(s.at!.y).toBeLessThan(size.height);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test('a treasure not yet kept stays on the bed through a night in the cabin, and a kept one stays kept', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 12, found: ['duck'] } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    expect(await api(() => window.game!.sleep())).toBe(true);
+    await play(page, 200, 'to the cabin');
+    expect((await api(() => window.game!.treasures())).map((t) => t.found)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ found: ['duck'], day: 2 });
     expect(problems).toEqual([]);
   });
 });

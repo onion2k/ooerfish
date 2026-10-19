@@ -1,16 +1,16 @@
 /** The lake without its picture: its clock, and that it is played the same from a seed. */
 import { describe, expect, it } from 'vitest';
 import { flight } from '../src/cast';
-import { fightFor, type Temper } from '../src/fight';
+import { fightFor, treasureFight, type Temper } from '../src/fight';
 import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { ANGLER, CLOCK, DRUMS, FISH_COUNT, KINDS, RELEASE, contaminationAfter, inside } from '../src/lake';
+import { ANGLER, CLOCK, DRUMS, FISH_COUNT, KINDS, RELEASE, TREASURES, contaminationAfter, inside } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
 import { NIGHT } from '../src/lake';
-import { DT, castAtDrum, newGame, settle } from './helpers';
+import { DT, castAtDrum, castAtTreasure, newGame, settle } from './helpers';
 
 describe('the lake', () => {
   it('starts at the beginning of its time, and keeps time a step at a time', () => {
@@ -35,7 +35,7 @@ describe('the lake', () => {
     settle(game);
     expect(store.json).toBe(null);
     game.persist();
-    expect(store.json).toBe('{"cured":0,"day":1,"drums":0,"journal":{}}');
+    expect(store.json).toBe('{"cured":0,"day":1,"drums":0,"journal":{},"found":[]}');
   });
 });
 
@@ -595,13 +595,13 @@ describe('a drum of waste', () => {
     const before = game.contamination;
     expect(game.haul()).toBe(true);
     expect(game.progress.save.drums).toBe(1);
-    expect(game.drums.hauled[1]).toBe(1);
-    expect(game.drums.hauled[0]).toBe(0);
+    expect(game.drums.found[1]).toBe(1);
+    expect(game.drums.found[0]).toBe(0);
     expect(game.contamination).toBeCloseTo(contaminationAfter(game.progress.save.cured, 1), 12);
     expect(game.contamination).toBeLessThan(before);
     expect(before - game.contamination, 'a drum is worth two fish, two sixteenths').toBeCloseTo(2 / 16, 12);
     expect(hauled).toEqual([[1, DRUMS.count]]);
-    expect(JSON.parse(store.json!)).toEqual({ cured: FISH_COUNT, day: 1, drums: 1, journal: {} });
+    expect(JSON.parse(store.json!)).toEqual({ cured: FISH_COUNT, day: 1, drums: 1, journal: {}, found: [] });
     expect(game.bite.phase).toBe('none');
     expect(game.bite.drum).toBe(-1);
     expect(game.lure.phase).toBe('ready');
@@ -663,13 +663,13 @@ describe('a drum of waste', () => {
   it('loads hauled by count: the first drums gone, the contamination from both counts', () => {
     for (const n of [0, 1, DRUMS.count]) {
       const { game } = newGame(1, JSON.stringify({ cured: 3, drums: n }));
-      expect(game.drums.hauledCount()).toBe(n);
-      for (let i = 0; i < DRUMS.count; i++) expect(game.drums.hauled[i], `drum ${i} of ${n}`).toBe(i < n ? 1 : 0);
+      expect(game.drums.foundCount()).toBe(n);
+      for (let i = 0; i < DRUMS.count; i++) expect(game.drums.found[i], `drum ${i} of ${n}`).toBe(i < n ? 1 : 0);
       expect(game.contamination).toBeCloseTo(contaminationAfter(3, n), 12);
       expect(game.waterDirt).toBe(game.contamination);
       expect(checkInvariants(game)).toEqual([]);
     }
-    expect(newGame(1, '{"drums": 9}').game.drums.hauledCount()).toBe(DRUMS.count);
+    expect(newGame(1, '{"drums": 9}').game.drums.foundCount()).toBe(DRUMS.count);
   });
 
   it('holds the day open while the drum is on the line, as a fish does, and yawns once it is hauled', () => {
@@ -793,5 +793,186 @@ describe('the journal', () => {
     const { game } = newGame(2, JSON.stringify({ cured: 1, journal }));
     for (let f = 0; f < 600; f++) game.step(DT);
     expect(checkInvariants(game)).toEqual([]);
+  });
+});
+
+describe('a treasure on the bed', () => {
+  /** A game with every fish cured, the lure lying by treasure `i`, stepped until it is snagged and struck. */
+  function hooked(i = 2, seed = 1, json: string | null = `{"cured": ${FISH_COUNT}}`) {
+    const found: string[] = [];
+    const landedTold: [string, number, string][] = [];
+    const store = memoryStore(json);
+    const game = new Game(new Progress(store), {
+      random: seeded(seed),
+      events: {
+        found: (id) => found.push(id),
+        landed: (kind, weight, temper) => landedTold.push([kind, weight, temper]),
+      },
+    });
+    castAtTreasure(game, i);
+    for (let f = 0; f < 60 * 120 && game.bite.phase !== 'biting'; f++) game.step(DT);
+    expect(game.bite.phase, 'the treasure was snagged').toBe('biting');
+    expect(game.bite.treasure).toBe(i);
+    expect(game.strike()).toBe('hooked');
+    return { game, store, found, landedTold };
+  }
+  /** The reel held until the treasure is landed. */
+  function land(game: Game) {
+    for (let f = 0; f < 60 * 60 && game.bite.phase === 'hooked'; f++) {
+      game.reel(true);
+      game.step(DT);
+    }
+    expect(game.bite.phase).toBe('landed');
+  }
+
+  it('is hooked by a strike with its own profile, and no weight or temper drawn', () => {
+    const { game } = hooked(2);
+    expect(game.catchTreasure).toBe(2);
+    expect(game.catchDrum).toBe(false);
+    expect(game.catchWeight).toBe(TREASURES.list[2].weight);
+    expect(game.line.figures.drum).toBe(true);
+    expect(game.line.figures.fill, 'the treasure’s fill, the reel’s gift on it').toBe(treasureFight(game.gear).fill);
+    expect(game.lure.phase).toBe('hooked');
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is landed by the reel held, never slips with it let go, and is told as landed by name', () => {
+    const { game, landedTold } = hooked(4);
+    for (let f = 0; f < 60 * 60; f++) {
+      game.reel(false);
+      game.step(DT);
+      expect(game.bite.phase, 'a treasure never slips').toBe('hooked');
+    }
+    land(game);
+    expect(landedTold).toEqual([[TREASURES.list[4].name, TREASURES.list[4].weight, 'steady']]);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is neither stowed nor hauled: those are refused, nothing cured, nothing hauled', () => {
+    const { game } = hooked();
+    land(game);
+    expect(game.stow()).toBe(false);
+    expect(game.haul()).toBe(false);
+    expect(game.progress.save.cured).toBe(FISH_COUNT);
+    expect(game.progress.save.drums).toBe(0);
+    expect(game.bite.phase).toBe('landed');
+  });
+
+  it('is kept by the tap on its card: saved at once, told, gone from the bed, and the cleaning left alone', () => {
+    const { game, store, found } = hooked(2, 1, `{"cured": ${FISH_COUNT}, "drums": 1}`);
+    land(game);
+    const before = game.contamination;
+    const worth = contaminationAfter(FISH_COUNT, 1);
+    expect(game.keep()).toBe(true);
+    expect(game.progress.save.found).toEqual(['lunchbox']);
+    expect(game.treasures.found[2]).toBe(1);
+    expect(game.treasures.foundCount()).toBe(1);
+    expect(found).toEqual(['lunchbox']);
+    expect(game.contamination, 'a treasure cleans nothing').toBe(before);
+    expect(game.contamination).toBeCloseTo(worth, 12);
+    expect(game.progress.save.cured).toBe(FISH_COUNT);
+    expect(game.progress.save.drums).toBe(1);
+    expect(game.healTo, 'no heal begun').toBe(game.healFrom);
+    expect(JSON.parse(store.json!)).toEqual({
+      cured: FISH_COUNT,
+      day: 1,
+      drums: 1,
+      journal: {},
+      found: ['lunchbox'],
+    });
+    expect(game.bite.phase).toBe('none');
+    expect(game.bite.treasure).toBe(-1);
+    expect(game.lure.phase).toBe('ready');
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is refused a keep with nothing landed, a fish landed, a drum landed, and twice', () => {
+    expect(newGame().game.keep()).toBe(false);
+    const { game: fish } = newGame();
+    fish.cast(Math.PI / 2 + 0.15, 0.55);
+    for (let f = 0; f < 3600 && fish.bite.phase !== 'biting'; f++) fish.step(DT);
+    fish.strike();
+    for (let f = 0; f < 7200 && fish.bite.phase === 'hooked'; f++) {
+      fish.reel(fish.line.zone + fish.line.figures.width / 2 < fish.line.fishAt);
+      fish.step(DT);
+    }
+    expect(fish.bite.phase).toBe('landed');
+    expect(fish.keep(), 'a fish is stowed, not kept').toBe(false);
+    const { game } = hooked();
+    land(game);
+    expect(game.keep()).toBe(true);
+    expect(game.keep()).toBe(false);
+    expect(game.progress.save.found).toEqual(['lunchbox']);
+  });
+
+  it('is never snagged again once kept, however long the lure lies where it was', () => {
+    const { game } = hooked(1);
+    land(game);
+    game.keep();
+    castAtTreasure(game, 1);
+    for (let f = 0; f < 60 * 120; f++) {
+      game.step(DT);
+      expect(game.bite.phase).toBe('none');
+    }
+  });
+
+  it('keeps the ids in the order they were found, each once, held to the six there are', () => {
+    const first = hooked(3);
+    land(first.game);
+    first.game.keep();
+    expect(first.game.progress.save.found).toEqual(['badge']);
+    const second = hooked(0, 1, JSON.stringify({ cured: FISH_COUNT, found: ['badge'] }));
+    land(second.game);
+    second.game.keep();
+    expect(second.game.progress.save.found).toEqual(['badge', 'lure']);
+    expect(second.game.progress.save.found.length).toBeLessThanOrEqual(TREASURES.count);
+  });
+
+  it('leaves the pond clean or not exactly as it was: fish and drums alone clean it', () => {
+    const { game } = hooked(5);
+    expect(game.pondClean, 'fish cured, drums on the bed').toBe(false);
+    land(game);
+    game.keep();
+    expect(game.pondClean, 'a treasure is no drum').toBe(false);
+    const done = newGame(1, JSON.stringify({ cured: FISH_COUNT, drums: DRUMS.count, found: [] })).game;
+    expect(done.pondClean).toBe(true);
+    castAtTreasure(done, 0);
+    for (let f = 0; f < 60 * 120 && done.bite.phase !== 'biting'; f++) done.step(DT);
+    expect(done.bite.treasure, 'a clean pond’s treasure can still be snagged').toBe(0);
+    done.strike();
+    land(done);
+    done.keep();
+    expect(done.pondClean).toBe(true);
+    expect(done.contamination).toBe(0);
+  });
+
+  it('loads found by ids, the unknown dropped, and the contamination from the cures and drums alone', () => {
+    const { game } = newGame(1, JSON.stringify({ cured: 3, drums: 1, found: ['duck', 'lure'] }));
+    expect(Array.from(game.treasures.found)).toEqual([1, 0, 0, 0, 0, 1]);
+    expect(game.contamination).toBeCloseTo(contaminationAfter(3, 1), 12);
+    expect(checkInvariants(game)).toEqual([]);
+    expect(Array.from(newGame(1, '{"found": ["nope"]}').game.treasures.found)).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
+  it('holds the day open while a treasure is on the line, as a fish does, and yawns once it is kept', () => {
+    const { game } = hooked();
+    game.setTimeOfDay(0.9999);
+    for (let f = 0; f < 60; f++) game.step(DT);
+    expect(game.place, 'midnight passed, the fight not settled').toBe('pond');
+    expect(game.sleep(), 'no bed with a treasure on the line').toBe(false);
+    land(game);
+    for (let f = 0; f < 10; f++) game.step(DT);
+    expect(game.place, 'landed, still waiting to be kept').toBe('pond');
+    game.keep();
+    game.step(DT);
+    expect(game.place).toBe('yawning');
+  });
+
+  it('is placed from a seed of its own: the game’s chance is untouched, and the school is the same', () => {
+    const a = newGame(3).game,
+      b = newGame(4).game;
+    expect(Array.from(a.treasures.x)).toEqual(Array.from(b.treasures.x));
+    expect(Array.from(a.treasures.y)).toEqual(Array.from(b.treasures.y));
+    expect(Array.from(newGame(3).game.fish.x)).toEqual(Array.from(a.fish.x));
   });
 });

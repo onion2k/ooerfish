@@ -27,7 +27,7 @@
  * page's, not the game's, and so not played here.
  */
 import { Game } from '../src/game';
-import { DRUMS, FISH_CAPACITY, KINDS, SPLASH_CAPACITY } from '../src/lake';
+import { DRUMS, FISH_CAPACITY, KINDS, SPLASH_CAPACITY, TREASURES } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { collectionsKept, crowd, type Crowd } from './phonemonkey';
@@ -46,6 +46,8 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those there are
   'journal kinds': { ceiling: KINDS.length },
   'drums hauled': { ceiling: DRUMS.count },
+  // and the junk treasures found are kept by id, none twice, of the pond's six
+  'treasures found': { ceiling: TREASURES.count },
   // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
@@ -65,6 +67,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'save bytes': JSON.stringify(game.progress.save).length,
     'journal kinds': Object.keys(game.progress.save.journal).length,
     'drums hauled': game.progress.save.drums,
+    'treasures found': game.progress.save.found.length,
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }

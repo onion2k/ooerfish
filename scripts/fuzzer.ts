@@ -13,11 +13,12 @@
  * --seed N` does, and prints what was done before it went wrong.
  */
 import { careful } from '../src/angler';
+import type { BedFinds } from '../src/bedfinds';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
-import { DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS } from '../src/lake';
+import { DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS, TREASURES } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -65,6 +66,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     yawned: 0,
     woke: 0,
     hauled: 0,
+    found: 0,
   };
   // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
   const bed = { chosen: false };
@@ -83,6 +85,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     gifted: count('gifted'),
     yawned: count('yawned'),
     hauled: count('hauled'),
+    found: count('found'),
     // a waking is counted by how it came: a bed chosen (the action sets `bed`), or midnight
     woke: () => {
       happened.woke++;
@@ -140,7 +143,22 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     })();
     done['start drums'] = drumsAtStart;
     done['start journal'] = Object.keys(journalAtStart).length;
-    let store = memoryStore(JSON.stringify({ cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart }));
+    // the treasures a returning player has found and kept, from a stream of its own again: half the seeds none, the rest
+    // some of the six, in an order of their own, so the shelves and the bed start in every mix
+    const foundAtStart = (() => {
+      const pick = seeded(seed * 19 + 11);
+      if (pick() < 0.5) return [];
+      const ids = TREASURES.list.map((t) => t.id);
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(pick() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+      }
+      return ids.slice(0, 1 + Math.floor(pick() * ids.length));
+    })();
+    done['start found'] = foundAtStart.length;
+    let store = memoryStore(
+      JSON.stringify({ cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart }),
+    );
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
@@ -157,13 +175,23 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     let phone: PhoneMonkey = makePhone();
     let busy = 0;
     let snagged = false;
+    let treasureSnagged = false;
     // the frames since the player woke in the cabin; one who stays too long goes down to the pond
     let inCabin = 0;
     const between = (a: number, b: number) => a + random() * (b - a);
     // what the clean pond saw, from nought so a monkey that never reached it shows as nought and not as missing
     done['clean frames'] = 0;
     done['clean casts'] = 0;
-    for (const what of ['lie on the bed', 'drum snagged', 'pond cleaned by a haul']) done[what] = 0;
+    for (const what of [
+      'lie on the bed',
+      'drum snagged',
+      'pond cleaned by a haul',
+      'lie by a treasure',
+      'treasure snagged',
+      'treasure kept',
+      'treasure snagged in a clean pond',
+    ])
+      done[what] = 0;
     for (const k of KINDS) done[`caught ${k.id}`] = 0;
     done['bites in a clean pond'] = 0;
     done['most cured'] = 0;
@@ -175,11 +203,23 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       const into = game.pondClean;
       if (game.cast(angle, power) && into) done['clean casts']++;
     };
-    /** A cast aimed at a drum still on the bed (any spot, if all are hauled) and left to sink and lie there. */
+    // which set a cast to the bed is aimed at is decided from a stream of its own, so the monkey's own chance is drawn
+    // as it was before there were treasures: the same seeds still fish the same water, and a treasure aimed at only
+    // changes where the lure lies
+    const aiming = seeded(seed * 23 + 9);
+    /**
+     * A cast aimed at a drum or a treasure still on the bed (a spot of either, if every one is found) and left to sink and
+     * lie there: nine times in ten at the drums, if any is left on the bed, and the rest at the treasures.
+     */
     const castToBed = () => {
-      const open = Array.from({ length: game.drums.count }, (_, i) => i).filter((i) => !game.drums.hauled[i]);
-      const i = open.length ? open[Math.floor(random() * open.length)] : Math.floor(random() * game.drums.count);
-      const { angle, power } = aimAt(game.drums.x[i] + between(-1, 1), game.drums.y[i] + between(-1, 1));
+      const open = (set: BedFinds) => Array.from({ length: set.count }, (_, i) => i).filter((i) => !set.found[i]);
+      const [drums, treasures] = [open(game.drums), open(game.treasures)];
+      const toDrums = drums.length > 0 && (treasures.length === 0 || aiming() < 0.9);
+      const set = toDrums || treasures.length === 0 ? game.drums : game.treasures;
+      const pool = toDrums ? drums : treasures;
+      const i = pool.length ? pool[Math.floor(random() * pool.length)] : Math.floor(random() * set.count);
+      if (set === game.treasures) done['lie by a treasure']++;
+      const { angle, power } = aimAt(set.x[i] + between(-1, 1), set.y[i] + between(-1, 1));
       cast(angle, power);
     };
     /** What is landed taken in: a fish stowed, counted by its kind, or a drum hauled; false when nothing was landed. */
@@ -190,8 +230,12 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         done[`caught ${kind}`] = (done[`caught ${kind}`] ?? 0) + 1;
         return true;
       }
-      if (!game.haul()) return false;
-      if (game.pondClean) done['pond cleaned by a haul']++;
+      if (game.haul()) {
+        if (game.pondClean) done['pond cleaned by a haul']++;
+        return true;
+      }
+      if (!game.keep()) return false;
+      done['treasure kept']++;
       return true;
     };
     const did = (what: string) => {
@@ -415,11 +459,17 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       game.step(page.paused ? 0 : DT);
       if (game.bite.drum >= 0 && !snagged) done['drum snagged']++;
       snagged = game.bite.drum >= 0;
+      if (game.bite.treasure >= 0 && !treasureSnagged) {
+        done['treasure snagged']++;
+        if (game.pondClean) done['treasure snagged in a clean pond']++;
+      }
+      treasureSnagged = game.bite.treasure >= 0;
       done['most cured'] = Math.max(done['most cured'], game.fish.curedCount());
       if (game.pondClean) {
         done['clean frames']++;
-        // nothing takes the bait in a clean pond: no fish is ever coming, nibbling, biting, hooked or landed there
-        if (game.bite.phase !== 'none') done['bites in a clean pond']++;
+        // no fish takes the bait in a clean pond: none is ever coming, nibbling, biting, hooked or landed there. A treasure
+        // may be snagged there, which is counted apart, and so is no bite of a fish
+        if (game.bite.phase !== 'none' && game.bite.fish >= 0) done['bites in a clean pond']++;
       }
       // after everything done, and every few frames between: a bad value set and set again at once is never seen
       if (acted || frame % CHECK_EVERY === 0) {

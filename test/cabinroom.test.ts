@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { FURNITURE, ROOM_PARTS, lampAt, roomGroups } from '../src/cabinroom';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, WAKING_EYE, bareGround } from '../src/lake';
+import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, TREASURES, WAKING_EYE, bareGround } from '../src/lake';
 import { ROOM_COLOURS } from '../src/palette';
 import { SHADOW_BOX } from '../src/scene';
 
@@ -218,5 +218,87 @@ describe('the cabin’s furniture', () => {
     // the coat hangs by the peg, which is on the wall
     const wide = (name: 'coat') => corners(part(groups, name)).map(([u]) => u);
     expect(Math.max(...wide('coat')) - Math.min(...wide('coat'))).toBeGreaterThan(0.5);
+  });
+});
+
+describe('the cabin’s two shelves', () => {
+  const groups = roomGroups(ROOM_COLOURS);
+  const fur = CABIN_ROOM.furniture;
+  const hx = CABIN.body.across / 2 - CABIN_ROOM.inset,
+    hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
+  const shelves = { lower: fur.shelf, upper: fur.shelfUpper };
+  /** The shelf mesh's planks: its vertices as (along, across, height over the floor), per height of top. */
+  const shelfPoints = corners(part(groups, 'shelf')).map(([u, v, z]) => [u, v, z - CABIN_FLOOR] as const);
+
+  it('puts the second above the first on the lake wall, with room for what stands on the lower one', () => {
+    expect(fur.shelfUpper.high).toBeGreaterThan(fur.shelf.high + fur.shelf.thick);
+    const tallest = Math.max(...TREASURES.list.map((t) => t.size.high * TREASURES.shelfScale));
+    expect(fur.shelfUpper.high - (fur.shelf.high + fur.shelf.thick), 'a treasure stands under it').toBeGreaterThan(
+      tallest + 0.1,
+    );
+    expect(fur.shelfUpper.along).toBe(fur.shelf.along);
+    expect(fur.shelfUpper.wide).toBeLessThanOrEqual(fur.shelf.wide);
+  });
+
+  it('draws both, each a plank flush to the lake wall inside the room and under the ceiling', () => {
+    for (const [name, sh] of Object.entries(shelves)) {
+      const plank = shelfPoints.filter(([, , z]) => Math.abs(z - (sh.high + sh.thick)) < 1e-4);
+      expect(plank.length, `${name} shelf is drawn`).toBeGreaterThan(0);
+      const along = plank.map(([u]) => u);
+      expect(Math.min(...along), name).toBeCloseTo(sh.along - sh.wide / 2, 4);
+      expect(Math.max(...along), name).toBeCloseTo(sh.along + sh.wide / 2, 4);
+      for (const [u, v, z] of plank) {
+        expect(Math.abs(u)).toBeLessThanOrEqual(hy + 1e-4);
+        expect(v, 'flush to the wall').toBeLessThanOrEqual(hx + 1e-4);
+        expect(z).toBeLessThan(CABIN_ROOM.high);
+      }
+    }
+  });
+
+  it('keeps both clear of the door’s frame and the coat on their own side of it', () => {
+    const { door, furniture } = CABIN_ROOM;
+    for (const sh of [fur.shelf, fur.shelfUpper]) {
+      const [a, b] = [sh.along - sh.wide / 2, sh.along + sh.wide / 2];
+      expect(b, 'short of the door’s frame').toBeLessThan(door.along - door.width / 2 - door.frame);
+      expect(b, 'short of the coat').toBeLessThan(furniture.coat.along - furniture.coat.wide / 2);
+      expect(a).toBeGreaterThan(-hy);
+    }
+  });
+
+  it('gives each treasure a place on a shelf: on its top, inside its length, clear of the books and the jar and of each other', () => {
+    const books = fur.books.reduce((n, [thick]) => n + thick, 0);
+    const bookFrom = fur.shelf.along + fur.shelf.wide / 2 - 0.08 - books;
+    const bookTo = fur.shelf.along + fur.shelf.wide / 2 - 0.08;
+    const jarFrom = fur.shelf.along - fur.shelf.wide / 2 + 0.25 - fur.jar.radius;
+    const jarTo = fur.shelf.along - fur.shelf.wide / 2 + 0.25 + fur.jar.radius;
+    for (const t of TREASURES.list) {
+      const sh = shelves[t.shelf.on];
+      const r = t.size.radius * TREASURES.shelfScale;
+      expect(t.shelf.along - r, `${t.id} inside the shelf's start`).toBeGreaterThanOrEqual(
+        sh.along - sh.wide / 2 + 0.06,
+      );
+      expect(t.shelf.along + r, `${t.id} inside the shelf's end`).toBeLessThanOrEqual(sh.along + sh.wide / 2 - 0.06);
+      expect(t.size.high * TREASURES.shelfScale, `${t.id} under the next shelf`).toBeLessThan(0.45);
+      if (t.shelf.on === 'lower') {
+        const clear = (a: number, b: number) => t.shelf.along + r <= a || t.shelf.along - r >= b;
+        expect(clear(bookFrom, bookTo), `${t.id} clear of the books`).toBe(true);
+        expect(clear(jarFrom, jarTo), `${t.id} clear of the jar`).toBe(true);
+      }
+    }
+    for (const a of TREASURES.list)
+      for (const b of TREASURES.list) {
+        if (a === b || a.shelf.on !== b.shelf.on) continue;
+        expect(Math.abs(a.shelf.along - b.shelf.along), `${a.id} and ${b.id}`).toBeGreaterThanOrEqual(
+          (a.size.radius + b.size.radius) * TREASURES.shelfScale,
+        );
+      }
+  });
+
+  it('holds all six, split between the shelves, and the room still under its triangle ceiling', () => {
+    expect(TREASURES.list.filter((t) => t.shelf.on === 'lower').length).toBeGreaterThan(0);
+    expect(TREASURES.list.filter((t) => t.shelf.on === 'upper').length).toBeGreaterThan(0);
+    const names = Object.values(FURNITURE).flatMap((p) => [...p]);
+    const tris = names.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
+    expect(tris).toBeLessThan(1500);
   });
 });

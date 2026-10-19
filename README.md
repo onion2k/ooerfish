@@ -14,16 +14,16 @@ no meter runs out but the day.
 
 Find a fish by its glow and what the surface does, drag back to cast and let
 go, let the lure sink, strike when the bobber dips, and reel with an eye on
-the line's tension. The catch goes home to the cabin's curing machine and
-into the aquarium, and the lake's water turns from green to blue.
+the line's tension. The catch is cured as it is landed and let go, gold, back
+into the lake, and the lake's water turns from green to blue.
 
 **Not yet, but it plays.** The page opens straight onto the sick Duck Pond at dawn, its water seen through
 to its bed, its rocks and weed and the glowing fish among them. "Cast" (or the C key) puts the camera at the
 shore, where you drag back to aim, let go to cast, tap to strike when the bobber dips and hold to reel a fish
 into the zone on the bar; tap the catch to put it in the bucket, which cures it and clears the pond a twelfth,
 kept in the save. The day runs round from dawn. A tap on the water drops a pebble that sends rings across it.
-There is no menu, cabin or aquarium yet: `docs/game.md` is the plan this slice was built from, `DESIGN.md`
-the rest. `npm run dev`, then `http://localhost:5204/`; `?seed=3&paused=1&caustics=off&paint=off` are for
+`docs/game.md` is the plan the first slice was built from, and `DESIGN.md` says the
+rest. `npm run dev`, then `http://localhost:5204/`; `?seed=3&paused=1&caustics=off&paint=off` are for
 tests and comparing, and nothing about the game is in the address.
 
 ## What is here

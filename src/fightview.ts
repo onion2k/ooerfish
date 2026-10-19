@@ -14,7 +14,7 @@
  */
 import type { Game } from './game';
 import type { GestureEvent } from './gesture';
-import { FIGHT, KINDS } from './lake';
+import { FIGHT, KINDS, TREASURES } from './lake';
 import type { Temper } from './fight';
 import { PALETTE, type Colour } from './palette';
 
@@ -38,6 +38,9 @@ export interface FightElements extends BarElements {
   weight: HTMLElement;
   /** The small line on the card that says what a tap does. */
   hint: HTMLElement;
+  /** What is said of a treasure on its card, and the note a bottle holds, each hidden when there is none. */
+  about: HTMLElement;
+  note: HTMLElement;
   bucket: HTMLElement;
 }
 
@@ -49,9 +52,10 @@ export type ToScreen = (x: number, y: number, z: number) => { x: number; y: numb
 const PULSE_RATE = 14;
 const MARK_HIGH = 1.4;
 
-/** What a tap on the card does: cure a fish and put it in the bucket, or haul a drum up onto the bank. */
+/** What a tap on the card does: cure a fish and put it in the bucket, haul a drum up onto the bank, or keep a treasure for the shelf. */
 const CURE_HINT = 'tap to cure it and put it in the bucket';
 const HAUL_HINT = 'tap to haul it up onto the bank';
+const KEEP_HINT = 'tap to keep it for the shelf';
 
 /** A share of the bar as a per cent, to a tenth, so a still bar writes nothing. */
 const per = (v: number) => `${Math.round(v * 1000) / 10}%`;
@@ -96,20 +100,30 @@ export function blankPicture(): FightPicture {
   };
 }
 
-/** What the landed fish's card says: the temper and kind, the weight, and both as one line ("a feisty pike, 3.62 kg"). */
+/**
+ * What the landed catch's card says: the temper and kind, the weight, and both as one line ("a feisty pike, 3.62 kg").
+ * A junk treasure's also says a line about it (`about`), and the bottle its note (`note`).
+ */
 export interface CardWords {
   name: string;
   weight: string;
   line: string;
+  about?: string;
+  note?: string;
 }
 
 /**
- * The card's words for a catch, as a pure function so a test needs no page; `kind` is an index into `KINDS`, or `'drum'`
- * for a drum of waste, which has no temper and says so ("a drum of waste, 42.00 kg").
+ * The card's words for a catch, as a pure function so a test needs no page; `kind` is an index into `KINDS`, `'drum'`
+ * for a drum of waste, which has no temper and says so ("a drum of waste, 42.00 kg"), or `{ treasure }` for a junk
+ * treasure by its index in `TREASURES`, which has none either and says a line about itself.
  */
-export function cardWords(kind: number | 'drum', temper: Temper, weight: number): CardWords {
-  const name = kind === 'drum' ? 'drum of waste' : `${temper} ${KINDS[kind].name}`;
+export function cardWords(kind: number | 'drum' | { treasure: number }, temper: Temper, weight: number): CardWords {
   const kg = `${weight.toFixed(2)} kg`;
+  if (typeof kind === 'object') {
+    const t = TREASURES.list[kind.treasure];
+    return { name: t.name, weight: kg, line: `a ${t.name}, ${kg}`, about: t.line, ...(t.note ? { note: t.note } : {}) };
+  }
+  const name = kind === 'drum' ? 'drum of waste' : `${temper} ${KINDS[kind].name}`;
   return { name, weight: kg, line: `a ${name}, ${kg}` };
 }
 
@@ -133,9 +147,9 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
   into.biting = biting;
   // by the game's clock, so a picture is the same every run
   into.pulse = biting ? Math.round((0.5 + 0.5 * Math.sin(g.t * PULSE_RATE)) * 20) / 20 : 0;
-  // a drum has no zone to be in: it is hauled while the reel is held and waits when it is let go
+  // a drum or a treasure has no zone to be in: it is hauled while the reel is held and waits when it is let go
   into.words = hooked
-    ? g.catchDrum
+    ? g.catchDrum || g.catchTreasure >= 0
       ? g.reeling
         ? 'hauling'
         : 'waiting'
@@ -225,10 +239,10 @@ export class FightView {
     button.addEventListener('click', (e) => {
       if (e.detail === 0) gesture({ type: 'activate', source: 'button' });
     });
-    // a fish on the card goes in the bucket and a drum is hauled up; each is refused for the other
+    // a fish on the card goes in the bucket, a drum is hauled up and a treasure is kept; each is refused for the others
     card.addEventListener('click', () => {
       const g = this.game();
-      if (!g.stow()) g.haul();
+      if (!g.stow() && !g.haul()) g.keep();
     });
   }
 
@@ -257,10 +271,18 @@ export class FightView {
       this.was.card = card;
       el.card.hidden = !card;
       if (card) {
-        const words = cardWords(g.catchDrum ? 'drum' : g.catchKind, g.temper, g.catchWeight);
+        const words = cardWords(
+          g.catchTreasure >= 0 ? { treasure: g.catchTreasure } : g.catchDrum ? 'drum' : g.catchKind,
+          g.temper,
+          g.catchWeight,
+        );
         el.name.textContent = words.name;
         el.weight.textContent = words.weight;
-        el.hint.textContent = g.catchDrum ? HAUL_HINT : CURE_HINT;
+        el.hint.textContent = g.catchTreasure >= 0 ? KEEP_HINT : g.catchDrum ? HAUL_HINT : CURE_HINT;
+        el.about.textContent = words.about ?? '';
+        el.about.hidden = !words.about;
+        el.note.textContent = words.note ?? '';
+        el.note.hidden = !words.note;
       }
     }
 

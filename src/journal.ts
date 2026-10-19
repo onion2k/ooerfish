@@ -38,18 +38,43 @@ export interface JournalRow {
   words: string;
 }
 
+/** A junk treasure as the page needs it: the key it is kept under, what it is called, and the note it holds if it holds one. */
+export interface JournalTreasure {
+  id: string;
+  name: string;
+  note?: string;
+}
+
+export interface JournalTreasureRow {
+  /** Its name once found, and "not yet found" until then. */
+  name: string;
+  found: boolean;
+  /** What the message in it says, once it is found; a treasure with no message, or not yet found, has none. */
+  note?: string;
+}
+
 export interface JournalPage {
   rows: JournalRow[];
   /** The junk's line, below the kinds. */
   drums: string;
+  /** The treasures found in the pond, each by name or as not yet found, in the order the pond has them. */
+  treasures: JournalTreasureRow[];
+  /** How many of them are found, in words. */
+  found: string;
 }
 
-/** The words of the journal page: each kind, caught or not, and the drums of waste hauled out of those on the bed. */
+/**
+ * The words of the journal page: each kind, caught or not, the drums of waste hauled out of those on the bed, and each
+ * junk treasure found (by `found`, a list of ids) by name, with the bottle's note under it, or as not yet found. An id of
+ * a treasure not handed in is ignored.
+ */
 export function journalWords(
   journal: Readonly<Journal>,
   kinds: readonly JournalKind[],
   hauled: number,
   drums: number,
+  treasures: readonly JournalTreasure[] = [],
+  found: readonly string[] = [],
 ): JournalPage {
   const rows = kinds.map(({ id, name }): JournalRow => {
     const e = journal[id];
@@ -60,5 +85,16 @@ export function journalWords(
     if (e.first > 0) parts.push(`first on day ${e.first}`);
     return { name, caught: true, words: parts.join(', ') };
   });
-  return { rows, drums: `drums of waste hauled: ${hauled} of ${drums}` };
+  const has = new Set(found);
+  const rows2 = treasures.map(({ id, name, note }): JournalTreasureRow => {
+    if (!has.has(id)) return { name: 'not yet found', found: false };
+    return note ? { name, found: true, note } : { name, found: true };
+  });
+  const n = rows2.filter((r) => r.found).length;
+  return {
+    rows,
+    drums: `drums of waste hauled: ${hauled} of ${drums}`,
+    treasures: rows2,
+    found: `found: ${n} of ${treasures.length}`,
+  };
 }

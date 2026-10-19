@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardWords, fightPicture } from '../src/fightview';
 import { Game } from '../src/game';
+import { TREASURES } from '../src/lake';
 import { careful } from '../src/angler';
 import { DT, newGame } from './helpers';
 
@@ -141,5 +142,27 @@ describe('cardWords', () => {
       weight: '1.23 kg',
       line: 'a steady glowing perch, 1.23 kg',
     });
+  });
+
+  it('names each treasure, its weight and its line, and the bottle’s note, with no temper', () => {
+    TREASURES.list.forEach((t, i) => {
+      const words = cardWords({ treasure: i }, 'feisty', t.weight);
+      expect(words.name, t.id).toBe(t.name);
+      expect(words.weight).toBe(`${t.weight.toFixed(2)} kg`);
+      expect(words.line).toBe(`a ${t.name}, ${t.weight.toFixed(2)} kg`);
+      expect(words.about, `${t.id}'s line about it`).toBe(t.line);
+      if (t.id === 'bottle') expect(words.note).toBe(t.note);
+      else expect(words.note, `${t.id} holds no note`).toBeUndefined();
+    });
+    expect(cardWords({ treasure: 2 }, 'calm', 0.6).line).toBe('a Sunny Atom lunchbox, 0.60 kg');
+    expect(cardWords({ treasure: 2 }, 'calm', 0.6).about).toBe('Empty, thank goodness.');
+    expect(cardWords({ treasure: 4 }, 'calm', 0.3).note).toBe(
+      "If you're reading this, the fish are glowing again. Bring them home. — E.",
+    );
+  });
+
+  it('says nothing about a fish or a drum beyond its name and weight', () => {
+    expect(cardWords(0, 'calm', 0.5).about).toBeUndefined();
+    expect(cardWords('drum', 'steady', 42).about).toBeUndefined();
   });
 });

@@ -2,15 +2,14 @@
 
 ## Context
 
-The Duck Pond has one kind of fish, the glowing perch. Every catch is the same fish at a different weight. That is
-why the aquarium was set aside on 17 Oct: with one kind, it would only count catches. Stage 4 of `DESIGN.md`, "the
-journal and the junk treasures", brings what the aquarium waits on. This first slice has three things:
+The Duck Pond has one kind of fish, the glowing perch. Every catch is the same fish at a different weight. Stage 4 of `DESIGN.md`, "the journal and the junk treasures", is
+where that changes. This first slice has three things:
 
 - **kinds of fish,** each with a depth of its own;
 - **a journal** of what has been caught;
 - **the first junk,** a drum of waste on the pond's bed that is hauled up and cleans more than a fish.
 
-The aquarium is the slice after this one, not built here.
+The shelves are the slice after this one, not built here (`docs/junk.md`).
 
 **Chosen by the user (19 Oct 2026):**
 
@@ -20,7 +19,7 @@ The aquarium is the slice after this one, not built here.
   when every fish is cured and every drum is hauled up. That keeps `docs/cured.md`'s rule that the pond holds exactly
   what it takes to clean it.
 
-Later slices: the aquarium, the shelves (the drum goes there), the other junk (old lures, Sunny Atom merchandise,
+Later slices: the shelves (the drum goes there), the other junk (old lures, Sunny Atom merchandise,
 message bottles, the rubber duck), the journal's drawings and silly facts, and the two-headed trout, eel and
 anglerfish with their own ways of biting.
 
@@ -150,7 +149,7 @@ their depth, and the pace angler's lure sinks to the line's depth, the perch's a
 5. **The journal stops time while open** (recommended), as `DESIGN.md` says the journal does. The alternative is that
    it doesn't, as the other menus don't yet.
 6. **Cured fish are gold whatever their kind** (recommended), as now. The alternative is a cured look for each kind,
-   which belongs to the aquarium's slice.
+   which was left for later; a cured fish is let go into the pond at once.
 
 ## Performance risk
 
