@@ -305,6 +305,71 @@ for (const [shape, viewport] of [
   });
 
 /** The question before Start again, at the Pixel 7a and at a desk: the card over the dimmed lake, Keep playing focused. */
+/**
+ * The fight's own words and gifts (`docs/fight2.md`): the catch card naming the fish's temper at the Pixel 7a; the
+ * gift's toast after the cure that earns the line, at a desk and on the phone; and the fight with the longer rod, its
+ * zone a little taller on the bar, from a save of six. Seeded and paused, so each is the same every run.
+ */
+test.describe('the fight and its gifts', () => {
+  async function giftToast(page: import('@playwright/test').Page) {
+    // one fish cured already: the second, cured here, earns the line, whose toast follows the cure's own
+    await start(page, { seed: 11, paused: true, save: { cured: 1 } });
+    await page.evaluate(() => window.game!.step(60));
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    await page.locator('#catch').click();
+    // the cure's toast is said for two seconds of game time, then the gift's
+    await page.evaluate(() => window.game!.step(150));
+    await expect(page.locator('#toast')).toContainText('A gift from the Sunny Atom');
+  }
+
+  test('the gift’s toast at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await giftToast(page);
+    await expect(page).toHaveScreenshot('gift-desk.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('the fight with the longer rod', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6 } });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => {
+      const g = window.game!;
+      g.fishTo('fight');
+      g.step(1);
+    });
+    expect(await page.evaluate(() => window.game!.gear().rod)).toBe(true);
+    await expect(page).toHaveScreenshot('fight-rod.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the gift’s toast at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await giftToast(page);
+      await expect(page).toHaveScreenshot('gift-phone.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+    test('the catch card naming its temper', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => {
+        const g = window.game!;
+        g.fishTo('landed');
+        g.step(1);
+      });
+      const temper = (await page.evaluate(() => window.game!.fishing())).temper;
+      await expect(page.locator('#catchName')).toHaveText(`${temper} glowing perch`);
+      await expect(page).toHaveScreenshot('phone-landed.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
 test.describe('starting again', () => {
   test('the question at a desk’s width', async ({ page }) => {
     const problems = watch(page);

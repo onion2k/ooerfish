@@ -183,5 +183,5 @@ Out of scope: a shop and its money; gear drawn on the rod; more fish kinds; the 
       and end-to-end tests.
 - [x] 4. **Tuned to the targets:** the figures tuned with the balance tool to decision 1, and the balance and pace
       baselines written through `/gate-moved`. Check: the tool inside the targets at each gear level.
-- [ ] 5. **The pass:** the full check, fuzz on seeds 1 to 24, pictures looked at, the mutations, `CLAUDE.md` and
+- [x] 5. **The pass:** the full check, fuzz on seeds 1 to 24, pictures looked at, the mutations, `CLAUDE.md` and
       the report.

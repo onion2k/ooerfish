@@ -47,16 +47,17 @@ The three properties, and what holds each:
 
 Numbers, held by gates, on this machine at 1280×800:
 
-| Property                                             | Budget                         | Held by |
-| ---------------------------------------------------- | ------------------------------ | ------- |
-| Boot, page start to the frame loop running           | 3000 ms                        | `perf`  |
-| Download, scripts and styles gzipped                 | 400 kB; baseline to the byte   | `perf`  |
-| A frame drawn, the least of 24 at the standard scene | 8 ms                           | `perf`  |
-| A frame of the water, day and night                  | 8 ms                           | `perf`  |
-| A step of the lake, against the reference arithmetic | baseline ± 15%                 | `bench` |
-| Game minutes for the angler to land three fish       | baseline ± 20%, both ways      | `pace`  |
-| The scenery download, `public/scenery` gzipped       | 900 kB; baseline to the byte   | `perf`  |
-| Anything kept: fish, save bytes, heap                | ceilings in `scripts/leaks.ts` | `leaks` |
+| Property                                             | Budget                         | Held by   |
+| ---------------------------------------------------- | ------------------------------ | --------- |
+| Boot, page start to the frame loop running           | 3000 ms                        | `perf`    |
+| Download, scripts and styles gzipped                 | 400 kB; baseline to the byte   | `perf`    |
+| A frame drawn, the least of 24 at the standard scene | 8 ms                           | `perf`    |
+| A frame of the water, day and night                  | 8 ms                           | `perf`    |
+| A step of the lake, against the reference arithmetic | baseline ± 15%                 | `bench`   |
+| Game minutes for the angler to land three fish       | baseline ± 20%, both ways      | `pace`    |
+| Fights landed and their length, by speed, size, gear | baseline, every cell exactly   | `balance` |
+| The scenery download, `public/scenery` gzipped       | 900 kB; baseline to the byte   | `perf`    |
+| Anything kept: fish, save bytes, heap                | ceilings in `scripts/leaks.ts` | `leaks`   |
 
 The standard scene is `STANDARD` in `smoke/game.ts`: the water half
 cleaned, by day, from the shore. The pace gate's angler (`src/angler.ts`)
@@ -85,6 +86,7 @@ looked into.
     npm run leaks          an hour of play, watching what must stay bounded (10 min of it in check)
     npm run bench          a step of the lake held to scripts/bench-baseline.json, both ways
     npm run pace:check     the angler's minutes to land three fish, held to scripts/pace-baseline.json
+    npm run balance        the real line at four reaction speeds, three sizes and each gear level, held to scripts/balance-baseline.json
     npm run perf           boot, frame and download held to smoke/perf-baseline.json and the budget
     npm run smoke          the game in headless Chromium on the real GPU (Playwright, smoke/)
     npm run look           the scenes held to the pictures in smoke/screens, to the pixel
@@ -299,7 +301,18 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   held pushes the zone up it and let go it falls, and a meter fills while
   the fish is in the zone and drains while out, full landed and empty
   slipped; the line out follows the meter and its tension is how far the
-  fish is out of the zone. A heavier fish darts faster, a sick lake's more
+  fish is out of the zone. Each fish fights by its size and a **temper** drawn on
+  the hook (calm, steady, feisty): `fightFor(heft, temper, gear)` in
+  `src/fight.ts` gives every figure the `Line` plays by, from `SIZE`, `TEMPERS`
+  and `FIGHT` in `lake.ts`, so the line knows nothing of either and the balance
+  tool plays the very same fights; the fish's lowest dart stands above a resting
+  zone, so a hand that never holds lands nothing. Curing brings **gifts**
+  (`GEAR`, at 2, 4, 6, 8 and 10 cures: a stronger line, a faster reel, a longer
+  rod, a bigger bobber, tastier bait), worked out from the count by `gearFor`, so
+  the save holds nothing new; each does what its toast says at a size a player
+  feels, as the user chose over figures tuned to the tool's hand. `careful`
+  centres on the zone's own width. `docs/fight2.md` is the plan, with every
+  target and what was changed with the user. A sick lake's fish dart more
   often. `Game` wires them (`strike`, `reel`, `stow`, the fish
   steered along the line, `GameEvents` nibbled to landed); the figures are
   `FISHING`, `FIGHT` and `PERCH` in `lake.ts`, tuned on measured seeds.
