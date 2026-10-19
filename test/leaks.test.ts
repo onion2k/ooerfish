@@ -31,8 +31,8 @@ describe('what must stay bounded', () => {
     }
     expect(
       now['save bytes'],
-      'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{},"found":[]}, fifty-three bytes',
-    ).toBe(53);
+      'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{},"found":[],"time":0.25,"place":"pond"}, eighty bytes',
+    ).toBe(80);
     expect(WATCH['treasures found']!.ceiling).toBe(TREASURES.count);
   });
 
@@ -53,7 +53,7 @@ describe('what must stay bounded', () => {
     expect(now['treasures found']).toBe(TREASURES.count);
     expect(now['save bytes']).toBeLessThan(WATCH['save bytes']!.ceiling);
     expect(
-      now['save bytes'] - 53,
+      now['save bytes'] - 80,
       'about a hundred and twenty bytes more than a fresh one, found alone',
     ).toBeGreaterThan(100);
   });

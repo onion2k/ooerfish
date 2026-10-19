@@ -348,3 +348,28 @@ describe('the treasures on the bed', () => {
     expect(bad(game)).toMatch(/the contamination is .*, but 3 cured and 1 hauled make it/);
   });
 });
+
+describe('the saved time and place', () => {
+  const bad = (game: ReturnType<typeof newGame>['game']) => checkInvariants(game).join('\n');
+
+  it('holds of a new lake and of a cabin save', () => {
+    expect(checkInvariants(newGame().game)).toEqual([]);
+    expect(checkInvariants(newGame(1, '{"day": 2, "place": "cabin", "time": 0.6}').game)).toEqual([]);
+  });
+
+  it('reports a saved time that is not a finite number from nought up to but not reaching one', () => {
+    for (const time of [1, -0.1, NaN, Infinity, 1.5]) {
+      const { game } = newGame();
+      game.progress.save.time = time;
+      expect(bad(game), String(time)).toMatch(/the save says the time is/);
+    }
+  });
+
+  it('reports a saved place that is neither the pond nor the cabin', () => {
+    for (const place of ['yawning', 'elsewhere', 3]) {
+      const { game } = newGame();
+      (game.progress.save as unknown as { place: unknown }).place = place;
+      expect(bad(game), String(place)).toMatch(/the save says the player is at/);
+    }
+  });
+});

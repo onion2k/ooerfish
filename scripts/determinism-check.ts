@@ -14,6 +14,9 @@ import { playTwice, type TwiceOptions, type TwiceResult } from './determinism';
 
 /** Where the second run of each seed starts the clock: seven seconds short of midnight. */
 const MIDNIGHT_EVE = 0.99;
+/** The two saves a returning player opens: at the pond in the afternoon, and in the cabin, where the clock is dawn. */
+const POND_SAVE = { label: 'save pond', save: { cured: 2, day: 3, time: 0.6, place: 'pond' } } as const;
+const CABIN_SAVE = { label: 'save cabin', save: { cured: 3, day: 5, place: 'cabin' } } as const;
 
 async function main() {
   const args = process.argv.slice(2);
@@ -30,6 +33,8 @@ async function main() {
   const queue: TwiceOptions[] = seeds.flatMap((seed) => [
     { seed, frames, every },
     { seed, frames, every, startsAt: MIDNIGHT_EVE },
+    { seed, frames, every, ...POND_SAVE },
+    { seed, frames, every, ...CABIN_SAVE },
   ]);
   const results: TwiceResult[] = [];
   await Promise.all(
@@ -49,13 +54,16 @@ async function main() {
   results.sort((a, b) => a.seed - b.seed || (a.note < b.note ? -1 : 1));
   const parted = results.filter((r) => r.diverged !== null);
   console.log(
-    `${seeds.length} seed${seeds.length === 1 ? '' : 's'}, from dawn and from before midnight, each played twice, ${frames} frames each (${((performance.now() - started) / 1000).toFixed(1)} s)`,
+    `${seeds.length} seed${seeds.length === 1 ? '' : 's'}, from dawn, from before midnight and from two saves, each played twice, ${frames} frames each (${((performance.now() - started) / 1000).toFixed(1)} s)`,
   );
   for (const r of parted) console.error(`  ${r.note}`);
   // a run from before midnight that never woke hashed no night, which would be a check that checks nothing
   const dry = results.filter((r) => r.note.includes(` from ${MIDNIGHT_EVE}`) && r.days < 2);
   for (const r of dry) console.error(`  ${r.note}: no night was crossed, so none was hashed`);
-  if (dry.length) process.exitCode = 1;
+  // and a cabin save that never went down played no pond, which would be as little
+  const shut = results.filter((r) => r.note.includes(` from ${CABIN_SAVE.label}`) && r.outs < 1);
+  for (const r of shut) console.error(`  ${r.note}: the cabin was never left, so no pond was played`);
+  if (dry.length || shut.length) process.exitCode = 1;
   if (parted.length) {
     console.error(
       `\n${parted.length} seed${parted.length === 1 ? ' does' : 's do'} not play out the same twice: look for chance taken from somewhere other than the game's own source, state kept in a module between runs, or an order that is not the same twice`,

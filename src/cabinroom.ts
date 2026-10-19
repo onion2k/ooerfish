@@ -12,7 +12,7 @@ import { block, built, frustum, prism } from 'artshape-render/mesh/lowpoly';
 import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { placeAt } from './cabin';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM } from './lake';
+import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, CALENDAR } from './lake';
 import type { Colour } from './palette';
 
 /** The room's parts, in the order `roomGroups` makes them: a group, and a colour, each. */
@@ -41,12 +41,17 @@ export const ROOM_PARTS = [
   'canvas',
   'peg',
   'coat',
+  'calendarSheet',
+  'calendarBar',
 ] as const;
 export type RoomPart = (typeof ROOM_PARTS)[number];
-/** A colour for each part of the room, handed in by the page. */
-export type RoomColours = Record<RoomPart, Colour>;
+/** The calendar's two moving parts, which are not in the static room but handed over by `CalendarDraw` as the day changes. */
+export const MARK_PARTS = ['calendarGone', 'calendarToday'] as const;
+export type MarkPart = (typeof MARK_PARTS)[number];
+/** A colour for each part of the room and of the calendar's marks, handed in by the page. */
+export type RoomColours = Record<RoomPart | MarkPart, Colour>;
 
-/** The seven pieces of furniture and the parts each is made of, in `ROOM_PARTS`: a part has one colour, so a piece with two has two. */
+/** The eight pieces of furniture and the parts each is made of, in `ROOM_PARTS`: a part has one colour, so a piece with two has two. */
 export const FURNITURE = {
   table: ['table', 'chair', 'mug'],
   stove: ['stove'],
@@ -55,6 +60,7 @@ export const FURNITURE = {
   chest: ['chest'],
   picture: ['frame', 'canvas'],
   coat: ['peg', 'coat'],
+  calendar: ['calendarSheet', 'calendarBar'],
 } as const satisfies Record<string, readonly RoomPart[]>;
 
 /** The paint set the timber takes, the wood's faint warm lip, as the cabin's own does. */
@@ -74,6 +80,40 @@ function timber(mesh: Mesh) {
 
 /** The room's frame: `across` in toward the lake and `along` the shore, as the cabin's own, in the world. */
 const place = placeAt(CABIN_AT);
+
+/**
+ * The wall calendar's measures, worked out from `CABIN_ROOM.furniture.calendar` once: a square's cell, the sheet's
+ * height, and where square `i` (row by row from the top left, as it is read) is in the world, on the sheet's face.
+ */
+export function calendarGeometry() {
+  const cal = CABIN_ROOM.furniture.calendar;
+  const cell = (cal.wide - 2 * cal.margin) / CALENDAR.columns;
+  const high = cal.bar + 2 * cal.margin + CALENDAR.rows * cell;
+  const wall = CABIN.body.across / 2 - CABIN_ROOM.inset;
+  // read from the room, facing the lake wall: whether the shore's direction runs to the reader's right decides which
+  // way a row is read, so that the first square is always the top left
+  const [ix, iy] = CABIN_AT.inward,
+    [ax, ay] = CABIN_AT.along;
+  const reads = ax * iy - ay * ix >= 0 ? 1 : -1;
+  return {
+    cal,
+    cell,
+    high,
+    wall,
+    size: cell * cal.mark,
+    /** Square `i`'s middle in the world, and the direction the wall faces into the room, as a turn about z. */
+    spot: (i: number): [number, number, number] => {
+      const row = Math.floor(i / CALENDAR.columns),
+        col = i % CALENDAR.columns;
+      const u = cal.along + reads * (-cal.wide / 2 + cal.margin + (col + 0.5) * cell);
+      const z = CABIN_FLOOR + cal.at + high - cal.bar - cal.margin - (row + 0.5) * cell;
+      const [x, y] = place([wall - cal.depth - cal.proud, u, 0]);
+      return [x, y, z];
+    },
+    /** The turn that puts a mark's own x, its normal, along the wall's, out into the room. */
+    yaw: Math.atan2(-iy, -ix),
+  };
+}
 
 /** Where the lamp hangs, in the world: the bulb's middle. */
 export function lampAt(): [number, number, number] {
@@ -333,6 +373,15 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
     for (const sy of [-1, 1]) box(b, x, co.along + (sy * (co.wide + 0.08)) / 2, 0.08, 0.08, hem + 0.1, top - 0.1);
   });
 
+  // the calendar: a thin sheet of paper on the wall under a timber bar along its top; the marks on it are `CalendarDraw`'s
+  const { cal, high: calHigh } = calendarGeometry();
+  const sheetMesh = built((b) => {
+    onWall(b, cal.along, cal.wide, cal.depth, cal.at, cal.at + calHigh - cal.bar);
+  });
+  const barMesh = built((b) =>
+    onWall(b, cal.along, cal.wide + 0.04, cal.depth + 0.02, cal.at + calHigh - cal.bar, cal.at + calHigh),
+  );
+
   const timbered = (mesh: Mesh, part: RoomPart, roughness: number): GameGroup => ({
     mesh: timber(mesh),
     matrices: ONE,
@@ -369,6 +418,8 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
     canvas: timbered(canvasMesh, 'canvas', 0.9),
     peg: timbered(pegMesh, 'peg', 0.9),
     coat: timbered(coatMesh, 'coat', 1),
+    calendarSheet: timbered(sheetMesh, 'calendarSheet', 1),
+    calendarBar: timbered(barMesh, 'calendarBar', 0.9),
     bulb: { mesh: bulb, matrices: ONE, albedo: colours.bulb, roughness: 0.4, patterns: lit(BULB_GLOW, colours.bulb) },
   };
   return ROOM_PARTS.map((part) => made[part]);

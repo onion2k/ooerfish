@@ -39,6 +39,8 @@ weather or a marked day, the seasons and the moon, saving the time of day, menus
   is let go, and the toasts are cleared. On waking, a heal still running is finished, since the night has passed, and
   the splashes are gone.
 - **A load** opens at the pond at dawn, as now, on the saved day. A new game is day 1. Start again wipes it.
+  _(Since the next slice, `docs/time.md`, a load opens where the player was: at the saved time at the pond, or in the
+  cabin at dawn.)_
 
 ## Where it stands now (read and measured)
 

@@ -57,6 +57,8 @@ describe('the cure', () => {
         drums: 0,
         journal: expect.any(Object) as unknown,
         found: [],
+        time: expect.any(Number) as unknown,
+        place: 'pond',
       });
     }
     expect(game.bucket).toBe(3);

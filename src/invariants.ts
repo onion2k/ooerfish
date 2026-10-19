@@ -314,6 +314,10 @@ function nightRules(
   if (!Number.isSafeInteger(day) || day < 1) out.push(`the day is ${day}`);
   else if (was && day < was.day) out.push(`the day went back from ${was.day} to ${day}`);
   if (game.progress.save.day !== day) out.push(`the day is ${day}, but the save says ${game.progress.save.day}`);
+  const { time } = game.progress.save;
+  const kept: string = game.progress.save.place;
+  if (!(Number.isFinite(time) && time >= 0 && time < 1)) out.push(`the save says the time is ${time}`);
+  if (kept !== 'pond' && kept !== 'cabin') out.push(`the save says the player is at ${String(kept)}`);
   if (!['pond', 'yawning', 'cabin'].includes(place)) return [...out, `the player is at ${String(place)}`];
   const fade = game.fade();
   if (!(fade >= 0 && fade <= 1)) out.push(`the fade is ${fade}`);

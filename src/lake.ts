@@ -702,6 +702,12 @@ export interface View {
 }
 
 /**
+ * The year as the wall calendar shows it (`DESIGN.md`'s "The calendar"): four seasons of fourteen days, a square a day in
+ * `rows` rows of `columns`. The days gone are darkened and today is marked, and day `days + 1` is the first square again.
+ */
+export const CALENDAR = { days: 56, rows: 4, columns: 14 } as const;
+
+/**
  * The room inside the cabin, as content, all relative to the cabin's own frame (`CABIN_AT`): `along` the shore from its
  * middle and `across` in toward the lake from it. The walls are `inset` thick inside the cabin's outer ones, so the room
  * is wholly in the solid block and is not seen from outside; it is `high` from the floor to the ceiling, the floor a
@@ -766,6 +772,12 @@ export const CABIN_ROOM = {
     chest: { across: 0.45, along: 1.6, wide: 0.7, long: 1.2, high: 0.55, lid: 0.1 },
     picture: { along: 1.28, wide: 0.5, high: 0.4, at: 1.55, frame: 0.05 },
     coat: { along: -1.3, peg: 1.95, wide: 0.5, long: 1.0 },
+    /**
+     * The wall calendar: a sheet `wide` along the lake wall with its foot `at` over the floor, a timber bar `bar` high
+     * along its top, and a `margin` of paper round the squares; the sheet's height is what the four rows of squares and
+     * those take, and each square is `mark` of its cell.
+     */
+    calendar: { along: 1.275, wide: 0.66, at: 1.08, bar: 0.04, margin: 0.03, mark: 0.74, depth: 0.03, proud: 0.012 },
   },
 } as const;
 
@@ -1010,7 +1022,13 @@ export function contaminationAfter(cured: number, drums: number): number {
  * fifteen minutes of play; tuned once it is played), and where in the day the game starts, at dawn. The clock runs on
  * from there round past midnight, with no end of day until the day has one.
  */
-export const CLOCK = { daySeconds: 720, startsAt: 0.25 } as const;
+export const CLOCK = {
+  daySeconds: 720,
+  startsAt: 0.25,
+  // how often the clock is saved at the pond, in seconds of game time: a first guess, about seventy writes a day of a
+  // few dozen bytes, so a tab lost without a word loses at most this much of the day
+  saveEvery: 10,
+} as const;
 
 /**
  * The day's end: how long the screen takes to fade to the night while the player yawns, and to fade in again on waking

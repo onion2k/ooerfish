@@ -21,6 +21,39 @@ describe('the same seed gives the same game', () => {
     expect(run.days, 'the day went up').toBeGreaterThan(1);
   });
 
+  it('plays a returning player out the same, twice: a save at the pond and a save in the cabin', () => {
+    const pond = playTwice({
+      seed: 2,
+      frames: 900,
+      every: 100,
+      label: 'save pond',
+      save: { cured: 2, day: 3, time: 0.6, place: 'pond' },
+    });
+    expect(pond.diverged, pond.note).toBe(null);
+    expect(pond.outs, 'nobody woke in the cabin').toBe(0);
+    expect(pond.days, 'the day stayed the third').toBe(3);
+    const cabin = playTwice({
+      seed: 2,
+      frames: 900,
+      every: 100,
+      label: 'save cabin',
+      save: { cured: 3, day: 5, place: 'cabin' },
+    });
+    expect(cabin.diverged, cabin.note).toBe(null);
+    expect(cabin.outs, 'went down to the pond').toBe(1);
+    expect(cabin.days, 'on the day it slept').toBe(5);
+  });
+
+  it('hashes the save, so one written differently shows where the game does not', () => {
+    const one = newGame(5).game;
+    const two = newGame(5).game;
+    one.progress.save.time = 0.4;
+    expect(hashGame(one)).not.toBe(hashGame(two));
+    one.progress.save.time = two.progress.save.time;
+    one.progress.save.place = 'cabin';
+    expect(hashGame(one)).not.toBe(hashGame(two));
+  });
+
   it('hashes what a lake is, so anything moved shows', () => {
     const one = newGame(5).game;
     const two = newGame(5).game;

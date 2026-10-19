@@ -190,4 +190,9 @@ export const ROOM_COLOURS = {
   canvas: [0.85, 0.82, 0.7] as Colour,
   peg: [0.28, 0.19, 0.11] as Colour,
   coat: [0.7, 0.5, 0.2] as Colour,
+  // the calendar: pale paper under a timber bar, the days gone in a dark ink and today in a warm red
+  calendarSheet: [0.9, 0.86, 0.74] as Colour,
+  calendarBar: [0.3, 0.2, 0.1] as Colour,
+  calendarGone: [0.17, 0.14, 0.12] as Colour,
+  calendarToday: [0.85, 0.2, 0.12] as Colour,
 };

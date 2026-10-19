@@ -13,11 +13,12 @@ import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
+import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
-import { Gesture, type PointerGesture } from './gesture';
+import { Gesture, type GestureEvent, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { DrumDraw } from './drumdraw';
 import { TreasureDraw } from './treasuredraw';
@@ -172,6 +173,8 @@ async function main() {
       log(`woke ${day}`);
       // the player wakes in the cabin, and the camera is put at the pillow
       void setView('cabin', true);
+      // a new day, a new square of the calendar's year gone
+      void showWater();
     },
     gifted: (name, words) => {
       log(`gifted ${name}`);
@@ -333,6 +336,10 @@ async function main() {
   /** The junk treasures, on the bed or on their shelves, and how many were found when their groups were last handed over. */
   const treasureDraw = new TreasureDraw();
   let foundDrawn = -1;
+  /** The wall calendar's marks, and the day they were last handed over for, and how many handovers that has been. */
+  const calendarDraw = new CalendarDraw();
+  let dayDrawn = -1;
+  let calendarHandovers = 0;
   /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
   function waterShown(): number {
     return quantised(game.waterDirt, HEAL.step);
@@ -349,11 +356,19 @@ async function main() {
     const hauled = game.drums.foundCount();
     const found = game.treasures.foundCount();
     const dirt = waterShown();
-    if (watered !== dirt || curedDrawn !== cured || hauledDrawn !== hauled || foundDrawn !== found) {
+    if (
+      watered !== dirt ||
+      curedDrawn !== cured ||
+      hauledDrawn !== hauled ||
+      foundDrawn !== found ||
+      dayDrawn !== game.day
+    ) {
       watered = dirt;
       curedDrawn = cured;
       hauledDrawn = hauled;
       foundDrawn = found;
+      if (dayDrawn !== game.day) calendarHandovers++;
+      dayDrawn = game.day;
       handovers++;
       const water = style.groups(dirt);
       fishSlot = water.length;
@@ -367,6 +382,7 @@ async function main() {
         ...drumDraw.groups(game.drums),
         ...drumDraw.bank(game.drums),
         ...treasureDraw.groups(game.treasures),
+        ...calendarDraw.groups(game.day, { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday }),
       ]);
     }
     finish();
@@ -477,6 +493,23 @@ async function main() {
   const tapInverse = new Float32Array(16);
   /** Whether the player is at the pond, where the game runs and the rod is theirs. */
   const atPond = () => game.place === 'pond';
+  /**
+   * Whether a page holds the game still: the menu's list, the journal, the Start again question or the pairing card.
+   * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
+   */
+  const pagesOpen = () => journalOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
+  /** What a page open still lets through: a hold ending is always heard, or a reel would stay held under it. */
+  const LETTING_GO: ReadonlySet<string> = new Set(['up', 'cancel', 'release', 'blur', 'left-cast', 'gone']);
+  /** Every way of playing comes in here, so one gate keeps them all out while a page is open. */
+  const gestureHeard = (e: GestureEvent) => {
+    if (pagesOpen() && !LETTING_GO.has(e.type)) return;
+    gestures.handle(e);
+  };
+  /** A page has opened over a game that may have a reel held: it is let go, as the window losing the focus lets it go. */
+  const letGoOfReel = () => {
+    gestures.handle({ type: 'blur' });
+    gestures.handle({ type: 'release', source: 'button' });
+  };
   const gestures = new Gesture(
     {
       // away from the pond (yawning, or in the cabin) the player can do nothing with the rod: a cast, a strike, a reel, an
@@ -542,7 +575,7 @@ async function main() {
             status: byId('pairingStatus'),
             close: byId<HTMLButtonElement>('pairingClose'),
           },
-          handle: (e) => gestures.handle(e),
+          handle: gestureHeard,
           origin: __PHONE_ORIGIN__ || location.origin,
           link: phoneLink.link,
           game: () => game,
@@ -557,6 +590,7 @@ async function main() {
     );
     overlay = await pairing;
     await overlay.open(fixed);
+    letGoOfReel();
   }
 
   // what not every player wants is behind the corner's button: it opens a short list, and a choice from it, a click
@@ -566,6 +600,7 @@ async function main() {
   const showMenu = (open: boolean) => {
     menuList.hidden = !open;
     menuButton.setAttribute('aria-expanded', String(open));
+    if (open) letGoOfReel();
   };
   menuButton.addEventListener('click', () => showMenu(menuList.hidden));
   byId('pairButton').addEventListener('click', () => {
@@ -593,9 +628,12 @@ async function main() {
   // save wiped by the progress itself (the page decides nothing about it) and the page loaded afresh.
   const startAgain = byId('startAgain');
   const keepPlaying = byId<HTMLButtonElement>('startAgainKeep');
+  /** Start again has wiped the save, so nothing is written again before the page is loaded afresh. */
+  let wiped = false;
   const openStartAgain = () => {
     showMenu(false);
     startAgain.hidden = false;
+    letGoOfReel();
     keepPlaying.focus();
     return Promise.resolve();
   };
@@ -609,6 +647,8 @@ async function main() {
     if (e.target === startAgain) closeStartAgain();
   });
   byId('startAgainConfirm').addEventListener('click', () => {
+    // the reload's own leaving event must not write the clock back over the wiped save
+    wiped = true;
     game.progress.reset();
     location.reload();
   });
@@ -664,6 +704,7 @@ async function main() {
     );
     journalPage.hidden = false;
     journalOpen = true;
+    letGoOfReel();
     journalClose.focus();
     return Promise.resolve();
   };
@@ -707,15 +748,15 @@ async function main() {
   canvas.addEventListener('pointerdown', (e) => {
     // in cast mode the pointer is captured, so a drag or a hold that leaves the canvas still ends on it
     if (mode === 'cast') canvas.setPointerCapture(e.pointerId);
-    gestures.handle(pointer('down', e));
+    gestureHeard(pointer('down', e));
   });
-  canvas.addEventListener('pointermove', (e) => gestures.handle(pointer('move', e)));
-  canvas.addEventListener('pointercancel', (e) => gestures.handle(pointer('cancel', e)));
-  canvas.addEventListener('pointerup', (e) => gestures.handle(pointer('up', e)));
+  canvas.addEventListener('pointermove', (e) => gestureHeard(pointer('move', e)));
+  canvas.addEventListener('pointercancel', (e) => gestureHeard(pointer('cancel', e)));
+  canvas.addEventListener('pointerup', (e) => gestureHeard(pointer('up', e)));
   // space strikes, and held with a fish on, reels, in any view; let go, the fish takes line. C switches between look
   // and cast. Neither over the page's own buttons, where the key is only what it presses
   const onControl = (e: KeyboardEvent) =>
-    journalOpen ||
+    pagesOpen() ||
     (e.target instanceof HTMLElement &&
       e.target.closest('#catch, #modeButton, #downButton, #pairing, #startAgain, #menu') !== null);
   window.addEventListener('keydown', (e) => {
@@ -730,7 +771,7 @@ async function main() {
     }
     if (e.code !== 'Space' || onControl(e)) return;
     e.preventDefault();
-    gestures.handle({ type: 'press', source: 'key', repeat: e.repeat });
+    gestureHeard({ type: 'press', source: 'key', repeat: e.repeat });
   });
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') gestures.handle({ type: 'release', source: 'key' });
@@ -768,7 +809,7 @@ async function main() {
     },
     () => game,
     toScreen,
-    (e) => gestures.handle(e),
+    gestureHeard,
   );
 
   const pond = new PondView(
@@ -813,7 +854,7 @@ async function main() {
   /** A mode event: the mode it makes, and the camera put at the shore if it says so, resolving once that is ready. */
   async function setMode(event: ModeEvent) {
     // there is no casting away from the pond: C and the test API's mode are let go there
-    if (!atPond()) return;
+    if (!atPond() || pagesOpen()) return;
     const step = nextMode(mode, event);
     showMode(step.mode);
     if (step.camera === 'shore') await setView('shore', true);
@@ -916,8 +957,8 @@ async function main() {
 
   let frames = 0;
   function simulate(dt: number) {
-    // the journal open holds the game still: no time, no fish, no light moving, for a frame or a step asked for
-    if (journalOpen) return;
+    // a page open holds the game still: no time, no fish, no light moving, for a frame or a step asked for
+    if (pagesOpen()) return;
     frames++;
     game.step(dt);
     gestures.sync();
@@ -927,7 +968,7 @@ async function main() {
     if (want !== time) void showLight(want);
     // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
     // costs a comparison and nothing else
-    if (watered !== waterShown()) void showWater();
+    if (watered !== waterShown() || dayDrawn !== game.day) void showWater();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
   }
@@ -1003,6 +1044,7 @@ async function main() {
     layout: () => document.documentElement.dataset.layout as Layout,
     settings: () => ({ ...settings }),
     phone: () => overlay?.reading() ?? NO_PHONE,
+    pagesOpen,
     pair: (fixed) => openPairing(fixed),
     startAgain: () => openStartAgain(),
     openJournal: (open) => (open ? openJournal() : closeJournal()),
@@ -1015,6 +1057,7 @@ async function main() {
     drawnDirt: () => watered,
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
+    calendar: () => ({ ...calendarDraw.shown(), handovers: calendarHandovers }),
     time: () => time.name,
     view: () => viewName,
     mode: () => mode,
@@ -1040,6 +1083,17 @@ async function main() {
   ready = true;
   bootMs = performance.now();
   requestAnimationFrame(frame);
+  // a load into the cabin looks as a wake does: the `woke` event does not fire on a load, so the camera is put at the
+  // pillow here, once the first frame is up (the line and the lamp follow `game.place` in the frame already)
+  if (game.place === 'cabin') void setView('cabin', true);
+  // the clock is saved when the page is hidden or left, so a tab closed or a phone put away loses a few seconds at
+  // most; both events are heard because neither is sent on every browser's way out, and a write is cheap and idempotent
+  const keep = (e: Event) => {
+    if (wiped) return;
+    if (e.type === 'pagehide' || document.visibilityState === 'hidden') game.persist();
+  };
+  document.addEventListener('visibilitychange', keep);
+  window.addEventListener('pagehide', keep);
   // the four looks are baked now that the page is up, about thirty milliseconds that are not the boot's
   bakeLooks(ctx);
 }

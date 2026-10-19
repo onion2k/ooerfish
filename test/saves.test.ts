@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { DRUMS, KINDS, TREASURES } from '../src/lake';
+import { CLOCK, DRUMS, KINDS, TREASURES } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -52,6 +52,10 @@ const KEPT: Record<string, Record<string, unknown>> = {
     },
     found: ['lunchbox', 'bottle'],
   },
+  // the time and the place: the clock where the player left it, at the pond
+  '07-time.json': { cured: 2, day: 3, time: 0.6, place: 'pond' },
+  // a cabin save holds dawn whatever its file says, since the clock is held at dawn there
+  '08-cabin.json': { cured: 3, day: 5, time: CLOCK.startsAt, place: 'cabin' },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -85,14 +89,32 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(new Progress(memoryStore('not json')).save).toEqual({
+      cured: 0,
+      day: 1,
+      drums: 0,
+      journal: {},
+      found: [],
+      time: 0.25,
+      place: 'pond',
+    });
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({
+      cured: 0,
+      day: 1,
+      drums: 0,
+      journal: {},
+      found: [],
+      time: 0.25,
+      place: 'pond',
+    });
     expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({
       cured: 0,
       day: 1,
       drums: 0,
       journal: {},
       found: [],
+      time: 0.25,
+      place: 'pond',
     });
     // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
     for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
@@ -102,6 +124,8 @@ describe('saves from every shape the game has written', () => {
         drums: 0,
         journal: {},
         found: [],
+        time: 0.25,
+        place: 'pond',
       });
     // and one that is, is kept, with whatever else the save said left alone
     expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
@@ -122,6 +146,37 @@ describe('saves from every shape the game has written', () => {
     expect(new Progress(memoryStore('{"drums": 9}')).save.drums, 'past the pond’s drums').toBe(DRUMS.count);
     for (const bad of ['-1', '1.5', '"1"', 'null', '[1]', '1e400', '9007199254740993', 'true'])
       expect(new Progress(memoryStore(`{"drums": ${bad}}`)).save.drums, bad).toBe(0);
+  });
+
+  it('reads the clock as a finite number from nought up to but not reaching one, and anything else as dawn', () => {
+    const timeOf = (t: string) => new Progress(memoryStore(`{"time": ${t}}`)).save.time;
+    expect(timeOf('0.6')).toBe(0.6);
+    expect(timeOf('0')).toBe(0);
+    expect(timeOf('0.999999')).toBe(0.999999);
+    expect(new Progress(memoryStore('{"cured": 3}')).save.time, 'an old save has none').toBe(CLOCK.startsAt);
+    for (const bad of ['1', '-0.1', '"0.5"', 'null', '[0.5]', '1e400', 'true', '2']) {
+      expect(timeOf(bad), bad).toBe(CLOCK.startsAt);
+    }
+    // NaN is not JSON, so it reaches a load as the "1e400" above (infinity) or a string, both read as dawn
+  });
+
+  it('reads the place as the pond or the cabin, and anything else as the pond', () => {
+    const placeOf = (p: string) => new Progress(memoryStore(`{"place": ${p}}`)).save.place;
+    expect(placeOf('"pond"')).toBe('pond');
+    expect(placeOf('"cabin"')).toBe('cabin');
+    expect(new Progress(memoryStore('{"cured": 3}')).save.place, 'an old save has none').toBe('pond');
+    for (const bad of ['"yawning"', '"elsewhere"', '3', 'null', '["cabin"]', 'true', '"Cabin"'])
+      expect(placeOf(bad), bad).toBe('pond');
+  });
+
+  it('reads a cabin save at dawn whatever time it says, and a pond save at the time it says', () => {
+    const cabin = new Progress(memoryStore('{"time": 0.6, "place": "cabin"}')).save;
+    expect(cabin).toMatchObject({ time: CLOCK.startsAt, place: 'cabin' });
+    expect(new Progress(memoryStore('{"time": 0.6, "place": "pond"}')).save.time).toBe(0.6);
+  });
+
+  it('holds the default clock of a fresh save equal to where the day starts', () => {
+    expect(new Progress(memoryStore()).save.time).toBe(CLOCK.startsAt);
   });
 
   describe('the journal', () => {
@@ -223,16 +278,28 @@ describe('saves from every shape the game has written', () => {
     const progress = new Progress(store);
     expect(progress.save.cured).toBe(7);
     progress.reset();
-    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [], time: 0.25, place: 'pond' });
     expect(store.json).toBeNull();
-    expect(new Progress(store).save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(new Progress(store).save).toEqual({
+      cured: 0,
+      day: 1,
+      drums: 0,
+      journal: {},
+      found: [],
+      time: 0.25,
+      place: 'pond',
+    });
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {
     const game = new Game(new Progress(memoryStore()));
     game.persist();
     const now = Object.keys(JSON.parse(JSON.stringify(game.progress.save)) as object).sort();
-    const newest = Object.keys(JSON.parse(read(files[files.length - 1])) as object).sort();
-    expect(newest, 'add a save in the new shape to test/saves').toEqual(now);
+    // the files taken together, since a later shape need not repeat every field of the earlier ones
+    const held = new Set(files.flatMap((f) => Object.keys(JSON.parse(read(f)) as object)));
+    expect(
+      now.filter((key) => !held.has(key)),
+      'add a save in the new shape to test/saves',
+    ).toEqual([]);
   });
 });

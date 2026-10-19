@@ -146,6 +146,8 @@ export class Game {
   private fadeElapsed = 0;
   /** Midnight has passed with a fish still on the line or landed, and the yawn is waiting for the fight to be settled. */
   private midnightWaits = false;
+  /** The seconds stepped at the pond since the save was last written for the clock's sake. */
+  private sinceSaved = 0;
 
   constructor(
     readonly progress: Progress,
@@ -153,6 +155,9 @@ export class Game {
   ) {
     this.random = options.random ?? Math.random;
     this.day = progress.save.day;
+    // a cabin save is at dawn whatever its time says, since the clock is held there
+    this.place = progress.save.place;
+    this.timeOfDay = this.place === 'cabin' ? CLOCK.startsAt : progress.save.time;
     this.contamination = contaminationAfter(progress.save.cured, progress.save.drums);
     this.drums.loadFirst(progress.save.drums);
     this.treasures.load(progress.save.found.map((id) => TREASURES.list.findIndex((t) => t.id === id)));
@@ -190,6 +195,7 @@ export class Game {
     // away from the pond only the fade moves: the clock, the fish, the lure and the water hold until the player is back
     if (this.place !== 'pond') return this.stepNight(dt);
     this.t += dt;
+    this.sinceSaved += dt;
     this.healElapsed += dt;
     this.waterDirt = healToward(this.healFrom, this.healTo, this.healElapsed, HEAL.seconds);
     const before = this.timeOfDay;
@@ -200,6 +206,12 @@ export class Game {
     if (this.midnightWaits && !this.fighting) {
       this.yawn();
       return;
+    }
+    // the clock is saved on a cadence; with midnight passed and a fight not yet settled the save keeps its earlier
+    // time, since a clock just past midnight loaded at the pond would never come to the yawn it was owed
+    if (this.sinceSaved >= CLOCK.saveEvery && !this.midnightWaits) {
+      this.sinceSaved = 0;
+      this.persist();
     }
     this.fish.step(dt, this.random);
     // a lure landing on the water splashes, smaller than a pebble
@@ -233,6 +245,8 @@ export class Game {
     if (this.place !== 'cabin') return false;
     this.place = 'pond';
     this.fadeElapsed = 0;
+    this.sinceSaved = 0;
+    this.persist();
     return true;
   }
 
@@ -568,6 +582,12 @@ export class Game {
 
   /** The save written now. */
   persist() {
+    // the yawn keeps what the save had: its clock is just past midnight and the day has not gone up, so a load from it
+    // lands before the yawn, which comes again
+    if (this.place !== 'yawning') {
+      this.progress.save.time = this.timeOfDay;
+      this.progress.save.place = this.place;
+    }
     this.progress.persist();
   }
 }

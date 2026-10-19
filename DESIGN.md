@@ -261,8 +261,10 @@ Each stage is a feature, built and verified before the next, every gate green at
    _Two slices are in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
    dawn, day, dusk and night; and the day ends (19 Oct 2026): at midnight, once no fish is on the line, the player
    yawns and the screen fades, and they wake at dawn in the cabin's room on the next day, which the save keeps,
-   with "Go to bed" in the menu for an early night. Sleeping through, the cabin morning's things and saving the
-   time are not._
+   with "Go to bed" in the menu for an early night. A third is being built (19 Oct 2026, `docs/time.md`): the time
+   of day and the player's place are saved, so a load opens where they were; the ⋯ menu and all it opens stop the
+   clock as the journal does; and a wall calendar in the cabin, the year's fifty-six squares with the days gone
+   darkened and today marked. Sleeping through, the radio and the mail are not, and wait on the weather and the town._
 6. **The seasons, the moon and the weather.**
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.

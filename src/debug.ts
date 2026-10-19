@@ -230,6 +230,8 @@ export interface GameApi {
   waterHandovers(): number;
   /** How many fish were cured when the fish were last handed to the renderer, which follows the school's at once when one is cured; -1 before the first. */
   drawnCured(): number;
+  /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
+  calendar(): { gone: number; today: number; handovers: number };
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
   /** The rocks' painted edge, on or off: with it off the same rocks are drawn plain. */
@@ -254,6 +256,11 @@ export interface GameApi {
    * likewise names the address the code carries, so a picture does not depend on the port the smoke is served on.
    */
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
+  /**
+   * Whether a page holds the clock: the menu's list, the journal, the Start again question or the pairing card is
+   * open. While one is, `step` moves nothing and no key, tap, button or phone gesture reaches the game.
+   */
+  pagesOpen(): boolean;
   /**
    * Opens the question before Start again as the menu's item does, resolving once it is shown, for the pictures. There
    * is no way to answer it here: the answer is tested by pressing its buttons, as a player does.
@@ -362,6 +369,7 @@ export interface DebugHost {
   /** The phone's reading, and the overlay opened (on a fixed room for tests). */
   phone(): PhoneReading;
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
+  pagesOpen(): boolean;
   startAgain(): Promise<void>;
   openJournal(open: boolean): Promise<void>;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
@@ -371,6 +379,8 @@ export interface DebugHost {
   drawnDirt(): number | null;
   waterHandovers(): number;
   drawnCured(): number;
+  /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
+  calendar(): { gone: number; today: number; handovers: number };
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
   setTime(name: string): Promise<void>;
   time(): string;
@@ -600,6 +610,7 @@ export function createApi(host: DebugHost): GameApi {
     drawnDirt: () => host.drawnDirt(),
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
+    calendar: () => host.calendar(),
     // time is stopped away from the pond, and the cabin's view is the one place to look from there: both let go unanswered
     time: ((name?: string) =>
       name === undefined
@@ -618,6 +629,7 @@ export function createApi(host: DebugHost): GameApi {
     mode: ((to?: Mode) => (to === undefined ? host.mode() : host.setMode(to))) as GameApi['mode'],
 
     phone: () => host.phone(),
+    pagesOpen: () => host.pagesOpen(),
     pair: (fixed) => host.pair(fixed),
     startAgain: () => host.startAgain(),
     openJournal: (open = true) => host.openJournal(open),

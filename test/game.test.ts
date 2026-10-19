@@ -35,14 +35,16 @@ describe('the lake', () => {
     settle(game);
     expect(store.json).toBe(null);
     game.persist();
-    expect(store.json).toBe('{"cured":0,"day":1,"drums":0,"journal":{},"found":[]}');
+    expect(store.json).toBe(
+      `{"cured":0,"day":1,"drums":0,"journal":{},"found":[],"time":${game.timeOfDay},"place":"pond"}`,
+    );
   });
 });
 
 describe('the day', () => {
   it('starts at dawn, and runs on by game time, a day in CLOCK.daySeconds', () => {
     const { game } = newGame();
-    expect(CLOCK).toEqual({ daySeconds: 720, startsAt: 0.25 });
+    expect(CLOCK).toEqual({ daySeconds: 720, startsAt: 0.25, saveEvery: 10 });
     expect(game.timeOfDay).toBe(CLOCK.startsAt);
     expect(nearestTime(game.timeOfDay).name).toBe('dawn');
     settle(game, 60);
@@ -601,7 +603,15 @@ describe('a drum of waste', () => {
     expect(game.contamination).toBeLessThan(before);
     expect(before - game.contamination, 'a drum is worth two fish, two sixteenths').toBeCloseTo(2 / 16, 12);
     expect(hauled).toEqual([[1, DRUMS.count]]);
-    expect(JSON.parse(store.json!)).toEqual({ cured: FISH_COUNT, day: 1, drums: 1, journal: {}, found: [] });
+    expect(JSON.parse(store.json!)).toEqual({
+      cured: FISH_COUNT,
+      day: 1,
+      drums: 1,
+      journal: {},
+      found: [],
+      time: game.timeOfDay,
+      place: 'pond',
+    });
     expect(game.bite.phase).toBe('none');
     expect(game.bite.drum).toBe(-1);
     expect(game.lure.phase).toBe('ready');
@@ -879,6 +889,8 @@ describe('a treasure on the bed', () => {
       drums: 1,
       journal: {},
       found: ['lunchbox'],
+      time: game.timeOfDay,
+      place: 'pond',
     });
     expect(game.bite.phase).toBe('none');
     expect(game.bite.treasure).toBe(-1);
@@ -974,5 +986,103 @@ describe('a treasure on the bed', () => {
     expect(Array.from(a.treasures.x)).toEqual(Array.from(b.treasures.x));
     expect(Array.from(a.treasures.y)).toEqual(Array.from(b.treasures.y));
     expect(Array.from(newGame(3).game.fish.x)).toEqual(Array.from(a.fish.x));
+  });
+});
+
+describe('the time and the place are saved', () => {
+  const saved = (store: { json: string | null }) => JSON.parse(store.json!) as Save;
+
+  it('opens at the pond at the saved time', () => {
+    const { game, store } = newGame(1, '{"cured": 2, "day": 3, "time": 0.6, "place": "pond"}');
+    expect(game.timeOfDay).toBe(0.6);
+    expect(game.place).toBe('pond');
+    expect(game.day).toBe(3);
+    expect(store.json, 'a load never writes').toBe('{"cured": 2, "day": 3, "time": 0.6, "place": "pond"}');
+  });
+
+  it('opens in the cabin at dawn on the saved day, whatever time the save says', () => {
+    const { game, store } = newGame(1, '{"cured": 3, "day": 5, "time": 0.6, "place": "cabin"}');
+    expect(game.place).toBe('cabin');
+    expect(game.timeOfDay).toBe(CLOCK.startsAt);
+    expect(game.day).toBe(5);
+    expect(checkInvariants(game)).toEqual([]);
+    expect(store.json).toBe('{"cured": 3, "day": 5, "time": 0.6, "place": "cabin"}');
+  });
+
+  it('writes nothing at construction, and a save without the fields opens at dawn at the pond', () => {
+    const store = memoryStore();
+    let writes = 0;
+    const counting = { ...store, load: () => null, store: () => writes++, clear: () => undefined };
+    new Game(new Progress(counting), { random: seeded(1) });
+    expect(writes).toBe(0);
+    const old = newGame(1, '{"cured": 4}').game;
+    expect(old.timeOfDay).toBe(CLOCK.startsAt);
+    expect(old.place).toBe('pond');
+  });
+
+  it('persist writes the clock and the place, and a reload reads them back', () => {
+    const { game, store } = newGame();
+    game.setTimeOfDay(0.6);
+    game.persist();
+    expect(saved(store)).toMatchObject({ time: 0.6, place: 'pond' });
+    const again = newGame(1, store.json).game;
+    expect(again.timeOfDay).toBe(0.6);
+    expect(again.place).toBe('pond');
+  });
+
+  it('writes every CLOCK.saveEvery seconds of stepped time at the pond, and not before', () => {
+    const { game, store } = newGame();
+    let writes = 0;
+    const real = store.store.bind(store);
+    store.store = (json: string) => {
+      writes++;
+      real(json);
+    };
+    game.step(CLOCK.saveEvery - 1);
+    expect(writes, 'nine seconds').toBe(0);
+    expect(store.json).toBeNull();
+    game.step(1);
+    expect(writes, 'ten seconds').toBe(1);
+    expect(saved(store).time).toBeCloseTo(CLOCK.startsAt + CLOCK.saveEvery / CLOCK.daySeconds, 12);
+    game.step(CLOCK.saveEvery - 1);
+    expect(writes, 'it starts again').toBe(1);
+    game.step(1);
+    expect(writes).toBe(2);
+  });
+
+  it('writes on out, with the place the pond', () => {
+    const { game, store } = newGame(1, '{"cured": 1, "day": 2, "place": "cabin"}');
+    expect(store.json).toBe('{"cured": 1, "day": 2, "place": "cabin"}');
+    expect(game.out()).toBe(true);
+    expect(saved(store)).toMatchObject({ place: 'pond', time: CLOCK.startsAt, day: 2 });
+    expect(game.out(), 'refused at the pond, and nothing written').toBe(false);
+  });
+
+  it('keeps the earlier time and place when it persists while yawning', () => {
+    const { game, store } = newGame();
+    game.setTimeOfDay(0.6);
+    game.persist();
+    game.setTimeOfDay(0.999);
+    game.step(1);
+    game.sleep();
+    expect(game.place).toBe('yawning');
+    game.persist();
+    expect(saved(store)).toMatchObject({ time: 0.6, place: 'pond' });
+    expect(game.progress.save).toMatchObject({ time: 0.6, place: 'pond' });
+  });
+
+  it('writes cabin and dawn at the wake', () => {
+    const { game, store } = newGame();
+    game.setTimeOfDay(0.6);
+    game.sleep();
+    sleepThrough(game);
+    expect(game.place).toBe('cabin');
+    expect(saved(store)).toMatchObject({ time: CLOCK.startsAt, place: 'cabin', day: 2 });
+  });
+
+  it('does not count the cadence while away from the pond', () => {
+    const { game, store } = newGame(1, '{"cured": 1, "place": "cabin"}');
+    game.step(CLOCK.saveEvery * 3);
+    expect(store.json, 'nothing written in the cabin').toBe('{"cured": 1, "place": "cabin"}');
   });
 });

@@ -1,8 +1,9 @@
 /** The cabin's room as drawn: built the same each time, painted, inside the cabin's outer walls, and its walls facing in. */
 import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
-import { FURNITURE, ROOM_PARTS, lampAt, roomGroups } from '../src/cabinroom';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, TREASURES, WAKING_EYE, bareGround } from '../src/lake';
+import { FURNITURE, ROOM_PARTS, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
+import { CalendarDraw } from '../src/calendardraw';
+import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, CALENDAR, TREASURES, WAKING_EYE, bareGround } from '../src/lake';
 import { ROOM_COLOURS } from '../src/palette';
 import { SHADOW_BOX } from '../src/scene';
 
@@ -132,8 +133,8 @@ describe('the cabin’s furniture', () => {
       .flatMap((name) => corners(part(groups, name)))
       .map(([u, v, z]) => [u, v, z - CABIN_FLOOR] as const);
 
-  it('has the seven pieces, each of parts that are in the room and in a colour of their own', () => {
-    expect(pieces.sort()).toEqual(['chest', 'coat', 'picture', 'rug', 'shelf', 'stove', 'table']);
+  it('has the eight pieces, each of parts that are in the room and in a colour of their own', () => {
+    expect(pieces.sort()).toEqual(['calendar', 'chest', 'coat', 'picture', 'rug', 'shelf', 'stove', 'table']);
     const names = pieces.flatMap((p) => [...FURNITURE[p]]);
     expect(new Set(names).size).toBe(names.length);
     for (const name of names) {
@@ -163,7 +164,7 @@ describe('the cabin’s furniture', () => {
       expect(standing || hung, piece).toBe(true);
     }
     // the ones meant to hang do so, and the ones meant to stand do
-    for (const piece of ['shelf', 'picture', 'coat'] as const) {
+    for (const piece of ['shelf', 'picture', 'coat', 'calendar'] as const) {
       expect(
         points(piece).some(([u, v]) => hy - Math.abs(u) <= 0.05 || hx - Math.abs(v) <= 0.05),
         piece,
@@ -300,5 +301,129 @@ describe('the cabin’s two shelves', () => {
     const names = Object.values(FURNITURE).flatMap((p) => [...p]);
     const tris = names.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
     expect(tris).toBeLessThan(1500);
+  });
+});
+
+describe('the cabin’s wall calendar', () => {
+  const groups = roomGroups(ROOM_COLOURS);
+  const g = calendarGeometry();
+  const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
+  const draw = new CalendarDraw();
+  const colours = { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday };
+  /** The scale of slot `i` of a matrices array: nought for a square not shown. */
+  const shownSlots = (m: Float32Array) =>
+    Array.from({ length: m.length / 16 }, (_, i) => m[i * 16] !== 0 || m[i * 16 + 1] !== 0);
+  const snapshot = (day: number) => draw.groups(day, colours).map((x) => Array.from(x.matrices));
+
+  it('is a sheet and a timber bar, each painted with the wood’s edge and in a colour of its own', () => {
+    for (const name of ['calendarSheet', 'calendarBar'] as const) {
+      expect(part(groups, name).albedo).toBe(ROOM_COLOURS[name]);
+      expect(part(groups, name).mesh.paint, name).toBeDefined();
+    }
+    const colourSet = new Set([...groups.map((x) => x.albedo), ROOM_COLOURS.calendarGone, ROOM_COLOURS.calendarToday]);
+    expect(colourSet.size).toBe(groups.length + 2);
+  });
+
+  it('keeps the marks off the static room, so they move with the day and not with the build', () => {
+    expect(ROOM_PARTS).not.toContain('calendarGone');
+    expect(ROOM_PARTS).not.toContain('calendarToday');
+  });
+
+  it('puts the sheet’s foot where it says and its top under the ceiling, a bar along the top', () => {
+    const zs = corners(part(groups, 'calendarSheet')).map(([, , z]) => z - CABIN_FLOOR);
+    expect(Math.min(...zs)).toBeCloseTo(g.cal.at, 4);
+    const bar = corners(part(groups, 'calendarBar')).map(([, , z]) => z - CABIN_FLOOR);
+    expect(Math.max(...bar)).toBeCloseTo(g.cal.at + g.high, 4);
+    expect(Math.min(...bar)).toBeCloseTo(g.cal.at + g.high - g.cal.bar, 4);
+  });
+
+  it('is a few triangles: the sheet and bar twelve blocks’ worth, the marks a quad each', () => {
+    const tris = FURNITURE.calendar.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
+    expect(tris).toBeLessThanOrEqual(24);
+    const marks = draw.groups(1, colours);
+    expect(marks[0].mesh.indices.length / 3).toBe(2);
+    expect(marks[0].count).toBe(CALENDAR.days);
+    expect(marks[1].count).toBe(1);
+  });
+
+  it('puts every square on the sheet, proud of the paper, within the sheet’s edges, in four rows of fourteen', () => {
+    const rows = new Set<number>(),
+      cols = new Set<number>();
+    for (let i = 0; i < CALENDAR.days; i++) {
+      const [x, y, z] = g.spot(i);
+      const [u, v, h] = inCabin(x, y, z);
+      expect(v, 'proud of the paper').toBeCloseTo(hx - g.cal.depth - g.cal.proud, 4);
+      expect(Math.abs(u - g.cal.along) + g.size / 2).toBeLessThanOrEqual(g.cal.wide / 2 - g.cal.margin + 1e-4);
+      expect(h - CABIN_FLOOR - g.size / 2).toBeGreaterThanOrEqual(g.cal.at);
+      expect(h - CABIN_FLOOR + g.size / 2).toBeLessThanOrEqual(g.cal.at + g.high - g.cal.bar);
+      rows.add(Math.round(h * 1000));
+      cols.add(Math.round(u * 1000));
+    }
+    expect(rows.size).toBe(CALENDAR.rows);
+    expect(cols.size).toBe(CALENDAR.columns);
+  });
+
+  it('reads left to right and top to bottom, so square 1 is to the right of square 0 as seen from the room', () => {
+    const [x0, y0] = g.spot(0),
+      [x1, y1] = g.spot(1);
+    const [ix, iy] = CABIN_AT.inward;
+    // facing the lake wall, the reader's right is (iy, -ix)
+    expect((x1 - x0) * iy + (y1 - y0) * -ix).toBeGreaterThan(0);
+    expect(g.spot(CALENDAR.columns)[2]).toBeLessThan(g.spot(0)[2]);
+  });
+
+  it('shows no square gone and the first today on day one', () => {
+    const [gone, today] = draw.groups(1, colours);
+    expect(shownSlots(gone.matrices).filter(Boolean).length).toBe(0);
+    expect(shownSlots(today.matrices)).toEqual([true]);
+    expect(draw.shown()).toEqual({ gone: 0, today: 0 });
+  });
+
+  it('shows one gone and the second today on day two', () => {
+    draw.groups(2, colours);
+    expect(draw.shown()).toEqual({ gone: 1, today: 1 });
+  });
+
+  it('shows 55 gone and the last square today on day 56, and the same as day one on day 57', () => {
+    draw.groups(56, colours);
+    expect(draw.shown()).toEqual({ gone: 55, today: 55 });
+    const one = snapshot(1);
+    expect(snapshot(57)).toEqual(one);
+    expect(snapshot(113)).toEqual(one);
+  });
+
+  it('gives the same matrices for the same day, and different ones for a different day', () => {
+    expect(snapshot(5)).toEqual(snapshot(5));
+    expect(snapshot(5)).not.toEqual(snapshot(6));
+  });
+
+  it('writes into matrices sized once: the same arrays on every call', () => {
+    const a = draw.groups(3, colours),
+      b = draw.groups(4, colours);
+    expect(b[0].matrices).toBe(a[0].matrices);
+    expect(b[1].matrices).toBe(a[1].matrices);
+    expect(a[0].matrices.length).toBe(CALENDAR.days * 16);
+  });
+
+  it('keeps every square, shown or not, inside the room', () => {
+    for (const day of [1, 30, 56]) {
+      for (const grp of draw.groups(day, colours)) {
+        const m = grp.matrices;
+        for (let i = 0; i < (grp.count ?? 1); i++) {
+          const [u, v, z] = inCabin(m[i * 16 + 12], m[i * 16 + 13], m[i * 16 + 14]);
+          expect(Math.abs(v)).toBeLessThanOrEqual(hx);
+          expect(z - CABIN_FLOOR).toBeGreaterThan(0);
+          expect(z - CABIN_FLOOR).toBeLessThan(CABIN_ROOM.high);
+          expect(Math.abs(u)).toBeLessThan(CABIN.body.along / 2 - CABIN_ROOM.inset);
+        }
+      }
+    }
+  });
+
+  it('faces the marks into the room, away from the lake wall', () => {
+    const m = draw.groups(1, colours)[1].matrices;
+    // the mark’s own x, its normal, in the world is the matrix’s first column, scaled
+    const [ix, iy] = CABIN_AT.inward;
+    expect(m[0] * ix + m[1] * iy).toBeLessThan(0);
   });
 });

@@ -18,7 +18,7 @@ import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
-import { DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS, TREASURES } from '../src/lake';
+import { CLOCK, DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS, TREASURES } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -156,8 +156,24 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       return ids.slice(0, 1 + Math.floor(pick() * ids.length));
     })();
     done['start found'] = foundAtStart.length;
+    // where in the day and where in the world a returning player starts, from a stream of its own again so no other draw
+    // moves: a fifth of the seeds wake in the cabin (at dawn, whatever time they say), the rest are at the pond at any
+    // time of day, midnight's edge included, and the cabin's start has to be left by the door as a wake is
+    const { timeAtStart, placeAtStart } = (() => {
+      const pick = seeded(seed * 23 + 5);
+      const time = pick();
+      return { timeAtStart: time, placeAtStart: pick() < 0.2 ? ('cabin' as const) : ('pond' as const) };
+    })();
+    done['start in the cabin'] = placeAtStart === 'cabin' ? 1 : 0;
     let store = memoryStore(
-      JSON.stringify({ cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart }),
+      JSON.stringify({
+        cured: curedAtStart,
+        drums: drumsAtStart,
+        journal: journalAtStart,
+        found: foundAtStart,
+        time: timeAtStart,
+        place: placeAtStart,
+      }),
     );
     let game = new Game(new Progress(store), { random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
@@ -392,10 +408,20 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           // saved, and loaded again into a new lake as a reload would: what was saved must be kept
           game.persist();
           const was = JSON.stringify(game.progress.save);
+          const written = { place: game.progress.save.place, time: game.progress.save.time };
           store = memoryStore(store.json);
           game = new Game(new Progress(store), { random: seeded(seed + frame), events });
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
+          // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and
+          // time by design, and the cabin is always dawn
+          if (game.place !== written.place)
+            throw new Error(`the save said ${written.place} and the game opened in the ${game.place}`);
+          const dawnOrSaved = written.place === 'cabin' ? CLOCK.startsAt : written.time;
+          if (game.timeOfDay !== dawnOrSaved)
+            throw new Error(`the save said ${dawnOrSaved} o'clock and the game opened at ${game.timeOfDay}`);
+          const reloaded = checkInvariants(game);
+          if (reloaded.length) return fail(reloaded.map((p) => `after a reload: ${p}`));
           phone = makePhone();
           bed.chosen = false;
           inCabin = 0;

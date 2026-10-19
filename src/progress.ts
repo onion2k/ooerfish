@@ -5,12 +5,12 @@
  * the game no longer knows is left alone.
  *
  * What is kept so far is the cure, how many fish have been cured, how many drums of waste hauled, the day's number, the
- * journal of what each kind has had caught, and the ids of the junk treasures found on the bed. The
+ * journal of what each kind has had caught, and the ids of the junk treasures found on the bed, the clock, and whether the player was at the pond or in the cabin. The
  * lake's contamination is worked out from the count and not kept itself, so
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
  */
-import { DRUMS, KINDS, TREASURES } from './lake';
+import { CLOCK, DRUMS, KINDS, TREASURES } from './lake';
 import type { Journal } from './journal';
 
 export interface Save {
@@ -24,6 +24,10 @@ export interface Save {
   journal: Journal;
   /** The ids of the treasures found and kept for the shelf, in the order they were found, each once and never more than the pond has. */
   found: string[];
+  /** Where the day's clock stood, a fraction of the day from nought up to but not reaching one; dawn in the cabin, where it is held. */
+  time: number;
+  /** Where the player was: at the pond or in the cabin. The yawn between is never kept, so a load lands before it. */
+  place: 'pond' | 'cabin';
 }
 
 /** Where the save is kept. */
@@ -120,7 +124,15 @@ function readFound(raw: unknown): string[] {
   return out;
 }
 
-const fresh = (): Save => ({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+const fresh = (): Save => ({
+  cured: 0,
+  day: 1,
+  drums: 0,
+  journal: {},
+  found: [],
+  time: CLOCK.startsAt,
+  place: 'pond',
+});
 
 export class Progress {
   readonly save: Save;
@@ -146,6 +158,11 @@ export class Progress {
     if (typeof said.day === 'number' && Number.isSafeInteger(said.day) && said.day >= 1) this.save.day = said.day;
     this.save.journal = readJournal(said.journal, this.save.cured, this.save.day);
     this.save.found = readFound(said.found);
+    if (typeof said.time === 'number' && Number.isFinite(said.time) && said.time >= 0 && said.time < 1)
+      this.save.time = said.time;
+    if (said.place === 'pond' || said.place === 'cabin') this.save.place = said.place;
+    // the clock is held at dawn in the cabin, so a cabin save has no other time to keep
+    if (this.save.place === 'cabin') this.save.time = CLOCK.startsAt;
   }
 
   persist() {

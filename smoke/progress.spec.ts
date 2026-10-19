@@ -688,7 +688,15 @@ test.describe('Start again', () => {
     await reloaded;
     await ready(page);
     expect(await stored(page)).toBeNull();
-    expect(await saved(page)).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [] });
+    expect(await saved(page)).toEqual({
+      cured: 0,
+      day: 1,
+      drums: 0,
+      journal: {},
+      found: [],
+      time: 0.25,
+      place: 'pond',
+    });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBe(1);
     expect(Object.values(await page.evaluate(() => window.game!.gear())).some(Boolean)).toBe(false);
     await expect(page.locator('#welcome')).toBeVisible();
@@ -782,6 +790,8 @@ test.describe('the day ends', () => {
       drums: 0,
       journal: {},
       found: [],
+      time: 0.25,
+      place: 'cabin',
     });
     expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
     expect(await page.evaluate(() => window.game!.time()), 'the page is lit as dawn').toBe('dawn');
@@ -919,7 +929,7 @@ test.describe('the day ends', () => {
     expect(problems).toEqual([]);
   });
 
-  test('a load on day 3 opens at the pond at dawn on that day, and the next morning is day 4, which a reload keeps', async ({
+  test('a load on day 3 opens at the pond at dawn on that day, and the next morning is day 4, which a reload keeps in the cabin', async ({
     page,
   }) => {
     const problems = watch(page);
@@ -931,13 +941,13 @@ test.describe('the day ends', () => {
     await page.evaluate(() => window.game!.sleep());
     await play(page, 100, 'a night');
     await expect(page.locator('#morning')).toHaveText('Day 4. Morning at the cabin.');
-    // a reload from the cabin opens at the pond on the day saved
+    // a reload from the cabin opens in the cabin on the day saved (docs/time.md), as a wake does
     await page.reload();
     await ready(page);
     expect(await day(page)).toBe(4);
-    expect(await place(page)).toBe('pond');
-    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
-    await expect(page.locator('#morning')).toBeHidden();
+    expect(await place(page)).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    await expect(page.locator('#morning')).toHaveText('Day 4. Morning at the cabin.');
     expect(problems).toEqual([]);
   });
 });
@@ -1192,6 +1202,178 @@ test.describe('the treasures on the bed', () => {
       true,
     ]);
     expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ found: ['duck'], day: 2 });
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The time is saved and the menu stops the clock (`docs/time.md`): a load opens where the player was, a hidden page
+ * writes the save, and every page the menu opens holds the game still. Seeded and paused, stepped through the test API.
+ */
+test.describe('the time is saved and the menu stops the clock', () => {
+  const api = <T>(page: Page, f: () => T) => page.evaluate(f);
+  const clock = (page: Page) =>
+    page.evaluate(() => ({
+      t: window.game!.state().t,
+      at: window.game!.state().timeOfDay,
+      fish: window.game!.fish()[0].x,
+    }));
+
+  test('a load at the pond opens at the saved time, in the look that time falls in', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 3, time: 0.6, place: 'pond' }, paused: true });
+    expect(await api(page, () => window.game!.place())).toBe('pond');
+    expect((await api(page, () => window.game!.state())).timeOfDay).toBeCloseTo(0.6, 12);
+    expect(await api(page, () => window.game!.view())).toBe('shore');
+    // 0.6 is nearer the day (0.5) than the dusk (0.75)
+    expect(await api(page, () => window.game!.time())).toBe('day');
+    expect(await api(page, () => window.game!.day())).toBe(3);
+    await play(page, 30, 'a half second from the saved time');
+    expect(problems).toEqual([]);
+  });
+
+  test('a load in the cabin looks and reads as a wake does, holds the clock, and goes down to the pond', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 5, place: 'cabin' }, paused: true });
+    expect(await api(page, () => window.game!.place())).toBe('cabin');
+    expect(await api(page, () => window.game!.view())).toBe('cabin');
+    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin.');
+    await expect(page.locator('#downButton')).toBeVisible();
+    const before = await clock(page);
+    await play(page, 120, 'two seconds in the cabin');
+    expect(await clock(page), 'the clock is held').toEqual(before);
+
+    await page.locator('#downButton').click();
+    await expect.poll(() => api(page, () => window.game!.view())).toBe('shore');
+    expect(await api(page, () => window.game!.place())).toBe('pond');
+    await play(page, 60, 'a second at the pond');
+    expect((await clock(page)).t).toBeGreaterThan(before.t);
+    expect(problems).toEqual([]);
+  });
+
+  test('the cabin’s calendar is handed over for the day loaded, and once more for each morning', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 5, place: 'cabin' }, paused: true });
+    const marks = () => api(page, () => window.game!.calendar());
+    const first = await marks();
+    expect(first.gone, 'day 5 has four gone').toBe(4);
+    expect(first.today, 'and the fifth square today').toBe(4);
+    await page.locator('#downButton').click();
+    await expect.poll(() => api(page, () => window.game!.place())).toBe('pond');
+    await play(page, 60, 'a second at the pond');
+    expect(await marks(), 'a second at the pond hands nothing over').toEqual(first);
+    await page.evaluate(async () => {
+      await window.game!.sleep();
+      window.game!.step(160);
+    });
+    expect(await api(page, () => window.game!.place())).toBe('cabin');
+    expect(await api(page, () => window.game!.day())).toBe(6);
+    const next = await marks();
+    expect(next.gone, 'day 6 has five gone').toBe(5);
+    expect(next.today).toBe(5);
+    expect(next.handovers, 'exactly one more handover for the new day').toBe(first.handovers + 1);
+    expect(problems).toEqual([]);
+  });
+
+  test('a page hidden writes the save: the clock and the place, by a visibilitychange to hidden', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    const raw = () => page.evaluate(() => localStorage.getItem('ooerfish-save-v1'));
+    const stored = async () => JSON.parse((await raw())!) as { time: number; place: string };
+    await play(page, 60, 'a second at the pond');
+    const now = (await api(page, () => window.game!.state())).timeOfDay;
+    expect(now).toBeGreaterThan(0.25);
+    expect(await raw(), 'a load and a second of play write nothing').toBeNull();
+    // the document's state is faked to hidden, as a tab put away would leave it, and the event sent
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    const save = await stored();
+    expect(save.place).toBe('pond');
+    expect(save.time).toBeCloseTo(now, 12);
+    expect(problems).toEqual([]);
+  });
+
+  // a page open holds the game still, and a key, a tap or a button reaches nothing; closed, the clock runs again
+  const holds = async (page: Page, why: string) => {
+    expect(await api(page, () => window.game!.pagesOpen()), `${why} is open`).toBe(true);
+    const before = await clock(page);
+    const lure = await api(page, () => window.game!.lure().phase);
+    await play(page, 120, `two seconds with ${why} open`);
+    expect(await clock(page), 'game time holds').toEqual(before);
+    await page.keyboard.press('Space');
+    await page.keyboard.press('KeyC');
+    await page.mouse.click(640, 500);
+    expect(await api(page, () => window.game!.mode()), 'the mode is unchanged').toBe('look');
+    expect(await api(page, () => window.game!.lure().phase), 'the lure is unchanged').toBe(lure);
+    return before;
+  };
+  const runs = async (page: Page, before: { t: number; at: number }) => {
+    expect(await api(page, () => window.game!.pagesOpen())).toBe(false);
+    await play(page, 60, 'a second after');
+    const after = await clock(page);
+    expect(after.t).toBeGreaterThan(before.t);
+    expect(after.at).toBeGreaterThan(before.at);
+  };
+
+  test('the open menu list stops the clock, and Escape or a click outside lets it run', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    await play(page, 60, 'a second before the menu');
+    await page.locator('#menuButton').click();
+    await expect(page.locator('#menuList')).toBeVisible();
+    let before = await holds(page, 'the menu');
+    // the tap on the water above closed the list, as a click anywhere else does, and the clock runs
+    await expect(page.locator('#menuList')).toBeHidden();
+    await runs(page, before);
+
+    await page.locator('#menuButton').click();
+    before = await clock(page);
+    await play(page, 60, 'the list open again');
+    expect(await clock(page)).toEqual(before);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menuList')).toBeHidden();
+    await runs(page, before);
+    expect(problems).toEqual([]);
+  });
+
+  test('the Start again question stops the clock until Keep playing', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    await play(page, 60, 'a second before the question');
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Start again' }).click();
+    await expect(page.locator('#startAgain')).toBeVisible();
+    const before = await holds(page, 'the question');
+    // the click on the card's backdrop above may have closed it; open it again for the button
+    if (await page.locator('#startAgain').isHidden()) await api(page, () => window.game!.startAgain());
+    await page.getByRole('button', { name: 'Keep playing' }).click();
+    await expect(page.locator('#startAgain')).toBeHidden();
+    await runs(page, before);
+    expect(problems).toEqual([]);
+  });
+
+  test('the pairing card stops the clock until it is closed', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, query: { phonelink: 'local' } });
+    await play(page, 60, 'a second before the card');
+    await page.evaluate(() =>
+      window.game!.pair({ room: 'fixedroom00', key: 'fixedkey0000000000000000', origin: 'https://lake.test' }),
+    );
+    await expect(page.locator('#pairing')).toBeVisible();
+    const before = await clock(page);
+    expect(await api(page, () => window.game!.pagesOpen())).toBe(true);
+    await play(page, 120, 'two seconds with the card open');
+    expect(await clock(page), 'game time holds').toEqual(before);
+    // C, not Space: the card's Close button has the focus, and Space would press it
+    await page.keyboard.press('KeyC');
+    expect(await api(page, () => window.game!.mode())).toBe('look');
+    await page.locator('#pairingClose').click();
+    await expect(page.locator('#pairing')).toBeHidden();
+    await runs(page, before);
     expect(problems).toEqual([]);
   });
 });

@@ -162,7 +162,12 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   naming each piece's parts), painted with the wood's set, every vertex inside
   the cabin's outer walls so no outside picture changes, each piece on the floor
   or hung on a wall, clear of the camera's eye, the door and the window, and all
-  of it under 1500 triangles, held by `test/cabinroom.test.ts`. The `cabin` view (and `cabinTall`
+  of it under 1500 triangles, held by `test/cabinroom.test.ts`. **The wall calendar** (`docs/time.md`) hangs under
+  the picture: a sheet and bar in the static set (`calendarSheet`, `calendarBar`), and the year's `CALENDAR.days`
+  (56, four rows of fourteen) squares as two moving parts, `calendarGone` and `calendarToday`, from the pure
+  `calendarMarks(day)` in `src/calendar.ts`, drawn by `CalendarDraw` (`src/calendardraw.ts`, matrices sized once, a
+  square not shown scaled to nothing) and handed over by `main.ts` only when `game.day` changes; `game.calendar()`
+  reads what was handed over. The `cabin` view (and `cabinTall`
   for a tall screen, through `framingFor`) looks from the pillow at the window
   and the door with the orbit off, and the lamp is one of the renderer's point
   lights, lit only while `game.place` is `cabin`.
@@ -211,7 +216,9 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   clean (`pondClean`) when every fish is cured and every drum hauled; a drum left on the bed can still be snagged when
   all the fish are cured. **The journal** is `Save.journal` (`{ caught, best, first }` by kind id, written at each stow,
   read field by field in `progress.ts`), its page's words are the pure `journalWords` in `src/journal.ts`, and it opens
-  from the ⋯ menu (`game.openJournal()`) and stops the game's step while open. A load cures, of each kind, as many
+  from the ⋯ menu (`game.openJournal()`) and stops the game's step while open, as does every page of the menu: the
+  open ⋯ list, Start again and the pairing card (`pagesOpen()` in `main.ts`, the one gate on `simulate`, the keys,
+  the Cast button and every gesture; `game.pagesOpen()` reads it; a held reel is let go as a page opens). A load cures, of each kind, as many
   as the journal says were caught and then the rest in slot order, as an old save does. `fishdraw.ts` draws each slot
   at its kind's scale and glow, `drumdraw.ts` the drums, and `game.fish()`, `game.drums()` and `game.journal()` read
   them. The fuzzer starts each seed with drums and a journal from a stream of its own and casts to lie by a drum.
@@ -438,9 +445,15 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   never written back, and an old link with `dirt=`, `time=` or `view=` still
   opens the game, unread. The save lives in `progress.ts` and holds the count
   cured (default 0; a count that is not a non-negative whole number is taken for
-  none), the drums hauled (default 0, held to `DRUMS.count`), the journal (default `{}`) and the day (default 1; anything but a safe whole number of 1 or more is
-  day 1; `test/saves/` has a file for each shape). Chance comes from `random.ts`,
-  handed in.
+  none), the drums hauled (default 0, held to `DRUMS.count`), the journal (default `{}`), the day (default 1; anything but a safe whole number of 1 or more is
+  day 1), and **the time and the place** (`docs/time.md`): `time`, the clock as a fraction of the day (default dawn,
+  `CLOCK.startsAt`; anything not a finite number in [0, 1) is dawn) and `place`, `pond` or `cabin` (anything else is
+  the pond; a cabin save is at dawn whatever it says), so a load opens where the player was. `Game.persist` writes
+  both unless yawning (the yawn's clock is past midnight with the day not yet up, so a load lands before it); the
+  clock is written every `CLOCK.saveEvery` (10 s) of stepped time at the pond, on `out`, and by the page on
+  `visibilitychange` hidden and `pagehide` (`keep` in `main.ts`, off once Start again has wiped the save). A load
+  into the cabin gets the pillow camera from the page after `ready`, since `woke` does not fire. `test/saves/` has a
+  file for each shape. Chance comes from `random.ts`, handed in.
 - artshape-physics is a dependency with nothing using it: the lure and the
   bobber will be its bodies, through a `src/physics.ts` of the game's own.
 

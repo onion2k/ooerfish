@@ -31,6 +31,10 @@ export interface TwiceOptions {
   frames: number;
   /** Where the clock starts, if not at dawn: a little before midnight, so a yawn and a waking are played and hashed. */
   startsAt?: number;
+  /** A save to open from, as JSON would hold it, if not a fresh one: a returning player, in the cabin or at the pond. */
+  save?: Record<string, unknown>;
+  /** What the start is called in the note, when `startsAt` does not say it. */
+  label?: string;
   /** How many frames between hashes. */
   every?: number;
   /** For testing the check itself: something done to the game at each step of a pass. */
@@ -46,6 +50,8 @@ export interface TwiceResult {
   checkpoints: string[];
   /** The day the first run ended on: more than one means a night was crossed and hashed. */
   days: number;
+  /** How many times the first run went down from the cabin to the pond: a cabin start that never went out played no day. */
+  outs: number;
   note: string;
 }
 
@@ -146,16 +152,23 @@ export function hashGame(game: Game): string {
   eat(game.day);
   eat(['pond', 'yawning', 'cabin'].indexOf(game.place));
   eat(game.fade());
+  // and what the save says of both, so a save written differently on two runs shows even where the game does not
+  eat(game.progress.save.time);
+  eat(['pond', 'cabin'].indexOf(game.progress.save.place));
+  eat(game.progress.save.day);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
 /** Play a seed twice, hashing every `every` frames, and say where the two runs first parted. */
-export function playTwice({ seed, frames, every = 300, startsAt, meddle }: TwiceOptions): TwiceResult {
+export function playTwice({ seed, frames, every = 300, startsAt, save, label, meddle }: TwiceOptions): TwiceResult {
   const passes: string[][] = [];
   let days = 1;
+  let outs = 0;
   for (let pass = 0; pass < 2; pass++) {
-    const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+    const game = new Game(new Progress(memoryStore(save === undefined ? undefined : JSON.stringify(save))), {
+      random: seeded(seed),
+    });
     const hashes: string[] = [];
     if (startsAt !== undefined) game.setTimeOfDay(startsAt);
     // the frames spent in the cabin, which the run leaves after a moment, as a player would
@@ -163,7 +176,7 @@ export function playTwice({ seed, frames, every = 300, startsAt, meddle }: Twice
     for (let f = 1; f <= frames; f++) {
       game.step(DT);
       if (game.place === 'cabin' && ++inCabin > CABIN_FRAMES) {
-        game.out();
+        if (game.out() && pass === 0) outs++;
         inCabin = 0;
       }
       // a pebble dropped by chance now and then, the same frames in both runs, so a splash's chance is held to the seed too
@@ -182,10 +195,10 @@ export function playTwice({ seed, frames, every = 300, startsAt, meddle }: Twice
     if (pass === 0) days = game.day;
   }
   const [one, two] = passes;
-  const from = startsAt === undefined ? '' : ` from ${startsAt}`;
+  const from = label !== undefined ? ` from ${label}` : startsAt === undefined ? '' : ` from ${startsAt}`;
   const at = one.findIndex((h, k) => h !== two[k]);
   if (at < 0)
-    return { seed, frames, diverged: null, checkpoints: one, days, note: `seed ${seed}${from}: the same, twice` };
+    return { seed, frames, diverged: null, checkpoints: one, days, outs, note: `seed ${seed}${from}: the same, twice` };
   const frame = (at + 1) * every;
   return {
     seed,
@@ -193,6 +206,7 @@ export function playTwice({ seed, frames, every = 300, startsAt, meddle }: Twice
     diverged: frame,
     checkpoints: one,
     days,
+    outs,
     note: `seed ${seed}${from}: the two runs parted by frame ${frame} (${one[at]} against ${two[at]}); the last they agreed on was ${at ? `frame ${at * every}` : 'the start'}`,
   };
 }

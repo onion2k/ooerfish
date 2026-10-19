@@ -239,6 +239,18 @@ test.describe('what it looks like', () => {
     expect(problems).toEqual([]);
   });
 
+  // the last square of the calendar's year: a load in the cabin on day 56, 55 squares gone and the last one marked
+  test('cabin-day56', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 3, day: 56, place: 'cabin' } });
+    await set(page, { ...CABIN_DAWN, cabin: false }, 60);
+    await hideOverlays(page);
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.calendar())).toMatchObject({ gone: 55, today: 55 });
+    await expect(page.locator('#view')).toHaveScreenshot('cabin-day56.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // the cast from the shore, by day: aimed at the water and at the bank, in the air, and landed and sinking under its
   // bobber
   for (const [name, act] of [
@@ -658,6 +670,17 @@ test.describe('the day’s end at a desk’s width', () => {
       await expect(page).toHaveScreenshot(`desk-${scene}.png`, TOLERANCE);
       expect(problems).toEqual([]);
     });
+});
+
+// the pond at a desk's width with the ⋯ list up, which holds the clock still
+test('the menu open at a desk’s width', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 4, day: 1 } });
+  await page.evaluate(() => window.game!.step(60));
+  await page.locator('#menuButton').click();
+  await expect(page.locator('#menuList')).toBeVisible();
+  await expect(page).toHaveScreenshot('desk-menu-open.png', TOLERANCE);
+  expect(problems).toEqual([]);
 });
 
 test.describe('the morning on a phone', () => {
