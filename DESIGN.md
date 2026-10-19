@@ -28,8 +28,8 @@ ooergolf has (`LOOK.md` there), lighter and more whimsical: pastel water, soft e
 1. **Morning at the cabin.** The wall calendar, the radio's forecast and gossip, and the mail.
 2. **Out to a lake,** from the shore or in the boat.
 3. **Fish.** Find, cast, sink, bite, reel, land.
-4. **Cure.** The catch goes into the cabin's bubbling machine and comes out a normal, happy fish, let go into the
-   pond. The lake's glow goes down.
+4. **Cure.** The catch goes in the bucket and comes out a normal, happy fish, let go into the pond at once. The
+   lake's glow goes down.
 5. **The day ends** at midnight with a yawn and a fade, or earlier by choice, in bed at the cabin.
 
 ## The fishing
@@ -48,7 +48,7 @@ never how a fish is caught.
 - **Reel.** A line's tension: reeling raises it, giving line lowers it, and a fish pulls and rests. A hotter
   fish pulls more often. A line drawn too tight does not snap and lose anything: the fish slips off with a
   wiggle and can be found again.
-- **Land.** The fish comes up, is shown off, and goes in the bucket for the cabin.
+- **Land.** The fish comes up, is shown off, and goes in the bucket, where it is cured.
 - **Lazy fishing.** The rod propped on the jetty rail, the bobber left to sit, and a bell when something
   bites, while the player reads the journal or watches the sky.
 - **Junk.** Drums of waste, old lures, Sunny Atom merchandise and message bottles come up too. A drum is
@@ -143,10 +143,10 @@ The story is told through the townsfolk's letters and the pages of a logbook, no
 
 ## The cabin
 
-- **No aquarium.** It was dropped on 19 Oct 2026: a cured fish goes straight back into its lake, so there is nothing
-  for a tank to hold.
-- **Bottled glow.** What the curing machine draws off is harmless lamp light: the cabin's lamps, lanterns along
-  the jetty, the festival's lights.
+- **No aquarium and no curing machine.** Both were dropped on 19 Oct 2026: a fish is cured in the bucket and goes
+  straight back into its lake, so there is nothing for a machine to do or a tank to hold.
+- **Bottled glow.** What the cure draws off is harmless lamp light: the cabin's lamps, lanterns along the jetty,
+  the festival's lights.
 - **The shelves** hold the junk treasures; **the wall** the postcards and the calendar.
 - **The boat** is painted and dressed: flags, a little lamp, a cat in the bow.
 - **The cat** sometimes catches a fish while the player idles, and it is always something odd.
@@ -242,8 +242,8 @@ Each stage is a feature, built and verified before the next, every gate green at
 3. **The cure,** and the lake's contamination with its water changing colour: the heart of
    the cosy loop.
    _A first slice is in (16 Oct 2026): each fish put in the bucket is cured, lowering the Duck Pond's
-   contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The cabin and the
-   curing machine are not._
+   contamination by a twelfth (an estimate), kept in the save as a count, with the glow gauge. The curing machine
+   was to follow, in the cabin; it was scrapped on 19 Oct 2026, the bucket being the cure, so the stage is done._
 4. **The journal and the junk treasures.**
    _A first slice is in (19 Oct 2026): three kinds of fish, each at a depth of its own (sunny bream in the
    shallows, glowing perch in the middle, pike near the bed, 4/5/3 of the pond's twelve), two drums of waste on

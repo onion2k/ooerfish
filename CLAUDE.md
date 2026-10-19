@@ -593,8 +593,8 @@ For anything new, check what it does, from `DESIGN.md`:
 - **the lake's contamination:** only ever going down, by the cure; a lake fully
   clean, where no fish is left to bite; a save past the pond's twelve. `game.dirt` moves it both ways, as a lever for the
   pictures, and the invariants allow a rise only where that lever was set
-- **the cabin:** the curing machine and the shelves (a cured fish is let go
-  into the pond at once, so nothing is kept in a tank)
+- **the cabin:** the shelves (a cured fish is let go into the pond at once,
+  so there is no curing machine and nothing is kept in a tank)
 
 ## Verifying in a browser
 
