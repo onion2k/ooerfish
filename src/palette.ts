@@ -154,6 +154,9 @@ export const PALETTE = {
   dusklight: [2.4538, 1.3776, 0.8205] as Colour,
 } as const;
 
+/** The palette's shape, every key a colour: a season's palette is one, with the keys it moves written again. */
+export type Palette = { readonly [K in keyof typeof PALETTE]: Colour };
+
 /** A colour part of the way from one to another; at nought and one, exactly the one or the other. */
 export function mix(a: Colour, b: Colour, k: number): Colour {
   const j = 1 - k;
@@ -195,4 +198,9 @@ export const ROOM_COLOURS = {
   calendarBar: [0.3, 0.2, 0.1] as Colour,
   calendarGone: [0.17, 0.14, 0.12] as Colour,
   calendarToday: [0.85, 0.2, 0.12] as Colour,
+  // the season bands down the sheet's left edge, each the colour of its season's leaves or blossom (`SEASON_DRESSING`)
+  bandSummer: [0.1, 0.4, 0.08] as Colour,
+  bandAutumn: [0.55, 0.3, 0.04] as Colour,
+  bandWinter: [0.7, 0.82, 0.95] as Colour,
+  bandSpring: [0.85, 0.45, 0.55] as Colour,
 };

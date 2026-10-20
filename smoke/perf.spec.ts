@@ -111,13 +111,43 @@ test('boots, draws and downloads within budget, and as it did before', async ({ 
   expect(problems).toEqual([]);
 });
 
+test('draws each season from the shore by day within the frame budget', async ({ page }) => {
+  test.setTimeout(180_000);
+  const costs: string[] = [];
+  for (const [season, day] of [
+    ['autumn', 15],
+    ['winter', 29],
+    ['spring', 43],
+  ] as const) {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6, day } });
+    await set(page, STANDARD, 300);
+    // 300 frames is five seconds of the fall, past its first drops; the next ten bring it to its steady state
+    await page.evaluate(() => window.game!.step(600));
+    expect(
+      (await page.evaluate(() => window.game!.season())).falling,
+      `${season}'s fall is in the air`,
+    ).toBeGreaterThan(0);
+    const ms = await page.evaluate(() => window.game!.measureFrame());
+    costs.push(`${season}: ${ms.toFixed(3)} ms`);
+    expect(ms, `${season} from the shore by day within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
+    expect(problems).toEqual([]);
+  }
+  console.log(`frame, the seasons: ${costs.join(', ')}`);
+});
+
 test('draws the water, at every time of day, splashing, within the frame budget', async ({ page }) => {
   test.setTimeout(180_000);
   const problems = watch(page);
-  await start(page, { seed: 11, paused: true });
   const costs: string[] = [];
   let first = true;
-  for (const time of ['day', 'night']) {
+  // day and night in summer, and winter's night with the mist lying on the water (`docs/seasons.md`, part 5)
+  for (const [time, day] of [
+    ['day', 1],
+    ['night', 1],
+    ['night', 29],
+  ] as const) {
+    await start(page, { seed: 11, paused: true, ...(day === 1 ? {} : { save: { cured: 6, day } }) });
     await set(page, { ...STANDARD, time, dirt: 1 }, 60);
     // twelve splashes live, the most a lake holds, their rings spreading and their droplets in the air; and a cast
     // in the air with its line, and another being aimed, its preview drawn
@@ -131,8 +161,9 @@ test('draws the water, at every time of day, splashing, within the frame budget'
     // the first measured keeps the GPU drawing a quarter of a second; the rest follow on from it
     const ms = await page.evaluate((warm) => window.game!.measureFrame(warm), first ? undefined : 60);
     first = false;
-    costs.push(`${time}: ${ms.toFixed(3)} ms`);
-    expect(ms, `the water at ${time} within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
+    const name = day === 29 ? `${time} with the mist` : time;
+    costs.push(`${name}: ${ms.toFixed(3)} ms`);
+    expect(ms, `the water at ${name} within the frame budget`).toBeLessThanOrEqual(BUDGET.frameMs);
   }
   console.log(`frame, the water: ${costs.join(', ')}`);
   expect(problems).toEqual([]);

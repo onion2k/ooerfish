@@ -266,6 +266,10 @@ Each stage is a feature, built and verified before the next, every gate green at
    clock as the journal does; and a wall calendar in the cabin, the year's fifty-six squares with the days gone
    darkened and today marked. Sleeping through, the radio and the mail are not, and wait on the weather and the town._
 6. **The seasons, the moon and the weather.**
+   _A first slice is being built (20 Oct 2026, `docs/seasons.md`): the day's season, summer first so the lake as
+   drawn today is summer's, then autumn, winter and spring, each seen as the banks' colours, the sky and the water's
+   finish, the wind and waves, leaves, snow or blossom falling on the wind, and mist at autumn dawns and on winter
+   mornings and nights. The moon, the weather, the festivals and sleeping through are not._
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**

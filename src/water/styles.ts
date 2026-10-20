@@ -7,6 +7,7 @@
 import type { ClearWater } from 'artshape-render/game/clear';
 import type { GameGroup } from 'artshape-render/game/renderer';
 import type { GerstnerWave } from 'artshape-render/game/waves';
+import type { Season } from '../lake';
 import type { TimeOfDay } from '../look';
 import { clear } from './clear';
 
@@ -19,8 +20,10 @@ export interface WaterStyle {
   groups(contamination: number): GameGroup[];
   /** The swells that move its surface, which what floats on it rides: none, and it lies still. */
   waves?: readonly GerstnerWave[];
-  /** The renderer's `look.clear` at a contamination and a time of day, with caustics or without. */
-  clear(contamination: number, caustics: boolean, time: TimeOfDay): Partial<ClearWater>;
+  /** The same swells in a season's amplitude, which the bobber must ride when the look is handed them. */
+  wavesIn?(season: Season): readonly GerstnerWave[];
+  /** The renderer's `look.clear` at a contamination and a time of day, with caustics or without, in a season (summer when none is given). */
+  clear(contamination: number, caustics: boolean, time: TimeOfDay, season?: Season): Partial<ClearWater>;
 }
 
 export const STYLES: readonly WaterStyle[] = [clear];

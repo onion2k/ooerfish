@@ -1377,3 +1377,161 @@ test.describe('the time is saved and the menu stops the clock', () => {
     expect(problems).toEqual([]);
   });
 });
+
+/**
+ * The seasons (`docs/seasons.md`, part 1): the season is the day's alone, so a load on any day reads it, and the
+ * morning line names it from autumn on. Seeded and paused, read through the test API.
+ */
+test.describe('the seasons', () => {
+  test('a load on day 14 at the pond is summer', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 14, place: 'pond' }, paused: true });
+    expect((await page.evaluate(() => window.game!.season())).name).toBe('summer');
+    expect(problems).toEqual([]);
+  });
+
+  test('a load on day 15 in the cabin says an autumn morning, and is autumn', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 15, place: 'cabin' }, paused: true });
+    await expect(page.locator('#morning')).toHaveText('Day 15. An autumn morning at the cabin.');
+    expect((await page.evaluate(() => window.game!.season())).name).toBe('autumn');
+    expect(problems).toEqual([]);
+  });
+
+  test('the lake is dressed once at boot, again at a wake into a new season, and not at a wake inside one', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 14, place: 'pond' }, paused: true });
+    const read = () => page.evaluate(() => window.game!.season());
+    const first = await read();
+    expect(first.dressed).toBe('summer');
+    expect(first.statics, 'the boot is the one handover').toBe(1);
+    const sleep = () =>
+      page.evaluate(async () => {
+        await window.game!.sleep();
+        window.game!.step(160);
+      });
+    const day = () => page.evaluate(() => window.game!.day());
+    await sleep();
+    expect(await day()).toBe(15);
+    await expect.poll(async () => (await read()).dressed).toBe('autumn');
+    const next = await read();
+    expect(next.name).toBe('autumn');
+    expect(next.dressed).toBe('autumn');
+    expect(next.statics, 'one more for the new season').toBe(2);
+    // the cabin where the wake lands is a room nothing moves in, so the rebuild is told and held to a loose ceiling
+    console.log(`dress at the wake into autumn: ${next.dressMs.toFixed(1)} ms`);
+    expect(next.dressMs).toBeGreaterThan(0);
+    await page.locator('#downButton').click();
+    await expect.poll(() => page.evaluate(() => window.game!.place())).toBe('pond');
+    await sleep();
+    expect(await day()).toBe(16);
+    expect((await read()).statics, 'a wake inside a season hands nothing over').toBe(2);
+    expect(problems).toEqual([]);
+  });
+
+  test('a load on day 29 is dressed winter, with one handover', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 29, place: 'pond' }, paused: true });
+    const r = await page.evaluate(() => window.game!.season());
+    expect(r.dressed).toBe('winter');
+    expect(r.statics).toBe(1);
+    expect(problems).toEqual([]);
+  });
+
+  test("a load on day 15 bakes autumn's four looks and no summer's", async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 15, place: 'pond' }, paused: true });
+    expect(await page.evaluate(() => window.game!.looksBaked()), "autumn's four, summer's never made").toBe(4);
+    expect(await page.evaluate(() => window.game!.time())).toBe('dawn');
+    expect(problems).toEqual([]);
+  });
+
+  test('the sleep from day 14 to 15 bakes four looks more, and lights the page as autumn', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 14, place: 'pond' }, paused: true });
+    expect(await page.evaluate(() => window.game!.looksBaked())).toBe(4);
+    await page.evaluate(async () => {
+      await window.game!.sleep();
+      window.game!.step(160);
+    });
+    await expect.poll(() => page.evaluate(() => window.game!.looksBaked())).toBe(8);
+    const r = await page.evaluate(() => window.game!.season());
+    expect(r.dressed).toBe('autumn');
+    expect(r.bakeMs).toBeGreaterThan(0);
+    console.log(`bake of autumn's four looks at the wake: ${r.bakeMs.toFixed(1)} ms`);
+    expect(problems).toEqual([]);
+  });
+
+  test('the falling things are emitted while the game steps at the pond, and in no other case', async ({ page }) => {
+    const problems = watch(page);
+    const falling = () => page.evaluate(() => window.game!.season().falling);
+    const step = (n: number) => page.evaluate((k) => window.game!.step(k), n);
+    // autumn at the pond: stepped, they come; paused (no step), they do not grow
+    await start(page, { save: { cured: 2, day: 15, place: 'pond' }, paused: true });
+    expect(await falling(), 'none before a step').toBe(0);
+    await step(120);
+    const stepped = await falling();
+    expect(stepped, 'stepped, they fall').toBeGreaterThan(0);
+    await page.waitForTimeout(400);
+    expect(await falling(), 'paused, nothing more is emitted').toBe(stepped);
+    // a page open holds the game still: the menu's list over the pond
+    await page.locator('#menuButton').click();
+    await step(120);
+    expect(await falling(), 'a page open, unchanged').toBe(stepped);
+    await page.locator('#menuButton').click();
+    await step(120);
+    expect(await falling(), 'the page shut, they come again').toBeGreaterThan(stepped);
+    expect(problems).toEqual([]);
+  });
+
+  test('none are emitted in the cabin, nor in summer', async ({ page }) => {
+    const problems = watch(page);
+    const falling = () => page.evaluate(() => window.game!.season().falling);
+    await start(page, { save: { cured: 2, day: 15, place: 'cabin' }, paused: true });
+    await page.evaluate(() => window.game!.step(120));
+    expect(await falling(), 'the cabin, where nothing falls').toBe(0);
+    await start(page, { save: { cured: 2, day: 1, place: 'pond' }, paused: true });
+    await page.evaluate(() => window.game!.step(120));
+    expect(await falling(), 'summer, where nothing falls').toBe(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('a load on day 57 is summer again, the year come round', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 57, place: 'pond' }, paused: true });
+    expect((await page.evaluate(() => window.game!.season())).name).toBe('summer');
+    expect(problems).toEqual([]);
+  });
+  // each case is its own page, since a second load in one test can keep the first's state
+  const mistCases = [
+    ['autumn dawn', 15, 'dawn', undefined, true],
+    ['autumn day', 15, 'day', undefined, false],
+    ['winter night', 29, 'night', undefined, true],
+    ['winter dawn', 29, 'dawn', undefined, true],
+    ['summer dawn', 1, 'dawn', undefined, false],
+    ['autumn dawn on the lean rung', 15, 'dawn', 'lean', false],
+  ] as const;
+  for (const [name, day, time, rung, expected] of mistCases)
+    test(`the mist at ${name} is ${expected ? 'on' : 'off'}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { save: { cured: 2, day, place: 'pond' }, paused: true, ...(rung ? { rung } : {}) });
+      await page.evaluate((t) => window.game!.time(t), time);
+      expect((await page.evaluate(() => window.game!.season())).mist).toBe(expected);
+      expect(problems).toEqual([]);
+    });
+
+  test('the mist goes when the page steps down to the lean rung and comes back with the full one', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 2, day: 15, place: 'pond' }, paused: true });
+    await page.evaluate(() => window.game!.time('dawn'));
+    const mist = () => page.evaluate(() => window.game!.season().mist);
+    expect(await mist()).toBe(true);
+    await page.evaluate(() => window.game!.rung('lean'));
+    expect(await mist(), 'stepped down to lean while on').toBe(false);
+    await page.evaluate(() => window.game!.rung('full'));
+    expect(await mist(), 'and back to full').toBe(true);
+    expect(problems).toEqual([]);
+  });
+});

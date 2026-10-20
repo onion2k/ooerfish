@@ -14,6 +14,7 @@ import {
   CABIN,
   CLIFF,
   NOTCHES,
+  SEASONS,
   SHORE_RADIUS,
   STRETCH,
   cabinGap,
@@ -26,6 +27,7 @@ import {
   shoreRadius,
 } from '../src/lake';
 import { PALETTE } from '../src/palette';
+import { seasonGrass, seasonPalette } from '../src/season';
 
 const field = bankField();
 const cells = Array.from({ length: field.cols * field.rows }, (_, i) => {
@@ -184,6 +186,11 @@ describe("the grass's figures", () => {
   it("have the bank painted the colour the blades average to, as ooergolf holds its ground to its blades' ", () => {
     const ground = grassGround(LUSH);
     for (let c = 0; c < 3; c++) expect(PALETTE.grass[c]).toBeCloseTo(ground[c], 4);
+    // and so in every season, whose ground is worked out from its blades (test/season.test.ts holds the rest)
+    for (const season of SEASONS) {
+      const g = grassGround(seasonGrass(season));
+      for (let c = 0; c < 3; c++) expect(seasonPalette(season).grass[c]).toBeCloseTo(g[c], 4);
+    }
   });
 
   it('take their blades colour from the palette', () => {

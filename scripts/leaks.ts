@@ -27,7 +27,9 @@
  * page's, not the game's, and so not played here.
  */
 import { Game } from '../src/game';
-import { DRUMS, FISH_CAPACITY, KINDS, SPLASH_CAPACITY, TREASURES } from '../src/lake';
+import { particleWindow } from '../src/falling';
+import { seasonOf } from '../src/calendar';
+import { DRUMS, FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY, TREASURES } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { collectionsKept, crowd, type Crowd } from './phonemonkey';
@@ -52,6 +54,9 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
   'session peers': { ceiling: 1 },
+  // the particles the falling things and the falls' mist emit in the longest life of the season's drops must fit the
+  // renderer's ring, or a flake is overwritten alive; the ceiling is the ring's size
+  'particle window': { ceiling: PARTICLE_POOL },
   // the catch-all for what is leaking and has no name here; noisy, so it is given a lot of room
   'heap MB': { ceiling: 300, steady: true },
 };
@@ -68,6 +73,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'journal kinds': Object.keys(game.progress.save.journal).length,
     'drums hauled': game.progress.save.drums,
     'treasures found': game.progress.save.found.length,
+    'particle window': particleWindow(seasonOf(game.day)),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }

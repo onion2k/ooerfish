@@ -16,6 +16,7 @@
 import { FLOW_CLEAR, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import type { GerstnerWave } from 'artshape-render/game/waves';
+import { SEASON_DRESSING, type Season } from '../lake';
 import { PALETTE, mix } from '../palette';
 import type { WaterStyle } from './styles';
 import { AT_ORIGIN, surface } from './surface';
@@ -121,12 +122,29 @@ export const CLEAR_WAVES: readonly GerstnerWave[] = [
   { direction: 1.7, wavelength: 4, amplitude: 0.012, steepness: 0.1 },
 ];
 
+/**
+ * The swells of a season: summer's are `CLEAR_WAVES` itself, and the others scale their amplitudes by the season's share,
+ * the steepness kept so the four still add up to under one. Memoised, since the bobber and the look must be handed the
+ * very same list.
+ */
+const wavesMade = new Map<Season, readonly GerstnerWave[]>();
+export function wavesFor(season: Season): readonly GerstnerWave[] {
+  let waves = wavesMade.get(season);
+  if (!waves) {
+    const scale = SEASON_DRESSING[season].waves;
+    waves = scale === 1 ? CLEAR_WAVES : CLEAR_WAVES.map((w) => ({ ...w, amplitude: w.amplitude * scale }));
+    wavesMade.set(season, waves);
+  }
+  return waves;
+}
+
 const held = (v: number) => Math.min(1, Math.max(0, v));
 
 export const clear: WaterStyle = {
   name: 'clear',
   label: 'See-through',
   waves: CLEAR_WAVES,
+  wavesIn: wavesFor,
   groups(contamination) {
     const k = held(contamination);
     const patterns = packFlow(new Float32Array(PATTERN_STRIDE), 0, {
@@ -146,8 +164,9 @@ export const clear: WaterStyle = {
       },
     ];
   },
-  clear(contamination, caustics, time) {
+  clear(contamination, caustics, time, season = 'summer') {
     const k = held(contamination);
+    const dress = SEASON_DRESSING[season].water;
     return {
       // from the cured lake's clarity to the sick one's, its own figure, so the cured can be made clearer alone
       clarity: CLEAR.clarity + (CLEAR.sickClarity - CLEAR.clarity) * k,
@@ -160,14 +179,14 @@ export const clear: WaterStyle = {
       // the sparkles stand in for the glitter, by the time of day as it did
       glitter: 0,
       caustics: caustics ? CLEAR.caustics * (1 - (1 - CLEAR.sickCaustics) * k) : 0,
-      waves: CLEAR_WAVES,
-      near: mix(PALETTE.clearNear, PALETTE.sickNear, k),
+      waves: wavesFor(season),
+      near: mix(dress.near ?? PALETTE.clearNear, PALETTE.sickNear, k),
       nearDistance: CLEAR.nearDistance,
-      crest: PALETTE.crest,
+      crest: dress.crest ?? PALETTE.crest,
       crestAmount: CLEAR.crestAmount,
       sparkles: CLEAR.sparkles,
       sparkleCut: CLEAR.sparkleCut,
-      sparkleBright: CLEAR.sparkleBright * time.glitter * (1 - (1 - CLEAR.sickSparkles) * k),
+      sparkleBright: CLEAR.sparkleBright * time.glitter * dress.sparkle * (1 - (1 - CLEAR.sickSparkles) * k),
       sparkleSize: CLEAR.sparkleSize,
       sparkleDrift: [
         Math.cos(CLEAR_WAVES[0].direction) * CLEAR.sparkleDrift,

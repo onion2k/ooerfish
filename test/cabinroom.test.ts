@@ -1,9 +1,19 @@
 /** The cabin's room as drawn: built the same each time, painted, inside the cabin's outer walls, and its walls facing in. */
 import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
-import { FURNITURE, ROOM_PARTS, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
+import { BAND_PARTS, FURNITURE, ROOM_PARTS, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
 import { CalendarDraw } from '../src/calendardraw';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, CALENDAR, TREASURES, WAKING_EYE, bareGround } from '../src/lake';
+import {
+  CABIN,
+  CABIN_AT,
+  CABIN_FLOOR,
+  CABIN_ROOM,
+  CALENDAR,
+  SEASONS,
+  TREASURES,
+  WAKING_EYE,
+  bareGround,
+} from '../src/lake';
 import { ROOM_COLOURS } from '../src/palette';
 import { SHADOW_BOX } from '../src/scene';
 
@@ -324,6 +334,47 @@ describe('the cabin’s wall calendar', () => {
     expect(colourSet.size).toBe(groups.length + 2);
   });
 
+  it('has a band a season, in the year’s order, each in a colour of its own and listed with the calendar', () => {
+    expect(BAND_PARTS).toEqual(SEASONS.map((s) => `band${s[0].toUpperCase()}${s.slice(1)}`));
+    for (const name of BAND_PARTS) {
+      expect(FURNITURE.calendar, name).toContain(name);
+      expect(part(groups, name).albedo).toBe(ROOM_COLOURS[name]);
+      expect(part(groups, name).mesh.paint, name).toBeDefined();
+    }
+    expect(new Set(BAND_PARTS.map((n) => ROOM_COLOURS[n].join())).size).toBe(SEASONS.length);
+  });
+
+  it('lays each band at the sheet’s left edge, within it, proud of the paper, at the height of its row', () => {
+    const left = (c: [number, number, number][]) => c.map(([u]) => u);
+    const sheet = corners(part(groups, 'calendarSheet'));
+    const [sMin, sMax] = [Math.min(...left(sheet)), Math.max(...left(sheet))];
+    const first = g.spot(0)[2] - CABIN_FLOOR;
+    const rowsTop: number[] = [];
+    for (const [r, name] of BAND_PARTS.entries()) {
+      const c = corners(part(groups, name));
+      const us = left(c),
+        hs = c.map(([, , h]) => h - CABIN_FLOOR),
+        vs = c.map(([, v]) => v);
+      // the reader's left is the lesser along-shore coordinate when the row reads that way, the greater when it does not
+      const edge = g.reads > 0 ? sMin : sMax;
+      expect(Math.min(...us.map((u) => Math.abs(u - edge))), name).toBeLessThan(g.cal.margin);
+      expect(Math.min(...us), name).toBeGreaterThanOrEqual(sMin - 1e-4);
+      expect(Math.max(...us), name).toBeLessThanOrEqual(sMax + 1e-4);
+      // clear of the squares, which start a margin in
+      const squareEdge = g.cal.along + g.reads * (-g.cal.wide / 2 + g.cal.margin);
+      for (const u of us) expect((u - squareEdge) * g.reads, name).toBeLessThanOrEqual(1e-4);
+      // proud of the paper, but not past the marks
+      expect(Math.min(...vs), name).toBeLessThan(hx - g.cal.depth);
+      expect(Math.min(...vs), name).toBeGreaterThanOrEqual(hx - g.cal.depth - g.cal.proud - 1e-4);
+      const top = first + g.cell / 2 - r * g.cell;
+      expect(Math.max(...hs), name).toBeLessThanOrEqual(top + 1e-4);
+      expect(Math.min(...hs), name).toBeGreaterThanOrEqual(top - g.cell - 1e-4);
+      rowsTop.push((Math.max(...hs) + Math.min(...hs)) / 2);
+    }
+    // top row first: summer, then each below
+    expect(rowsTop).toEqual([...rowsTop].sort((a, b) => b - a));
+  });
+
   it('keeps the marks off the static room, so they move with the day and not with the build', () => {
     expect(ROOM_PARTS).not.toContain('calendarGone');
     expect(ROOM_PARTS).not.toContain('calendarToday');
@@ -337,9 +388,9 @@ describe('the cabin’s wall calendar', () => {
     expect(Math.min(...bar)).toBeCloseTo(g.cal.at + g.high - g.cal.bar, 4);
   });
 
-  it('is a few triangles: the sheet and bar twelve blocks’ worth, the marks a quad each', () => {
+  it('is a few triangles: the sheet, bar and four bands six blocks’ worth, the marks a quad each', () => {
     const tris = FURNITURE.calendar.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
-    expect(tris).toBeLessThanOrEqual(24);
+    expect(tris).toBeLessThanOrEqual(6 * 12);
     const marks = draw.groups(1, colours);
     expect(marks[0].mesh.indices.length / 3).toBe(2);
     expect(marks[0].count).toBe(CALENDAR.days);

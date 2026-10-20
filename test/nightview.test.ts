@@ -18,7 +18,14 @@ describe('what the night says', () => {
 
   it('names the day in the morning at the cabin, and the bed can be gone to again', () => {
     expect(nightWords('cabin', 2, false)).toEqual({ yawn: null, morning: 'Day 2. Morning at the cabin.', bed: true });
-    expect(nightWords('cabin', 41, false).morning).toBe('Day 41. Morning at the cabin.');
+    expect(nightWords('cabin', 13, false).morning).toBe('Day 13. Morning at the cabin.');
+    expect(nightWords('cabin', 57, false).morning).toBe('Day 57. Morning at the cabin.');
+  });
+
+  it('names the season in the morning from autumn on, and says nothing of summer', () => {
+    expect(nightWords('cabin', 15, false).morning).toBe('Day 15. An autumn morning at the cabin.');
+    expect(nightWords('cabin', 29, false).morning).toBe('Day 29. A winter morning at the cabin.');
+    expect(nightWords('cabin', 43, false).morning).toBe('Day 43. A spring morning at the cabin.');
   });
 
   it('refuses the bed with a fish on the line or landed', () => {

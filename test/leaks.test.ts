@@ -23,6 +23,7 @@ describe('what must stay bounded', () => {
       'journal kinds',
       'drums hauled',
       'treasures found',
+      'particle window',
       'heap MB',
     ]) {
       expect(Object.keys(now), `${key} measured`).toContain(key);

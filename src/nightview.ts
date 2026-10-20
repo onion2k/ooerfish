@@ -6,6 +6,7 @@
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
+import { seasonOf } from './calendar';
 import type { Place } from './night';
 
 export interface NightElements {
@@ -31,11 +32,18 @@ export interface NightWords {
 /** The yawn's line, as the player is put to bed. */
 export const YAWN_WORDS = 'Yawn… time for bed';
 
+/** The morning's name: summer's is the plain one it always was, and the other seasons name themselves. */
+function morningOf(day: number): string {
+  const season = seasonOf(day);
+  if (season === 'summer') return 'Morning';
+  return `${season === 'autumn' ? 'An' : 'A'} ${season} morning`;
+}
+
 /** The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed off). */
 export function nightWords(place: Place, day: number, fighting: boolean): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
-    morning: place === 'cabin' ? `Day ${day}. Morning at the cabin.` : null,
+    morning: place === 'cabin' ? `Day ${day}. ${morningOf(day)} at the cabin.` : null,
     bed: place !== 'yawning' && !fighting,
   };
 }

@@ -25,7 +25,8 @@ import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
-import { ANGLER, KINDS, TREASURES, bedDepth } from './lake';
+import { seasonOf } from './calendar';
+import { ANGLER, KINDS, TREASURES, bedDepth, type Season } from './lake';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
@@ -135,6 +136,19 @@ export interface Fish {
   kind: number;
 }
 
+/** The season and what the page has dressed of it, as `game.season()` reads. */
+export interface SeasonReading {
+  name: Season;
+  dressed: Season | null;
+  statics: number;
+  falling: number;
+  mist: boolean;
+  /** How long the last dressing took, in milliseconds: the colours built and handed over, as the page measured it. */
+  dressMs: number;
+  /** How long the last bake of a season's four looks took at a wake, in milliseconds (nought before one). */
+  bakeMs: number;
+}
+
 export interface GameApi {
   readonly version: 1;
   /** Booted, and the frame loop running. */
@@ -232,6 +246,13 @@ export interface GameApi {
   drawnCured(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
+  /**
+   * The season the day is in, and what the page has dressed of it: `name` is the day's, `dressed` the season last
+   * handed to the renderer (null before the dressing exists), `statics` how many times the static set was handed over for
+   * a season, `falling` the falling things emitted, and `mist` whether the fog is on, and `dressMs` how long the last
+   * dressing took. The colours are real (part 2); `falling` and `mist` are placeholders until the later parts fill them.
+   */
+  season(): SeasonReading;
   /** The water's caustics, on or off. */
   caustics(on: 'on' | 'off'): Promise<void>;
   /** The rocks' painted edge, on or off: with it off the same rocks are drawn plain. */
@@ -381,6 +402,8 @@ export interface DebugHost {
   drawnCured(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
+  /** What the page has dressed of the season, which the API joins to the day's name. */
+  season(): Omit<SeasonReading, 'name'>;
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
   setTime(name: string): Promise<void>;
   time(): string;
@@ -611,6 +634,7 @@ export function createApi(host: DebugHost): GameApi {
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
     calendar: () => host.calendar(),
+    season: () => ({ name: seasonOf(game.day), ...host.season() }),
     // time is stopped away from the pond, and the cabin's view is the one place to look from there: both let go unanswered
     time: ((name?: string) =>
       name === undefined

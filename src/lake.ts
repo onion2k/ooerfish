@@ -1,3 +1,5 @@
+import type { Colour } from './palette';
+
 /**
  * The lake as content: the shape of its shore, the depth of its bed, the rise
  * of its banks, how many fish swim in it and where the camera may stand.
@@ -705,7 +707,200 @@ export interface View {
  * The year as the wall calendar shows it (`DESIGN.md`'s "The calendar"): four seasons of fourteen days, a square a day in
  * `rows` rows of `columns`. The days gone are darkened and today is marked, and day `days + 1` is the first square again.
  */
-export const CALENDAR = { days: 56, rows: 4, columns: 14 } as const;
+export const CALENDAR = { days: 56, rows: 4, columns: 14, seasonDays: 14 } as const;
+
+/**
+ * The year's seasons in order, a row of the calendar each. The year starts in summer, chosen by the user, so the lake as
+ * it was drawn before the seasons is summer's and day one is unchanged; then autumn, winter and spring, and the year
+ * comes round to summer again.
+ */
+export const SEASONS = ['summer', 'autumn', 'winter', 'spring'] as const;
+
+/** One of the year's seasons. */
+export type Season = (typeof SEASONS)[number];
+
+/**
+ * The palette keys a season may move, so a key that is not the palette's is a type error where `season.ts` checks it.
+ * The ground under the grass (`grass`) is not among them: it is worked out from the blades, so it cannot disagree.
+ */
+export type SeasonColour = 'bladeBase' | 'bladeTip' | 'leaves' | 'crown' | 'pine' | 'flowers' | 'cabinRoof' | 'deck';
+
+/**
+ * How each season dresses the lake (`docs/seasons.md`, part 2): the palette keys it moves and the colours it moves them
+ * to, in linear light, and the height of the grass as a share of summer's. First guesses, tuned by the pictures.
+ * Summer moves nothing, so it is the lake as it was drawn before the seasons; winter's white banks are its pale blades
+ * and the ground derived from them, its snowy crowns the broadleaf's pale leaves (the pines keep their green).
+ */
+export interface SeasonDressing {
+  palette: Partial<Record<SeasonColour, Colour>>;
+  grassHeight: number;
+  /** The sky: a tint mixed into each look's zenith, horizon and sun colour by `mix`, and the fill light scaled by `ambient`. */
+  sky: { tint: Colour; mix: number };
+  ambient: number;
+  /** The water: the colours it lightens toward by the camera (clean) and on its crests where it is not the palette's, and the sparkles' brightness as a share of summer's. */
+  water: { near?: Colour; crest?: Colour; sparkle: number };
+  /** The grass wind's strength, and the swells' amplitude as a share of summer's. */
+  breeze: number;
+  waves: number;
+  /** What falls through the air, or null where nothing does (summer), and the mist that lies on the water, or null where none does. */
+  falling: Falling | null;
+  mist: Mist | null;
+}
+
+/** The water's level in the world, the height the falling things die at and the mist lies from. */
+export const WATER_LEVEL = 0;
+
+/**
+ * A low mist over the water (`docs/seasons.md`, part 5), as the renderer's volumetric fog is asked for it: the looks it
+ * lies at, how thick it is at the water, how deep a layer (the height it is down to a third by), the colour it
+ * scatters, the sky it takes, and the steps of the march, which is what it costs. The layer's base is the water's level
+ * and is not set here.
+ */
+export interface Mist {
+  at: readonly ('night' | 'dawn' | 'day' | 'dusk')[];
+  density: number;
+  height: number;
+  colour: Colour;
+  ambient: number;
+  steps: number;
+}
+
+/**
+ * One kind of falling thing, as the renderer's particles are asked for it (`docs/seasons.md`, part 4): the colour it
+ * starts and the one it fades to, its size and growth, how long it lives and how much that varies, how much of
+ * gravity it feels (little: it drifts), how many each emitter drops each time, how many game frames pass between one
+ * emitter's drops, and the wind that carries it, in world units a second.
+ */
+export interface Falling {
+  colour: Colour;
+  fade?: Colour;
+  size: number;
+  growth: number;
+  life: number;
+  lifeSpread: number;
+  gravity: number;
+  count: number;
+  every: number;
+  drift: [number, number, number];
+}
+
+/**
+ * Where the falling things start: how many emitters are spread over the lake (in a spiral of even
+ * cover, `radius` shore radii out at the furthest), how high over the water each is, and how far each scatters its
+ * drops. A drop falls at gravity's share to the water and dies there.
+ */
+export const FALLING = { emitters: 16, radius: 0.8, height: 12, spread: 8 } as const;
+
+/**
+ * How many particles the renderer's ring holds. A particle is overwritten when the ring comes round, so the pool must
+ * outlast the longest life at the game's rate of emission: the falling things (40 a second, 416 over the longest life
+ * of 10.4 s) and the falls' mist (two falls, 144 a second, about 1,500 over it) come to about 1,910, which the ring
+ * holds. It is the size it was before the seasons, since a bigger ring moves the slot every droplet's chance is drawn
+ * from and so nineteen pictures. A burst of many splashes on top can shorten a flake's last second; that is accepted,
+ * since the droplets live under a second and a flake at the end of its fall is near the water.
+ */
+export const PARTICLE_POOL = 2048;
+
+export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
+  summer: {
+    palette: {},
+    grassHeight: 1,
+    sky: { tint: [0, 0, 0], mix: 0 },
+    ambient: 1,
+    water: { sparkle: 1 },
+    breeze: 0.3,
+    waves: 1,
+    falling: null,
+    mist: null,
+  },
+  autumn: {
+    palette: {
+      leaves: [0.3, 0.09, 0.02],
+      crown: [0.55, 0.3, 0.04],
+      bladeBase: [0.12, 0.09, 0.02],
+      bladeTip: [0.38, 0.28, 0.05],
+    },
+    grassHeight: 1,
+    sky: { tint: [0.98, 0.62, 0.3], mix: 0.38 },
+    ambient: 1,
+    water: { near: [0.16, 0.5, 0.48], crest: [0.92, 0.9, 0.8], sparkle: 0.85 },
+    breeze: 0.5,
+    waves: 1.2,
+    // russet leaves darkening to brown as they go, drifting on the stronger breeze
+    falling: {
+      colour: [0.6, 0.24, 0.04],
+      fade: [0.22, 0.1, 0.03],
+      size: 0.35,
+      growth: 0,
+      life: 8,
+      lifeSpread: 0.3,
+      gravity: 0.035,
+      count: 2,
+      every: 48,
+      drift: [0.8, 0.3, 0],
+    },
+    mist: { at: ['dawn'], density: 0.03, height: 3, colour: [0.9, 0.78, 0.62], ambient: 0.6, steps: 16 },
+  },
+  winter: {
+    palette: {
+      leaves: [0.6, 0.65, 0.7],
+      crown: [0.8, 0.85, 0.9],
+      bladeBase: [0.45, 0.5, 0.58],
+      bladeTip: [0.8, 0.87, 0.95],
+      cabinRoof: [0.85, 0.88, 0.92],
+      deck: [0.7, 0.72, 0.75],
+    },
+    grassHeight: 0.7,
+    sky: { tint: [0.68, 0.82, 1], mix: 0.5 },
+    ambient: 1.1,
+    water: { near: [0.06, 0.4, 0.7], crest: [0.92, 0.98, 1], sparkle: 1.15 },
+    breeze: 0.2,
+    waves: 0.8,
+    // small white flakes, slower and lighter than the leaves, on a light breeze
+    falling: {
+      colour: [1, 1, 1],
+      fade: [0.8, 0.9, 1],
+      size: 0.14,
+      growth: 0,
+      life: 8,
+      lifeSpread: 0.3,
+      gravity: 0.028,
+      count: 2,
+      every: 48,
+      drift: [0.25, 0.1, 0],
+    },
+    mist: { at: ['dawn', 'night'], density: 0.03, height: 3, colour: [0.8, 0.88, 1], ambient: 0.6, steps: 16 },
+  },
+  spring: {
+    palette: {
+      leaves: [0.1, 0.3, 0.05],
+      crown: [0.85, 0.45, 0.55],
+      flowers: [0.95, 0.55, 0.7],
+      bladeBase: [0.05, 0.16, 0.03],
+      bladeTip: [0.16, 0.42, 0.08],
+    },
+    grassHeight: 1,
+    sky: { tint: [0.8, 0.95, 1], mix: 0.15 },
+    ambient: 1.05,
+    water: { near: [0.1, 0.68, 0.74], sparkle: 1.1 },
+    breeze: 0.35,
+    waves: 1,
+    // pink petals, small, on a soft breeze
+    falling: {
+      colour: [0.95, 0.55, 0.7],
+      fade: [0.85, 0.4, 0.55],
+      size: 0.16,
+      growth: 0,
+      life: 8,
+      lifeSpread: 0.3,
+      gravity: 0.03,
+      count: 2,
+      every: 48,
+      drift: [0.5, 0.2, 0],
+    },
+    mist: null,
+  },
+};
 
 /**
  * The room inside the cabin, as content, all relative to the cabin's own frame (`CABIN_AT`): `along` the shore from its

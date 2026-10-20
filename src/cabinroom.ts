@@ -43,7 +43,13 @@ export const ROOM_PARTS = [
   'coat',
   'calendarSheet',
   'calendarBar',
+  'bandSummer',
+  'bandAutumn',
+  'bandWinter',
+  'bandSpring',
 ] as const;
+/** The calendar's season bands in the year's order, a row each from the top, named from `SEASONS`. */
+export const BAND_PARTS = ['bandSummer', 'bandAutumn', 'bandWinter', 'bandSpring'] as const;
 export type RoomPart = (typeof ROOM_PARTS)[number];
 /** The calendar's two moving parts, which are not in the static room but handed over by `CalendarDraw` as the day changes. */
 export const MARK_PARTS = ['calendarGone', 'calendarToday'] as const;
@@ -60,7 +66,7 @@ export const FURNITURE = {
   chest: ['chest'],
   picture: ['frame', 'canvas'],
   coat: ['peg', 'coat'],
-  calendar: ['calendarSheet', 'calendarBar'],
+  calendar: ['calendarSheet', 'calendarBar', ...BAND_PARTS],
 } as const satisfies Record<string, readonly RoomPart[]>;
 
 /** The paint set the timber takes, the wood's faint warm lip, as the cabin's own does. */
@@ -100,6 +106,8 @@ export function calendarGeometry() {
     cell,
     high,
     wall,
+    /** Which way along the shore the reader's right is: 1 or -1. */
+    reads,
     size: cell * cal.mark,
     /** Square `i`'s middle in the world, and the direction the wall faces into the room, as a turn about z. */
     spot: (i: number): [number, number, number] => {
@@ -382,6 +390,16 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
     onWall(b, cal.along, cal.wide + 0.04, cal.depth + 0.02, cal.at + calHigh - cal.bar, cal.at + calHigh),
   );
 
+  // a thin strip of colour at the sheet's left edge for each season's row, in the margin clear of the squares and just
+  // proud of the paper as the marks are, so the year's four rows can be told at a glance
+  const { cell, cal: cc, reads } = calendarGeometry();
+  const bandMesh = (row: number) =>
+    built((b) => {
+      const edge = cc.along + reads * (-cc.wide / 2 + cc.margin / 2);
+      const top = cc.at + calHigh - cc.bar - cc.margin - row * cell;
+      onWall(b, edge, cc.margin * 0.5, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
+    });
+
   const timbered = (mesh: Mesh, part: RoomPart, roughness: number): GameGroup => ({
     mesh: timber(mesh),
     matrices: ONE,
@@ -420,6 +438,10 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
     coat: timbered(coatMesh, 'coat', 1),
     calendarSheet: timbered(sheetMesh, 'calendarSheet', 1),
     calendarBar: timbered(barMesh, 'calendarBar', 0.9),
+    bandSummer: timbered(bandMesh(0), 'bandSummer', 1),
+    bandAutumn: timbered(bandMesh(1), 'bandAutumn', 1),
+    bandWinter: timbered(bandMesh(2), 'bandWinter', 1),
+    bandSpring: timbered(bandMesh(3), 'bandSpring', 1),
     bulb: { mesh: bulb, matrices: ONE, albedo: colours.bulb, roughness: 0.4, patterns: lit(BULB_GLOW, colours.bulb) },
   };
   return ROOM_PARTS.map((part) => made[part]);

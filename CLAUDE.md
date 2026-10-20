@@ -153,6 +153,24 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   since it times the lake, not the night; determinism plays each seed from dawn
   and from just before midnight. `game.day()`, `place()`, `fade()`, `sleep()`
   and `out()` are the test API.
+- **The seasons** (`docs/seasons.md`): the year is `SEASONS` in `lake.ts`, summer first (so the lake as drawn on day 1
+  is summer's, and no picture moved), then autumn, winter and spring, `CALENDAR.seasonDays` (14) each; `seasonOf(day)`
+  in `src/calendar.ts` is pure, and the morning line names the season from autumn on. Nothing is saved: the season is
+  the day's. `SEASON_DRESSING` in `lake.ts` is each season's content: the palette keys it moves (`seasonPalette` in
+  `src/season.ts`, the grass ground derived from the blades), `grassHeight`, the sky's tint and mix and `ambient`
+  (`timesFor(season)` in `look.ts`, the baked cubes keyed `season:name`, four at a time), the water's `near`, `crest`
+  and sparkle (`style.clear(..., season)`), `breeze` (the grass wind's strength), `waves` (an amplitude scale,
+  `wavesFor`, which the bobber's surface is rebuilt from), `falling` (the particles of leaves, snow or blossom:
+  `fallingEmits` in `src/falling.ts`, a ring of `FALLING.emitters` over the lake, emitted on a cadence from `simulate`
+  at the pond only, carried by `setWind`; the pool stays `PARTICLE_POOL`, 2048, since a bigger ring moves the slot each
+  droplet's chance is drawn from and so nineteen pictures; the window of a fall and the falls' mist over the longest
+  life is held under it in `leaks`) and `mist` (the renderer's fog, `mistFor`, low over `WATER_LEVEL` at autumn dawn
+  and winter dawn and night, about 0.2 ms, off on the lean rung with the grass; the flakes fall on lean too). The page
+  dresses the lake in `dress(season)` (`main.ts`): the static set built again with the season's palette (the
+  colour-free meshes memoised per kit in `Scene.static`, so about 5 ms) and the grass handed over (about 30 ms), at
+  boot and at a wake into a new season, in the cabin, then that season's four looks baked (about 33 ms); a wake inside
+  a season hands nothing over. `game.season()` reads it all (`name`, `dressed`, `statics`, `dressMs`, `bakeMs`,
+  `falling`, `mist`). The calendar's rows carry a band each in the season's colour (`BAND_PARTS` in `cabinroom.ts`).
 - **The cabin's room** (`src/cabinroom.ts`): the interior the player wakes in,
   built once at boot into the static set from `CABIN_ROOM` in `lake.ts` (walls
   inset from the cabin's, facing in, a floor, a bed, the window's frame, the

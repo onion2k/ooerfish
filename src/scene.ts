@@ -41,7 +41,7 @@ import {
 import { place } from './matrix';
 import { ball, box, sheet, splitBySlope } from './meshes';
 import type { Mesh } from 'artshape-render/mesh/types';
-import { PALETTE, mix, type Colour } from './palette';
+import { PALETTE, mix, type Colour, type Palette } from './palette';
 import { boulderMeshes, cliffLumpMeshes } from './rocks';
 import { seeded } from './random';
 import { surface } from './water/surface';
@@ -301,6 +301,14 @@ export function cliffLumps(): CliffLump[] {
   return out;
 }
 
+/** The key a palette colour is under, by the colour itself, so a group built in `PALETTE` can be recoloured by name. */
+const PALETTE_KEYS = new Map<Colour, keyof Palette>(
+  (Object.keys(PALETTE) as (keyof Palette)[]).map((k) => [PALETTE[k], k]),
+);
+
+/** Stands for no kit as a key of the memo. */
+const NO_KIT = {};
+
 export class Scene {
   /**
    * Everything the one seeded stream draws, in the order it always has: the stones, trees, bed rocks and weed (the
@@ -487,8 +495,27 @@ export class Scene {
     return out;
   }
 
-  /** What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. */
-  static(kit?: Kit): GameGroup[] {
+  /**
+   * What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. The colours are the
+   * palette handed in, the season's (`seasonPalette`): only the albedo of a group differs between seasons, never a mesh.
+   */
+  static(kit?: Kit, palette: Palette = PALETTE): GameGroup[] {
+    // the shapes (the sheets, the slope's cut, the rocks, the trees) depend on no colour, so they are built once for a
+    // kit and a season only swaps the albedo of the groups that wear a palette colour: a rebuild at the wake is cheap
+    const key = kit ?? NO_KIT;
+    let base = this.built.get(key);
+    if (!base) this.built.set(key, (base = this.build(kit)));
+    return base.map((g) => {
+      const named = PALETTE_KEYS.get(g.albedo as Colour);
+      return named && palette[named] !== g.albedo ? { ...g, albedo: palette[named] } : { ...g };
+    });
+  }
+
+  /** The static groups of a kit, in `PALETTE`'s colours, made once per kit by `static`. */
+  private readonly built = new WeakMap<object, GameGroup[]>();
+
+  private build(kit?: Kit): GameGroup[] {
+    const palette = PALETTE;
     const { stones, trunks, puffs, rocks, blades } = this.layout();
     // the bed and the banks, one height in sheets of their own colours, meeting under the water at the shore: the bed's
     // bands from the slate of the deep to the sand of the shallows, and the banks; the sheets are the ground without
@@ -503,25 +530,25 @@ export class Scene {
       ...boulderMeshes().map(({ mesh, matrix }) => ({
         mesh,
         matrices: matrix,
-        albedo: PALETTE.boulder,
+        albedo: palette.boulder,
         roughness: 0.8,
       })),
-      { mesh: ball(1, 3, 6), matrices: rocks, albedo: PALETTE.bedRock, roughness: 0.85 },
-      { mesh: box(1, 1, 1), matrices: blades, albedo: PALETTE.weed, roughness: 0.8 },
-      { mesh: gentle, matrices: one, albedo: PALETTE.grass, roughness: 0.9 },
-      { mesh: steep, matrices: one, albedo: PALETTE.cliff, roughness: 0.92 },
+      { mesh: ball(1, 3, 6), matrices: rocks, albedo: palette.bedRock, roughness: 0.85 },
+      { mesh: box(1, 1, 1), matrices: blades, albedo: palette.weed, roughness: 0.8 },
+      { mesh: gentle, matrices: one, albedo: palette.grass, roughness: 0.9 },
+      { mesh: steep, matrices: one, albedo: palette.cliff, roughness: 0.92 },
       ...cliffLumpMeshes(cliffLumps()).map(({ mesh, matrix }) => ({
         mesh,
         matrices: matrix,
-        albedo: PALETTE.cliff,
+        albedo: palette.cliff,
         roughness: 0.92,
       })),
     ];
     if (!kit) {
       groups.push(
-        { mesh: ball(1, 4, 7), matrices: stones, albedo: PALETTE.stone, roughness: 0.8 },
-        { mesh: box(0.7, 0.7, 1), matrices: trunks, albedo: PALETTE.trunk, roughness: 0.9 },
-        { mesh: ball(3.2, 5, 9), matrices: puffs, albedo: PALETTE.leaves, roughness: 0.85 },
+        { mesh: ball(1, 4, 7), matrices: stones, albedo: palette.stone, roughness: 0.8 },
+        { mesh: box(0.7, 0.7, 1), matrices: trunks, albedo: palette.trunk, roughness: 0.9 },
+        { mesh: ball(3.2, 5, 9), matrices: puffs, albedo: palette.leaves, roughness: 0.85 },
       );
       return groups;
     }
@@ -540,7 +567,7 @@ export class Scene {
         groups.push({
           mesh: part.mesh,
           matrices,
-          albedo: PALETTE[ROLE_COLOUR[part.role]],
+          albedo: palette[ROLE_COLOUR[part.role]],
           roughness: ROUGHNESS[part.role],
           ...(part.layer > 0 ? { card: { layer: part.layer } } : {}),
         });
@@ -558,7 +585,7 @@ export class Scene {
           groups.push({
             mesh: part.mesh,
             matrices,
-            albedo: PALETTE[TREE_COLOUR[tree][part.name]],
+            albedo: palette[TREE_COLOUR[tree][part.name]],
             roughness: TREE_ROUGHNESS[tree][part.name],
           });
       });

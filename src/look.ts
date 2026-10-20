@@ -12,6 +12,7 @@ import { PAINT_DEFAULT, type PaintSet } from 'artshape-render/game/paint';
 import type { GameRenderer } from 'artshape-render/game/renderer';
 import type { Gpu } from 'artshape-render/gpu/context';
 import { bakeEnvironment, type EnvImage, type Environment } from 'artshape-render/render/env';
+import { SEASON_DRESSING, type Season } from './lake';
 import { PALETTE, mix, type Colour } from './palette';
 
 /**
@@ -146,18 +147,44 @@ export const TIMES: readonly TimeOfDay[] = [
   },
 ];
 
-/** The time of that name; one not known is refused, and the day is given in its place. */
-export function timeNamed(name: string): TimeOfDay {
-  return TIMES.find((t) => t.name === name) ?? TIMES[2];
+const made = new Map<Season, readonly TimeOfDay[]>();
+
+/**
+ * The four times of a season: `TIMES` with each look's zenith, horizon and sun colour mixed toward the season's tint
+ * and its fill scaled, nothing else moved, so the stepping is the same in every season. Summer's mix is nought and its
+ * ambient one, so it is `TIMES` itself. Memoised: a season is made once, and the same list is the same objects.
+ */
+export function timesFor(season: Season): readonly TimeOfDay[] {
+  let list = made.get(season);
+  if (!list) {
+    const { sky, ambient } = SEASON_DRESSING[season];
+    list =
+      sky.mix === 0 && ambient === 1
+        ? TIMES
+        : TIMES.map((t) => ({
+            ...t,
+            zenith: mix(t.zenith, sky.tint, sky.mix),
+            horizon: mix(t.horizon, sky.tint, sky.mix),
+            sunColour: mix(t.sunColour, sky.tint, sky.mix * 0.5),
+            ambient: t.ambient * ambient,
+          }));
+    made.set(season, list);
+  }
+  return list;
 }
 
-/** The time of day nearest a point in the day, round the clock. */
-export function nearestTime(at: number): TimeOfDay {
+/** The time of that name in a list of times (summer's by default); one not known is refused, and the day is given in its place. */
+export function timeNamed(name: string, times: readonly TimeOfDay[] = TIMES): TimeOfDay {
+  return times.find((t) => t.name === name) ?? times[2];
+}
+
+/** The time of day nearest a point in the day, round the clock, in a list of times (summer's by default). */
+export function nearestTime(at: number, times: readonly TimeOfDay[] = TIMES): TimeOfDay {
   const gap = (t: TimeOfDay) => {
     const d = Math.abs(at - t.at) % 1;
     return Math.min(d, 1 - d);
   };
-  return TIMES.reduce((best, t) => (gap(t) < gap(best) ? t : best));
+  return times.reduce((best, t) => (gap(t) < gap(best) ? t : best));
 }
 
 /** How many rows the sky the water mirrors is made of: it is a soft gradient, and needs few. */
@@ -199,7 +226,7 @@ export function skyImage(time: TimeOfDay): EnvImage {
   return { width, height, data, scale: 1 };
 }
 
-/** The environments baked so far, one a time of day: four at the most, made the first time each is drawn. */
+/** The environments baked so far, one a season and time of day (`summer:dawn`): four to a season, made the first time each is drawn. */
 const baked = new Map<string, Environment>();
 
 /**
@@ -226,24 +253,26 @@ export function lookFor(time: TimeOfDay, paint: 'on' | 'off' = 'on') {
 }
 
 /** The environment of a time of day, baked the first time it is asked for (8 to 12 ms) and kept. */
-function environment(ctx: Gpu, time: TimeOfDay): Environment {
-  let env = baked.get(time.name);
+function environment(ctx: Gpu, time: TimeOfDay, season: Season): Environment {
+  const key = `${season}:${time.name}`;
+  let env = baked.get(key);
   if (!env) {
     env = bakeEnvironment(ctx, 'daylight', { size: 128, mips: 6, image: skyImage(time) });
-    baked.set(time.name, env);
+    baked.set(key, env);
   }
   return env;
 }
 
 /**
- * Every time of day's environment baked now, so that the light stepping in play is a uniform write and no hitch:
- * the page does it once, right after its first frame is up and not before, to keep it off the boot figure.
+ * Every time of day's environment baked now, in a season, so that the light stepping in play is a uniform write and no
+ * hitch: the page does it for the first season right after its first frame is up and not before, to keep it off the
+ * boot figure, and for a new season at its wake, in the cabin.
  */
-export function bakeLooks(ctx: Gpu): void {
-  for (const t of TIMES) environment(ctx, t);
+export function bakeLooks(ctx: Gpu, season: Season = 'summer'): void {
+  for (const t of timesFor(season)) environment(ctx, t, season);
 }
 
-/** How many times of day have their environment baked: nought before the first look, and four once they all are. */
+/** How many looks have their environment baked: nought before the first look, four once a season's all are, and four more for each season after. */
 export function looksBaked(): number {
   return baked.size;
 }
@@ -257,10 +286,11 @@ export async function light(
   ctx: Gpu,
   time: TimeOfDay,
   paint: 'on' | 'off' = 'on',
+  season: Season = 'summer',
 ): Promise<void> {
   renderer.look = { ...renderer.look, ...lookFor(time, paint) };
   renderer.post = { ...renderer.post, vignette: 0, grain: 0, tone: 'soft' };
-  const env = environment(ctx, time);
+  const env = environment(ctx, time, season);
   renderer.setEnvironment(env.specular, env.brdf, env.mips);
   await renderer.prepare();
 }

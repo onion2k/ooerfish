@@ -16,6 +16,8 @@ import { cabinGroups, jettyGroups } from './cabin';
 import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
 import { FALLS, fallGroups, fallMists, mistDue } from './falls';
+import type { Emit } from 'artshape-render/game/particles';
+import { fallingDue, fallingEmits } from './falling';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { Gesture, type GestureEvent, type PointerGesture } from './gesture';
@@ -33,8 +35,13 @@ import {
   DRUMS,
   HEAL,
   KINDS,
+  PARTICLE_POOL,
   PHONE,
+  SHORE_RADIUS,
   SPLASH_CAPACITY,
+  type Season,
+  SEASON_DRESSING,
+  WATER_LEVEL,
   SWIM,
   TREASURES,
   VIEWS,
@@ -42,11 +49,13 @@ import {
   framingFor,
   type ViewName,
 } from './lake';
-import { TIMES, bakeLooks, light, looksBaked, nearestTime, paintFor, type TimeOfDay } from './look';
+import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { waterPoint } from './pick';
 import { ROOM_COLOURS } from './palette';
+import { seasonOf } from './calendar';
+import { mistFor, seasonGrass, seasonPalette } from './season';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
@@ -71,8 +80,8 @@ const MM_PER_UNIT = 100;
 const LIGHT_CAPACITY = 16,
   // nothing is drawn as an effect layer: the fish glow under the water as meshes
   EFFECT_CAPACITY = 0,
-  // twelve splashes live at once, a hundred droplets each, with room to spare
-  PARTICLE_CAPACITY = 2048;
+  // the falls' mist, twelve splashes and a season's falling things at once, with room to spare (`PARTICLE_POOL`)
+  PARTICLE_CAPACITY = PARTICLE_POOL;
 /** How long what a strike did is said for, in seconds of game time. */
 const HEARD_FOR = 2;
 /** How many of the game's events the test API keeps, before the oldest go. */
@@ -202,29 +211,66 @@ async function main() {
   let rung: Rung = asked === 'auto' ? 'full' : asked;
   // worked out once, from the placements the groups are made from, and read back by the test API
   const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
-  // the grass field is made once and handed over each time the full rung is drawn: nothing in it grows
-  let field: ReturnType<typeof bankField> | null = null;
-  /** The page put on a rung: the grass grown or let go. */
+  // the grass field is made once, and handed over each time the full rung is drawn or a season's blades are: nothing in
+  // it grows, so only the kind it carries changes between seasons
+  const baseField = bankField();
+  let field: ReturnType<typeof bankField> = baseField;
+  /** The page put on a rung: the grass grown or let go, and the mist's fog allowed or not. */
   async function setRung(to: Rung) {
     rung = to;
-    field ??= bankField();
+    // the mist is the full rung's: the lean one has no fog whatever the season says (`docs/seasons.md`, part 5)
+    renderer.economy = { ...renderer.economy, fog: to === 'full' };
     await renderer.setGrass(to === 'full' ? field : null, GRASS_OPTIONS);
   }
   // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on;
   // the cabin, the room inside it and the jetty are built once and stand still; the room is wholly inside the cabin's
   // solid walls, so it is drawn and never seen until the camera is put in it
   const mists = fallMists();
-  renderer.setStatic([
-    ...scene.static(scenery.kit),
-    ...fallGroups(),
-    ...cabinGroups(),
-    ...roomGroups(ROOM_COLOURS),
-    ...jettyGroups(),
-  ]);
-  await setRung(rung);
-  // a slow breeze: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
-  // grass has no second clock of its own
-  renderer.wind = BREEZE;
+  /** The falling things of the dressed season (empty in summer), made in `dress` once a season, and how many have been emitted. */
+  let fallers: Emit[] = [];
+  let fallEvery = 1;
+  let fell = 0;
+  /** The season last dressed (null before the first), how many static sets were handed over, and what the last cost. */
+  let dressed: Season | null = null;
+  let dressing: Season | null = null;
+  let statics = 0;
+  let dressMs = 0;
+  /**
+   * The lake dressed for a season (`docs/seasons.md`, part 2): the static set built again with the season's palette
+   * (the meshes are memoised and only the albedo differs) and the grass handed over with the season's blades, once, at
+   * boot and at a wake into a new season, where nothing moves. The lean rung still has no grass.
+   */
+  async function dress(season: Season) {
+    const began = performance.now();
+    dressing = season;
+    const palette = seasonPalette(season);
+    renderer.setStatic([
+      ...scene.static(scenery.kit, palette),
+      ...fallGroups(),
+      ...cabinGroups(palette),
+      ...roomGroups(ROOM_COLOURS),
+      ...jettyGroups(palette),
+    ]);
+    field = { ...baseField, kinds: [seasonGrass(season)] };
+    await setRung(rung);
+    // the wind is the season's, written here and nowhere else, so the lean rung's still air is the economy's and not ours
+    renderer.wind = { ...BREEZE, strength: SEASON_DRESSING[season].breeze };
+    // the falling things of the season, made once here, and the particles' wind that carries them (still in summer)
+    const falling = SEASON_DRESSING[season].falling;
+    fallers = fallingEmits(season, { radius: SHORE_RADIUS, level: WATER_LEVEL });
+    fallEvery = falling?.every ?? 1;
+    renderer.setWind(falling?.drift ?? [0, 0, 0]);
+    dressed = season;
+    statics++;
+    dressMs = performance.now() - began;
+  }
+  await dress(seasonOf(game.day));
+  // the breeze is slow: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
+  // grass has no second clock of its own; `dress` sets its strength by the season
+  /** The season the sky, the water and the swells are drawn in: the one being dressed, which is the day's from the moment of the wake. */
+  const seasonNow = (): Season => dressing ?? 'summer';
+  /** How long the last bake of a season's four looks took, in milliseconds. */
+  let bakeMs = 0;
   // the pool of lights holds the cabin's lamp only, written once; it is counted live while the player is in the cabin
   // and not at the pond, so a frame outside pays nothing for it
   const lights = new LightPool(LIGHT_CAPACITY);
@@ -318,7 +364,7 @@ async function main() {
   /** Whether a drag turns the camera: in look mode at the pond, and never in the room, where the bed's pillow is the one place to look from, nor while the screen fades. */
   const orbitOn = () => orbits(mode) && viewName !== 'cabin' && game.place === 'pond';
   /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
-  let time: TimeOfDay = nearestTime(game.timeOfDay);
+  let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow()));
   let viewName: ViewName = 'shore';
   /** Whether the screen was taller than wide when the camera was last put at a view. */
   let tall = false;
@@ -346,7 +392,7 @@ async function main() {
   }
   /** The water's finish and the rocks' paint, at the contamination, the time and the settings as they stand: uniforms, so written on any change and nothing recompiles. */
   function finish() {
-    const water = style.clear(waterShown(), settings.caustics === 'on', time);
+    const water = style.clear(waterShown(), settings.caustics === 'on', time, seasonNow());
     rippleLife = water.ringLife ?? 0;
     renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
   }
@@ -368,12 +414,22 @@ async function main() {
       hauledDrawn = hauled;
       foundDrawn = found;
       if (dayDrawn !== game.day) calendarHandovers++;
+      // a new season is dressed at the wake, in the cabin, where nothing moves; a wake inside a season hands nothing over
+      // and its four looks are baked for it, about 35 ms, with the page lit as the same time of day in the new season
+      const next = seasonOf(game.day);
+      if (next !== dressing)
+        void dress(next).then(() => {
+          const began = performance.now();
+          bakeLooks(ctx, next);
+          bakeMs = performance.now() - began;
+          return showLight(timesFor(next).find((t) => t.name === time.name) ?? time);
+        });
       dayDrawn = game.day;
       handovers++;
       const water = style.groups(dirt);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
-      casting.surface = surfaceOf(style.waves, MM_PER_UNIT, WATER_PACE);
+      casting.surface = surfaceOf(style.wavesIn?.(seasonNow()) ?? style.waves, MM_PER_UNIT, WATER_PACE);
       // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
       renderer.setDynamic([
         ...water,
@@ -416,7 +472,7 @@ async function main() {
   }
   /** The light of the time of that name, which the game's clock is put at; one not known is refused. */
   async function setTime(name: string) {
-    const to = TIMES.find((t) => t.name === name);
+    const to = timesFor(seasonNow()).find((t) => t.name === name);
     if (!to) return;
     game.setTimeOfDay(to.at);
     await showLight(to);
@@ -427,7 +483,8 @@ async function main() {
    */
   async function showLight(to: TimeOfDay) {
     time = to;
-    const lit = light(renderer, ctx, to, settings.paint);
+    const lit = light(renderer, ctx, to, settings.paint, seasonNow());
+    renderer.fog = mistFor(seasonNow(), to.name, MM_PER_UNIT);
     finish();
     await lit;
     await renderer.prepare();
@@ -964,13 +1021,21 @@ async function main() {
     gestures.sync();
     // the day's clock has run on: when it has come to the next look, the page is lit as that, once, so a frame in
     // play compares a name and nothing more; the environments are all baked, so this is a uniform write
-    const want = nearestTime(game.timeOfDay);
+    const want = nearestTime(game.timeOfDay, timesFor(seasonNow()));
     if (want !== time) void showLight(want);
     // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
     // costs a comparison and nothing else
     if (watered !== waterShown() || dayDrawn !== game.day) void showWater();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
+    // the season's falling things, on the same count, only while the game steps at the pond: a pond left for the cabin
+    // or the yawn has nothing falling in the lake that is not seen
+    if (game.place === 'pond')
+      for (let i = 0; i < fallers.length; i++)
+        if (fallingDue(frames, fallEvery, i)) {
+          renderer.emit(fallers[i]);
+          fell++;
+        }
   }
   function draw(dt: number) {
     // a drag turns the camera only at the pond: the yawn and the cabin switch it off, and the way back switches it on
@@ -1058,6 +1123,14 @@ async function main() {
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
     calendar: () => ({ ...calendarDraw.shown(), handovers: calendarHandovers }),
+    season: () => ({
+      dressed,
+      statics,
+      falling: fell,
+      mist: renderer.fog.density > 0 && renderer.economy.fog !== false,
+      dressMs,
+      bakeMs,
+    }),
     time: () => time.name,
     view: () => viewName,
     mode: () => mode,
@@ -1095,5 +1168,5 @@ async function main() {
   document.addEventListener('visibilitychange', keep);
   window.addEventListener('pagehide', keep);
   // the four looks are baked now that the page is up, about thirty milliseconds that are not the boot's
-  bakeLooks(ctx);
+  bakeLooks(ctx, seasonNow());
 }

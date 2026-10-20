@@ -824,3 +824,79 @@ test.describe('the journal with every treasure found', () => {
     });
   });
 });
+
+/**
+ * The seasons' colours (`docs/seasons.md`, part 2): the standard scene from the shore by day, on a day in each of the
+ * three seasons that are not summer's, whose pictures are all the others, with the season's fall in the air. A pond half cured, as the standard scene is.
+ */
+test.describe('the seasons', () => {
+  for (const [name, day] of [
+    ['autumn', 15],
+    ['winter', 29],
+    ['spring', 43],
+  ] as const)
+    test(`season-${name}-day`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 6, day } });
+      // ten seconds on, so the fall has reached the air above the water: the drops take eight to ten to come down
+      await set(page, STANDARD, 600);
+      await hideOverlays(page);
+      expect((await page.evaluate(() => window.game!.season())).dressed).toBe(name);
+      await expect(page.locator('#view')).toHaveScreenshot(`season-${name}-day.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  for (const [name, day, time] of [
+    ['season-autumn-dawn-mist', 15, 'dawn'],
+    ['season-winter-night-mist', 29, 'night'],
+  ] as const)
+    test(name, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 6, day } });
+      await set(page, { ...STANDARD, time }, 600);
+      await hideOverlays(page);
+      expect((await page.evaluate(() => window.game!.season())).mist).toBe(true);
+      await expect(page.locator('#view')).toHaveScreenshot(`${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+});
+
+/**
+ * The rest of the seasons' pictures (`docs/seasons.md`, part 6): the cabin's calendar on day 29, winter's row holding
+ * today's mark with the four season bands down its left edge; winter's shore by day at a phone's width; and winter's
+ * shore on the lean rung, with no grass, no flakes and no mist but the season's colours on the banks and roof.
+ */
+test('cabin-calendar-bands', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 3, day: 29, place: 'cabin' } });
+  await set(page, { ...CABIN_DAWN, cabin: false }, 60);
+  await hideOverlays(page);
+  expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+  expect(await page.evaluate(() => window.game!.calendar())).toMatchObject({ gone: 28, today: 28 });
+  await expect(page.locator('#view')).toHaveScreenshot('cabin-calendar-bands.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test.describe('winter on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-season-winter', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6, day: 29 } });
+    await set(page, { ...STANDARD, view: 'phone' }, 600);
+    await expect(page).toHaveScreenshot('phone-season-winter.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+test('season-winter-lean', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, rung: 'lean', save: { cured: 6, day: 29 } });
+  await set(page, STANDARD, 600);
+  await hideOverlays(page);
+  const season = await page.evaluate(() => window.game!.season());
+  expect(season.dressed).toBe('winter');
+  expect(season.mist).toBe(false);
+  expect(await page.evaluate(() => window.game!.rung())).toBe('lean');
+  await expect(page.locator('#view')).toHaveScreenshot('season-winter-lean.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});

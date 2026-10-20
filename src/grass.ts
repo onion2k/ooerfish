@@ -58,7 +58,7 @@ const ANGLER_CLEAR = 4;
  * a gap from the waterline, and not at the angler's feet, on the cliff's face, under the cabin or on the jetty's shore end; beyond the grid the same grass carries on at the top of
  * the banks to the horizon. The heights are the ground without the boulders, which the banks' sheet is drawn from.
  */
-export function bankField(): GrassField {
+export function bankField(kind: GrassKind = LUSH): GrassField {
   const halfW = (SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH;
   const halfH = SHORE_RADIUS * 1.5 + BANK_RISE;
   const cols = Math.ceil((2 * halfW) / CELL);
@@ -86,7 +86,7 @@ export function bankField(): GrassField {
     rows,
     mask,
     heights,
-    kinds: [LUSH],
+    kinds: [kind],
     outside: { kind: 0, height: BANK_TOP },
     seed: GRASS_SEED,
   };

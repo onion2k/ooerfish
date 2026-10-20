@@ -1,7 +1,7 @@
 /** The wall calendar's arithmetic: a day of play to the squares gone and today's. */
 import { describe, expect, it } from 'vitest';
-import { calendarMarks } from '../src/calendar';
-import { CALENDAR } from '../src/lake';
+import { calendarMarks, seasonOf } from '../src/calendar';
+import { CALENDAR, SEASONS } from '../src/lake';
 
 describe('the calendar’s marks', () => {
   it('has four seasons of fourteen squares', () => {
@@ -40,5 +40,29 @@ describe('the calendar’s marks', () => {
       expect(today).toBeLessThan(CALENDAR.days);
       expect(gone).toBeLessThanOrEqual(CALENDAR.days - 1);
     }
+  });
+});
+
+describe('the season of a day', () => {
+  it('has as many days in the seasons as the calendar has squares', () => {
+    expect(CALENDAR.seasonDays * SEASONS.length).toBe(CALENDAR.days);
+    expect(CALENDAR.seasonDays).toBe(CALENDAR.columns);
+    expect(SEASONS).toEqual(['summer', 'autumn', 'winter', 'spring']);
+  });
+
+  it('gives each season its fortnight, summer first', () => {
+    expect([1, 14].map(seasonOf)).toEqual(['summer', 'summer']);
+    expect([15, 28].map(seasonOf)).toEqual(['autumn', 'autumn']);
+    expect([29, 42].map(seasonOf)).toEqual(['winter', 'winter']);
+    expect([43, 56].map(seasonOf)).toEqual(['spring', 'spring']);
+  });
+
+  it('comes round to summer on day 57', () => {
+    expect(seasonOf(57)).toBe('summer');
+    expect(seasonOf(71)).toBe('autumn');
+  });
+
+  it('reads a bad day as day one, as the squares do', () => {
+    for (const bad of [0, -3, 1.5, NaN, Infinity]) expect(seasonOf(bad)).toBe('summer');
   });
 });

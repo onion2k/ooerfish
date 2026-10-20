@@ -4,7 +4,7 @@
  * gone. A day that is not a safe whole number of one or more reads as day one, as the save reads it, so the squares are
  * always a whole count and today is always one of them.
  */
-import { CALENDAR } from './lake';
+import { CALENDAR, SEASONS, type Season } from './lake';
 
 /** How many squares are gone (the first ones, so squares 0 to `gone - 1`) and which one is today. */
 export interface CalendarMarks {
@@ -16,4 +16,10 @@ export function calendarMarks(day: number): CalendarMarks {
   const d = Number.isSafeInteger(day) && day >= 1 ? day : 1;
   const today = (d - 1) % CALENDAR.days;
   return { gone: today, today };
+}
+
+/** The season a day of play falls in, a row of the calendar's year; a bad day reads as day one, as the squares do. */
+export function seasonOf(day: number): Season {
+  const d = Number.isSafeInteger(day) && day >= 1 ? day : 1;
+  return SEASONS[Math.floor(((d - 1) % CALENDAR.days) / CALENDAR.seasonDays)];
 }

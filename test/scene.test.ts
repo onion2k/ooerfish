@@ -32,6 +32,7 @@ import {
   shoreRadius,
 } from '../src/lake';
 import { PALETTE } from '../src/palette';
+import { seasonPalette } from '../src/season';
 import { SCENERY_ROLES, ROLE_COLOUR, readKit, readManifest, type Kit } from '../src/scenery';
 import {
   DRESSING_SEED,
@@ -769,5 +770,29 @@ describe('the cabin and the jetty in the scene', () => {
 
   it('keep the deck’s shore end bare of the old stones too, which the kit’s pebbles stand in for', () => {
     for (const p of of('pebble')) expect(jettyGap(p.x, p.y), label(p)).toBeGreaterThanOrEqual(CABIN.clear);
+  });
+});
+
+describe('a scene dressed for a season', () => {
+  const scene = new Scene();
+  const summer = scene.static(kit);
+  const autumn = scene.static(kit, seasonPalette('autumn'));
+
+  it('is the same groups with the same meshes and matrices, and only the albedo moved', () => {
+    expect(autumn).toHaveLength(summer.length);
+    let moved = 0;
+    autumn.forEach((g, i) => {
+      expect(g.mesh, `the mesh of group ${i} is the same object`).toBe(summer[i].mesh);
+      expect(g.matrices).toBe(summer[i].matrices);
+      expect(g.matrices).toEqual(summer[i].matrices);
+      if (g.albedo !== summer[i].albedo) moved++;
+    });
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it('wears the season’s ground, leaves and crowns', () => {
+    const p = seasonPalette('autumn');
+    const albedos = autumn.map((g) => g.albedo);
+    for (const k of ['grass', 'leaves', 'crown'] as const) expect(albedos).toContainEqual(p[k]);
   });
 });

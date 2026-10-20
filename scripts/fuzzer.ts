@@ -18,6 +18,7 @@ import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
+import { seasonOf } from '../src/calendar';
 import { CLOCK, DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS, TREASURES } from '../src/lake';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
@@ -165,6 +166,10 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       return { timeAtStart: time, placeAtStart: pick() < 0.2 ? ('cabin' as const) : ('pond' as const) };
     })();
     done['start in the cabin'] = placeAtStart === 'cabin' ? 1 : 0;
+    // the day a returning player is on, across a year and a fortnight over so every season is played and the year comes
+    // round, from a stream of its own drawn after the others so none of theirs moves
+    const dayAtStart = 1 + Math.floor(seeded(seed * 29 + 7)() * 70);
+    done[`start in ${seasonOf(dayAtStart)}`] = 1;
     let store = memoryStore(
       JSON.stringify({
         cured: curedAtStart,
@@ -173,6 +178,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         found: foundAtStart,
         time: timeAtStart,
         place: placeAtStart,
+        day: dayAtStart,
       }),
     );
     let game = new Game(new Progress(store), { random: seeded(seed), events });
