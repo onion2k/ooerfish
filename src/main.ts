@@ -52,7 +52,7 @@ import {
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
-import { waterPoint } from './pick';
+import { cabinHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
 import { moonOf, seasonOf } from './calendar';
 import { mistFor, seasonGrass, seasonPalette } from './season';
@@ -634,6 +634,13 @@ async function main() {
   };
   /** Whether the player is at the pond, where the game runs and the rod is theirs. */
   const atPond = () => game.place === 'pond';
+  /** Whether the tap at the page's point (`x`, `y`) falls on the cabin from the shore: the ray through it, to the cabin's box. */
+  const tappedCabin = (x: number, y: number): boolean => {
+    cam.update();
+    if (!invertInto(tapInverse, cam.viewProjection)) return false;
+    const box = canvas.getBoundingClientRect();
+    return cabinHit(((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2, tapInverse, lake);
+  };
   /**
    * Whether a page holds the game still: the menu's list, the journal, the lakes page, the Start again question or the pairing card.
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
@@ -677,6 +684,11 @@ async function main() {
           return;
         }
         if (!atPond()) return;
+        // in look mode a tap on the cabin walks in, and drops no pebble; cast mode's tap is a strike, never here
+        if (mode === 'look' && tappedCabin(x, y)) {
+          void enterCabin();
+          return;
+        }
         cam.update();
         if (!invertInto(tapInverse, cam.viewProjection)) return;
         const box = canvas.getBoundingClientRect();
@@ -769,12 +781,26 @@ async function main() {
     return true;
   }
   byId('downButton').addEventListener('click', () => void goOut());
+  // Go to the cabin, by day: at home the player walks in with the clock held and the camera at the pillow; anywhere
+  // else it is the journey home, landing in the cabin (the game refuses it mid-fight, and the item is greyed then)
+  async function enterCabin(): Promise<boolean> {
+    if (lake.id !== HOME.id) return travelTo(HOME.id, 'cabin');
+    if (!game.enter()) return false;
+    showMode('look');
+    letGoOfReel();
+    await setView('cabin', true);
+    return true;
+  }
+  byId('cabinButton').addEventListener('click', () => {
+    showMenu(false);
+    void enterCabin();
+  });
   // Travel is a reload: the game refuses it mid-fight or for a lake it does not know, reels the lure in, writes the save
   // naming the lake and fades the screen out, and the page is loaded afresh at the end of the fade (`left`). To the lake
   // the player is at it goes out from the cabin, as the button does, and is nothing at the pond.
-  async function travelTo(id: string): Promise<boolean> {
-    if (id === lake.id && game.place === 'cabin') return goOut();
-    if (!game.travel(id)) return false;
+  async function travelTo(id: string, into: 'pond' | 'cabin' = 'pond'): Promise<boolean> {
+    if (id === lake.id && game.place === 'cabin' && into === 'pond') return goOut();
+    if (!game.travel(id, into)) return false;
     if (game.place === 'leaving') {
       showMode('look');
       aim = null;
@@ -1128,8 +1154,10 @@ async function main() {
       elsewhere: byId('elsewhereButton'),
       bed: byId<HTMLButtonElement>('bedButton'),
       sleep: byId<HTMLButtonElement>('sleepButton'),
+      cabin: byId<HTMLButtonElement>('cabinButton'),
     },
     () => game,
+    () => nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day))).name,
   );
   const hud = byId('hud');
   /** Whether the Cast button and its hint are hidden, which they are away from the pond. */
@@ -1359,6 +1387,12 @@ async function main() {
     setTime,
     setView: (name) => setView(name),
     out: () => goOut(),
+    enter: () => enterCabin(),
+    cabinOnScreen: () => {
+      if (!lake.cabin) return null;
+      const { at, floor, spec } = lake.cabin;
+      return toScreen(at.x, at.y, floor + spec.body.high / 2);
+    },
     travel: (id) => travelTo(id),
     looksBaked,
     drawnDirt: () => watered,

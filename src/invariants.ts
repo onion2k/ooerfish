@@ -19,7 +19,7 @@
  */
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
-import { CLOCK, FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON } from './lake';
+import { FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON } from './lake';
 import { poseFish } from './swim';
 
 /**
@@ -316,7 +316,7 @@ function lakesRules(game: Game, out: string[]) {
  * The day's end: the day a whole number from one, never back and the save's; the place one of four; the fade within
  * nought and one; and away from the pond, in the cabin, yawning and leaving, the lake held still (the time, the clock and every
  * fish where they were when the rules were last asked in the same place), the lure ready, no fish hooked or landed, and
- * in the cabin the clock at dawn.
+ * (the clock held wherever the player walked in).
  */
 function nightRules(
   game: Game,
@@ -343,8 +343,6 @@ function nightRules(
   if (game.lure.phase !== 'ready') out.push(`the lure is ${game.lure.phase}, with the player ${place}`);
   if (game.bite.phase === 'hooked' || game.bite.phase === 'landed')
     out.push(`a fish is ${game.bite.phase}, with the player ${place}`);
-  if (place === 'cabin' && game.timeOfDay !== CLOCK.startsAt)
-    out.push(`the clock is at ${game.timeOfDay} in the cabin, not at dawn`);
   // the lake holds still from one asking to the next while the player stays away from it
   if (was && was.place === place) {
     if (game.t !== was.t) out.push(`the time moved from ${was.t} to ${game.t}, with the player ${place}`);

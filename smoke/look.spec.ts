@@ -66,6 +66,21 @@ test.describe('what it looks like', () => {
     expect(problems).toEqual([]);
   });
 
+  // the room entered by day (`docs/cabin-by-day.md`): the standard scene's afternoon, then the walk in with the clock held,
+  // seen from the pillow with the fade stepped past; the daylight the window lets in and the lamp lit
+  test('cabin-afternoon', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, STANDARD, 60);
+    expect(await page.evaluate(() => window.game!.enter())).toBe(true);
+    await page.evaluate(() => window.game!.step(120));
+    await hideOverlays(page);
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.time())).toBe('day');
+    await expect(page.locator('#view')).toHaveScreenshot('cabin-afternoon.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // half the pond cured, by night: six gold fish among six green, the gold's own faint warm glow all that shows them
   // in the dark, as the user chose it (`docs/cured.md`); the water as clean as six cures make it
   test('half cured, by night', async ({ page }) => {

@@ -1012,10 +1012,10 @@ describe('the time and the place are saved', () => {
     expect(store.json, 'a load never writes').toBe('{"cured": 2, "day": 3, "time": 0.6, "place": "pond"}');
   });
 
-  it('opens in the cabin at dawn on the saved day, whatever time the save says', () => {
+  it('opens in the cabin at the saved time on the saved day', () => {
     const { game, store } = newGame(1, '{"cured": 3, "day": 5, "time": 0.6, "place": "cabin"}');
     expect(game.place).toBe('cabin');
-    expect(game.timeOfDay).toBe(CLOCK.startsAt);
+    expect(game.timeOfDay).toBe(0.6);
     expect(game.day).toBe(5);
     expect(checkInvariants(game)).toEqual([]);
     expect(store.json).toBe('{"cured": 3, "day": 5, "time": 0.6, "place": "cabin"}');

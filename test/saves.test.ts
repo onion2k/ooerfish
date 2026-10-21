@@ -73,8 +73,8 @@ const KEPT: Record<string, Record<string, unknown>> = {
   },
   // the time and the place: the clock where the player left it, at the pond
   '07-time.json': { cured: 2, day: 3, time: 0.6, place: 'pond' },
-  // a cabin save holds dawn whatever its file says, since the clock is held at dawn there
-  '08-cabin.json': { cured: 3, day: 5, time: CLOCK.startsAt, place: 'cabin' },
+  // a cabin save keeps its time, since the clock is held wherever the player walked in
+  '08-cabin.json': { cured: 3, day: 5, time: 0.6, place: 'cabin' },
   // the lakes: the flat file of before, whose fields are the home's entry (the save has none of `lake` or `lakes`)
   '09-flat-into-lakes.json': {
     lake: HOME.id,
@@ -180,9 +180,10 @@ describe('saves from every shape the game has written', () => {
       expect(placeOf(bad), bad).toBe('pond');
   });
 
-  it('reads a cabin save at dawn whatever time it says, and a pond save at the time it says', () => {
+  it('reads a cabin save at the time it says, as a pond save', () => {
     const cabin = new Progress(memoryStore('{"time": 0.6, "place": "cabin"}')).save;
-    expect(cabin).toMatchObject({ time: CLOCK.startsAt, place: 'cabin' });
+    expect(cabin).toMatchObject({ time: 0.6, place: 'cabin' });
+    expect(new Progress(memoryStore('{"place": "cabin"}')).save.time, 'none is dawn').toBe(CLOCK.startsAt);
     expect(new Progress(memoryStore('{"time": 0.6, "place": "pond"}')).save.time).toBe(0.6);
   });
 

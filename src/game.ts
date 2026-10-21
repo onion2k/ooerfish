@@ -55,6 +55,8 @@ export interface GameEvents {
   yawned?(): void;
   /** The player woke in the cabin, on this day. */
   woke?(day: number): void;
+  /** The player walked into the cabin by day, the clock held where it was. */
+  entered?(): void;
   /**
    * The screen is faded out on a journey to the lake `id`, which the save already names, at the pond, with the clock as
    * it was: the page loads afresh, told once.
@@ -169,6 +171,8 @@ export class Game {
   nights = 1;
   /** The lake being left for, while the player is `leaving`, and whether the page has been told. */
   private destination = '';
+  /** Where the player lands at the lake being left for: the pond, or the cabin at home. */
+  private arrival: 'pond' | 'cabin' = 'pond';
   private told = false;
 
   constructor(
@@ -184,9 +188,9 @@ export class Game {
     this.treasures = new BedFinds(found.treasures);
     this.lure = new Lure(lake);
     this.day = progress.save.day;
-    // a cabin save is at dawn whatever its time says, since the clock is held there
+    // the clock is held in the cabin wherever it stood, so a cabin save keeps its time
     this.place = progress.save.place;
-    this.timeOfDay = this.place === 'cabin' ? CLOCK.startsAt : progress.save.time;
+    this.timeOfDay = progress.save.time;
     const mine = progress.entry(lake.id);
     this.contamination = lake.contaminationAfter(mine.cured, mine.drums);
     this.drums.loadFirst(mine.drums);
@@ -305,21 +309,46 @@ export class Game {
   }
 
   /**
+   * The player walks into the cabin by day, from the pond: the lure is reeled in and the reel let go, as the yawn does,
+   * and the screen comes up from black over `NIGHT.fadeIn`, as a wake does, with the clock, the day, the fish, the heal
+   * and the splashes held exactly where they are. Saved as the cabin at that time, so a load lands there and `out`
+   * resumes it. Refused, and nothing changed, with a fish hooked or landed (or the yawn owed for a midnight passed
+   * mid-fight), while yawning or leaving, in the cabin already, and at a lake with no cabin.
+   */
+  enter(): boolean {
+    if (this.place !== 'pond' || this.fighting || this.midnightWaits || !this.lake.cabin) return false;
+    this.reelIn();
+    this.reeling = false;
+    this.place = 'cabin';
+    this.arriving = false;
+    this.fadeElapsed = 0;
+    this.persist();
+    this.events.entered?.();
+    return true;
+  }
+
+  /**
    * The player goes to the lake `id`: the lure is reeled in, the save is written naming that lake, at the pond, with
    * the clock as it is, and the screen starts to fade out; at the end of the fade the page is told (`left`) and loads
    * afresh at the new lake. At the lake the player is at it goes out from the cabin, as `out` does, and is nothing at
    * the pond. Refused, and nothing changed, for a lake the game does not know, with a fish hooked or landed, and while
    * yawning or already leaving.
    */
-  travel(id: string): boolean {
+  travel(id: string, into: 'pond' | 'cabin' = 'pond'): boolean {
     if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
     if (!Object.hasOwn(this.progress.lakes, id)) return false;
-    if (id === this.lake.id) return this.place === 'cabin' ? this.out() : true;
+    // the cabin is at home only: a journey into it anywhere else is refused
+    if (into === 'cabin' && id !== HOME.id) return false;
+    if (id === this.lake.id) {
+      if (into === 'cabin') return this.place === 'cabin' || this.enter();
+      return this.place === 'cabin' ? this.out() : true;
+    }
     this.reelIn();
     this.reeling = false;
     this.midnightWaits = false;
     this.progress.save.lake = id;
     this.destination = id;
+    this.arrival = into;
     this.told = false;
     // the fade goes on from wherever it is, so a journey from a screen not yet faded in never jumps
     this.fadeElapsed = this.fade() * NIGHT.fadeOut;
@@ -678,8 +707,8 @@ export class Game {
     // lands before the yawn, which comes again
     if (this.place !== 'yawning') {
       this.progress.save.time = this.timeOfDay;
-      // leaving is for the pond of the lake the save names
-      this.progress.save.place = this.place === 'leaving' ? 'pond' : this.place;
+      // leaving is for the lake the save names, at its pond or, at home, its cabin
+      this.progress.save.place = this.place === 'leaving' ? this.arrival : this.place;
     }
     this.progress.persist();
   }

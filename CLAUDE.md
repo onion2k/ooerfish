@@ -152,7 +152,15 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   clock short of midnight with the lever (`heldToDay` in `scripts/benching.ts`),
   since it times the lake, not the night; determinism plays each seed from dawn
   and from just before midnight. `game.day()`, `place()`, `fade()`, `sleep()`
-  and `out()` are the test API.
+  and `out()` are the test API. **The cabin by day** (`docs/cabin-by-day.md`): `Game.enter()` walks the player in
+  without ending the day (refused mid-fight, yawning, leaving, in the cabin, or at a lake without one): the lure
+  reeled in, the place the cabin with the fade in and the clock, the day, the fish and the heal held where they are,
+  the save written so a load lands there at that time (the cabin's clock holds at any time: the old rule that it is
+  dawn is gone; a wake still sets dawn itself), and `out()` resumes the same time. "Go to the cabin" in the ⋯ menu
+  (`enterCabin()` in `main.ts`; from a lake without a cabin a journey home into it, `travel(id, 'cabin')`) and a tap
+  on the cabin from the shore in look mode (`cabinHit`, the ray against the cabin's box; a tap on the water still
+  drops a pebble) are the ways in; the cabin's line reads Morning, Afternoon, Evening or Night by the clock's look;
+  `game.enter()` and `game.cabinOnScreen()` are the API, and the fuzzer goes in at random.
 - **The seasons** (`docs/seasons.md`): the year is `SEASONS` in `lake.ts`, summer first (so the lake as drawn on day 1
   is summer's, and no picture moved), then autumn, winter and spring, `CALENDAR.seasonDays` (14) each; `seasonOf(day)`
   in `src/calendar.ts` is pure, and the morning line names the season from autumn on. Nothing is saved: the season is

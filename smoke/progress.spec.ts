@@ -1922,3 +1922,118 @@ test.describe('the moon', () => {
     expect(problems).toEqual([]);
   });
 });
+
+/**
+ * The cabin by day (`docs/cabin-by-day.md`): a menu item and a tap on the cabin walk the player in with the clock
+ * held, and out again at the same time. Seeded and paused, the clock put at 0.6 by the save.
+ */
+test.describe('the cabin by day', () => {
+  const where = (page: Page) =>
+    page.evaluate(() => ({
+      lake: window.game!.lake().id,
+      place: window.game!.place(),
+      day: window.game!.day(),
+      fade: window.game!.fade(),
+      at: window.game!.state().timeOfDay,
+      t: window.game!.state().t,
+    }));
+  const SAVE = { day: 2, time: 0.6 } as const;
+
+  test('the menu item walks in with the clock held and the afternoon named, and out resumes it', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: SAVE });
+    await play(page, 30, 'half a second at the pond');
+    const before = await where(page);
+    expect(before.place).toBe('pond');
+    expect(before.at).toBeCloseTo(0.6 + 0.5 / 720, 4);
+    await page.locator('#menuButton').click();
+    const item = page.getByRole('menuitem', { name: 'Go to the cabin' });
+    await expect(item).toBeEnabled();
+    await item.click();
+    const entered = await where(page);
+    expect(entered).toMatchObject({ place: 'cabin', day: 2, at: before.at, t: before.t, fade: 1 });
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    await expect(page.locator('#morning')).toHaveText('Day 2. Afternoon at the cabin.');
+    await expect(page.locator('#downButton')).toBeVisible();
+    // the fade lifts and nothing else moves
+    await play(page, 120, 'two seconds in the cabin');
+    expect(await where(page)).toMatchObject({ place: 'cabin', fade: 0, at: before.at, t: before.t });
+    // the save says so
+    const saved = flat(await page.evaluate(() => window.game!.save()));
+    expect(saved).toMatchObject({ place: 'cabin', time: before.at });
+    // the item is greyed in the cabin
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to the cabin' })).toBeDisabled();
+    await page.locator('#menuButton').click();
+    // out resumes the clock from there
+    await page.locator('#downButton').click();
+    await expect.poll(() => where(page).then((w) => w.place)).toBe('pond');
+    await play(page, 60, 'a second back at the pond');
+    const after = await where(page);
+    expect(after.at).toBeGreaterThan(before.at);
+    expect(after.at).toBeCloseTo(before.at + 1 / 720, 4);
+    expect(problems).toEqual([]);
+  });
+
+  test('a tap on the cabin from the shore walks in, and a tap on the water still drops a pebble', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: SAVE });
+    expect(await page.evaluate(() => window.game!.view())).toBe('shore');
+    const water = (await page.evaluate(() => window.game!.project(4, -6, 0)))!;
+    await page.mouse.click(water.x, water.y);
+    expect(await page.evaluate(() => window.game!.splashes()), 'a pebble').toHaveLength(1);
+    expect((await where(page)).place).toBe('pond');
+    const at = (await page.evaluate(() => window.game!.cabinOnScreen()))!;
+    expect(at, 'the cabin is on the screen from the shore').not.toBeNull();
+    await page.mouse.click(at.x, at.y);
+    expect(await where(page)).toMatchObject({ place: 'cabin', fade: 1 });
+    expect(await page.evaluate(() => window.game!.splashes()), 'no pebble for the cabin').toHaveLength(1);
+    await expect(page.locator('#morning')).toContainText('Afternoon at the cabin.');
+    expect(problems).toEqual([]);
+  });
+
+  test('a tap on the cabin in cast mode does not walk in', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: SAVE });
+    await page.evaluate(() => window.game!.mode('cast'));
+    const at = (await page.evaluate(() => window.game!.cabinOnScreen()))!;
+    await page.mouse.click(at.x, at.y);
+    expect((await where(page)).place).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+
+  test('at the Reservoir the item journeys home into the cabin, at the same time', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { ...SAVE, lake: 'reservoir' } });
+    expect((await where(page)).lake).toBe('reservoir');
+    expect(await page.evaluate(() => window.game!.cabinOnScreen())).toBeNull();
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Go to the cabin' }).click();
+    expect((await where(page)).place).toBe('leaving');
+    const loaded = page.waitForEvent('load');
+    await page.evaluate(() => window.game!.step(120));
+    await loaded;
+    await ready(page);
+    const home = await where(page);
+    expect(home).toMatchObject({ lake: 'duckpond', place: 'cabin' });
+    expect(home.at).toBeCloseTo(0.6, 3);
+    await expect(page.locator('#morning')).toContainText('Afternoon at the cabin.');
+    expect(problems).toEqual([]);
+  });
+
+  test('is refused mid-fight: the item is greyed and enter() says no', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: SAVE });
+    await page.evaluate(() => {
+      const g = window.game!;
+      g.fishTo('fight');
+    });
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to the cabin' })).toBeDisabled();
+    await page.locator('#menuButton').click();
+    expect(await page.evaluate(() => window.game!.enter())).toBe(false);
+    expect((await where(page)).place).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+});

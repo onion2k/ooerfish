@@ -19,7 +19,7 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { CLOCK, GEAR, KINDS, MOON } from '../src/lake';
+import { GEAR, KINDS, MOON } from '../src/lake';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
@@ -166,7 +166,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     })();
     done['start found'] = foundAtStart.length;
     // where in the day and where in the world a returning player starts, from a stream of its own again so no other draw
-    // moves: a fifth of the seeds wake in the cabin (at dawn, whatever time they say), the rest are at the pond at any
+    // moves: a fifth of the seeds start in the cabin (at the time they say, held there), the rest are at the pond at any
     // time of day, midnight's edge included, and the cabin's start has to be left by the door as a wake is
     const { timeAtStart, placeAtStart } = (() => {
       const pick = seeded(seed * 23 + 5);
@@ -231,6 +231,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       'woke at midnight',
       'woke from bed',
       'bed refused',
+      'into the cabin',
+      'into the cabin refused',
       'slept through',
       'sleep through refused',
       'down to the pond',
@@ -456,12 +458,11 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and
-          // time by design, and the cabin is always dawn
+          // time by design
           if (game.place !== written.place)
             throw new Error(`the save said ${written.place} and the game opened in the ${game.place}`);
-          const dawnOrSaved = written.place === 'cabin' ? CLOCK.startsAt : written.time;
-          if (game.timeOfDay !== dawnOrSaved)
-            throw new Error(`the save said ${dawnOrSaved} o'clock and the game opened at ${game.timeOfDay}`);
+          if (game.timeOfDay !== written.time)
+            throw new Error(`the save said ${written.time} o'clock and the game opened at ${game.timeOfDay}`);
           const reloaded = checkInvariants(game);
           if (reloaded.length) return fail(reloaded.map((p) => `after a reload: ${p}`));
           phone = makePhone();
@@ -479,9 +480,33 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
         },
       ],
     ];
+    /**
+     * Into the cabin by day. Chosen from a stream of its own, in place of the action the main stream picked, at the
+     * weight of the bed (a half), so that no other draw of the monkey moves and the coverage the other seeds reach holds.
+     */
+    const walkIn = () => {
+      // into the cabin by day: from the pond, and now and then mid-fight, yawning or in the cabin already, where it
+      // is refused as the bed is and must change nothing at all; the clock is held there and the door lets it out
+      const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+      const was = nightState(game);
+      const clock = game.timeOfDay;
+      const from = game.place;
+      if (game.enter()) {
+        done['into the cabin']++;
+        inCabin = 0;
+        if (game.timeOfDay !== clock) throw new Error(`walking in moved the clock from ${clock} to ${game.timeOfDay}`);
+      } else {
+        done['into the cabin refused']++;
+        if (nightState(game) !== was)
+          throw new Error(`walking in, refused ${fighting ? 'mid-fight' : `from the ${from}`}, changed the game`);
+      }
+      did('into the cabin');
+    };
+    const walker = seeded(seed * 37 + 11);
     const total = actions.reduce((n, [w]) => n + w, 0);
     const act = () => {
       let pick = random() * total;
+      if (walker() < 0.5 / (total + 0.5)) return walkIn();
       for (const [w, go] of actions) {
         if ((pick -= w) < 0) return go();
       }

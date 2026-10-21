@@ -389,6 +389,14 @@ export interface GameApi {
    * yawning or leaving, or for nights that are not a whole number from one to a round of the moon (eight).
    */
   sleepThrough(nights: number): Promise<boolean>;
+  /**
+   * Walk into the cabin by day, as the menu's Go to the cabin does at home: the clock held where it is, the camera at
+   * the pillow in look mode. Resolves once the camera is ready, saying whether the player went in, which they do not
+   * with a fish hooked or landed, while yawning or leaving, in the cabin already, or at a lake with no cabin.
+   */
+  enter(): Promise<boolean>;
+  /** Where the cabin's middle is on the page, in CSS pixels, so a test can tap it; null at a lake with no cabin or behind the camera. */
+  cabinOnScreen(): { x: number; y: number } | null;
   /** Go down to the pond from the cabin, as the button does, look mode at the Shore view and the clock running; resolves once the camera is ready, saying whether the player came out. */
   out(): Promise<boolean>;
   /**
@@ -479,6 +487,9 @@ export interface DebugHost {
   setMode(to: Mode): Promise<void>;
   /** Down from the cabin to the pond, the camera at the shore. */
   out(): Promise<boolean>;
+  /** Into the cabin by day, the camera at the pillow. */
+  enter(): Promise<boolean>;
+  cabinOnScreen(): { x: number; y: number } | null;
   /** Travel to a lake: the game's journey, and the page's side of it. */
   travel(id: string): Promise<boolean>;
 }
@@ -773,6 +784,8 @@ export function createApi(host: DebugHost): GameApi {
     sleep: () => Promise.resolve(game.sleep()),
     sleepThrough: (nights) => Promise.resolve(game.sleepThrough(nights)),
     out: () => host.out(),
+    enter: () => host.enter(),
+    cabinOnScreen: () => host.cabinOnScreen(),
     travel: (id) => host.travel(id),
     arrived: () => game.arrived(),
   };

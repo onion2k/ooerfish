@@ -2,7 +2,8 @@
 import { Camera } from 'artshape-render/gpu/camera';
 import { invertInto } from 'artshape-render/geom/transform';
 import { describe, expect, it } from 'vitest';
-import { waterPoint } from '../src/pick';
+import { cabinHit, waterPoint } from '../src/pick';
+import { HOME, LAKES } from '../src/lakes';
 
 function camera(position: [number, number, number], target: [number, number, number]) {
   const cam = new Camera();
@@ -50,5 +51,53 @@ describe('a point on the screen, on the water', () => {
   it('is nowhere above the horizon, where the screen shows sky and not water', () => {
     const { inverse } = camera([0, -40, 3], [0, 0, 2.5]);
     expect(waterPoint(inverse, 0, 0.95)).toBe(null);
+  });
+});
+
+describe('a tap on the cabin', () => {
+  const cabin = HOME.cabin!;
+  const middle = (): [number, number, number] => [cabin.at.x, cabin.at.y, cabin.floor + cabin.spec.body.high / 2];
+
+  it('meets the cabin from the shore view, at its middle', () => {
+    // a camera standing off the cabin's lake side, looking at its middle
+    const eye: [number, number, number] = [
+      cabin.at.x + cabin.at.inward[0] * 30,
+      cabin.at.y + cabin.at.inward[1] * 30,
+      cabin.floor + 6,
+    ];
+    const seen = camera(eye, middle());
+    const [x, y] = ndc(seen.cam, ...middle());
+    expect(cabinHit(x, y, seen.inverse, HOME)).toBe(true);
+  });
+
+  it('misses the water and the sky, and the bank well to either side', () => {
+    const eye: [number, number, number] = [
+      cabin.at.x + cabin.at.inward[0] * 30,
+      cabin.at.y + cabin.at.inward[1] * 30,
+      cabin.floor + 6,
+    ];
+    const seen = camera(eye, middle());
+    // a point on the water in front of the camera, and the top of the screen (sky)
+    const water: [number, number, number] = [
+      cabin.at.x + cabin.at.inward[0] * 50,
+      cabin.at.y + cabin.at.inward[1] * 50,
+      0,
+    ];
+    const [wx, wy] = ndc(seen.cam, ...water);
+    expect(cabinHit(wx, wy, seen.inverse, HOME)).toBe(false);
+    expect(cabinHit(0, 0.98, seen.inverse, HOME)).toBe(false);
+    const aside: [number, number, number] = [
+      cabin.at.x + cabin.at.along[0] * 40,
+      cabin.at.y + cabin.at.along[1] * 40,
+      cabin.floor + 2,
+    ];
+    const [ax, ay] = ndc(seen.cam, ...aside);
+    expect(cabinHit(ax, ay, seen.inverse, HOME)).toBe(false);
+  });
+
+  it('is never a hit at a lake with no cabin', () => {
+    const eye: [number, number, number] = [0, -40, 10];
+    const seen = camera(eye, [0, 0, 3]);
+    expect(cabinHit(0, 0, seen.inverse, LAKES.reservoir)).toBe(false);
   });
 });

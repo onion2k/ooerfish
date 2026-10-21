@@ -26,6 +26,8 @@ export interface NightElements {
   bed: HTMLButtonElement;
   /** The Sleep through… item beside it, greyed by the same flag: the bed and sleeping through are refused together. */
   sleep: HTMLButtonElement;
+  /** The Go to the cabin item beside them, greyed mid-fight and in the cabin, where there is no door to walk in by. */
+  cabin: HTMLButtonElement;
 }
 
 /** What the page says of the night: the yawn's line, the morning's, and whether Go to bed may be pressed. */
@@ -36,16 +38,25 @@ export interface NightWords {
   out: string | null;
   /** Whether Go to bed and Sleep through… may be pressed, which they are together. */
   bed: boolean;
+  /** Whether Go to the cabin may be pressed: at the pond with no fish on the line or landed. */
+  cabin: boolean;
 }
 
 /** The yawn's line, as the player is put to bed. */
 export const YAWN_WORDS = 'Yawn… time for bed';
 
-/** The morning's name: summer's is the plain one it always was, and the other seasons name themselves. */
-function morningOf(day: number): string {
+/** The hour's word for the look of the clock: dawn is the morning, and the other looks are named for the day's parts. */
+const HOUR: Readonly<Record<string, string>> = { dawn: 'morning', day: 'afternoon', dusk: 'evening', night: 'night' };
+
+/**
+ * The hour's name on a day: summer's is the plain, capitalised word ("Morning", "Afternoon"), and the other seasons
+ * name themselves before it ("A winter afternoon"), as the morning always has. A look not known is the morning.
+ */
+function hourOf(day: number, timeName: string): string {
   const season = seasonOf(day);
-  if (season === 'summer') return 'Morning';
-  return `${season === 'autumn' ? 'An' : 'A'} ${season} morning`;
+  const hour = HOUR[timeName] ?? 'morning';
+  if (season === 'summer') return hour[0].toUpperCase() + hour.slice(1);
+  return `${season === 'autumn' ? 'An' : 'A'} ${season} ${hour}`;
 }
 
 /** The marked night's line: the full moon's or the new moon's, and nothing on the nights between. */
@@ -57,25 +68,36 @@ function moonLine(day: number): string {
 }
 
 /**
- * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed off).
+ * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed and the
+ * way into the cabin off), and the name of the clock's look (`dawn`, `day`, `dusk` or `night`), which the cabin's line
+ * says as the hour.
  * The morning's button names the lake the save names, which after a wake is the home whichever lake the day ended at:
  * going back is "Somewhere else…", the lakes page.
  */
-export function nightWords(place: Place, day: number, fighting: boolean, lakeName: string): NightWords {
+export function nightWords(
+  place: Place,
+  day: number,
+  fighting: boolean,
+  lakeName: string,
+  timeName: string,
+): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
-    morning: place === 'cabin' ? `Day ${day}. ${morningOf(day)} at the cabin.${moonLine(day)}` : null,
+    morning: place === 'cabin' ? `Day ${day}. ${hourOf(day, timeName)} at the cabin.${moonLine(day)}` : null,
     out: place === 'cabin' ? `Out to ${theLake(lakeName)}` : null,
     bed: place === 'pond' || place === 'cabin' ? !fighting : false,
+    cabin: place === 'pond' && !fighting,
   };
 }
 
 export class NightView {
-  private was = { fade: '', yawn: '', morning: '', out: '', bed: '' };
+  private was = { fade: '', yawn: '', morning: '', out: '', bed: '', cabin: '' };
 
   constructor(
     private readonly el: NightElements,
     private readonly game: () => Game,
+    /** The name of the look the clock is at, which the page keeps (it knows the season's and the moon's looks). */
+    private readonly timeName: () => string,
   ) {}
 
   /** The page made what the game says, where it has changed. */
@@ -85,7 +107,7 @@ export class NightView {
     const fighting = g.bite.phase === 'hooked' || g.bite.phase === 'landed';
     // the button names the lake the save names, which is the lake the page was loaded at but for the moment of a wake
     const { lakes, save } = g.progress;
-    const w = nightWords(g.place, g.day, fighting, (lakes[save.lake] ?? g.lake).name);
+    const w = nightWords(g.place, g.day, fighting, (lakes[save.lake] ?? g.lake).name, this.timeName());
 
     // a thousandth is finer than an eye or a frame can tell, and a fade that has not moved writes nothing
     const f = g.fade();
@@ -116,6 +138,11 @@ export class NightView {
     if (bed !== was.bed) {
       was.bed = bed;
       el.bed.disabled = el.sleep.disabled = !w.bed;
+    }
+    const cabin = w.cabin ? 'on' : 'off';
+    if (cabin !== was.cabin) {
+      was.cabin = cabin;
+      el.cabin.disabled = !w.cabin;
     }
   }
 }

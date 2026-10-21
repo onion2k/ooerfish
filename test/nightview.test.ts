@@ -6,44 +6,71 @@ import { DT, newGame } from './helpers';
 
 describe('what the night says', () => {
   it('says nothing at the pond, and the bed is there to go to', () => {
-    expect(nightWords('pond', 1, false, 'Duck Pond')).toEqual({
+    expect(nightWords('pond', 1, false, 'Duck Pond', 'dawn')).toEqual({
       yawn: null,
       morning: null,
       out: null,
       bed: true,
+      cabin: true,
     });
   });
 
   it('yawns while yawning, and the bed is refused', () => {
-    const w = nightWords('yawning', 1, false, 'Duck Pond');
+    const w = nightWords('yawning', 1, false, 'Duck Pond', 'dawn');
     expect(w.yawn).toBe('Yawn… time for bed');
     expect(w.morning).toBe(null);
     expect(w.bed).toBe(false);
   });
 
   it('names the day in the morning at the cabin, and the bed can be gone to again', () => {
-    expect(nightWords('cabin', 2, false, 'Duck Pond')).toEqual({
+    expect(nightWords('cabin', 2, false, 'Duck Pond', 'dawn')).toEqual({
       yawn: null,
       morning: 'Day 2. Morning at the cabin.',
       out: 'Out to the Duck Pond',
       bed: true,
+      cabin: false,
     });
-    expect(nightWords('cabin', 13, false, 'Duck Pond').morning).toBe('Day 13. Morning at the cabin. New moon tonight.');
-    expect(nightWords('cabin', 57, false, 'Duck Pond').morning).toBe(
+    expect(nightWords('cabin', 13, false, 'Duck Pond', 'dawn').morning).toBe(
+      'Day 13. Morning at the cabin. New moon tonight.',
+    );
+    expect(nightWords('cabin', 57, false, 'Duck Pond', 'dawn').morning).toBe(
       'Day 57. Morning at the cabin. Full moon tonight.',
     );
   });
 
   it('names the season in the morning from autumn on, and says nothing of summer', () => {
-    expect(nightWords('cabin', 15, false, 'Duck Pond').morning).toBe('Day 15. An autumn morning at the cabin.');
-    expect(nightWords('cabin', 29, false, 'Duck Pond').morning).toBe(
+    expect(nightWords('cabin', 15, false, 'Duck Pond', 'dawn').morning).toBe('Day 15. An autumn morning at the cabin.');
+    expect(nightWords('cabin', 29, false, 'Duck Pond', 'dawn').morning).toBe(
       'Day 29. A winter morning at the cabin. New moon tonight.',
     );
-    expect(nightWords('cabin', 43, false, 'Duck Pond').morning).toBe('Day 43. A spring morning at the cabin.');
+    expect(nightWords('cabin', 43, false, 'Duck Pond', 'dawn').morning).toBe('Day 43. A spring morning at the cabin.');
   });
 
-  it('refuses the bed with a fish on the line or landed', () => {
-    expect(nightWords('pond', 1, true, 'Duck Pond').bed).toBe(false);
+  it('refuses the bed and the cabin with a fish on the line or landed', () => {
+    expect(nightWords('pond', 1, true, 'Duck Pond', 'dawn').bed).toBe(false);
+    expect(nightWords('pond', 1, true, 'Duck Pond', 'dawn').cabin).toBe(false);
+  });
+
+  it('allows the way into the cabin only at the pond with no fish on', () => {
+    expect(nightWords('pond', 1, false, 'Duck Pond', 'day').cabin).toBe(true);
+    for (const place of ['yawning', 'cabin', 'leaving'] as const)
+      expect(nightWords(place, 1, false, 'Duck Pond', 'day').cabin, place).toBe(false);
+  });
+
+  it('names the hour by the look of the clock: morning, afternoon, evening, night', () => {
+    const line = (name: string, day = 2) => nightWords('cabin', day, false, 'Duck Pond', name).morning;
+    expect(line('dawn')).toBe('Day 2. Morning at the cabin.');
+    expect(line('day')).toBe('Day 2. Afternoon at the cabin.');
+    expect(line('dusk')).toBe('Day 2. Evening at the cabin.');
+    expect(line('night')).toBe('Day 2. Night at the cabin.');
+  });
+
+  it('keeps the season word with the hour, from autumn on', () => {
+    const line = (name: string, day: number) => nightWords('cabin', day, false, 'Duck Pond', name).morning;
+    expect(line('day', 15)).toBe('Day 15. An autumn afternoon at the cabin.');
+    expect(line('dusk', 29)).toBe('Day 29. A winter evening at the cabin. New moon tonight.');
+    expect(line('night', 43)).toBe('Day 43. A spring night at the cabin.');
+    expect(line('day', 2)).toBe('Day 2. Afternoon at the cabin.');
   });
 });
 
@@ -87,19 +114,39 @@ function view() {
     elsewhere: stub(),
     bed: stub(),
     sleep: stub(),
+    cabin: stub(),
   };
-  return { game, el, night: new NightView(el, () => game) };
+  let timeName = 'dawn';
+  const night = new NightView(
+    el,
+    () => game,
+    () => timeName,
+  );
+  return {
+    game,
+    el,
+    night,
+    at: (name: string) => {
+      timeName = name;
+    },
+  };
 }
 
 describe('the morning button', () => {
   it('names the lake the save names, which after a wake at home is the home', () => {
-    expect(nightWords('cabin', 2, false, 'Reservoir').out).toBe('Out to the Reservoir');
-    expect(nightWords('cabin', 2, false, 'Duck Pond').out).toBe('Out to the Duck Pond');
+    expect(nightWords('cabin', 2, false, 'Reservoir', 'dawn').out).toBe('Out to the Reservoir');
+    expect(nightWords('cabin', 2, false, 'Duck Pond', 'dawn').out).toBe('Out to the Duck Pond');
   });
 
   it('is there only in the cabin', () => {
-    expect(nightWords('yawning', 2, false, 'Reservoir').out).toBeNull();
-    expect(nightWords('leaving', 2, false, 'Reservoir')).toEqual({ yawn: null, morning: null, out: null, bed: false });
+    expect(nightWords('yawning', 2, false, 'Reservoir', 'dawn').out).toBeNull();
+    expect(nightWords('leaving', 2, false, 'Reservoir', 'dawn')).toEqual({
+      yawn: null,
+      morning: null,
+      out: null,
+      bed: false,
+      cabin: false,
+    });
   });
 });
 
@@ -149,6 +196,28 @@ describe('the night view', () => {
     expect(el.down.hidden).toBe(true);
   });
 
+  it('says the afternoon in the cabin by day, and greys Go to the cabin there and mid-fight', () => {
+    const { game, el, night, at } = view();
+    at('day');
+    night.show();
+    expect(el.cabin.disabled, 'at the pond').toBe(false);
+    game.enter();
+    for (let f = 0; f < Math.ceil(NIGHT.fadeIn / DT) + 1; f++) game.step(DT);
+    night.show();
+    expect(el.morning.hidden).toBe(false);
+    expect(el.morning.textContent).toBe('Day 1. Afternoon at the cabin. Full moon tonight.');
+    expect(el.cabin.disabled, 'in the cabin').toBe(true);
+    at('dusk');
+    night.show();
+    expect(el.morning.textContent).toBe('Day 1. Evening at the cabin. Full moon tonight.');
+    game.out();
+    night.show();
+    expect(el.cabin.disabled).toBe(false);
+    game.bite.phase = 'hooked';
+    night.show();
+    expect(el.cabin.disabled, 'mid-fight').toBe(true);
+  });
+
   it('writes the page only where something has changed', () => {
     const { game, el, night } = view();
     night.show();
@@ -168,7 +237,7 @@ describe('the night view', () => {
 });
 
 describe('the moon in the morning line', () => {
-  const morning = (day: number) => nightWords('cabin', day, false, 'Duck Pond').morning;
+  const morning = (day: number) => nightWords('cabin', day, false, 'Duck Pond', 'dawn').morning;
 
   it('says the full moon and the new moon after the morning line, and nothing on other days', () => {
     expect(morning(1)).toBe('Day 1. Morning at the cabin. Full moon tonight.');
@@ -178,6 +247,6 @@ describe('the moon in the morning line', () => {
   });
 
   it('leaves the yawn’s words alone', () => {
-    expect(nightWords('yawning', 5, false, 'Duck Pond').yawn).toBe('Yawn… time for bed');
+    expect(nightWords('yawning', 5, false, 'Duck Pond', 'dawn').yawn).toBe('Yawn… time for bed');
   });
 });

@@ -36,7 +36,7 @@ export interface Save {
   lakes: Record<string, LakeSave>;
   /** Which day of play it is, from one: a whole number that goes up on waking at the cabin and never down. */
   day: number;
-  /** Where the day's clock stood, a fraction of the day from nought up to but not reaching one; dawn in the cabin, where it is held. */
+  /** Where the day's clock stood, a fraction of the day from nought up to but not reaching one; held wherever it stood in the cabin, where the player walked in or woke at dawn. */
   time: number;
   /** Where the player was: at the pond or in the cabin. The yawn between is never kept, so a load lands before it. */
   place: 'pond' | 'cabin';
@@ -185,8 +185,6 @@ export class Progress {
     if (typeof said.time === 'number' && Number.isFinite(said.time) && said.time >= 0 && said.time < 1)
       this.save.time = said.time;
     if (said.place === 'pond' || said.place === 'cabin') this.save.place = said.place;
-    // the clock is held at dawn in the cabin, so a cabin save has no other time to keep
-    if (this.save.place === 'cabin') this.save.time = CLOCK.startsAt;
     // the lake the player was at, or the home for one the game does not know (a save from elsewhere, or a lake since taken away)
     if (typeof said.lake === 'string' && Object.hasOwn(lakes, said.lake)) this.save.lake = said.lake;
     // the lakes: a save with no `lakes` is from before there were any, and its flat fields are the home's entry; one with
