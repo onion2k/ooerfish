@@ -8,7 +8,7 @@
  */
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
-import { block, built, frustum, prism } from 'artshape-render/mesh/lowpoly';
+import { block, built, faceOut, frustum, prism } from 'artshape-render/mesh/lowpoly';
 import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { placeAt } from './cabin';
@@ -48,12 +48,17 @@ export const ROOM_PARTS = [
   'bandAutumn',
   'bandWinter',
   'bandSpring',
+  'mapWater',
+  'mapDam',
 ] as const;
 /** The calendar's season bands in the year's order, a row each from the top, named from `SEASONS`. */
 export const BAND_PARTS = ['bandSummer', 'bandAutumn', 'bandWinter', 'bandSpring'] as const;
 export type RoomPart = (typeof ROOM_PARTS)[number];
-/** The calendar's two moving parts, which are not in the static room but handed over by `CalendarDraw` as the day changes. */
-export const MARK_PARTS = ['calendarGone', 'calendarToday'] as const;
+/**
+ * The room's moving parts, which are not in the static room but handed over when they change: the calendar's two marks
+ * by `CalendarDraw` as the day changes, and the map's pin by `MapDraw` when the lake the save names does.
+ */
+export const MARK_PARTS = ['calendarGone', 'calendarToday', 'mapPin'] as const;
 export type MarkPart = (typeof MARK_PARTS)[number];
 /** A colour for each part of the room and of the calendar's marks, handed in by the page. */
 export type RoomColours = Record<RoomPart | MarkPart, Colour>;
@@ -65,7 +70,7 @@ export const FURNITURE = {
   shelf: ['shelf', 'books', 'jar'],
   rug: ['rug'],
   chest: ['chest'],
-  picture: ['frame', 'canvas'],
+  picture: ['frame', 'canvas', 'mapWater', 'mapDam'],
   coat: ['peg', 'coat'],
   calendar: ['calendarSheet', 'calendarBar', ...BAND_PARTS],
 } as const satisfies Record<string, readonly RoomPart[]>;
@@ -129,6 +134,121 @@ export function calendarGeometry(lake: Lake) {
   };
 }
 
+/** The map's figures on its sheet, in metres: the margin and the gap between lakes, how proud each layer stands of the paper, and the pin's size. */
+export const MAP = {
+  angles: 32,
+  margin: 0.03,
+  gap: 0.03,
+  /** The canvas is `CANVAS_DEPTH` thick on the wall; the water lies this much in front of it, and the dam's bar, a hair more. */
+  water: 0.012,
+  dam: { proud: 0.018, thick: 0.014 },
+  /** The pin's block, its base this far off the wall and standing out of it by its size. */
+  pin: { depth: 0.05, size: 0.035 },
+} as const;
+/** How thick the picture's canvas is, and so how far in front of the wall its face is. */
+const CANVAS_DEPTH = 0.04;
+
+/**
+ * The map on the picture's sheet, worked out once from the lakes: where each lake's blob lies on the paper and the
+ * dam's bar across the lake that has one. The lakes are drawn to one scale, side by side in the order given, the
+ * group centred and the whole fitted within the margin; each is its shore at `MAP.angles` angles, north up and east
+ * to the right as a map is read. `su` runs along the paper from its middle to the reader's right, `sv` up from its foot,
+ * both in metres, and `spot` carries them (with a depth in front of the wall) into the world.
+ */
+export function mapGeometry(lake: Lake, lakes: readonly Lake[]) {
+  const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = cabinOf(lake);
+  const place = placeAt(CABIN_AT);
+  const pic = CABIN_ROOM.furniture.picture;
+  const wall = CABIN.body.across / 2 - CABIN_ROOM.inset;
+  // as the calendar's: which way along the shore the reader's right runs
+  const [ix, iy] = CABIN_AT.inward,
+    [ax, ay] = CABIN_AT.along;
+  const reads = ax * iy - ay * ix >= 0 ? 1 : -1;
+  const shapes = lakes.map((l) => {
+    const outline = Array.from({ length: MAP.angles }, (_, i): [number, number] => {
+      const a = (i / MAP.angles) * Math.PI * 2;
+      const r = l.shoreRadius(a);
+      return [Math.cos(a) * r * l.stretch, Math.sin(a) * r];
+    });
+    const xs = outline.map(([x]) => x),
+      ys = outline.map(([, y]) => y);
+    return {
+      lake: l,
+      outline,
+      minX: Math.min(...xs),
+      minY: Math.min(...ys),
+      wide: Math.max(...xs) - Math.min(...xs),
+      high: Math.max(...ys) - Math.min(...ys),
+    };
+  });
+  const across = pic.wide - 2 * MAP.margin - MAP.gap * Math.max(0, shapes.length - 1);
+  const scale = Math.min(
+    across / shapes.reduce((n, s) => n + s.wide, 0),
+    (pic.high - 2 * MAP.margin) / Math.max(...shapes.map((s) => s.high)),
+  );
+  const used = scale * shapes.reduce((n, s) => n + s.wide, 0) + MAP.gap * Math.max(0, shapes.length - 1);
+  let left = -used / 2;
+  const blobs = shapes.map((s) => {
+    const l0 = left,
+      bottom = (pic.high - scale * s.high) / 2;
+    left += scale * s.wide + MAP.gap;
+    const su = (x: number) => l0 + scale * (x - s.minX),
+      sv = (y: number) => bottom + scale * (y - s.minY);
+    return {
+      id: s.lake.id,
+      outline: s.outline.map(([x, y]): [number, number] => [su(x), sv(y)]),
+      centre: [su(0), sv(0)] as [number, number],
+      left: l0,
+      right: l0 + scale * s.wide,
+      bottom,
+      top: bottom + scale * s.high,
+      su,
+      sv,
+    };
+  });
+  const dams = shapes.flatMap((s, i) => {
+    const dam = s.lake.dam;
+    if (!dam) return [];
+    const b = blobs[i];
+    const half = dam.spec.half;
+    const mid = b.sv(dam.spec.faceY);
+    return [
+      {
+        id: b.id,
+        left: Math.max(b.left, b.su(-half)),
+        right: Math.min(b.right, b.su(half)),
+        bottom: mid - MAP.dam.thick / 2,
+        top: mid + MAP.dam.thick / 2,
+      },
+    ];
+  });
+  return {
+    wide: pic.wide,
+    high: pic.high,
+    margin: MAP.margin,
+    reads,
+    blobs,
+    dams,
+    wall,
+    /** A point on the sheet (`su` along from the middle, `sv` up from the foot) `depth` in front of the wall, in the world. */
+    spot: (su: number, sv: number, depth: number): [number, number, number] => {
+      const [x, y] = place([wall - depth, pic.along + reads * su, 0]);
+      return [x, y, CABIN_FLOOR + pic.at + sv];
+    },
+    /** The turn that puts a mark's own x, its normal, out of the wall into the room: the calendar's. */
+    yaw: Math.atan2(-iy, -ix),
+    /** The paper's middle in the world, its unit normal into the room, its unit right and the height above the floor of its foot. */
+    paper: (() => {
+      const [x, y] = place([wall - CANVAS_DEPTH, pic.along, 0]);
+      return {
+        middle: [x, y, CABIN_FLOOR + pic.at + pic.high / 2] as [number, number, number],
+        normal: [-ix, -iy] as [number, number],
+        right: [reads * ax, reads * ay] as [number, number],
+      };
+    })(),
+  };
+}
+
 /** Where the lamp hangs, in the world: the bulb's middle. */
 export function lampAt(lake: Lake): [number, number, number] {
   const { at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = cabinOf(lake);
@@ -136,8 +256,8 @@ export function lampAt(lake: Lake): [number, number, number] {
   return [x, y, CABIN_FLOOR + CABIN_ROOM.high - CABIN_ROOM.lamp.drop - 0.12];
 }
 
-/** The room's drawn parts, one group a part in `ROOM_PARTS`' order. */
-export function roomGroups(colours: RoomColours, lake: Lake): GameGroup[] {
+/** The room's drawn parts, one group a part in `ROOM_PARTS`' order; the map on the lake wall shows `lakes`, the home's alone if none are given. */
+export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lake[] = [lake]): GameGroup[] {
   if (!lake.cabin) return [];
   const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = lake.cabin;
   const place = placeAt(CABIN_AT);
@@ -374,7 +494,29 @@ export function roomGroups(colours: RoomColours, lake: Lake): GameGroup[] {
     onWall(b, pic.along, pic.wide + 2 * pf, 0.06, picZ + pic.high, picZ + pic.high + pf);
     for (const sy of [-1, 1]) onWall(b, pic.along + (sy * (pic.wide + pf)) / 2, pf, 0.06, picZ, picZ + pic.high);
   });
-  const canvasMesh = built((b) => onWall(b, pic.along, pic.wide, 0.04, picZ, picZ + pic.high));
+  const canvasMesh = built((b) => onWall(b, pic.along, pic.wide, CANVAS_DEPTH, picZ, picZ + pic.high));
+
+  // the map: each lake a flat fan of its shore's points from its middle, facing into the room a hair in front of the
+  // paper, and the dam's bar a thin block across the north of the lake that has one; the pin is `MapDraw`'s
+  const map = mapGeometry(lake, lakes);
+  const behind = place([wall + 1, pic.along, 0]);
+  behind[2] = floor + picZ;
+  const mapWaterMesh = built((b) => {
+    for (const blob of map.blobs) {
+      const p = ([u, v]: readonly [number, number]) => map.spot(u, v, CANVAS_DEPTH + MAP.water);
+      const c = p(blob.centre);
+      for (let i = 0; i < blob.outline.length; i++)
+        faceOut(b, [c, p(blob.outline[i]), p(blob.outline[(i + 1) % blob.outline.length])], behind);
+    }
+  });
+  const mapDamMesh = built((b) => {
+    for (const d of map.dams) {
+      const a = map.spot(d.left, d.bottom, 0),
+        e = map.spot(d.right, d.top, 0);
+      const [y0, y1] = [pic.along + map.reads * d.left, pic.along + map.reads * d.right].sort((m, n) => m - n);
+      block(b, place, wall - CANVAS_DEPTH - MAP.dam.proud, wall - CANVAS_DEPTH, y0, y1, a[2], e[2]);
+    }
+  });
 
   const pegMesh = built((b) => onWall(b, co.along, 0.06, 0.16, co.peg - 0.03, co.peg + 0.03));
   const coatMesh = built((b) => {
@@ -444,6 +586,8 @@ export function roomGroups(colours: RoomColours, lake: Lake): GameGroup[] {
     chest: timbered(chestMesh, 'chest', 0.9),
     frame: timbered(frameMesh, 'frame', 0.9),
     canvas: timbered(canvasMesh, 'canvas', 0.9),
+    mapWater: timbered(mapWaterMesh, 'mapWater', 0.6),
+    mapDam: timbered(mapDamMesh, 'mapDam', 0.9),
     peg: timbered(pegMesh, 'peg', 0.9),
     coat: timbered(coatMesh, 'coat', 1),
     calendarSheet: timbered(sheetMesh, 'calendarSheet', 1),

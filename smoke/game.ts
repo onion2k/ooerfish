@@ -6,7 +6,7 @@
  */
 import { expect, type Page } from '@playwright/test';
 import type { GameApi } from '../src/debug';
-import type { Save } from '../src/progress';
+import type { SaveSaid } from '../src/progress';
 
 declare global {
   interface Window {
@@ -38,15 +38,17 @@ export function watch(page: Page): string[] {
 export async function start(
   page: Page,
   options: {
-    save?: Partial<Save>;
+    save?: SaveSaid;
     seed?: number;
     paused?: boolean;
     rung?: 'full' | 'lean' | 'auto';
     /** More of the address, such as `phonelink: 'local'`, for a test that needs the page asked for something. */
     query?: Record<string, string>;
+    /** Keep the load's fade-in, which a page is otherwise let out of at once so no picture is taken through it. */
+    fade?: boolean;
   } = {},
 ) {
-  const { save, seed, paused, rung = 'full', query: more = {} } = options;
+  const { save, seed, paused, rung = 'full', query: more = {}, fade = false } = options;
   if (save)
     await page.addInitScript((s) => {
       if (sessionStorage.getItem('game-test-seeded')) return;
@@ -60,6 +62,9 @@ export async function start(
   for (const [name, value] of Object.entries(more)) query.set(name, value);
   await page.goto(query.size ? `/?${query.toString()}` : '/');
   await ready(page);
+  // every load fades in from black over a second of stepped time, and a paused page steps only when told: the pond is
+  // let out of it, so a picture or a count of frames never depends on it (the fade has its own stages)
+  if (!fade) await page.evaluate(() => window.game!.arrived());
 }
 
 /**
@@ -142,6 +147,7 @@ export async function hideOverlays(page: Page) {
       'bucket',
       'morning',
       'downButton',
+      'elsewhereButton',
       'yawn',
     ])
       document.getElementById(id)!.hidden = true;

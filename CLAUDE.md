@@ -298,7 +298,24 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   module's (`bedBands`, the surface, the boulders, the falls, the bed's places) are a `WeakMap` by lake, so a second
   lake moves nothing of the first. The page builds one lake at boot (`main.ts`); nothing in `src/` but `src/lakes/`
   names the Duck Pond. `test/lakes.test.ts` holds the pond's geometry to the bit by a snapshot taken before the
-  move; `game.lake()` and `game.lakes()` read the lake and the registry. Content figures are the lake's: the
+  move; `game.lake()` and `game.lakes()` read the lake and the registry. **The Reservoir** (`src/lakes/reservoir.ts`)
+  is the second lake: an oval 1.6 times the pond across and 1.5 as deep, cut on the north by a dam (`src/dam.ts`,
+  `damMesh(lake)`, a painted solid on the cliff's set the scene takes as a `dam` dressing, the ground rising behind
+  its face), two boulders, no cliff, jetty or cabin, sixteen fish 5/7/4, three drums, no treasures yet, its own
+  views, surface and cure. **Travel is a reload** (`docs/lakes.md`): `Game.travel(id)` (refused with a fish hooked
+  or landed, while yawning or leaving, or for an unknown id; to the current lake it goes out from the cabin) reels
+  in, writes `save.lake` and sets `place` `leaving`, a fade-out over `NIGHT.fadeOut` with the clock held, and
+  `GameEvents.left` at its end has the page reload with the hidden-page write off; every page load fades in over
+  `NIGHT.fadeIn` (`options.arrives`, set only by `main.ts`; `start()` in the smoke calls `game.arrived()` so no
+  picture waits on it). The wake writes `save.lake` as the home, and the page reloads from a lake without a cabin
+  before anything is drawn there, so the player always wakes in the cabin at the Duck Pond; the morning's button
+  reads "Out to the <lake>" and "Somewhere else…" opens the lakes page. **The map** is the picture on the cabin's
+  lake wall (`mapGeometry`, `mapWater` and `mapDam` static parts, `mapPin` a moving part in `src/mapdraw.ts`
+  handed over when `save.lake` changes, `game.map()` reads it); a tap on it in the cabin view (`mapHit`, a ray to
+  the paper's rectangle through `rayThrough` in `pick.ts`; `game.mapOnScreen()` gives its centre) opens **the lakes
+  page** (`#lakes`, `lakesWords` in `src/lakes/page.ts`: each lake, "You are here", its glow in four bands, Go),
+  which "Lakes" in the ⋯ menu opens too; it stops the clock as every page does and `game.openLakes(open)` is the
+  API. The welcome line, the toasts and the journal's heading name the lake (`theLake` in `src/lakes/page.ts`). Content figures are the lake's: the
   shore's shape, the bed, the banks, the boulders, the fish count, and the named views. A boulder is a
   bit of bank in the water: `inside` is false within its waterline (a margin
   counted from it as from the shore), `ground` is its dome, and `bedDepth`
@@ -425,8 +442,8 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   tool plays the very same fights; the fish's lowest dart stands above a resting
   zone, so a hand that never holds lands nothing. Curing brings **gifts**
   (`GEAR`, at 2, 4, 6, 8 and 10 cures: a stronger line, a faster reel, a longer
-  rod, a bigger bobber, tastier bait), worked out from the count by `gearFor`, so
-  the save holds nothing new; each does what its toast says at a size a player
+  rod, a bigger bobber, tastier bait), worked out from the count by `gearFor` (the count summed over every lake,
+  `progress.curedTotal()`, so a journey takes no gift back), so the save holds nothing new; each does what its toast says at a size a player
   feels, as the user chose over figures tuned to the tool's hand. `careful`
   centres on the zone's own width. `docs/fight2.md` is the plan, with every
   target and what was changed with the user. A sick lake's fish dart more
@@ -479,9 +496,12 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   tests' switches, `caustics` and `paint` (beside `seed`, `paused` and `rung`,
   read where they are used), and refuses what it does not know by name; it is
   never written back, and an old link with `dirt=`, `time=` or `view=` still
-  opens the game, unread. The save lives in `progress.ts` and holds the count
+  opens the game, unread. The save lives in `progress.ts` and holds `lake`, the id of the lake the player was at
+  (an unknown id is the home's), and `lakes`, an entry a lake (`LakeSave`, `progress.entry(id)`, a fresh one for a
+  lake without; an entry under an unknown id dropped; a flat save from before the lakes read as the home's entry;
+  `new Progress(store, LAKES)` takes the registry to read each against), each with the count
   cured (default 0; a count that is not a non-negative whole number is taken for
-  none), the drums hauled (default 0, held to `DRUMS.count`), the journal (default `{}`), the day (default 1; anything but a safe whole number of 1 or more is
+  none), the drums hauled (default 0, held to `DRUMS.count`), the journal (default `{}`) and the finds; and, the angler's, the day (default 1; anything but a safe whole number of 1 or more is
   day 1), and **the time and the place** (`docs/time.md`): `time`, the clock as a fraction of the day (default dawn,
   `CLOCK.startsAt`; anything not a finite number in [0, 1) is dawn) and `place`, `pond` or `cabin` (anything else is
   the pond; a cabin save is at dawn whatever it says), so a load opens where the player was. `Game.persist` writes

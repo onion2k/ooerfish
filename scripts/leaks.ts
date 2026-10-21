@@ -30,7 +30,7 @@ import { Game } from '../src/game';
 import { particleWindow } from '../src/falling';
 import { seasonOf } from '../src/calendar';
 import { FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY } from '../src/lake';
-import { HOME } from '../src/lakes';
+import { HOME, LAKES } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { collectionsKept, crowd, type Crowd } from './phonemonkey';
@@ -46,11 +46,11 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   fish: { ceiling: FISH_CAPACITY },
   splashes: { ceiling: SPLASH_CAPACITY },
   'save bytes': { ceiling: 2_000 },
-  // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those there are
+  // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those the lake has, the most of any lake the game has
   'journal kinds': { ceiling: KINDS.length },
-  'drums hauled': { ceiling: HOME.drums.count },
-  // and the junk treasures found are kept by id, none twice, of the pond's six
-  'treasures found': { ceiling: HOME.treasures.count },
+  'drums hauled': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.drums.count)) },
+  // and the junk treasures found are kept by id, none twice, of the most any lake has
+  'treasures found': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.treasures.count)) },
   // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
@@ -71,10 +71,10 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     fish: game.fish.count,
     splashes: game.splashes.count,
     'save bytes': JSON.stringify(game.progress.save).length,
-    'journal kinds': Object.keys(game.progress.save.journal).length,
-    'drums hauled': game.progress.save.drums,
-    'treasures found': game.progress.save.found.length,
-    'particle window': particleWindow(seasonOf(game.day), HOME),
+    'journal kinds': Object.keys(game.progress.entry(game.lake.id).journal).length,
+    'drums hauled': game.progress.entry(game.lake.id).drums,
+    'treasures found': game.progress.entry(game.lake.id).found.length,
+    'particle window': particleWindow(seasonOf(game.day), game.lake),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }
@@ -135,7 +135,7 @@ export function leakRun({ seed, minutes }: LeakOptions): LeakRun {
   const started = performance.now();
   const samples: Record<string, number[]> = {};
   try {
-    const game = new Game(new Progress(memoryStore(), HOME), { lake: HOME, random: seeded(seed) });
+    const game = new Game(new Progress(memoryStore(), LAKES), { lake: HOME, random: seeded(seed) });
     // a busy room for the whole run, from a chance of its own so the game plays as it did
     const room = crowd(() => game, seeded(seed * 13 + 5));
     for (let minute = 0; minute < minutes; minute++) {

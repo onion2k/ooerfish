@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import * as lake from '../src/lake';
 import { DUCK_POND } from '../src/lakes/duckpond';
+import { RESERVOIR } from '../src/lakes/reservoir';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { HOME, LAKES, lakeNamed } from '../src/lakes';
 import { fallsOf } from '../src/falls';
@@ -241,5 +242,19 @@ describe('the Duck Pond as a Lake', () => {
     expect(DUCK_POND.contaminationAfter(DUCK_POND.toClean, DUCK_POND.drums.count)).toBe(0);
     expect(DUCK_POND.toClean).toBe(DUCK_POND.fishCount);
     expect(DUCK_POND.total).toBe(DUCK_POND.fishCount + DUCK_POND.drums.count * DRUM_RULES.worth);
+  });
+});
+
+describe('the registry of lakes', () => {
+  it('has the Duck Pond and the Reservoir, each under its own id', () => {
+    expect(Object.keys(LAKES).sort()).toEqual(['duckpond', 'reservoir']);
+    expect(lakeNamed('reservoir')).toBe(RESERVOIR);
+    expect(lakeNamed('duckpond')).toBe(DUCK_POND);
+    for (const [id, lake] of Object.entries(LAKES)) expect(lake.id).toBe(id);
+  });
+
+  it('still reads an unknown id as the home, and the home is still the pond', () => {
+    expect(lakeNamed('the-sea')).toBe(HOME);
+    expect(HOME).toBe(DUCK_POND);
   });
 });

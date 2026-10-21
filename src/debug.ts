@@ -297,6 +297,20 @@ export interface GameApi {
    * it is open the page does not step the game, whether a frame of its own or a step the test asks for.
    */
   openJournal(open?: boolean): Promise<void>;
+  /**
+   * Opens the lakes page as the menu's Lakes item, the map's tap and the morning's Somewhere else… do, resolving once it
+   * is shown, or closes it again with `false`. It stops the game's step while open as every page does, and is not
+   * opened away from the pond and the cabin (in a yawn or a journey's fade). A Go on it is a click on its button.
+   */
+  openLakes(open?: boolean): Promise<void>;
+  /**
+   * The map on the cabin's wall: the id of the lake its pin was last handed over on (the lake the save names, which
+   * is the home's whenever the player is in the cabin, but for the moment of a journey's fade), and how many times
+   * the pin has been handed over since boot. Empty at a lake with no cabin.
+   */
+  map(): { pin: string; handovers: number };
+  /** Where the map's paper is on the page, in CSS pixels, so a test can tap it; null at a lake with no cabin or behind the camera. */
+  mapOnScreen(): { x: number; y: number } | null;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -350,6 +364,17 @@ export interface GameApi {
   sleep(): Promise<boolean>;
   /** Go down to the pond from the cabin, as the button does, look mode at the Shore view and the clock running; resolves once the camera is ready, saying whether the player came out. */
   out(): Promise<boolean>;
+  /**
+   * Travel to the lake `id`, as choosing it does: the lure is reeled in, the save names the lake at the pond with the
+   * clock as it is, and the screen fades out over `NIGHT.fadeOut` of stepped time before the page is loaded afresh
+   * there. Resolves at once, saying whether the journey began; it is refused, and nothing changes, for a lake the game
+   * does not know, with a fish hooked or landed, and while yawning or leaving. To the lake the player is at it goes out
+   * from the cabin, as `out` does, and is nothing at the pond (true). A test waits for the reload with
+   * `page.waitForEvent('load')`; on a paused page the fade is stepped to its end first.
+   */
+  travel(id: string): Promise<boolean>;
+  /** The load's fade-in let go, so a page opens clear at the pond: what `start` in `smoke/game.ts` does unless asked to keep it. */
+  arrived(): void;
 }
 
 /** A point on the page. */
@@ -398,6 +423,9 @@ export interface DebugHost {
   pagesOpen(): boolean;
   startAgain(): Promise<void>;
   openJournal(open: boolean): Promise<void>;
+  openLakes(open: boolean): Promise<void>;
+  map(): { pin: string; handovers: number };
+  mapOnScreen(): { x: number; y: number } | null;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
   setSettings(next: Partial<Settings>): Promise<void>;
   /** The lake made as dirty as that, the water drawn so. */
@@ -421,6 +449,8 @@ export interface DebugHost {
   setMode(to: Mode): Promise<void>;
   /** Down from the cabin to the pond, the camera at the shore. */
   out(): Promise<boolean>;
+  /** Travel to a lake: the game's journey, and the page's side of it. */
+  travel(id: string): Promise<boolean>;
 }
 
 export function createApi(host: DebugHost): GameApi {
@@ -475,7 +505,10 @@ export function createApi(host: DebugHost): GameApi {
         y: drums.y[i],
         bed: game.lake.bedDepth(drums.x[i], drums.y[i]),
         hauled: drums.found[i] === 1,
-        bank: bankSpot(i, game.lake).slice(0, 3) as [number, number, number],
+        // a lake with no cabin has no bank to stand a hauled drum on, and it is read as lying where it lay on the bed
+        bank: game.lake.cabin
+          ? (bankSpot(i, game.lake).slice(0, 3) as [number, number, number])
+          : [drums.x[i], drums.y[i], -game.lake.bedDepth(drums.x[i], drums.y[i])],
       }));
     },
     treasures() {
@@ -514,8 +547,8 @@ export function createApi(host: DebugHost): GameApi {
     haul: () => game.haul(),
     keep: () => game.keep(),
     journal: () => ({
-      kinds: JSON.parse(JSON.stringify(game.progress.save.journal)) as Journal,
-      found: [...game.progress.save.found],
+      kinds: JSON.parse(JSON.stringify(game.progress.entry(game.lake.id).journal)) as Journal,
+      found: [...game.progress.entry(game.lake.id).found],
     }),
     gear: () => ({ ...game.gear }),
     fishing: () => ({
@@ -665,6 +698,9 @@ export function createApi(host: DebugHost): GameApi {
     pair: (fixed) => host.pair(fixed),
     startAgain: () => host.startAgain(),
     openJournal: (open = true) => host.openJournal(open),
+    openLakes: (open = true) => host.openLakes(open),
+    map: () => host.map(),
+    mapOnScreen: () => host.mapOnScreen(),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),
@@ -694,5 +730,7 @@ export function createApi(host: DebugHost): GameApi {
     fade: () => game.fade(),
     sleep: () => Promise.resolve(game.sleep()),
     out: () => host.out(),
+    travel: (id) => host.travel(id),
+    arrived: () => game.arrived(),
   };
 }

@@ -21,6 +21,7 @@ import { place } from './matrix';
 import { ball, box, sheet, splitBySlope } from './meshes';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { PALETTE, mix, type Colour, type Palette } from './palette';
+import { damMesh } from './dam';
 import { boulderMeshes, cliffLumpMeshes } from './rocks';
 import { seeded } from './random';
 import { surface } from './water/surface';
@@ -522,6 +523,7 @@ export class Scene {
     );
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
+    const dam = damMesh(lake);
     const groups: GameGroup[] = [
       ...bedBands(lake).map((band) => ({ mesh: band.mesh, matrices: one, albedo: band.colour, roughness: 0.95 })),
       // the boulders and the cliff's lumps are faceted rock with a painted edge, a group each at its own stretch
@@ -541,6 +543,8 @@ export class Scene {
         albedo: palette.cliff,
         roughness: 0.92,
       })),
+      // a lake with a dam has its wall, a painted solid of concrete grey like the bank's stones
+      ...(dam ? [{ mesh: dam, matrices: one, albedo: palette.stone, roughness: 0.85 }] : []),
     ];
     if (!kit) {
       groups.push(
@@ -622,6 +626,8 @@ export function sceneryFigures(placements: Placement[], lake: Lake): SceneryFigu
   // the rocks, each a placement of a mesh of its own: the boulders in the water and the cliff's lumps
   const rocks = [...boulderMeshes(lake), ...cliffLumpMeshes(cliffLumps(lake), lake)];
   for (const rock of rocks) triangles += rock.mesh.indices.length / 3;
+  // the dam's wall, one painted mesh, if the lake has one
+  triangles += (damMesh(lake)?.indices.length ?? 0) / 3;
   // the bed's bands, drawn once each and counted with the rest, so a band given rings of its own shows in the figure
   for (const band of bedBands(lake)) triangles += band.mesh.indices.length / 3;
   // the water's surface, drawn once, so a sheet made finer shows in the figure and is held under its ceiling

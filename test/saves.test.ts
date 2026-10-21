@@ -8,6 +8,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
+import { gearFor } from '../src/fight';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { CLOCK, KINDS } from '../src/lake';
@@ -19,10 +20,22 @@ import { seeded } from '../src/random';
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
+/** A save with nothing in it: at the home, its entry fresh, dawn at the pond. */
+const FRESH = {
+  lake: HOME.id,
+  lakes: { [HOME.id]: { cured: 0, drums: 0, journal: {}, found: [] } },
+  day: 1,
+  time: 0.25,
+  place: 'pond',
+};
+
 const DIR = new URL('saves/', import.meta.url);
 const files = readdirSync(DIR)
   .filter((f) => f.endsWith('.json'))
   .sort();
+/** What a save says of the home lake, however it was written. */
+const entryOf = (json: string | null, lakes: Record<string, Lake> = { [HOME.id]: HOME }) =>
+  new Progress(memoryStore(json), lakes).entry(HOME.id);
 const read = (file: string) => readFileSync(new URL(file, DIR), 'utf8');
 
 /** What each save was worth when it was written, and what loading it must keep. */
@@ -62,6 +75,28 @@ const KEPT: Record<string, Record<string, unknown>> = {
   '07-time.json': { cured: 2, day: 3, time: 0.6, place: 'pond' },
   // a cabin save holds dawn whatever its file says, since the clock is held at dawn there
   '08-cabin.json': { cured: 3, day: 5, time: CLOCK.startsAt, place: 'cabin' },
+  // the lakes: the flat file of before, whose fields are the home's entry (the save has none of `lake` or `lakes`)
+  '09-flat-into-lakes.json': {
+    lake: HOME.id,
+    cured: 7,
+    day: 6,
+    drums: 2,
+    journal: { bream: { caught: 3, best: 0.9, first: 1 }, pike: { caught: 1, best: 2.5, first: 3 } },
+    found: ['badge'],
+    time: 0.4,
+    place: 'pond',
+  },
+  // the save per lake: an entry for the home, and one under an id the game has no lake for, which is dropped
+  '10-lakes.json': {
+    lake: HOME.id,
+    cured: 6,
+    day: 3,
+    drums: 1,
+    journal: { perch: { caught: 2, best: 1.5, first: 2 } },
+    found: ['lunchbox'],
+    time: 0.4,
+    place: 'pond',
+  },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -72,7 +107,9 @@ describe('saves from every shape the game has written', () => {
   for (const file of files) {
     describe(file, () => {
       it('loads with what it held kept', () => {
-        const save = new Progress(memoryStore(read(file))).save as unknown as Record<string, unknown>;
+        // the home's entry is read beside the player's own fields, since the files of before the lakes held them flat
+        const loaded = new Progress(memoryStore(read(file)));
+        const save = { ...loaded.save, ...loaded.entry(HOME.id) } as unknown as Record<string, unknown>;
         for (const [key, was] of Object.entries(KEPT[file])) expect(save[key]).toEqual(was);
       });
 
@@ -95,46 +132,14 @@ describe('saves from every shape the game has written', () => {
   }
 
   it('shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('not json')).save).toEqual({
-      cured: 0,
-      day: 1,
-      drums: 0,
-      journal: {},
-      found: [],
-      time: 0.25,
-      place: 'pond',
-    });
-    expect(new Progress(memoryStore('[1, 2]')).save).toEqual({
-      cured: 0,
-      day: 1,
-      drums: 0,
-      journal: {},
-      found: [],
-      time: 0.25,
-      place: 'pond',
-    });
-    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual({
-      cured: 0,
-      day: 1,
-      drums: 0,
-      journal: {},
-      found: [],
-      time: 0.25,
-      place: 'pond',
-    });
+    expect(new Progress(memoryStore('not json')).save).toEqual(FRESH);
+    expect(new Progress(memoryStore('[1, 2]')).save).toEqual(FRESH);
+    expect(new Progress(memoryStore('{"bank": 7}')).save).toEqual(FRESH);
     // a count that is not a whole number of fish, or is a string, a null or a list, is taken for none
     for (const bad of ['-3', '2.5', '"7"', 'null', '[4]', '1e400', '9007199254740993'])
-      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual({
-        cured: 0,
-        day: 1,
-        drums: 0,
-        journal: {},
-        found: [],
-        time: 0.25,
-        place: 'pond',
-      });
+      expect(new Progress(memoryStore(`{"cured": ${bad}}`)).save, bad).toEqual(FRESH);
     // and one that is, is kept, with whatever else the save said left alone
-    expect(new Progress(memoryStore('{"cured": 12, "bank": 7}')).save.cured).toBe(12);
+    expect(entryOf('{"cured": 12, "bank": 7}').cured).toBe(12);
   });
 
   it('reads the day as a whole number of one or more, and anything else as day one', () => {
@@ -145,13 +150,13 @@ describe('saves from every shape the game has written', () => {
   });
 
   it('reads the drums hauled as a whole number held to the drums there are, and anything else as none', () => {
-    expect(new Progress(memoryStore('{"drums": 1}')).save.drums).toBe(1);
-    expect(new Progress(memoryStore('{"cured": 3}')).save.drums, 'an old save has none').toBe(0);
-    expect(new Progress(memoryStore('{"drums": 0}')).save.drums).toBe(0);
-    expect(new Progress(memoryStore(`{"drums": ${DRUMS.count}}`)).save.drums).toBe(DRUMS.count);
-    expect(new Progress(memoryStore('{"drums": 9}')).save.drums, 'past the pond’s drums').toBe(DRUMS.count);
+    expect(entryOf('{"drums": 1}').drums).toBe(1);
+    expect(entryOf('{"cured": 3}').drums, 'an old save has none').toBe(0);
+    expect(entryOf('{"drums": 0}').drums).toBe(0);
+    expect(entryOf(`{"drums": ${DRUMS.count}}`).drums).toBe(DRUMS.count);
+    expect(entryOf('{"drums": 9}').drums, 'past the pond’s drums').toBe(DRUMS.count);
     for (const bad of ['-1', '1.5', '"1"', 'null', '[1]', '1e400', '9007199254740993', 'true'])
-      expect(new Progress(memoryStore(`{"drums": ${bad}}`)).save.drums, bad).toBe(0);
+      expect(entryOf(`{"drums": ${bad}}`).drums, bad).toBe(0);
   });
 
   it('reads the clock as a finite number from nought up to but not reaching one, and anything else as dawn', () => {
@@ -186,12 +191,11 @@ describe('saves from every shape the game has written', () => {
   });
 
   describe('the journal', () => {
-    const journalOf = (j: string, rest = '"cured": 9, "day": 5') =>
-      new Progress(memoryStore(`{${rest}, "journal": ${j}}`)).save.journal;
+    const journalOf = (j: string, rest = '"cured": 9, "day": 5') => entryOf(`{${rest}, "journal": ${j}}`).journal;
     const good = { caught: 2, best: 0.5, first: 3 };
 
     it('is empty for an old save, and an entry is kept as it was written', () => {
-      expect(new Progress(memoryStore('{"cured": 3}')).save.journal).toEqual({});
+      expect(entryOf('{"cured": 3}').journal).toEqual({});
       expect(journalOf('{"bream": {"caught": 2, "best": 0.5, "first": 3}}')).toEqual({ bream: good });
     });
 
@@ -243,15 +247,17 @@ describe('saves from every shape the game has written', () => {
       const store = memoryStore('{"cured": 2, "day": 2, "journal": {"pike": {"caught": 1, "best": 99, "first": 2}}}');
       const game = new Game(new Progress(store));
       game.persist();
-      expect((JSON.parse(store.json!) as Save).journal).toEqual({ pike: { caught: 1, best: 0, first: 2 } });
+      expect((JSON.parse(store.json!) as Save).lakes[HOME.id].journal).toEqual({
+        pike: { caught: 1, best: 0, first: 2 },
+      });
     });
   });
 
   describe('the treasures found', () => {
-    const foundOf = (j: string) => new Progress(memoryStore(`{"cured": 3, "found": ${j}}`)).save.found;
+    const foundOf = (j: string) => entryOf(`{"cured": 3, "found": ${j}}`).found;
 
     it('is empty for an old save, and the ids are kept as written', () => {
-      expect(new Progress(memoryStore('{"cured": 3}')).save.found).toEqual([]);
+      expect(entryOf('{"cured": 3}').found).toEqual([]);
       expect(foundOf('["duck", "lure"]')).toEqual(['duck', 'lure']);
       expect(foundOf('[]')).toEqual([]);
     });
@@ -275,26 +281,18 @@ describe('saves from every shape the game has written', () => {
       const store = memoryStore('{"cured": 2, "found": ["bottle", "bottle", "x"]}');
       const game = new Game(new Progress(store));
       game.persist();
-      expect((JSON.parse(store.json!) as Save).found).toEqual(['bottle']);
+      expect((JSON.parse(store.json!) as Save).lakes[HOME.id].found).toEqual(['bottle']);
     });
   });
 
   it('starts over: a save of seven cured is wiped in memory and in the store, and a new load finds none', () => {
     const store = memoryStore('{"cured": 7}');
     const progress = new Progress(store);
-    expect(progress.save.cured).toBe(7);
+    expect(progress.entry(HOME.id).cured).toBe(7);
     progress.reset();
-    expect(progress.save).toEqual({ cured: 0, day: 1, drums: 0, journal: {}, found: [], time: 0.25, place: 'pond' });
+    expect(progress.save).toEqual(FRESH);
     expect(store.json).toBeNull();
-    expect(new Progress(store).save).toEqual({
-      cured: 0,
-      day: 1,
-      drums: 0,
-      journal: {},
-      found: [],
-      time: 0.25,
-      place: 'pond',
-    });
+    expect(new Progress(store).save).toEqual(FRESH);
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {
@@ -319,13 +317,134 @@ describe('a save read against the lake it is handed', () => {
   const ids = HOME.treasures.list.map((t) => t.id);
 
   it('holds the drums hauled to the lake’s own, and the home’s by default', () => {
-    expect(new Progress(memoryStore('{"drums": 5}'), small).save.drums).toBe(1);
-    expect(new Progress(memoryStore('{"drums": 5}')).save.drums).toBe(HOME.drums.count);
+    expect(entryOf('{"drums": 5}', { [HOME.id]: small }).drums).toBe(1);
+    expect(entryOf('{"drums": 5}').drums).toBe(HOME.drums.count);
   });
 
   it('keeps only the treasures the lake has', () => {
     const json = JSON.stringify({ cured: 3, found: [ids[1], ids[0]] });
-    expect(new Progress(memoryStore(json), small).save.found).toEqual([ids[0]]);
-    expect(new Progress(memoryStore(json)).save.found).toEqual([ids[1], ids[0]]);
+    expect(entryOf(json, { [HOME.id]: small }).found).toEqual([ids[0]]);
+    expect(entryOf(json).found).toEqual([ids[1], ids[0]]);
+  });
+});
+
+describe('the save per lake', () => {
+  const other: Lake = { ...HOME, id: 'other', name: 'Other Water', drums: { ...HOME.drums, count: 1 } };
+  const both: Record<string, Lake> = { [HOME.id]: HOME, [other.id]: other };
+  const load = (json: string, lakes = both) => new Progress(memoryStore(json), lakes);
+  const entry = (cured = 0, drums = 0) => ({ cured, drums, journal: {}, found: [] });
+
+  it('has an entry for every lake the game has, fresh, and the home as the lake it is at', () => {
+    const { save } = new Progress(memoryStore(), both);
+    expect(save.lake).toBe(HOME.id);
+    expect(save.lakes).toEqual({ [HOME.id]: entry(), [other.id]: entry() });
+  });
+
+  it('reads the flat save of before as the home’s entry, and writes it back in the new shape only', () => {
+    const store = memoryStore(read('09-flat-into-lakes.json'));
+    const progress = new Progress(store, both);
+    expect(progress.entry(HOME.id)).toMatchObject({ cured: 7, drums: 2, found: ['badge'] });
+    expect(progress.entry(other.id), 'the other lake is untouched').toEqual(entry());
+    progress.persist();
+    const written = JSON.parse(store.json!) as Record<string, unknown>;
+    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'place', 'time']);
+    for (const old of ['cured', 'drums', 'journal', 'found']) expect(written, old).not.toHaveProperty(old);
+  });
+
+  it('takes `lakes` when a save has both, and leaves the flat fields alone', () => {
+    const progress = load('{"cured": 9, "drums": 2, "lakes": {"duckpond": {"cured": 2}}}');
+    expect(progress.entry(HOME.id)).toEqual(entry(2));
+  });
+
+  it('reads `lake` as the home’s unless it names a lake the game has', () => {
+    expect(load('{"lake": "other"}').save.lake).toBe('other');
+    for (const bad of ['"nowhere"', '3', 'null', '["other"]', 'true', '"__proto__"', '"toString"'])
+      expect(load(`{"lake": ${bad}}`).save.lake, bad).toBe(HOME.id);
+    expect(load('{"cured": 3}').save.lake, 'an old save has none').toBe(HOME.id);
+  });
+
+  it('reads `lakes` that is not an object as fresh, flat fields beside it or not', () => {
+    for (const bad of ['null', '4', '"x"', '[1]', 'true'])
+      expect(load(`{"cured": 5, "lakes": ${bad}}`).save.lakes, bad).toEqual({
+        [HOME.id]: entry(),
+        [other.id]: entry(),
+      });
+  });
+
+  it('drops an entry under an id the game has no lake for, and gives a known lake with none a fresh one', () => {
+    const progress = load('{"lakes": {"nowhere": {"cured": 9}, "other": {"cured": 4}}}');
+    expect(Object.keys(progress.save.lakes).sort()).toEqual([HOME.id, 'other']);
+    expect(progress.entry('other').cured).toBe(4);
+    expect(progress.entry(HOME.id)).toEqual(entry());
+    const corpus = new Progress(memoryStore(read('10-lakes.json'))).save;
+    expect(corpus.lakes).not.toHaveProperty('nowhere');
+    expect(corpus.lakes[HOME.id].cured).toBe(6);
+  });
+
+  it('reads each entry against its own lake: the drums held to that lake’s, the journal to its cures', () => {
+    const progress = load(
+      '{"lakes": {"duckpond": {"drums": 9}, "other": {"drums": 9, "cured": 1, "journal": {"bream": {"caught": 2, "best": 0.5, "first": 1}}}}}',
+    );
+    expect(progress.entry(HOME.id).drums).toBe(HOME.drums.count);
+    expect(progress.entry('other').drums).toBe(1);
+    expect(progress.entry('other').journal, 'two caught of one cured').toEqual({});
+  });
+
+  it('reads an entry’s bad fields as their defaults, field by field, and a bad entry as fresh', () => {
+    const progress = load(
+      '{"lakes": {"duckpond": {"cured": -1, "drums": "x", "journal": 4, "found": {"a": 1}}, "other": 7}}',
+    );
+    expect(progress.save.lakes).toEqual({ [HOME.id]: entry(), [other.id]: entry() });
+    expect(load('{"lakes": {"duckpond": {"cured": 2.5}}}').entry(HOME.id).cured).toBe(0);
+    expect(load('{"lakes": {"duckpond": {"cured": 3}}}').entry(HOME.id).cured).toBe(3);
+  });
+
+  it('makes an entry for a lake the save has none for when the game asks, and keeps it', () => {
+    const progress = new Progress(memoryStore());
+    progress.entry('new').cured = 2;
+    expect(progress.entry('new').cured).toBe(2);
+  });
+
+  it('comes back as it went: two lakes written and read again are the same', () => {
+    const store = memoryStore();
+    const progress = new Progress(store, both);
+    progress.entry(HOME.id).cured = 3;
+    progress.entry(HOME.id).found.push('badge');
+    progress.entry('other').cured = 4;
+    progress.entry('other').drums = 1;
+    progress.save.lake = 'other';
+    progress.save.day = 5;
+    progress.persist();
+    expect(new Progress(memoryStore(store.json), both).save).toEqual(progress.save);
+  });
+
+  it('starts over to a fresh entry for every lake', () => {
+    const progress = new Progress(memoryStore('{"lakes": {"other": {"cured": 4}}}'), both);
+    progress.reset();
+    expect(progress.save.lakes).toEqual({ [HOME.id]: entry(), [other.id]: entry() });
+    expect(progress.save.lake).toBe(HOME.id);
+  });
+
+  describe('the gear', () => {
+    const journeyed = JSON.stringify({ lake: 'other', lakes: { duckpond: entry(3), other: entry(4) } });
+
+    it('is the sum of the fish cured over every lake', () => {
+      const progress = load(journeyed);
+      expect(progress.curedTotal()).toBe(7);
+      const game = new Game(progress, { lake: other, random: seeded(1) });
+      expect(game.gear).toEqual(gearFor(7));
+      expect(game.gear).not.toEqual(gearFor(4));
+      expect(game.bite.gear).toBe(game.gear);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is the same from either lake, and a journey resets nothing', () => {
+      const a = new Game(load(journeyed), { lake: HOME, random: seeded(1) });
+      const b = new Game(load(journeyed), { lake: other, random: seeded(1) });
+      expect(a.gear).toEqual(b.gear);
+      expect(a.progress.entry('other').cured, 'the other lake’s count is not the game’s').toBe(4);
+      expect(a.fish.curedCount()).toBe(3);
+      expect(b.fish.curedCount()).toBe(Math.min(4, other.fishCount));
+    });
   });
 });

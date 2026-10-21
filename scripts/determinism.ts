@@ -17,7 +17,7 @@
  */
 import { careful } from '../src/angler';
 import { Game } from '../src/game';
-import { HOME } from '../src/lakes';
+import { LAKES, lakeNamed } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -29,6 +29,8 @@ const CABIN_FRAMES = 45;
 
 export interface TwiceOptions {
   seed: number;
+  /** The id of the lake played, the Duck Pond unless said (an id and not the lake, since the options cross to a worker). */
+  lake?: string;
   frames: number;
   /** Where the clock starts, if not at dawn: a little before midnight, so a yawn and a waking are played and hashed. */
   startsAt?: number;
@@ -162,13 +164,24 @@ export function hashGame(game: Game): string {
 }
 
 /** Play a seed twice, hashing every `every` frames, and say where the two runs first parted. */
-export function playTwice({ seed, frames, every = 300, startsAt, save, label, meddle }: TwiceOptions): TwiceResult {
+export function playTwice({
+  seed,
+  lake: id,
+  frames,
+  every = 300,
+  startsAt,
+  save,
+  label,
+  meddle,
+}: TwiceOptions): TwiceResult {
+  const lake = lakeNamed(id ?? '');
   const passes: string[][] = [];
   let days = 1;
   let outs = 0;
   for (let pass = 0; pass < 2; pass++) {
-    const game = new Game(new Progress(memoryStore(save === undefined ? undefined : JSON.stringify(save)), HOME), {
-      lake: HOME,
+    const opened = id === undefined ? save : { ...save, lake: lake.id };
+    const game = new Game(new Progress(memoryStore(opened === undefined ? undefined : JSON.stringify(opened)), LAKES), {
+      lake,
       random: seeded(seed),
     });
     const hashes: string[] = [];

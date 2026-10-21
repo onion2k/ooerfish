@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { fuzz } from '../scripts/fuzzer';
 import { HOME } from '../src/lakes';
+import { RESERVOIR } from '../src/lakes/reservoir';
 
 const FISH_COUNT = HOME.fishCount;
 
@@ -13,7 +14,7 @@ describe('the fuzzer', () => {
     const done: Record<string, number> = {};
     let splashed = 0;
     for (const seed of [1, 2, 3]) {
-      const r = fuzz(seed, 8000);
+      const r = fuzz(seed, 8000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       splashed += r.happened.splashed;
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
@@ -29,7 +30,7 @@ describe('the fuzzer', () => {
     // twelve seeds and not eight: a seed now starts with some of the fish already cured, which leaves fewer to slip
     // the hook, and the first eight draw none that does in 4000 frames
     for (let seed = 1; seed <= 12; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
@@ -43,7 +44,7 @@ describe('the fuzzer', () => {
     let given = 0,
       withGear = 0;
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       given += r.happened.gifted;
       if (r.done['start gifts'] > 0) withGear++;
@@ -55,7 +56,7 @@ describe('the fuzzer', () => {
   it('reaches a clean pond: across a few seeds it is clean for some frames, a cast is made into it, nothing bites there, and no more than twelve are ever cured', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 8; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
       // the most ever cured at once is the pond's size, which the invariants hold; the result says it too
@@ -71,7 +72,7 @@ describe('the fuzzer', () => {
     const done: Record<string, number> = {},
       happened: Record<string, number> = {};
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
       for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
@@ -90,7 +91,7 @@ describe('the fuzzer', () => {
     const done: Record<string, number> = {},
       happened: Record<string, number> = {};
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       // fish bites in a clean pond are what must not happen: a treasure may be snagged there
       expect(r.done['bites in a clean pond'], `seed ${seed}`).toBe(0);
@@ -108,7 +109,7 @@ describe('the fuzzer', () => {
   it('plays a phone: across a few seeds its gestures are reached, cast, strike and reel, and a refused message changes nothing', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 12; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
     }
@@ -126,7 +127,7 @@ describe('the fuzzer', () => {
   it('reaches the night: across seeds some cross midnight and wake, some go to bed early, some are refused mid-fight, and none breaks a rule', () => {
     const done: Record<string, number> = {};
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000);
+      const r = fuzz(seed, 4000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
       // the monkey never stays in the cabin to the end of a seed it has frames left in
@@ -140,5 +141,18 @@ describe('the fuzzer', () => {
 
   it('plays the same way twice from a seed', () => {
     expect(fuzz(2, 600)).toEqual(fuzz(2, 600));
+  });
+
+  it('plays the Reservoir with no rule broken, and the drawn lake reaches both', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const r = fuzz(seed, 4000, 'reservoir');
+      expect(r.failure, `seed ${seed}`).toBe(null);
+      expect(r.done['lake reservoir'], `seed ${seed}`).toBe(1);
+      expect(r.done['most cured'] ?? 0, `seed ${seed}`).toBeLessThanOrEqual(RESERVOIR.fishCount);
+    }
+    const drawn = new Set<string>();
+    for (let seed = 1; seed <= 12; seed++)
+      for (const key of Object.keys(fuzz(seed, 60).done)) if (key.startsWith('lake ')) drawn.add(key);
+    expect([...drawn].sort()).toEqual(['lake duckpond', 'lake reservoir']);
   });
 });

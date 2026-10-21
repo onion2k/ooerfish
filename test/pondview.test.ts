@@ -1,6 +1,6 @@
 /** The pond on the screen: the glow gauge, the welcome line, and the lines said when a fish is cured and when the pond is clean. */
 import { describe, expect, it } from 'vitest';
-import { HOME } from '../src/lakes';
+import { HOME, LAKES } from '../src/lakes';
 import { DRUM_RULES } from '../src/rules';
 import { PondView, pondWords, type PondState } from '../src/pondview';
 import { DT, newGame } from './helpers';
@@ -25,6 +25,31 @@ const state = (over: Partial<PondState> = {}): PondState => ({
   giftUntil: -Infinity,
   t: 0,
   ...over,
+});
+
+describe('what the pond says of another lake', () => {
+  const reservoir = LAKES.reservoir;
+  const said = (over: Partial<PondState> = {}) => pondWords(state({ toClean: reservoir.toClean, ...over }), reservoir);
+
+  it('names the lake in the welcome, and the pond’s own words stay as the page had them', () => {
+    expect(said().welcomeLine).toBe("The Reservoir's fish are glowing: catch them to clean it up.");
+    expect(pondWords(state()).welcomeLine).toBe(
+      "Welcome home. The pond's fish are glowing: catch them to clean it up.",
+    );
+  });
+
+  it('says the lake and not the pond when a fish is cured or a drum hauled there', () => {
+    expect(said({ toastCured: 1, toastUntil: 5, cured: 1 }).toast).toEqual({
+      lead: 'Cured!',
+      bold: 'The Reservoir clears a little.',
+    });
+    expect(said({ toastHauled: 1, hauledUntil: 5, drums: 1 }).toast).toEqual({
+      lead: 'Hauled out!',
+      bold: 'The Reservoir clears a lot.',
+    });
+    const pond = pondWords(state({ toastCured: 1, toastUntil: 5, cured: 1 }));
+    expect(pond.toast).toEqual({ lead: 'Cured!', bold: 'The pond clears a little.' });
+  });
 });
 
 describe('what the pond says', () => {
@@ -200,6 +225,7 @@ function view() {
     bar: stub(),
     gone: stub(),
     welcome: stub(),
+    welcomeLine: stub(),
     toast: stub(),
   };
   const pond = new PondView(el, () => game, 2, HOME);
@@ -260,7 +286,7 @@ describe('the pond view', () => {
   it('says a cure for a while, steps the gauge, and takes the line away when the time is up', () => {
     const { game, el, pond } = view();
     pond.show();
-    game.progress.save.cured = 1;
+    game.progress.entry(game.lake.id).cured = 1;
     game.contamination = contaminationAfter(1, 0);
     pond.cured(1, CURE.toClean);
     pond.show();
@@ -278,7 +304,7 @@ describe('the pond view', () => {
   it('says a haul, and steps the gauge an eighth', () => {
     const { game, el, pond } = view();
     pond.show();
-    game.progress.save.drums = 1;
+    game.progress.entry(game.lake.id).drums = 1;
     pond.hauled(1, DRUMS.count);
     pond.show();
     expect(el.toast.innerHTML).toContain('Hauled out!');
@@ -307,7 +333,7 @@ describe('the pond view', () => {
 
   it('says the newer of a cure’s line and a treasure’s', () => {
     const { game, el, pond } = view();
-    game.progress.save.cured = 1;
+    game.progress.entry(game.lake.id).cured = 1;
     game.contamination = contaminationAfter(1, 0);
     pond.cured(1, CURE.toClean);
     for (let f = 0; f < 30; f++) game.step(DT);
@@ -318,8 +344,8 @@ describe('the pond view', () => {
 
   it('turns the gauge clean at the last fish cured and the last drum hauled, and says so', () => {
     const { game, el, pond } = view();
-    game.progress.save.cured = CURE.toClean;
-    game.progress.save.drums = DRUMS.count;
+    game.progress.entry(game.lake.id).cured = CURE.toClean;
+    game.progress.entry(game.lake.id).drums = DRUMS.count;
     game.contamination = 0;
     pond.cured(CURE.toClean, CURE.toClean);
     pond.show();

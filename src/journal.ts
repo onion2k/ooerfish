@@ -5,6 +5,8 @@
  * reads them back field by field), the game writes one at each stow, and the page only shows `journalWords`.
  */
 
+import { theLake } from './lakes/page';
+
 /**
  * What is kept of one kind: how many are caught, the best weight in kilograms, and the day of the first (from one).
  * A best or a first a save could not vouch for is read as nought, which the page leaves unsaid.
@@ -54,6 +56,10 @@ export interface JournalTreasureRow {
 }
 
 export interface JournalPage {
+  /** The page's heading: "Journal" at the home, where the book began, and "Journal: <lake>" at another lake, since the book is kept a lake at a time. */
+  title: string;
+  /** The treasures' heading, naming the lake: the pond for the home. */
+  foundTitle: string;
   rows: JournalRow[];
   /** The junk's line, below the kinds. */
   drums: string;
@@ -66,7 +72,8 @@ export interface JournalPage {
 /**
  * The words of the journal page: each kind, caught or not, the drums of waste hauled out of those on the bed, and each
  * junk treasure found (by `found`, a list of ids) by name, with the bottle's note under it, or as not yet found. An id of
- * a treasure not handed in is ignored.
+ * a treasure not handed in is ignored. `lakeName` is the lake the book is of, or null at the home, whose page keeps
+ * the plain heading it has always had.
  */
 export function journalWords(
   journal: Readonly<Journal>,
@@ -75,6 +82,7 @@ export function journalWords(
   drums: number,
   treasures: readonly JournalTreasure[] = [],
   found: readonly string[] = [],
+  lakeName: string | null = null,
 ): JournalPage {
   const rows = kinds.map(({ id, name }): JournalRow => {
     const e = journal[id];
@@ -92,6 +100,8 @@ export function journalWords(
   });
   const n = rows2.filter((r) => r.found).length;
   return {
+    title: lakeName ? `Journal: ${lakeName}` : 'Journal',
+    foundTitle: `Found in ${lakeName ? theLake(lakeName) : 'the pond'}`,
     rows,
     drums: `drums of waste hauled: ${hauled} of ${drums}`,
     treasures: rows2,

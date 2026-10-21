@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { WATCH, grew, sizes, trouble } from '../scripts/leaks';
 import { crowd } from '../scripts/phonemonkey';
-import { HOME } from '../src/lakes';
+import { HOME, LAKES } from '../src/lakes';
 import { TREASURE_RULES } from '../src/rules';
 import { seeded } from '../src/random';
 import { newGame } from './helpers';
@@ -35,29 +35,35 @@ describe('what must stay bounded', () => {
     }
     expect(
       now['save bytes'],
-      'a fresh save is {"cured":0,"day":1,"drums":0,"journal":{},"found":[],"time":0.25,"place":"pond"}, eighty bytes',
-    ).toBe(80);
-    expect(WATCH['treasures found']!.ceiling).toBe(TREASURES.count);
+      'a fresh save is {"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":0.25,"place":"pond"}, a hundred and twenty-one bytes: the lake and an entry for each lake the game has',
+    ).toBe(121);
+    expect(WATCH['treasures found']!.ceiling).toBe(Math.max(...Object.values(LAKES).map((l) => l.treasures.count)));
+    expect(WATCH['drums hauled']!.ceiling).toBe(Math.max(...Object.values(LAKES).map((l) => l.drums.count)));
   });
 
   it('keeps the save under its ceiling with every treasure found, a drum hauled and every kind caught', () => {
     const all = JSON.stringify({
-      cured: 12,
-      day: 9,
-      drums: 2,
-      journal: {
-        bream: { caught: 4, best: 0.95, first: 2 },
-        perch: { caught: 5, best: 2.35, first: 1 },
-        pike: { caught: 3, best: 4.9, first: 4 },
+      lake: HOME.id,
+      lakes: {
+        [HOME.id]: {
+          cured: 12,
+          drums: 2,
+          journal: {
+            bream: { caught: 4, best: 0.95, first: 2 },
+            perch: { caught: 5, best: 2.35, first: 1 },
+            pike: { caught: 3, best: 4.9, first: 4 },
+          },
+          found: TREASURES.list.map((t) => t.id),
+        },
       },
-      found: TREASURES.list.map((t) => t.id),
+      day: 9,
     });
     const { game } = newGame(1, all);
     const now = sizes(game);
     expect(now['treasures found']).toBe(TREASURES.count);
     expect(now['save bytes']).toBeLessThan(WATCH['save bytes']!.ceiling);
     expect(
-      now['save bytes'] - 80,
+      now['save bytes'] - 121,
       'about a hundred and twenty bytes more than a fresh one, found alone',
     ).toBeGreaterThan(100);
   });

@@ -43,10 +43,12 @@ const BREAKPOINTS = [
  *               may contain the bobber's point.
  *   yawn        the words while the screen fades to the night.
  *   morning     the line on waking in the cabin.
- *   downButton  Down to the pond, beside the morning line.
+ *   downButton  Out to the lake, beside the morning line.
+ *   elsewhereButton  Somewhere else…, above it: the way to the lakes page.
  *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
  *   journalCard the journal's page, a modal of the same kind: held inside the screen and left out of the overlap rule, and
  *               its words must fit it without scrolling.
+ *   lakesCard   the lakes page, a modal of the same kind, its two rows and their buttons fitting it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
  */
@@ -66,6 +68,7 @@ const OVERLAYS = [
   'yawn',
   'morning',
   'downButton',
+  'elsewhereButton',
 ] as const;
 
 /**
@@ -74,6 +77,9 @@ const OVERLAYS = [
  */
 const FIGHT_SAMPLES = 12;
 const FIGHT_GAP = 30;
+
+/** The modal pages' cards, which lie over the other overlays by design. */
+const MODALS = ['startAgainCard', 'journalCard', 'lakesCard'];
 
 /** How near an overlay's edge may come to the bobber, the line's end or the fish, in CSS pixels: a finger-width of nothing is not asked, but the point must not sit on the edge. */
 const POINT_MARGIN = 6;
@@ -93,6 +99,8 @@ type Moment =
   | 'start again'
   | 'journal'
   | 'journal found'
+  | 'lakes'
+  | 'lakes cabin'
   | 'yawn'
   | 'morning';
 const MOMENTS: Moment[] = [
@@ -108,6 +116,8 @@ const MOMENTS: Moment[] = [
   'start again',
   'journal',
   'journal found',
+  'lakes',
+  'lakes cabin',
   'yawn',
   'morning',
 ];
@@ -125,9 +135,11 @@ const AT_LEAST: Record<Moment, number> = {
   'start again': 1,
   journal: 1,
   'journal found': 1,
-  // the gauge, the menu and the words; and, in the cabin, the line and the button with them
+  lakes: 1,
+  'lakes cabin': 1,
+  // the gauge, the menu and the words; and, in the cabin, the line and the two buttons with them
   yawn: 3,
-  morning: 4,
+  morning: 5,
 };
 
 interface Box {
@@ -167,6 +179,12 @@ async function boxes(page: Page): Promise<Box[]> {
         const r = page.getBoundingClientRect();
         out.push({ id: 'journalCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
+      // and the lakes page
+      const lakes = document.querySelector<HTMLElement>('#lakes:not([hidden]) .card');
+      if (lakes) {
+        const r = lakes.getBoundingClientRect();
+        out.push({ id: 'lakesCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
       return out;
     },
     OVERLAYS as readonly string[],
@@ -183,29 +201,32 @@ async function reach(page: Page, moment: Moment) {
   const save =
     moment === 'welcome'
       ? {}
-      : moment === 'journal'
-        ? {
-            save: {
-              cured: 3,
-              day: 2,
-              drums: 1,
-              journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
-            },
-          }
-        : moment === 'journal found'
+      : // the lakes page in the cabin is read from a load there, on the second day, as a morning is
+        moment === 'lakes cabin'
+        ? { save: { cured: 3, day: 2, place: 'cabin' as const } }
+        : moment === 'journal'
           ? {
-              // every treasure found, with the bottle's note the longest line of it, and a journal and a drum as well
               save: {
                 cured: 3,
                 day: 2,
                 drums: 1,
                 journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
-                found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
               },
             }
-          : moment === 'drum card' || moment === 'bottle card'
-            ? { save: { cured: 12 } }
-            : { save: { cured: 3 } };
+          : moment === 'journal found'
+            ? {
+                // every treasure found, with the bottle's note the longest line of it, and a journal and a drum as well
+                save: {
+                  cured: 3,
+                  day: 2,
+                  drums: 1,
+                  journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
+                  found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
+                },
+              }
+            : moment === 'drum card' || moment === 'bottle card'
+              ? { save: { cured: 12 } }
+              : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
@@ -218,6 +239,10 @@ async function reach(page: Page, moment: Moment) {
     if (m === 'journal' || m === 'journal found') {
       await g.openJournal();
       return true;
+    }
+    if (m === 'lakes' || m === 'lakes cabin') {
+      await g.openLakes();
+      return g.pagesOpen();
     }
     if (m === 'drum card') return g.fishTo('landed', 'drum');
     // the bottle's card is the longest: its note is the most words a card ever holds
@@ -284,8 +309,7 @@ for (const bp of BREAKPOINTS) {
               const p = all[a],
                 q = all[b];
               // the dialog is modal, so it lies over the other overlays by design, as the pairing overlay does
-              if (['startAgainCard', 'journalCard'].includes(p.id) || ['startAgainCard', 'journalCard'].includes(q.id))
-                continue;
+              if (MODALS.includes(p.id) || MODALS.includes(q.id)) continue;
               if (
                 Math.min(p.right, q.right) - Math.max(p.left, q.left) > EDGE_SLACK &&
                 Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > EDGE_SLACK
@@ -351,6 +375,23 @@ for (const bp of BREAKPOINTS) {
             });
             if (fit.scroll > fit.shown + 1)
               failures.add(`${still}: the journal's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
+          }
+
+          // the lakes page's rows and buttons all fit its card, with nothing left to scroll to
+          if (moment === 'lakes' || moment === 'lakes cabin') {
+            const fit = await page.evaluate(() => {
+              const card = document.querySelector<HTMLElement>('#lakes .card')!;
+              return {
+                scroll: card.scrollHeight,
+                shown: card.clientHeight,
+                buttons: document.querySelectorAll('#lakesList button').length,
+              };
+            });
+            if (fit.scroll > fit.shown + 1)
+              failures.add(`${still}: the lakes page's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
+            const wanted = moment === 'lakes' ? 1 : 2;
+            if (fit.buttons !== wanted)
+              failures.add(`${still}: the lakes page has ${fit.buttons} buttons, not ${wanted}`);
           }
 
           // the keyboard hint names keys a phone does not have

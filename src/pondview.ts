@@ -9,6 +9,7 @@ import type { Game } from './game';
 import { GIFT_GIVER } from './lake';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
+import { TheLake, theLake } from './lakes/page';
 
 export interface PondElements {
   gauge: HTMLElement;
@@ -17,6 +18,8 @@ export interface PondElements {
   /** The dark part of the bar, from its right, as wide as the share of the glow that has gone. */
   gone: HTMLElement;
   welcome: HTMLElement;
+  /** The part of the welcome that names the lake, its first line; the key to press stays under it. */
+  welcomeLine: HTMLElement;
   toast: HTMLElement;
 }
 
@@ -54,6 +57,10 @@ export interface PondWords {
   name: string;
   /** Whether the welcome line is shown. */
   welcome: boolean;
+  /** What the welcome says: the home's welcome home, and at another lake that its fish are glowing. */
+  welcomeLine: string;
+  /** The lake as the lines call it: the pond for the home, and the lake's name for any other. */
+  noun: string;
   /** The share of the glow left, from one (as sick as it starts) to nought (clean): what the bar shows, the lake's own sum. */
   glow: number;
   clean: boolean;
@@ -64,6 +71,8 @@ export interface PondWords {
 /** What the page says for this state of the pond. */
 export function pondWords(s: PondState, lake: Lake = HOME): PondWords {
   const name = lake.name;
+  const home = lake.id === HOME.id;
+  const noun = home ? 'pond' : theLake(name);
   // clean is every fish cured and every drum hauled, and the gauge is the lake's own formula for how far from it
   const clean = s.cured >= s.toClean && s.drums >= lake.drums.count;
   const glow = lake.contaminationAfter(s.cured, s.drums);
@@ -75,15 +84,19 @@ export function pondWords(s: PondState, lake: Lake = HOME): PondWords {
   if (foundOn && (!haulOn || s.foundUntil > s.hauledUntil) && (!cureOn || s.foundUntil > s.toastUntil)) {
     toast = { lead: 'Found!', bold: "It's for the shelf." };
   } else if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
-    if (clean) toast = { lead: `The ${name} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
-    else toast = { lead: 'Hauled out!', bold: 'The pond clears a lot.' };
+    if (clean) toast = { lead: `${TheLake(name)} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
+    else toast = { lead: 'Hauled out!', bold: `${TheLake(noun)} clears a lot.` };
   } else if (cureOn) {
-    if (s.toastCured === s.toClean && clean) toast = { lead: `The ${name} is clean!`, bold: 'Every fish is cured.' };
-    else toast = { lead: 'Cured!', bold: 'The pond clears a little.' };
+    if (s.toastCured === s.toClean && clean)
+      toast = { lead: `${TheLake(name)} is clean!`, bold: 'Every fish is cured.' };
+    else toast = { lead: 'Cured!', bold: `${TheLake(noun)} clears a little.` };
   } else if (s.gift && s.t >= s.giftFrom && s.t < s.giftUntil)
     toast = { lead: `A gift from ${GIFT_GIVER}: ${s.gift.name}.`, bold: s.gift.words };
   // a player who has cured a fish is not welcomed again, on this visit or the next
-  return { name, welcome: !s.cast && s.cured === 0 && s.drums === 0, glow, clean, toast };
+  const welcomeLine = home
+    ? "Welcome home. The pond's fish are glowing: catch them to clean it up."
+    : `${TheLake(name)}'s fish are glowing: catch them to clean it up.`;
+  return { name, welcome: !s.cast && s.cured === 0 && s.drums === 0, welcomeLine, noun, glow, clean, toast };
 }
 
 /** A share as a per cent, to a tenth, so a still bar writes nothing. */
@@ -99,7 +112,7 @@ export class PondView {
   private gift: PondState['gift'] = null;
   private giftFrom = -Infinity;
   private giftUntil = -Infinity;
-  private was = { welcome: '', toast: '', gone: '', clean: '', gauge: '', name: '' };
+  private was = { welcome: '', welcomeLine: '', toast: '', gone: '', clean: '', gauge: '', name: '' };
 
   /** `heardFor` is how long a line about a cure is said, in seconds of game time. */
   constructor(
@@ -149,9 +162,9 @@ export class PondView {
     if (g.lure.phase !== 'ready') this.cast = true;
     const w = pondWords(
       {
-        cured: g.progress.save.cured,
+        cured: g.progress.entry(g.lake.id).cured,
         toClean: this.lake.toClean,
-        drums: g.progress.save.drums,
+        drums: g.progress.entry(g.lake.id).drums,
         cast: this.cast,
         toastCured: this.toastCured,
         toastUntil: this.toastUntil,
@@ -189,6 +202,7 @@ export class PondView {
       this.was.welcome = welcome;
       el.welcome.hidden = welcome === 'off';
     }
+    if (w.welcomeLine !== this.was.welcomeLine) el.welcomeLine.textContent = this.was.welcomeLine = w.welcomeLine;
     const said = away ? null : w.toast;
     const toast = said ? `${said.lead}|${said.bold}` : '';
     if (toast !== this.was.toast) {

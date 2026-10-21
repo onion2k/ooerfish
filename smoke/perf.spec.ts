@@ -136,6 +136,26 @@ test('draws each season from the shore by day within the frame budget', async ({
   console.log(`frame, the seasons: ${costs.join(', ')}`);
 });
 
+// the Reservoir (`docs/lakes.md`, part 5): a lake half as big again with a dam, trees and woodland of its own, from the shore by
+// day. Its boot is told as the standard scene's is, from the page's own timing, on the governor's rung; neither is held to
+// a baseline, the frame to the budget alone
+test('draws the Reservoir from the shore by day within the frame budget', async ({ page }) => {
+  test.setTimeout(180_000);
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, rung: 'auto', save: { lake: 'reservoir' } });
+  const boot = await page.evaluate(() => window.game!.bootMs);
+  expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+  expect(await page.evaluate(() => window.game!.rung()), 'the governor kept the full rung').toBe('full');
+  await set(page, STANDARD, 300);
+  // the fish settled, and the first measuring's quarter second of warming on a page just booted
+  await page.evaluate(() => window.game!.step(600));
+  const ms = await page.evaluate(() => window.game!.measureFrame());
+  console.log(`perf: the Reservoir boot ${Math.round(boot)} ms, frame ${ms.toFixed(3)} ms`);
+  expect(Math.round(boot), 'the Reservoir boots within budget').toBeLessThanOrEqual(BUDGET.bootMs);
+  expect(ms, 'the Reservoir from the shore by day within the frame budget').toBeLessThanOrEqual(BUDGET.frameMs);
+  expect(problems).toEqual([]);
+});
+
 test('draws the water, at every time of day, splashing, within the frame budget', async ({ page }) => {
   test.setTimeout(180_000);
   const problems = watch(page);

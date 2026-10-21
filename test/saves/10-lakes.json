@@ -1,0 +1,28 @@
+{
+  "lake": "duckpond",
+  "lakes": {
+    "duckpond": {
+      "cured": 6,
+      "drums": 1,
+      "journal": {
+        "perch": {
+          "caught": 2,
+          "best": 1.5,
+          "first": 2
+        }
+      },
+      "found": [
+        "lunchbox"
+      ]
+    },
+    "nowhere": {
+      "cured": 9,
+      "drums": 1,
+      "journal": {},
+      "found": []
+    }
+  },
+  "day": 3,
+  "time": 0.4,
+  "place": "pond"
+}

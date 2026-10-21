@@ -31,7 +31,7 @@ function fishUntil(game: Game, n: number, each?: () => void, seed = 5) {
   }
   expect(cured(game), 'the angler cured them').toBeGreaterThanOrEqual(n);
 }
-const cured = (game: Game) => game.progress.save.cured;
+const cured = (game: Game) => game.progress.entry(game.lake.id).cured;
 
 describe('the cure', () => {
   it('takes twelve fish and two drums, worth two fish each, to clean the lake: sixteen fish’s worth, estimates to be tuned by playing', () => {
@@ -57,11 +57,9 @@ describe('the cure', () => {
       expect(told.length, 'told once a fish').toBe(k);
       // saved at once, as a count of fish and not as the contamination, so a retuned step re-derives it
       expect(JSON.parse(store.json!)).toEqual({
-        cured: k,
+        lake: game.lake.id,
+        lakes: { [game.lake.id]: { cured: k, drums: 0, journal: expect.any(Object) as unknown, found: [] } },
         day: 1,
-        drums: 0,
-        journal: expect.any(Object) as unknown,
-        found: [],
         time: expect.any(Number) as unknown,
         place: 'pond',
       });
@@ -135,11 +133,11 @@ describe('the cure', () => {
 
   it('is a count that must be a whole number of fish, and is checked as one', () => {
     const { game } = cureGame();
-    game.progress.save.cured = -1;
+    game.progress.entry(game.lake.id).cured = -1;
     expect(checkInvariants(game).join('\n')).toMatch(/cured -1 fish/);
-    game.progress.save.cured = 2.5;
+    game.progress.entry(game.lake.id).cured = 2.5;
     expect(checkInvariants(game).join('\n')).toMatch(/cured 2.5 fish/);
-    game.progress.save.cured = 3;
+    game.progress.entry(game.lake.id).cured = 3;
     expect(checkInvariants(game).filter((p) => /the lake has cured/.test(p))).toEqual([]);
   });
 });

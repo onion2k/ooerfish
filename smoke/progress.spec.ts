@@ -17,6 +17,18 @@ import { FIGHT, GEAR, HEAL, KINDS } from '../src/lake';
 const ROD = GEAR.find((g) => g.id === 'rod')!;
 import { STANDARD, ready, set, start, watch } from './game';
 
+/** A save as the page writes it, read as one lake's entry with the player's own fields beside it, which is the shape these stages assert on. */
+function flat(json: string) {
+  const save = JSON.parse(json) as {
+    lake: string;
+    lakes: Record<string, { cured: number; drums: number; found: string[]; journal: object }>;
+    day: number;
+    time: number;
+    place: string;
+  };
+  return { ...save.lakes[save.lake], day: save.day, time: save.time, place: save.place };
+}
+
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const FISH_COUNT = HOME.fishCount;
 const jettyGap = HOME.jetty!.gap;
@@ -436,7 +448,7 @@ test('a fish cured: the welcome goes at the first cast, the card says what the t
   expect(await api(() => window.game!.drawnDirt()), 'the water starts to heal, not jumps').toBeGreaterThan(
     15 / 16 + 0.05,
   );
-  expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 1, day: 1, drums: 0 });
+  expect(flat(await api(() => window.game!.save()))).toMatchObject({ cured: 1, day: 1, drums: 0 });
   await expect(page.locator('#toast')).toBeVisible();
   await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
   expect(await api(() => window.game!.events())).toContain('cured 1/12');
@@ -483,7 +495,7 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   await api(() => window.game!.step(1200));
   await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
   expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
-  expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 12, day: 1, drums: DRUMS.count });
+  expect(flat(await api(() => window.game!.save()))).toMatchObject({ cured: 12, day: 1, drums: DRUMS.count });
   expect(await api(() => window.game!.invariants())).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -640,7 +652,7 @@ test('the lever draws the water at once, quantised', async ({ page }) => {
  */
 test.describe('Start again', () => {
   const DIALOG = '#startAgain';
-  const saved = (page: Page) => page.evaluate(() => JSON.parse(window.game!.save()) as { cured: number });
+  const saved = (page: Page) => page.evaluate(() => window.game!.save()).then(flat);
   const stored = (page: Page) => page.evaluate(() => localStorage.getItem('ooerfish-save-v1'));
   const openFromMenu = async (page: Page) => {
     await page.locator('#menuButton').click();
@@ -654,7 +666,7 @@ test.describe('Start again', () => {
     await page.locator('#catch').click();
     await page.evaluate(() => window.game!.step(1));
     expect((await saved(page)).cured).toBe(1);
-    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect(flat((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
   };
 
   test('asks first, and Keep playing, Escape and a click outside each leave the save as it was', async ({ page }) => {
@@ -669,17 +681,17 @@ test.describe('Start again', () => {
 
     await page.getByRole('button', { name: 'Keep playing' }).click();
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect(flat((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
 
     await openFromMenu(page);
     await page.keyboard.press('Escape');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect(flat((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
 
     await openFromMenu(page);
     await page.mouse.click(3, 3);
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect(flat((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
     expect((await page.evaluate(() => window.game!.state())).contamination).toBeCloseTo(15 / 16, 12);
     expect(problems).toEqual([]);
   });
@@ -724,7 +736,7 @@ test.describe('Start again', () => {
     await expect(page.getByRole('button', { name: 'Keep playing' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(DIALOG)).toBeHidden();
-    expect(JSON.parse((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
+    expect(flat((await stored(page))!)).toMatchObject({ cured: 1, day: 1, drums: 0 });
   });
 
   test('the test API opens the dialog as the menu does, and keys over it do nothing in the game', async ({ page }) => {
@@ -790,7 +802,7 @@ test.describe('the day ends', () => {
     expect(await place(page)).toBe('cabin');
     expect(await day(page)).toBe(2);
     expect(await page.evaluate(() => window.game!.events())).toContain('woke 2');
-    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toEqual({
+    expect(flat(await page.evaluate(() => window.game!.save()))).toEqual({
       cured: 0,
       day: 2,
       drums: 0,
@@ -862,7 +874,7 @@ test.describe('the day ends', () => {
     await page.evaluate(() => window.game!.sleep());
     await play(page, 100, 'to the cabin');
     expect(await place(page)).toBe('cabin');
-    await page.getByRole('button', { name: 'Down to the pond' }).click();
+    await page.getByRole('button', { name: 'Out to the Duck Pond' }).click();
     await page.evaluate(() => window.game!.step(1));
     expect(await place(page)).toBe('pond');
     expect(await page.evaluate(() => window.game!.view())).toBe('shore');
@@ -905,7 +917,7 @@ test.describe('the day ends', () => {
     expect(await place(page)).toBe('yawning');
     await play(page, 100, 'the night');
     expect(await place(page)).toBe('cabin');
-    expect(JSON.parse(await page.evaluate(() => window.game!.save()))).toMatchObject({ cured: 4, day: 2, drums: 0 });
+    expect(flat(await page.evaluate(() => window.game!.save()))).toMatchObject({ cured: 4, day: 2, drums: 0 });
     expect(problems).toEqual([]);
   });
 
@@ -1046,7 +1058,7 @@ test.describe('the journal and the drum', () => {
     expect(await meter()).toBe('13');
     await expect(page.locator('#toast')).toHaveText('Hauled out! The pond clears a lot.');
     expect(await api(() => window.game!.drums().filter((d) => d.hauled).length)).toBe(1);
-    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ cured: 12, drums: 1 });
+    expect(flat(await api(() => window.game!.save()))).toMatchObject({ cured: 12, drums: 1 });
     expect(problems).toEqual([]);
   });
 
@@ -1121,7 +1133,7 @@ test.describe('the treasures on the bed', () => {
     await expect(page.locator('#toast')).toHaveText("Found! It's for the shelf.");
     expect(await meter(), 'a treasure cleans nothing').toBe('25');
     expect((await api(() => window.game!.state())).contamination).toBeCloseTo(0.25, 12);
-    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({
+    expect(flat(await api(() => window.game!.save()))).toMatchObject({
       cured: 12,
       drums: 0,
       found: ['lunchbox'],
@@ -1207,7 +1219,7 @@ test.describe('the treasures on the bed', () => {
       false,
       true,
     ]);
-    expect(JSON.parse(await api(() => window.game!.save()))).toMatchObject({ found: ['duck'], day: 2 });
+    expect(flat(await api(() => window.game!.save()))).toMatchObject({ found: ['duck'], day: 2 });
     expect(problems).toEqual([]);
   });
 });
@@ -1538,6 +1550,264 @@ test.describe('the seasons', () => {
     expect(await mist(), 'stepped down to lean while on').toBe(false);
     await page.evaluate(() => window.game!.rung('full'));
     expect(await mist(), 'and back to full').toBe(true);
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The lakes (`docs/lakes.md`, part 6): travel is a reload under the fade, a load fades in, and the day's end away from
+ * home wakes in the cabin at the Duck Pond. Seeded and paused, the fade stepped through the test API; the reload is
+ * waited for with the page's own `load`.
+ */
+test.describe('the lakes', () => {
+  /** Step `frames` and wait for the page to be loaded afresh, which the step began. */
+  async function reloaded(page: Page, frames: number) {
+    const loaded = page.waitForEvent('load');
+    await page.evaluate((n) => window.game!.step(n), frames);
+    await loaded;
+    await ready(page);
+  }
+  const where = (page: Page) =>
+    page.evaluate(() => ({
+      lake: window.game!.lake().id,
+      place: window.game!.place(),
+      day: window.game!.day(),
+      fade: window.game!.fade(),
+    }));
+
+  test('travel fades out and reloads at the other lake, which fades in; and travel back does the same', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    expect((await where(page)).lake).toBe('duckpond');
+    expect(await page.evaluate(() => window.game!.travel('reservoir'))).toBe(true);
+    expect(await where(page)).toMatchObject({ place: 'leaving', fade: 0 });
+    // the screen fades out on stepped time, and the page is not loaded afresh until it is full
+    await page.evaluate(() => window.game!.step(45));
+    const half = await where(page);
+    expect(half.fade).toBeGreaterThan(0.3);
+    expect(half.fade).toBeLessThan(0.7);
+    await expect(page.locator('#night')).toBeVisible();
+    await reloaded(page, 60);
+    // the fade-in is the load's own: full at the first frame, and clear over a second of stepped time
+    expect(await where(page)).toEqual({ lake: 'reservoir', place: 'pond', day: 1, fade: 1 });
+    await page.evaluate(() => window.game!.step(30));
+    const mid = (await where(page)).fade;
+    expect(mid).toBeGreaterThan(0.3);
+    expect(mid).toBeLessThan(0.7);
+    await page.evaluate(() => window.game!.step(30));
+    expect((await where(page)).fade).toBe(0);
+    await play(page, 60, 'a second at the Reservoir');
+
+    expect(await page.evaluate(() => window.game!.travel('duckpond'))).toBe(true);
+    await reloaded(page, 100);
+    expect(await where(page)).toMatchObject({ lake: 'duckpond', place: 'pond', fade: 1 });
+    await play(page, 60, 'a second at the Duck Pond again');
+    expect((await where(page)).fade).toBe(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('travel keeps the clock, refuses a lake that is not there, and is nothing to the lake the player is at', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { time: 0.4 } });
+    expect(await page.evaluate(() => window.game!.travel('nowhere'))).toBe(false);
+    expect((await where(page)).place).toBe('pond');
+    expect(await page.evaluate(() => window.game!.travel('duckpond'))).toBe(true);
+    expect((await where(page)).place).toBe('pond');
+    const at = (await page.evaluate(() => window.game!.state())).timeOfDay;
+    expect(await page.evaluate(() => window.game!.travel('reservoir'))).toBe(true);
+    await reloaded(page, 100);
+    expect((await page.evaluate(() => window.game!.state())).timeOfDay).toBe(at);
+    expect(problems).toEqual([]);
+  });
+
+  test('travel is refused with a fish landed, and nothing changes', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    expect(await page.evaluate(() => window.game!.travel('reservoir'))).toBe(false);
+    expect((await where(page)).place).toBe('pond');
+    await play(page, 120, 'a fish landed, travel refused');
+    expect((await where(page)).lake).toBe('duckpond');
+    expect(problems).toEqual([]);
+  });
+
+  test('the day ends at the Reservoir, and the player wakes in the cabin at home, on the next day, under the fade', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, fade: true, save: { lake: 'reservoir', time: 0.999, place: 'pond' } });
+    expect((await where(page)).lake).toBe('reservoir');
+    await page.evaluate(() => window.game!.step(60));
+    // midnight is past within the second, the yawn has begun, and the screen goes dark
+    await page.evaluate(() => window.game!.step(40));
+    expect((await where(page)).place).toBe('yawning');
+    await reloaded(page, 100);
+    expect(await where(page)).toEqual({ lake: 'duckpond', place: 'cabin', day: 2, fade: 1 });
+    await expect(page.locator('#downButton')).toHaveText('Out to the Duck Pond');
+    await expect(page.locator('#elsewhereButton')).toBeVisible();
+    await play(page, 60, 'the first second of the morning');
+    expect((await where(page)).fade).toBe(0);
+    await page.locator('#downButton').click();
+    await expect.poll(() => where(page).then((w) => w.place)).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+
+  // the map and the lakes page (part 7): the page opens three ways, stops the clock, and goes to a lake
+  const clockOf = (page: Page) =>
+    page.evaluate(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
+
+  test('the page opens from the menu at the pond, names each lake and its glow, stops the clock, and closes three ways', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, {
+      seed: 3,
+      paused: true,
+      save: { lakes: { reservoir: { cured: 10, drums: 0, journal: {}, found: [] } } },
+    });
+    await play(page, 60, 'a second before the page');
+    const before = await clockOf(page);
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Lakes' }).click();
+    await expect(page.locator('#lakes')).toBeVisible();
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
+    await expect(page.locator('#lakesList li')).toHaveCount(2);
+    // the pond is where the player is, with nothing to press; the Reservoir is half cleaned with a Go
+    const pond = page.locator('#lakesList li').nth(0),
+      reservoir = page.locator('#lakesList li').nth(1);
+    await expect(pond).toContainText('Duck Pond');
+    await expect(pond).toContainText('You are here');
+    await expect(pond).toContainText('glowing');
+    await expect(pond.locator('button')).toHaveCount(0);
+    await expect(reservoir).toContainText('the Reservoir');
+    await expect(reservoir).toContainText('half cleaned');
+    await expect(reservoir).not.toContainText('You are here');
+    await expect(reservoir.getByRole('button', { name: 'Go to the Reservoir' })).toBeEnabled();
+    // the clock holds, and a key reaches nothing
+    await play(page, 120, 'two seconds with the page open');
+    expect(await clockOf(page)).toEqual(before);
+    await page.keyboard.press('KeyC');
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    // Escape, the backdrop and the button each close it, and the clock runs again
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#lakes')).toBeHidden();
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(false);
+    await page.evaluate(() => window.game!.openLakes());
+    await page.mouse.click(2, 2);
+    await expect(page.locator('#lakes')).toBeHidden();
+    await page.evaluate(() => window.game!.openLakes());
+    await page.getByRole('button', { name: 'Close' }).click();
+    await expect(page.locator('#lakes')).toBeHidden();
+    await play(page, 60, 'a second after');
+    expect((await clockOf(page)).t).toBeGreaterThan(before.t);
+    expect(problems).toEqual([]);
+  });
+
+  test('Go at the pond is refused with a fish on the line: the button is held off', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    expect(await page.evaluate(() => window.game!.fishTo('fight'))).toBe(true);
+    await page.evaluate(() => window.game!.openLakes());
+    await expect(page.getByRole('button', { name: 'Go to the Reservoir' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    expect((await where(page)).place).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+
+  test('Go on the Reservoir from the pond closes the page, begins the journey, and the reload lands there', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await page.evaluate(() => window.game!.openLakes());
+    await page.getByRole('button', { name: 'Go to the Reservoir' }).click();
+    await expect(page.locator('#lakes')).toBeHidden();
+    await expect.poll(() => where(page).then((w) => w.place)).toBe('leaving');
+    await reloaded(page, 100);
+    expect(await where(page)).toMatchObject({ lake: 'reservoir', place: 'pond' });
+    // the welcome names the lake it is at
+    await expect(page.locator('#welcome')).toContainText("The Reservoir's fish are glowing");
+    // the drums are read at a lake with no cabin to stand a hauled one beside, without a throw
+    const drums = await page.evaluate(() => window.game!.drums());
+    expect(drums.length).toBe(3);
+    for (const d of drums) expect(d.bank.every(Number.isFinite)).toBe(true);
+    // the journal is the Reservoir's, and says so
+    await page.evaluate(() => window.game!.openJournal());
+    await expect(page.locator('#journalTitle')).toHaveText('Journal: the Reservoir');
+    expect(problems).toEqual([]);
+  });
+
+  test('in the cabin the morning’s Somewhere else… opens the page, with Out to the Duck Pond for the lake the player is at, and Go for the other', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { day: 2, place: 'cabin' } });
+    await expect(page.locator('#elsewhereButton')).toBeVisible();
+    await page.locator('#elsewhereButton').click();
+    await expect(page.locator('#lakes')).toBeVisible();
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
+    await expect(page.locator('#lakesList li').nth(0).getByRole('button')).toHaveText('Out to the Duck Pond');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#lakes')).toBeHidden();
+    // Out to the lake, from the page, goes out as the morning's button does
+    await page.locator('#elsewhereButton').click();
+    await page.locator('#lakesList').getByRole('button', { name: 'Out to the Duck Pond' }).click();
+    await expect.poll(() => where(page).then((w) => w.place)).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+
+  test('in the cabin Go on the Reservoir travels from the cabin, and the map’s pin moves to it as the screen fades', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { day: 2, place: 'cabin' } });
+    await play(page, 30, 'a half second in the cabin');
+    const first = await page.evaluate(() => window.game!.map());
+    expect(first.pin).toBe('duckpond');
+    await page.evaluate(() => window.game!.openLakes());
+    await page.locator('#lakesList li').nth(1).getByRole('button').click();
+    await expect.poll(() => where(page).then((w) => w.place)).toBe('leaving');
+    await play(page, 2, 'the first frames of the fade');
+    const moved = await page.evaluate(() => window.game!.map());
+    expect(moved.pin).toBe('reservoir');
+    expect(moved.handovers).toBe(first.handovers + 1);
+    await reloaded(page, 100);
+    expect(await where(page)).toMatchObject({ lake: 'reservoir', place: 'pond' });
+    expect(problems).toEqual([]);
+  });
+
+  test('a tap on the map in the cabin opens the page, and a tap elsewhere on the wall does nothing', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { day: 2, place: 'cabin' } });
+    await play(page, 30, 'a half second in the cabin');
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    const at = (await page.evaluate(() => window.game!.mapOnScreen()))!;
+    expect(at).not.toBeNull();
+    // beside the map, on the wall's plaster, and on the floor: nothing opens
+    await page.mouse.click(at.x - 160, at.y + 20);
+    await page.mouse.click(at.x, at.y + 200);
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(false);
+    await page.mouse.click(at.x, at.y);
+    await expect(page.locator('#lakes')).toBeVisible();
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
+    const before = await clockOf(page);
+    await play(page, 120, 'two seconds with the page open');
+    expect(await clockOf(page)).toEqual(before);
+    expect(problems).toEqual([]);
+  });
+
+  test('the page is not opened during a journey’s fade', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await page.evaluate(() => window.game!.travel('reservoir'));
+    await page.evaluate(() => window.game!.openLakes());
+    await expect(page.locator('#lakes')).toBeHidden();
     expect(problems).toEqual([]);
   });
 });

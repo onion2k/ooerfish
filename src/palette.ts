@@ -198,6 +198,10 @@ export const ROOM_COLOURS = {
   calendarBar: [0.3, 0.2, 0.1] as Colour,
   calendarGone: [0.17, 0.14, 0.12] as Colour,
   calendarToday: [0.85, 0.2, 0.12] as Colour,
+  // the map in the picture's frame: the lakes in a map's blue, the dam's bar in dark stone, and the pin in a red apart from the calendar's
+  mapWater: [0.28, 0.58, 0.76] as Colour,
+  mapDam: [0.13, 0.12, 0.14] as Colour,
+  mapPin: [0.78, 0.06, 0.1] as Colour,
   // the season bands down the sheet's left edge, each the colour of its season's leaves or blossom (`SEASON_DRESSING`)
   bandSummer: [0.1, 0.4, 0.08] as Colour,
   bandAutumn: [0.55, 0.3, 0.04] as Colour,

@@ -60,7 +60,7 @@ interface Scenario {
 
 /** A game from a seed, settled. */
 export function settled(seed: number): Game {
-  const game = new Game(new Progress(memoryStore(), HOME), { lake: HOME, random: seeded(seed) });
+  const game = new Game(new Progress(memoryStore(), { [HOME.id]: HOME }), { lake: HOME, random: seeded(seed) });
   for (let f = 0; f < 180; f++) game.step(DT);
   return game;
 }

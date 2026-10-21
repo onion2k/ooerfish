@@ -1,9 +1,18 @@
 /** The cabin's room as drawn: built the same each time, painted, inside the cabin's outer walls, and its walls facing in. */
 import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
-import { BAND_PARTS, FURNITURE, ROOM_PARTS, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
+import {
+  BAND_PARTS,
+  FURNITURE,
+  MARK_PARTS,
+  ROOM_PARTS,
+  calendarGeometry,
+  lampAt,
+  mapGeometry,
+  roomGroups,
+} from '../src/cabinroom';
 import { CalendarDraw } from '../src/calendardraw';
-import { HOME } from '../src/lakes';
+import { HOME, LAKES } from '../src/lakes';
 import { TREASURE_RULES } from '../src/rules';
 import { CALENDAR, SEASONS } from '../src/lake';
 import { ROOM_COLOURS } from '../src/palette';
@@ -33,7 +42,7 @@ function corners(g: Group): [number, number, number][] {
 }
 
 describe('the cabin’s room as drawn', () => {
-  const groups = roomGroups(ROOM_COLOURS, HOME);
+  const groups = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
   const halfAlong = CABIN.body.along / 2,
     halfAcross = CABIN.body.across / 2;
 
@@ -54,7 +63,7 @@ describe('the cabin’s room as drawn', () => {
   });
 
   it('is built the same each time', () => {
-    const again = roomGroups(ROOM_COLOURS, HOME);
+    const again = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
     for (const [i, g] of groups.entries()) {
       expect(Array.from(again[i].mesh.positions), ROOM_PARTS[i]).toEqual(Array.from(g.mesh.positions));
       expect(Array.from(again[i].mesh.indices)).toEqual(Array.from(g.mesh.indices));
@@ -134,7 +143,7 @@ describe('the cabin’s room as drawn', () => {
 });
 
 describe('the cabin’s furniture', () => {
-  const groups = roomGroups(ROOM_COLOURS, HOME);
+  const groups = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset,
     hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
   const pieces = Object.keys(FURNITURE) as (keyof typeof FURNITURE)[];
@@ -210,7 +219,7 @@ describe('the cabin’s furniture', () => {
     const names = pieces.flatMap((p) => [...FURNITURE[p]]);
     const tris = names.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
     expect(tris).toBeLessThan(1500);
-    const again = roomGroups(ROOM_COLOURS, HOME);
+    const again = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
     for (const name of names) {
       expect(Array.from(part(again, name).mesh.positions), name).toEqual(Array.from(part(groups, name).mesh.positions));
       expect(Array.from(part(again, name).mesh.indices), name).toEqual(Array.from(part(groups, name).mesh.indices));
@@ -234,7 +243,7 @@ describe('the cabin’s furniture', () => {
 });
 
 describe('the cabin’s two shelves', () => {
-  const groups = roomGroups(ROOM_COLOURS, HOME);
+  const groups = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
   const fur = CABIN_ROOM.furniture;
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset,
     hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
@@ -316,7 +325,7 @@ describe('the cabin’s two shelves', () => {
 });
 
 describe('the cabin’s wall calendar', () => {
-  const groups = roomGroups(ROOM_COLOURS, HOME);
+  const groups = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
   const g = calendarGeometry(HOME);
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
   const draw = new CalendarDraw(HOME);
@@ -477,5 +486,101 @@ describe('the cabin’s wall calendar', () => {
     // the mark’s own x, its normal, in the world is the matrix’s first column, scaled
     const [ix, iy] = CABIN_AT.inward;
     expect(m[0] * ix + m[1] * iy).toBeLessThan(0);
+  });
+});
+
+describe('the map on the lake wall', () => {
+  const lakes = Object.values(LAKES);
+  const groups = roomGroups(ROOM_COLOURS, HOME, lakes);
+  const pic = CABIN_ROOM.furniture.picture;
+
+  it('keeps the picture’s frame and canvas, and adds the lakes and the dam as parts of the picture', () => {
+    expect(FURNITURE.picture).toEqual(['frame', 'canvas', 'mapWater', 'mapDam']);
+    for (const name of ['mapWater', 'mapDam'] as const) {
+      expect(ROOM_PARTS, name).toContain(name);
+      expect(part(groups, name).mesh.indices.length, name).toBeGreaterThan(0);
+      expect(part(groups, name).albedo).toBe(ROOM_COLOURS[name]);
+    }
+    expect(MARK_PARTS).toContain('mapPin');
+  });
+
+  it('gives the map’s three parts a colour apiece, apart from every other part of the room', () => {
+    const mine = ['mapWater', 'mapDam', 'mapPin'] as const;
+    const others = [...ROOM_PARTS, ...MARK_PARTS].filter((p) => !mine.includes(p as (typeof mine)[number]));
+    const taken = new Set(others.map((p) => ROOM_COLOURS[p].join(',')));
+    for (const name of mine) {
+      expect(taken.has(ROOM_COLOURS[name].join(',')), name).toBe(false);
+      taken.add(ROOM_COLOURS[name].join(','));
+    }
+    expect(taken.size).toBeGreaterThanOrEqual(others.length - 1 + mine.length);
+  });
+
+  it('lays the lakes side by side on the paper with a margin, the pond the smaller and at the left', () => {
+    const map = mapGeometry(HOME, lakes);
+    expect(map.blobs.map((b) => b.id)).toEqual(['duckpond', 'reservoir']);
+    const [pond, reservoir] = map.blobs;
+    expect(pond.right).toBeLessThan(reservoir.left);
+    expect(pond.right - pond.left).toBeLessThan(reservoir.right - reservoir.left);
+    for (const b of map.blobs) {
+      expect(b.left, b.id).toBeGreaterThanOrEqual(-pic.wide / 2 + map.margin - 1e-9);
+      expect(b.right, b.id).toBeLessThanOrEqual(pic.wide / 2 - map.margin + 1e-9);
+      expect(b.bottom, b.id).toBeGreaterThanOrEqual(map.margin - 1e-9);
+      expect(b.top, b.id).toBeLessThanOrEqual(pic.high - map.margin + 1e-9);
+      expect(b.outline.length, b.id).toBe(32);
+    }
+  });
+
+  it('draws one lake the same shape on the map as on the ground, scaled alike: the Reservoir is wider than the pond in the ratio of the shores', () => {
+    const [pond, reservoir] = mapGeometry(HOME, lakes).blobs;
+    const wide = (id: string) => {
+      const l = LAKES[id];
+      let lo = Infinity,
+        hi = -Infinity;
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const x = Math.cos(a) * l.shoreRadius(a) * l.stretch;
+        lo = Math.min(lo, x);
+        hi = Math.max(hi, x);
+      }
+      return hi - lo;
+    };
+    expect((reservoir.right - reservoir.left) / (pond.right - pond.left)).toBeCloseTo(
+      wide('reservoir') / wide('duckpond'),
+      6,
+    );
+  });
+
+  it('puts the dam’s bar on the Reservoir’s north bank and on no other lake', () => {
+    const map = mapGeometry(HOME, lakes);
+    expect(map.dams.map((d) => d.id)).toEqual(['reservoir']);
+    const [, reservoir] = map.blobs;
+    const dam = map.dams[0];
+    expect(dam.bottom).toBeGreaterThan(reservoir.top - (reservoir.top - reservoir.bottom) * 0.4);
+    expect(dam.right - dam.left).toBeGreaterThan(0);
+    expect(dam.left).toBeGreaterThanOrEqual(reservoir.left - 1e-9);
+    expect(dam.right).toBeLessThanOrEqual(reservoir.right + 1e-9);
+  });
+
+  it('stands clear of the calendar below it, and lies on the paper, proud of it, inside the picture’s rectangle', () => {
+    const { cal, high } = calendarGeometry(HOME);
+    // the calendar's top is under the picture's foot, clear of it
+    expect(pic.at - pic.frame).toBeGreaterThanOrEqual(cal.at + high - 1e-9);
+    const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
+    for (const name of ['mapWater', 'mapDam'] as const)
+      for (const [u, v, z] of corners(part(groups, name))) {
+        // the canvas is 0.04 thick on the wall: the map is in front of it, by a hair and no more than a few millimetres
+        expect(v, `${name} proud of the paper`).toBeLessThanOrEqual(hx - 0.04 + 1e-4);
+        expect(v, `${name} close to the paper`).toBeGreaterThan(hx - 0.04 - 0.03);
+        expect(Math.abs(u - pic.along), `${name} along`).toBeLessThanOrEqual(pic.wide / 2 + 1e-4);
+        expect(z - CABIN_FLOOR, `${name} low`).toBeGreaterThanOrEqual(pic.at - 1e-4);
+        expect(z - CABIN_FLOOR, `${name} high`).toBeLessThanOrEqual(pic.at + pic.high + 1e-4);
+      }
+  });
+
+  it('is built the same each time', () => {
+    const again = roomGroups(ROOM_COLOURS, HOME, lakes);
+    for (const name of ['mapWater', 'mapDam'] as const) {
+      expect(Array.from(part(again, name).mesh.positions)).toEqual(Array.from(part(groups, name).mesh.positions));
+    }
   });
 });

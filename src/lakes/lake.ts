@@ -265,6 +265,41 @@ export interface Cliff {
   rise: (x: number, y: number) => number;
 }
 
+/**
+ * A straight dam along a bank, as content: a wall whose water-side face stands on the line `faceY` (the shore there is
+ * that line, so the water ends at the wall) from `half` either side of the middle, its ends stepping down into the
+ * banks over `ends`. The ground behind it starts to climb `setBack` behind the face (past the last sheet that is drawn outside the wall, so no slope of a sheet shows in front of it) and climbs over `batter`; the crest, the walkway, is `crest` deep at `top` over the water;
+ * behind it the ground holds the crest's height for `hold` more and then falls away over `fall` to the bank. The wall is
+ * built in bays `bay` wide, with a rib standing `proud` from the face every `ribEvery` bays, a parapet on the water side
+ * of the walkway and a hut on it at `hut`.
+ */
+export interface DamSpec {
+  faceY: number;
+  half: number;
+  ends: number;
+  top: number;
+  crest: number;
+  setBack: number;
+  batter: number;
+  hold: number;
+  fall: number;
+  bay: number;
+  footing: number;
+  ribEvery: number;
+  rib: { wide: number; proud: number };
+  parapet: { high: number; thick: number };
+  hut: { x: number; wide: number; high: number };
+}
+
+/** The dam and the ground it makes; a lake with none has `dam: null` (or no `dam`). */
+export interface Dam {
+  spec: DamSpec;
+  /** How much higher the dam makes the ground at a point than the bank alone would be: nought before its face. */
+  rise: (x: number, y: number) => number;
+  /** How much of the dam's height stands at an x along it: one along its length, easing to nought past its ends. */
+  height: (x: number) => number;
+}
+
 /** The jetty and its deck; a lake with none has `jetty: null`. */
 export interface Jetty {
   spec: JettySpec;
@@ -358,6 +393,8 @@ export interface Lake {
   cliff: Cliff | null;
   jetty: Jetty | null;
   cabin: Cabin | null;
+  /** A straight dam in place of a cliff (`src/dam.ts` draws it as a painted solid); optional, so a lake without one need not say so. */
+  dam?: Dam | null;
   scenery: Scenery;
   shadowBox: ShadowBox;
 

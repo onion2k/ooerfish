@@ -234,8 +234,8 @@ function giftGame(cured: number, seed = 1) {
 }
 function fishUntil(game: Game, n: number, seed = 5) {
   const angler = new Angler(game, seeded(seed));
-  for (let f = 0; f < 60 * 60 * 90 && game.progress.save.cured < n; f++) angler.step(DT);
-  expect(game.progress.save.cured).toBeGreaterThanOrEqual(n);
+  for (let f = 0; f < 60 * 60 * 90 && game.progress.entry(game.lake.id).cured < n; f++) angler.step(DT);
+  expect(game.progress.entry(game.lake.id).cured).toBeGreaterThanOrEqual(n);
 }
 
 describe('the game and the gifts', () => {
@@ -271,7 +271,7 @@ describe('the game and the gifts', () => {
     // a gift landing in the middle of a fight is only possible here; the fight does not feel it
     game.gear = game.bite.gear = gearFor(6);
     // and the save agrees, so that the cure that follows keeps it
-    game.progress.save.cured = 5;
+    game.progress.entry(game.lake.id).cured = 5;
     for (let f = 0; f < 30 && game.bite.phase === 'hooked'; f++) angler.step(DT);
     expect(game.line.figures.width).toBe(width);
     expect(game.line.figures.width).toBe(FIGHT.width);

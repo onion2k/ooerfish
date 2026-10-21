@@ -1,0 +1,22 @@
+{
+  "cured": 7,
+  "day": 6,
+  "drums": 2,
+  "journal": {
+    "bream": {
+      "caught": 3,
+      "best": 0.9,
+      "first": 1
+    },
+    "pike": {
+      "caught": 1,
+      "best": 2.5,
+      "first": 3
+    }
+  },
+  "found": [
+    "badge"
+  ],
+  "time": 0.4,
+  "place": "pond"
+}

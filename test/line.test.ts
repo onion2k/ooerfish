@@ -292,7 +292,7 @@ describe('the fight', () => {
     expect(game.bucket).toBe(0);
     // and it is not cured: a fish that gets away still glows, the save is as it was, and it can come again
     expect(game.fish.cured[i]).toBe(0);
-    expect(game.progress.save.cured).toBe(0);
+    expect(game.progress.entry(game.lake.id).cured).toBe(0);
     let again = false;
     for (let f = 0; f < 120 / DT && !again; f++) {
       game.step(DT);

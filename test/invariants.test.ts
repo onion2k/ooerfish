@@ -168,20 +168,20 @@ describe('the drums of waste', () => {
     expect(checkInvariants(game)).toEqual([]);
     game.drums.find(0);
     expect(checkInvariants(game).join('\n')).toMatch(/1 drums are hauled, but the save says 0/);
-    game.progress.save.drums = 1;
+    game.progress.entry(game.lake.id).drums = 1;
     game.contamination = contaminationAfter(0, 1);
     game.waterDirt = game.contamination;
     expect(checkInvariants(game)).toEqual([]);
-    game.progress.save.drums = -1;
+    game.progress.entry(game.lake.id).drums = -1;
     expect(checkInvariants(game).join('\n')).toMatch(/the save says -1 drums hauled/);
-    game.progress.save.drums = 1.5;
+    game.progress.entry(game.lake.id).drums = 1.5;
     expect(checkInvariants(game).join('\n')).toMatch(/the save says 1.5 drums hauled/);
   });
 
   it('never has a hauled drum as the bite’s', () => {
     const { game } = newGame();
     game.drums.find(1);
-    game.progress.save.drums = 1;
+    game.progress.entry(game.lake.id).drums = 1;
     game.contamination = game.waterDirt = contaminationAfter(0, 1);
     game.bite.drum = 1;
     game.bite.phase = 'biting';
@@ -251,31 +251,31 @@ describe('the journal', () => {
 
   it('reports a best weight outside its kind’s range, and a best of nought as none', () => {
     const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 1 } } });
-    game.progress.save.journal.bream!.best = 0;
+    game.progress.entry(game.lake.id).journal.bream!.best = 0;
     expect(checkInvariants(game)).toEqual([]);
-    game.progress.save.journal.bream!.best = 1.5;
+    game.progress.entry(game.lake.id).journal.bream!.best = 1.5;
     expect(bad(game)).toMatch(/the journal's best bream is 1.5 kg, outside 0.2 to 1/);
-    game.progress.save.journal.bream!.best = Number.NaN;
+    game.progress.entry(game.lake.id).journal.bream!.best = Number.NaN;
     expect(bad(game)).toMatch(/the journal's best bream is NaN kg/);
   });
 
   it('reports a first day after today, and one that is not a whole number', () => {
     const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 2 } } });
     expect(checkInvariants(game)).toEqual([]);
-    game.progress.save.journal.bream!.first = 3;
+    game.progress.entry(game.lake.id).journal.bream!.first = 3;
     expect(bad(game)).toMatch(/the journal's bream was first caught on day 3, but it is day 2/);
-    game.progress.save.journal.bream!.first = 1.5;
+    game.progress.entry(game.lake.id).journal.bream!.first = 1.5;
     expect(bad(game)).toMatch(/the journal's bream was first caught on day 1.5/);
   });
 
   it('reports more catches than fish cured, a count that is not whole, and a kind not known', () => {
     const game = journalGame({ cured: 2, day: 2, journal: { bream: { caught: 2, best: 0.5, first: 1 } } });
-    game.progress.save.journal.perch = { caught: 1, best: 1, first: 1 };
+    game.progress.entry(game.lake.id).journal.perch = { caught: 1, best: 1, first: 1 };
     expect(bad(game)).toMatch(/the journal counts 3 caught, but only 2 are cured/);
-    game.progress.save.journal.perch.caught = 0.5;
+    game.progress.entry(game.lake.id).journal.perch!.caught = 0.5;
     expect(bad(game)).toMatch(/the journal's perch has caught 0.5/);
-    delete game.progress.save.journal.perch;
-    game.progress.save.journal.eel = { caught: 0, best: 0, first: 0 };
+    delete game.progress.entry(game.lake.id).journal.perch;
+    game.progress.entry(game.lake.id).journal.eel = { caught: 0, best: 0, first: 0 };
     expect(bad(game)).toMatch(/the journal has a kind not known: eel/);
   });
 });
@@ -292,11 +292,11 @@ describe('the treasures on the bed', () => {
 
   it('holds the ids found to known ones, once each, and no more than there are', () => {
     const { game } = newGame();
-    game.progress.save.found = ['nope'];
+    game.progress.entry(game.lake.id).found = ['nope'];
     expect(bad(game)).toMatch(/the save has a treasure not known: nope/);
-    game.progress.save.found = ['lure', 'lure'];
+    game.progress.entry(game.lake.id).found = ['lure', 'lure'];
     expect(bad(game)).toMatch(/the save has the treasure lure twice/);
-    game.progress.save.found = [...TREASURES.list.map((t) => t.id), 'duck'];
+    game.progress.entry(game.lake.id).found = [...TREASURES.list.map((t) => t.id), 'duck'];
     expect(bad(game)).toMatch(/the save has 7 treasures found, of 6 in the lake/);
   });
 
@@ -304,16 +304,16 @@ describe('the treasures on the bed', () => {
     const { game } = newGame();
     game.treasures.find(1);
     expect(bad(game)).toMatch(/treasure plush is found, but the save does not say so/);
-    game.progress.save.found = ['plush'];
+    game.progress.entry(game.lake.id).found = ['plush'];
     expect(checkInvariants(game)).toEqual([]);
-    game.progress.save.found = ['duck'];
+    game.progress.entry(game.lake.id).found = ['duck'];
     expect(bad(game)).toMatch(/treasure duck is in the save, but it is still on the bed/);
   });
 
   it('never has a found treasure as the bite’s, and the quarry at most one thing', () => {
     const { game } = newGame();
     game.treasures.find(1);
-    game.progress.save.found = ['plush'];
+    game.progress.entry(game.lake.id).found = ['plush'];
     game.bite.treasure = 1;
     game.bite.phase = 'biting';
     game.lure.phase = 'sinking';
@@ -379,5 +379,46 @@ describe('the saved time and place', () => {
       (game.progress.save as unknown as { place: unknown }).place = place;
       expect(bad(game), String(place)).toMatch(/the save says the player is at/);
     }
+  });
+});
+
+describe('the save per lake', () => {
+  const problems = (game: ReturnType<typeof newGame>['game']) => checkInvariants(game).join('\n');
+
+  it('reports a save at a lake the game does not have', () => {
+    const { game } = newGame();
+    game.progress.save.lake = 'nowhere';
+    expect(problems(game)).toMatch(/the save is at a lake not known: nowhere/);
+  });
+
+  it('reports an entry for a lake the game does not have', () => {
+    const { game } = newGame();
+    game.progress.save.lakes.nowhere = { cured: 0, drums: 0, journal: {}, found: [] };
+    expect(problems(game)).toMatch(/an entry for a lake not known: nowhere/);
+  });
+
+  it('reports an entry whose counts are not its lake’s: cured, drums past the lake’s, treasures unknown or twice', () => {
+    const { game } = newGame();
+    const mine = game.progress.entry(game.lake.id);
+    mine.drums = HOME.drums.count + 1;
+    expect(problems(game)).toMatch(/duckpond has \d+ drums hauled, of/);
+    mine.drums = 0;
+    mine.found = ['nope'];
+    expect(problems(game)).toMatch(/duckpond has treasures found that are not its own, or twice/);
+    mine.found = [TREASURES.list[0].id, TREASURES.list[0].id];
+    expect(problems(game)).toMatch(/duckpond has treasures found that are not its own, or twice/);
+    mine.found = [];
+    mine.cured = -1;
+    expect(problems(game)).toMatch(/duckpond has -1 cured/);
+  });
+
+  it('holds the gear to the fish cured over every lake', () => {
+    const { game } = newGame();
+    // a second lake in the registry, as the Reservoir will be
+    game.progress.lakes.elsewhere = { ...HOME, id: 'elsewhere' };
+    game.progress.entry('elsewhere').cured = 6;
+    expect(problems(game), 'six cured elsewhere earn gear this game has not been given').toMatch(/cured earns it/);
+    game.progress.entry('elsewhere').cured = 0;
+    expect(problems(game)).toBe('');
   });
 });

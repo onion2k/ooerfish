@@ -15,6 +15,7 @@ import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
 import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
+import { MapDraw, mapHit } from './mapdraw';
 import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
 import { fallingDue, fallingEmits } from './falling';
@@ -29,9 +30,10 @@ import { frameCost } from './frame-cost';
 import { quantised } from './heal';
 import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
-import { HOME } from './lakes';
+import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
+import { YOU_ARE_HERE, lakesWords } from './lakes/page';
 import {
   HEAL,
   KINDS,
@@ -100,9 +102,12 @@ main().catch((err: unknown) => {
 async function main() {
   // ---- the lake ----
 
-  // the one lake this page plays, chosen once at boot and never swapped (travel is a reload): the home for now, and part 4
-  // of `docs/lakes.md` reads it from the save, so that is the one line to change
-  const lake: Lake = HOME;
+  // the one lake this page plays, chosen once at boot from the save and never swapped (travel is a reload): the save
+  // names it, and an id the game does not know is the home
+  const progress = new Progress(undefined, LAKES);
+  const lake: Lake = lakeNamed(progress.save.lake);
+  /** The page is on its way to being loaded afresh (a journey, or a wake away from home), so nothing is written again. */
+  let reloading = false;
 
   // ---- the renderer ----
 
@@ -180,8 +185,21 @@ async function main() {
       showMode('look');
       aim = null;
     },
+    left: (id) => {
+      log(`left for ${id}`);
+      // the save names the new lake already, and the screen is black: the load is the journey's other half
+      reloading = true;
+      location.reload();
+    },
     woke: (day) => {
       log(`woke ${day}`);
+      // waking is at home: the game has written the save at the home's cabin, and the page, which plays one lake and
+      // never swaps it, is loaded afresh there before anything of the cabin is drawn (the lake here may have none)
+      if (lake.id !== HOME.id) {
+        reloading = true;
+        location.reload();
+        return;
+      }
       // the player wakes in the cabin, and the camera is put at the pillow
       void setView('cabin', true);
       // a new day, a new square of the calendar's year gone
@@ -192,8 +210,10 @@ async function main() {
       pond.gifted(name, words);
     },
   };
-  const game = new Game(new Progress(undefined, lake), {
+  const game = new Game(progress, {
     lake,
+    // every load fades in from black, which hides a journey's cut and the boot alike
+    arrives: true,
     ...(seed !== null ? { random: seeded(+seed) } : {}),
     events,
   });
@@ -255,7 +275,7 @@ async function main() {
       ...scene.static(scenery.kit, palette),
       ...fallGroups(lake),
       ...(lake.cabin ? cabinGroups(palette, lake) : []),
-      ...(lake.cabin ? roomGroups(ROOM_COLOURS, lake) : []),
+      ...(lake.cabin ? roomGroups(ROOM_COLOURS, lake, Object.values(LAKES)) : []),
       ...(lake.jetty ? jettyGroups(palette, lake) : []),
     ]);
     field = { ...baseField, kinds: [seasonGrass(season)] };
@@ -392,9 +412,13 @@ async function main() {
   const treasureDraw = new TreasureDraw(lake);
   let foundDrawn = -1;
   /** The wall calendar's marks, and the day they were last handed over for, and how many handovers that has been. */
-  const calendarDraw = new CalendarDraw(lake);
+  const calendarDraw = lake.cabin ? new CalendarDraw(lake) : null;
   let dayDrawn = -1;
   let calendarHandovers = 0;
+  /** The map's pin, on the lake the save names, and the lake it was last handed over for (none before the first), and how many handovers that has been. */
+  const mapDraw = lake.cabin ? new MapDraw(lake, Object.values(LAKES)) : null;
+  let lakeDrawn = '';
+  let mapHandovers = 0;
   /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
   function waterShown(): number {
     return quantised(game.waterDirt, HEAL.step);
@@ -416,7 +440,8 @@ async function main() {
       curedDrawn !== cured ||
       hauledDrawn !== hauled ||
       foundDrawn !== found ||
-      dayDrawn !== game.day
+      dayDrawn !== game.day ||
+      lakeDrawn !== game.progress.save.lake
     ) {
       watered = dirt;
       curedDrawn = cured;
@@ -434,6 +459,8 @@ async function main() {
           return showLight(timesFor(next).find((t) => t.name === time.name) ?? time);
         });
       dayDrawn = game.day;
+      if (lakeDrawn !== game.progress.save.lake) mapHandovers++;
+      lakeDrawn = game.progress.save.lake;
       handovers++;
       const water = style.groups(dirt, lake);
       fishSlot = water.length;
@@ -447,7 +474,12 @@ async function main() {
         ...drumDraw.groups(game.drums),
         ...drumDraw.bank(game.drums),
         ...treasureDraw.groups(game.treasures),
-        ...calendarDraw.groups(game.day, { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday }),
+        // the calendar hangs in the home's cabin, and a lake with none has no wall to hang it on
+        ...(calendarDraw
+          ? calendarDraw.groups(game.day, { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday })
+          : []),
+        // and the map's pin, on the lake the save names (which a journey changes before the page is loaded afresh)
+        ...(mapDraw ? mapDraw.groups(lakeDrawn, ROOM_COLOURS.mapPin) : []),
       ]);
     }
     finish();
@@ -557,13 +589,20 @@ async function main() {
   // the gesture rules are src/gesture.ts's; the page turns its events into theirs and does what is the page's own: the
   // pointer capture, the camera and the picking of a point on the water
   const tapInverse = new Float32Array(16);
+  /** Whether the tap at the page's point (`x`, `y`) falls on the map on the cabin's wall: the ray through it, to the paper's rectangle. */
+  const tappedMap = (x: number, y: number): boolean => {
+    cam.update();
+    if (!invertInto(tapInverse, cam.viewProjection)) return false;
+    const box = canvas.getBoundingClientRect();
+    return mapHit(((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2, tapInverse, lake);
+  };
   /** Whether the player is at the pond, where the game runs and the rod is theirs. */
   const atPond = () => game.place === 'pond';
   /**
-   * Whether a page holds the game still: the menu's list, the journal, the Start again question or the pairing card.
+   * Whether a page holds the game still: the menu's list, the journal, the lakes page, the Start again question or the pairing card.
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
    */
-  const pagesOpen = () => journalOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
+  const pagesOpen = () => journalOpen || lakesOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
   /** What a page open still lets through: a hold ending is always heard, or a reel would stay held under it. */
   const LETTING_GO: ReadonlySet<string> = new Set(['up', 'cancel', 'release', 'blur', 'left-cast', 'gone']);
   /** Every way of playing comes in here, so one gate keeps them all out while a page is open. */
@@ -595,6 +634,11 @@ async function main() {
       },
       // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
       pebble: (x, y) => {
+        // in the cabin a tap on the map opens the lakes page, and a tap anywhere else on the wall does nothing
+        if (game.place === 'cabin' && viewName === 'cabin') {
+          if (tappedMap(x, y)) void openLakes();
+          return;
+        }
         if (!atPond()) return;
         cam.update();
         if (!invertInto(tapInverse, cam.viewProjection)) return;
@@ -688,7 +732,19 @@ async function main() {
     return true;
   }
   byId('downButton').addEventListener('click', () => void goOut());
-
+  // Travel is a reload: the game refuses it mid-fight or for a lake it does not know, reels the lure in, writes the save
+  // naming the lake and fades the screen out, and the page is loaded afresh at the end of the fade (`left`). To the lake
+  // the player is at it goes out from the cabin, as the button does, and is nothing at the pond.
+  async function travelTo(id: string): Promise<boolean> {
+    if (id === lake.id && game.place === 'cabin') return goOut();
+    if (!game.travel(id)) return false;
+    if (game.place === 'leaving') {
+      showMode('look');
+      aim = null;
+      letGoOfReel();
+    }
+    return true;
+  }
   // Start again asks first, in a small dialog of the page's own. Keep playing is focused so a stray Enter keeps
   // playing; Keep playing, Escape or a click outside the card close it and change nothing, and Start again has the
   // save wiped by the progress itself (the page decides nothing about it) and the page loaded afresh.
@@ -732,13 +788,16 @@ async function main() {
   const openJournal = () => {
     showMenu(false);
     const page = journalWords(
-      game.progress.save.journal,
+      game.progress.entry(lake.id).journal,
       KINDS,
       game.drums.foundCount(),
       lake.drums.count,
       lake.treasures.list,
-      game.progress.save.found,
+      game.progress.entry(lake.id).found,
+      lake === HOME ? null : lake.name,
     );
+    byId('journalTitle').textContent = page.title;
+    byId('journalFoundTitle').textContent = page.foundTitle;
     journalKinds.replaceChildren(
       ...page.rows.map((row) => {
         const item = document.createElement('li');
@@ -786,12 +845,89 @@ async function main() {
   journalPage.addEventListener('pointerdown', (e) => {
     if (e.target === journalPage) void closeJournal();
   });
+  // The lakes page is the journal's kind of page, written from `lakesWords` each time it is opened: a row a lake with
+  // where the player is, how much of its glow is left in words, and the button that goes there (Out to the lake, from
+  // the cabin, for the lake the player is at). A choice closes the page and then travels, so the clock has started
+  // again when the journey does; it opens from the map's tap, the menu's Lakes and Somewhere else…, in the cabin and
+  // at the pond both.
+  const lakesPage = byId('lakes');
+  const lakesList = byId('lakesList');
+  const lakesClose = byId<HTMLButtonElement>('lakesClose');
+  let lakesOpen = false;
+  function openLakes(): Promise<void> {
+    showMenu(false);
+    // the yawn and the fade of a journey are no time for it
+    if (lakesOpen || (game.place !== 'pond' && game.place !== 'cabin')) return Promise.resolve();
+    const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+    const rows = lakesWords(Object.values(LAKES), game.progress.save, game.progress.save.lake, {
+      inCabin: game.place === 'cabin',
+      fighting,
+    });
+    lakesList.replaceChildren(
+      ...rows.map((row) => {
+        const item = document.createElement('li');
+        const words = document.createElement('div');
+        const name = document.createElement('b');
+        name.textContent = row.name;
+        words.append(name);
+        if (row.here) {
+          const here = document.createElement('span');
+          here.className = 'where';
+          here.textContent = YOU_ARE_HERE;
+          words.append(here);
+        }
+        const glow = document.createElement('span');
+        glow.textContent = row.glow;
+        words.append(glow);
+        item.append(words);
+        if (row.here) item.className = 'here';
+        if (row.button) {
+          const go = document.createElement('button');
+          go.type = 'button';
+          go.textContent = row.button;
+          go.disabled = !row.enabled;
+          if (row.label) go.setAttribute('aria-label', row.label);
+          go.dataset.lake = row.id;
+          item.append(go);
+        }
+        return item;
+      }),
+    );
+    lakesPage.hidden = false;
+    lakesOpen = true;
+    letGoOfReel();
+    (lakesList.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? lakesClose).focus();
+    return Promise.resolve();
+  }
+  const closeLakes = () => {
+    if (!lakesOpen) return Promise.resolve();
+    lakesPage.hidden = true;
+    lakesOpen = false;
+    menuButton.focus();
+    return Promise.resolve();
+  };
+  byId('lakesButton').addEventListener('click', () => void openLakes());
+  byId('elsewhereButton').addEventListener('click', () => void openLakes());
+  lakesClose.addEventListener('click', () => void closeLakes());
+  lakesPage.addEventListener('pointerdown', (e) => {
+    if (e.target === lakesPage) void closeLakes();
+  });
+  lakesList.addEventListener('click', (e) => {
+    const go = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('button[data-lake]') : null;
+    if (!go || go.disabled) return;
+    const id = go.dataset.lake!;
+    void closeLakes().then(() => travelTo(id));
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!menuList.hidden && e.target instanceof Node && !byId('menu').contains(e.target)) showMenu(false);
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && journalOpen) {
       void closeJournal();
+      return;
+    }
+    if (e.key === 'Escape' && lakesOpen) {
+      void closeLakes();
       return;
     }
     if (e.key === 'Escape' && !startAgain.hidden) {
@@ -824,7 +960,7 @@ async function main() {
   const onControl = (e: KeyboardEvent) =>
     pagesOpen() ||
     (e.target instanceof HTMLElement &&
-      e.target.closest('#catch, #modeButton, #downButton, #pairing, #startAgain, #menu') !== null);
+      e.target.closest('#catch, #modeButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu') !== null);
   window.addEventListener('keydown', (e) => {
     // Enter brings the player down from the cabin, as the button does
     if (e.key === 'Enter' && !e.repeat && game.place === 'cabin' && !onControl(e)) {
@@ -886,6 +1022,7 @@ async function main() {
       bar: byId('pondBar'),
       gone: byId('pondBarGone'),
       welcome: byId('welcome'),
+      welcomeLine: byId('welcomeLine'),
       toast: byId('toast'),
     },
     () => game,
@@ -899,6 +1036,7 @@ async function main() {
       yawn: byId('yawn'),
       morning: byId('morning'),
       down: byId('downButton'),
+      elsewhere: byId('elsewhereButton'),
       bed: byId<HTMLButtonElement>('bedButton'),
     },
     () => game,
@@ -1036,7 +1174,7 @@ async function main() {
     if (want !== time) void showLight(want);
     // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
     // costs a comparison and nothing else
-    if (watered !== waterShown() || dayDrawn !== game.day) void showWater();
+    if (watered !== waterShown() || dayDrawn !== game.day || lakeDrawn !== game.progress.save.lake) void showWater();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
     for (let i = 0; i < falls.length; i++) if (mistDue(frames, i, lake)) renderer.emit(mists[i]);
     // the season's falling things, on the same count, only while the game steps at the pond: a pond left for the cabin
@@ -1124,16 +1262,24 @@ async function main() {
     pair: (fixed) => openPairing(fixed),
     startAgain: () => openStartAgain(),
     openJournal: (open) => (open ? openJournal() : closeJournal()),
+    openLakes: (open) => (open ? openLakes() : closeLakes()),
     setSettings,
     setDirt,
     setTime,
     setView: (name) => setView(name),
     out: () => goOut(),
+    travel: (id) => travelTo(id),
     looksBaked,
     drawnDirt: () => watered,
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
-    calendar: () => ({ ...calendarDraw.shown(), handovers: calendarHandovers }),
+    calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
+    map: () => ({ pin: mapDraw?.pin() ?? '', handovers: mapHandovers }),
+    mapOnScreen: () => {
+      if (!mapDraw) return null;
+      const [x, y, z] = mapDraw.middle();
+      return toScreen(x, y, z);
+    },
     season: () => ({
       dressed,
       statics,
@@ -1173,7 +1319,7 @@ async function main() {
   // the clock is saved when the page is hidden or left, so a tab closed or a phone put away loses a few seconds at
   // most; both events are heard because neither is sent on every browser's way out, and a write is cheap and idempotent
   const keep = (e: Event) => {
-    if (wiped) return;
+    if (wiped || reloading) return;
     if (e.type === 'pagehide' || document.visibilityState === 'hidden') game.persist();
   };
   document.addEventListener('visibilitychange', keep);

@@ -20,7 +20,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { HOME } from '../src/lakes';
 import { HEAL } from '../src/lake';
-import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
+import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, ready, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
 
@@ -901,5 +901,120 @@ test('season-winter-lean', async ({ page }) => {
   expect(season.mist).toBe(false);
   expect(await page.evaluate(() => window.game!.rung())).toBe('lean');
   await expect(page.locator('#view')).toHaveScreenshot('season-winter-lean.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+// the Reservoir (`docs/lakes.md`, part 5): a big open water held in by a dam along the north bank, opened by a save that
+// names it; by day from the shore, at dusk, from overhead, a fish at the bite as the pond's is, and on a phone
+const RESERVOIR_SAVE = { lake: 'reservoir' } as const;
+
+test.describe('the Reservoir', () => {
+  for (const [name, scene] of [
+    ['day', STANDARD],
+    ['dusk', { ...STANDARD, time: 'dusk' }],
+    ['overhead', { ...STANDARD, view: 'overhead' }],
+  ] as const)
+    test(`reservoir-${name}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+      expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+      await set(page, scene, 180);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`reservoir-${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+  test('reservoir-fishing-bite', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    await set(page, { dirt: 0.2, time: 'day', view: 'shore' }, 30);
+    await page.evaluate(() => window.game!.fishTo('bite'));
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('reservoir-fishing-bite.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the Reservoir on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-reservoir', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    await set(page, { ...STANDARD, view: 'phone' }, 180);
+    await page.evaluate(() => {});
+    await expect(page).toHaveScreenshot('phone-reservoir.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+// the map on the cabin's wall and the lakes page (`docs/lakes.md`, part 7). The map's picture is the cabin at home with the
+// pin on the pond, cropped to the wall's frame at the screen's own pixels. The pin on the Reservoir has no picture: the pin
+// reads the lake the save names, and a load in the cabin is always at home, so the only moment it is elsewhere is the
+// journey's own fade; that move is held by `test/mapdraw.test.ts` and a stage reading `game.map()`.
+test('cabin-map', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 3, day: 2, place: 'cabin' } });
+  await set(page, { ...CABIN_DAWN, cabin: false }, 60);
+  await hideOverlays(page);
+  expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+  expect(await page.evaluate(() => window.game!.map())).toMatchObject({ pin: 'duckpond' });
+  const at = (await page.evaluate(() => window.game!.mapOnScreen()))!;
+  const clip = { x: Math.round(at.x - 80), y: Math.round(at.y - 64), width: 160, height: 128 };
+  await expect(page).toHaveScreenshot('cabin-map.png', { ...TOLERANCE, clip });
+  expect(problems).toEqual([]);
+});
+
+/** A save with each lake part cleaned: the pond a third, the Reservoir over half. */
+const LAKES_SAVE = {
+  day: 2,
+  lakes: {
+    duckpond: { cured: 4, drums: 0, journal: {}, found: [] },
+    reservoir: { cured: 10, drums: 0, journal: {}, found: [] },
+  },
+};
+
+test('desk-lakes-page', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: LAKES_SAVE });
+  await set(page, STANDARD, 30);
+  await page.evaluate(() => window.game!.openLakes());
+  await expect(page.getByRole('button', { name: 'Go to the Reservoir' })).toBeFocused();
+  await expect(page).toHaveScreenshot('desk-lakes-page.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test.describe('the lakes page on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-lakes-page', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: LAKES_SAVE });
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
+    await page.evaluate(() => window.game!.openLakes());
+    await expect(page).toHaveScreenshot('phone-lakes-page.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+// the morning after a day's end at the Reservoir: the wake is at home, in the cabin, with the way out to the pond and the
+// way to the lakes both on the screen
+test('desk-morning-out', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, fade: true, save: { lake: 'reservoir', time: 0.999, cured: 2 } });
+  await page.evaluate(() => window.game!.step(100));
+  const loaded = page.waitForEvent('load');
+  await page.evaluate(() => window.game!.step(100));
+  await loaded;
+  await ready(page);
+  await page.evaluate(() => {
+    window.game!.arrived();
+    window.game!.step(160);
+  });
+  expect(await page.evaluate(() => window.game!.place())).toBe('cabin');
+  expect(await page.evaluate(() => window.game!.lake().id)).toBe('duckpond');
+  await expect(page.locator('#downButton')).toHaveText('Out to the Duck Pond');
+  await expect(page.locator('#elsewhereButton')).toBeVisible();
+  await expect(page).toHaveScreenshot('desk-morning-out.png', TOLERANCE);
   expect(problems).toEqual([]);
 });

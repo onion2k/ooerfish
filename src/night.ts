@@ -3,8 +3,11 @@
  * and back. Pure, with the seconds handed in, so the game and the page read the same fade and the tests need neither.
  */
 
-/** Where the player is: out at the pond, yawning at the day's end, or in the cabin after waking. */
-export type Place = 'pond' | 'yawning' | 'cabin';
+/**
+ * Where the player is: out at the pond, yawning at the day's end, in the cabin after waking, or leaving for another
+ * lake (the screen fading out before the page is loaded afresh at the lake the save now names).
+ */
+export type Place = 'pond' | 'yawning' | 'cabin' | 'leaving';
 
 /**
  * Whether a step that took the clock from `before` to `after` carried it across midnight, which is to say wrapped it
@@ -18,12 +21,12 @@ export function pastMidnight(before: number, after: number): boolean {
 
 /**
  * How faded the screen is, from nought (clear) to one (black), `elapsed` seconds into where the player is: at the pond
- * it is clear; yawning, it rises over `fadeOut`; in the cabin it falls from one over `fadeIn`. A time before the start,
+ * it is clear; yawning, it rises over `fadeOut`, as it does leaving; in the cabin it falls from one over `fadeIn`. A time before the start,
  * or not a number, is the start; a fade of no length is over at once.
  */
 export function fadeAt(place: Place, elapsed: number, fadeOut: number, fadeIn: number): number {
   const e = elapsed >= 0 ? elapsed : 0;
-  if (place === 'yawning') return fadeOut > 0 ? Math.min(1, e / fadeOut) : 1;
+  if (place === 'yawning' || place === 'leaving') return fadeOut > 0 ? Math.min(1, e / fadeOut) : 1;
   if (place === 'cabin') return fadeIn > 0 ? Math.max(0, 1 - e / fadeIn) : 0;
   return 0;
 }

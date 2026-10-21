@@ -28,7 +28,7 @@ import { poseFish } from './swim';
  * of the shore, and apart from every drum. Nothing here is the cleaning's: that is the formula's alone.
  */
 function treasureRules(game: Game, out: string[]) {
-  const { found } = game.progress.save;
+  const { found } = game.progress.entry(game.lake.id);
   const { treasures, drums, lake } = game;
   const { inside, bedDepth } = lake;
   const spec = lake.treasures;
@@ -69,7 +69,7 @@ function treasureRules(game: Game, out: string[]) {
  * kind, so the leftover is the same for the whole of play.
  */
 function journalRules(game: Game, out: string[]) {
-  const { journal, cured } = game.progress.save;
+  const { journal, cured } = game.progress.entry(game.lake.id);
   const { fish, lake } = game;
   const known = new Set<string>(KINDS.map((k) => k.id));
   let caught = 0;
@@ -226,7 +226,7 @@ export function checkInvariants(game: Game): string[] {
     out.push(`the contamination rose from ${was.contamination} to ${game.contamination}, and no lever was set`);
   // and unless the lever has set it, it is exactly what the formula says of the fish cured and the drums hauled
   if (game.levers === 0) {
-    const { cured, drums } = game.progress.save;
+    const { cured, drums } = game.progress.entry(game.lake.id);
     const truth = lake.contaminationAfter(cured, drums);
     if (Math.abs(game.contamination - truth) > 1e-9)
       out.push(`the contamination is ${game.contamination}, but ${cured} cured and ${drums} hauled make it ${truth}`);
@@ -261,25 +261,27 @@ export function checkInvariants(game: Game): string[] {
     now.fish[i * 3 + 2] = fish.depth[i];
   }
   seen.set(game, now);
-  const { cured } = game.progress.save;
+  const { cured } = game.progress.entry(game.lake.id);
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
   else if (fish.curedCount() !== Math.min(cured, lake.fishCount))
     out.push(`${fish.curedCount()} fish are cured, but the save says ${cured}, of ${lake.fishCount} in the lake`);
   // the gifts in force are the ones the count has earned, and nothing else; the zone a fight plays is that gear's width
   // (a fight under way keeps its own, so only a line at rest is held to the gear in force)
-  const gear = gearFor(cured);
+  const total = game.progress.curedTotal();
+  if (total < cured) out.push(`${cured} are cured here, but the lakes together say ${total}`);
+  const gear = gearFor(total);
   for (const g of GEAR)
     if (game.gear[g.id] !== gear[g.id])
-      out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${cured} cured earns it ${gear[g.id]}`);
+      out.push(`the ${g.id} is ${game.gear[g.id] ? 'held' : 'not held'}, but ${total} cured earns it ${gear[g.id]}`);
   if (game.bite.gear !== game.gear) out.push('the bite has not the gear the game holds');
   // the drums hauled are a count from none to the pond's, the save's, and each is gone from the bed for good
+  const mine = game.progress.entry(game.lake.id);
   const hauled = game.drums.foundCount();
-  if (!Number.isSafeInteger(game.progress.save.drums) || game.progress.save.drums < 0)
-    out.push(`the save says ${game.progress.save.drums} drums hauled`);
+  if (!Number.isSafeInteger(mine.drums) || mine.drums < 0) out.push(`the save says ${mine.drums} drums hauled`);
   else if (hauled < 0 || hauled > lake.drums.count)
     out.push(`${hauled} drums are hauled, of ${lake.drums.count} in the lake`);
-  else if (hauled !== game.progress.save.drums)
-    out.push(`${hauled} drums are hauled, but the save says ${game.progress.save.drums}`);
+  else if (hauled !== mine.drums) out.push(`${hauled} drums are hauled, but the save says ${mine.drums}`);
+  lakesRules(game, out);
   journalRules(game, out);
   treasureRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
@@ -287,8 +289,32 @@ export function checkInvariants(game: Game): string[] {
 }
 
 /**
- * The day's end: the day a whole number from one, never back and the save's; the place one of three; the fade within
- * nought and one; and away from the pond, in the cabin and yawning, the lake held still (the time, the clock and every
+ * The save's lakes. The lake the player is at is one the game has, and
+ * every entry is for a lake the game has and holds its counts: the cured a whole number, the drums within the lake's own
+ * and the treasures known to it, each once and no more than it has. The game's own counts are checked against its entry
+ * above, since the game writes no other.
+ */
+function lakesRules(game: Game, out: string[]) {
+  const { save, lakes } = game.progress;
+  if (!Object.hasOwn(lakes, save.lake)) out.push(`the save is at a lake not known: ${String(save.lake)}`);
+  for (const [id, e] of Object.entries(save.lakes)) {
+    if (!Object.hasOwn(lakes, id)) {
+      out.push(`the save has an entry for a lake not known: ${id}`);
+      continue;
+    }
+    const lake = lakes[id];
+    if (!Number.isSafeInteger(e.cured) || e.cured < 0) out.push(`${id} has ${e.cured} cured`);
+    if (!Number.isSafeInteger(e.drums) || e.drums < 0 || e.drums > lake.drums.count)
+      out.push(`${id} has ${e.drums} drums hauled, of ${lake.drums.count}`);
+    const known = new Set<string>(lake.treasures.list.map((t) => t.id));
+    if (!Array.isArray(e.found) || new Set(e.found).size !== e.found.length || e.found.some((f) => !known.has(f)))
+      out.push(`${id} has treasures found that are not its own, or twice`);
+  }
+}
+
+/**
+ * The day's end: the day a whole number from one, never back and the save's; the place one of four; the fade within
+ * nought and one; and away from the pond, in the cabin, yawning and leaving, the lake held still (the time, the clock and every
  * fish where they were when the rules were last asked in the same place), the lure ready, no fish hooked or landed, and
  * in the cabin the clock at dawn.
  */
@@ -305,7 +331,7 @@ function nightRules(
   const kept: string = game.progress.save.place;
   if (!(Number.isFinite(time) && time >= 0 && time < 1)) out.push(`the save says the time is ${time}`);
   if (kept !== 'pond' && kept !== 'cabin') out.push(`the save says the player is at ${String(kept)}`);
-  if (!['pond', 'yawning', 'cabin'].includes(place)) return [...out, `the player is at ${String(place)}`];
+  if (!['pond', 'yawning', 'cabin', 'leaving'].includes(place)) return [...out, `the player is at ${String(place)}`];
   const fade = game.fade();
   if (!(fade >= 0 && fade <= 1)) out.push(`the fade is ${fade}`);
   if (place === 'pond') return out;

@@ -55,6 +55,11 @@ export interface GameEvents {
   yawned?(): void;
   /** The player woke in the cabin, on this day. */
   woke?(day: number): void;
+  /**
+   * The screen is faded out on a journey to the lake `id`, which the save already names, at the pond, with the clock as
+   * it was: the page loads afresh, told once.
+   */
+  left?(id: string): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
@@ -91,6 +96,11 @@ export interface GameOptions {
   random?: Random;
   /** Whoever shows what happens. */
   events?: GameEvents;
+  /**
+   * Whether this is a load the page fades in from black, at the pond as the wake does in the cabin. Only the page says
+   * so: every load fades in, which hides the boot as well as a journey, and a game made for a test or the fuzzer does not.
+   */
+  arrives?: boolean;
 }
 
 export class Game {
@@ -111,7 +121,7 @@ export class Game {
   readonly line = new Line();
   /** Whether the reel is held, which pushes the zone up the fight's bar. */
   reeling = false;
-  /** How many fish have been landed and stowed this session; the count cured, which the save keeps, is `progress.save.cured`. */
+  /** How many fish have been landed and stowed this session; the count cured, which the save keeps for each lake, is `progress.entry(lake.id).cured`. */
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
   catchWeight = 0;
@@ -145,7 +155,7 @@ export class Game {
   timeOfDay: number = CLOCK.startsAt;
   /** Which day of play it is, from one: the save's, and up by one on each waking. */
   day: number;
-  /** Where the player is: at the pond, yawning at the day's end, or in the cabin; only at the pond does the game run. */
+  /** Where the player is: at the pond, yawning at the day's end, in the cabin or leaving for another lake; only at the pond does the game run. */
   place: Place = 'pond';
   /** The seconds stepped since the yawn began, or since the player woke; the fade is worked out from it. */
   private fadeElapsed = 0;
@@ -153,12 +163,18 @@ export class Game {
   private midnightWaits = false;
   /** The seconds stepped at the pond since the save was last written for the clock's sake. */
   private sinceSaved = 0;
+  /** The load is still fading in at the pond, over `NIGHT.fadeIn` of stepped time (the world runs on beneath it). */
+  private arriving: boolean;
+  /** The lake being left for, while the player is `leaving`, and whether the page has been told. */
+  private destination = '';
+  private told = false;
 
   constructor(
     readonly progress: Progress,
     options: GameOptions = {},
   ) {
     this.random = options.random ?? Math.random;
+    this.arriving = options.arrives === true;
     const lake = (this.lake = options.lake ?? HOME);
     const found = bedPlacesOf(lake);
     this.fish = new School(lake);
@@ -169,12 +185,14 @@ export class Game {
     // a cabin save is at dawn whatever its time says, since the clock is held there
     this.place = progress.save.place;
     this.timeOfDay = this.place === 'cabin' ? CLOCK.startsAt : progress.save.time;
-    this.contamination = lake.contaminationAfter(progress.save.cured, progress.save.drums);
-    this.drums.loadFirst(progress.save.drums);
-    this.treasures.load(progress.save.found.map((id) => lake.treasures.list.findIndex((t) => t.id === id)));
+    const mine = progress.entry(lake.id);
+    this.contamination = lake.contaminationAfter(mine.cured, mine.drums);
+    this.drums.loadFirst(mine.drums);
+    this.treasures.load(mine.found.map((id) => lake.treasures.list.findIndex((t) => t.id === id)));
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
-    this.gear = gearFor(progress.save.cured);
+    // the gear is the whole journey's, the fish cured at every lake, so going somewhere else takes none of it away
+    this.gear = gearFor(progress.curedTotal());
     const e = this.events;
     // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
     // rings are the water's own, through the splash pool, and unlike a pebble they do not scare the fish off
@@ -199,7 +217,7 @@ export class Game {
     this.fish.fill(lake.fishCount, () => this.random());
     // the cured are as many of each kind as the journal says were caught; a save without a journal, or with one that
     // accounts for fewer than were cured, has the rest cured in slot order, as every save once was
-    const { cured, journal } = progress.save;
+    const { cured, journal } = mine;
     this.fish.cureLoaded(
       KINDS.map((k) => journal[k.id]?.caught ?? 0),
       cured,
@@ -210,6 +228,10 @@ export class Game {
   step(dt: number) {
     // away from the pond only the fade moves: the clock, the fish, the lure and the water hold until the player is back
     if (this.place !== 'pond') return this.stepNight(dt);
+    if (this.arriving) {
+      this.fadeElapsed += dt;
+      if (this.fadeElapsed >= NIGHT.fadeIn) this.arriving = false;
+    }
     this.t += dt;
     this.sinceSaved += dt;
     this.healElapsed += dt;
@@ -244,14 +266,16 @@ export class Game {
     return this.bite.phase === 'hooked' || this.bite.phase === 'landed';
   }
 
-  /** How faded the screen is, from nought to one: the yawn's fade out and the waking's fade in. */
+  /** How faded the screen is, from nought to one: the yawn's or the journey's fade out and the waking's or the load's fade in. */
   fade(): number {
+    // a load at the pond comes up from black as a wake does in the cabin
+    if (this.place === 'pond' && this.arriving) return fadeAt('cabin', this.fadeElapsed, NIGHT.fadeOut, NIGHT.fadeIn);
     return fadeAt(this.place, this.fadeElapsed, NIGHT.fadeOut, NIGHT.fadeIn);
   }
 
-  /** The player goes to bed early, from the pond or the cabin; refused, and nothing changed, with a fish hooked or landed or while yawning. */
+  /** The player goes to bed early, from the pond or the cabin; refused, and nothing changed, with a fish hooked or landed or while yawning or leaving. */
   sleep(): boolean {
-    if (this.place === 'yawning' || this.fighting) return false;
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
     this.yawn();
     return true;
   }
@@ -260,10 +284,40 @@ export class Game {
   out(): boolean {
     if (this.place !== 'cabin') return false;
     this.place = 'pond';
+    this.arriving = false;
     this.fadeElapsed = 0;
     this.sinceSaved = 0;
     this.persist();
     return true;
+  }
+
+  /**
+   * The player goes to the lake `id`: the lure is reeled in, the save is written naming that lake, at the pond, with
+   * the clock as it is, and the screen starts to fade out; at the end of the fade the page is told (`left`) and loads
+   * afresh at the new lake. At the lake the player is at it goes out from the cabin, as `out` does, and is nothing at
+   * the pond. Refused, and nothing changed, for a lake the game does not know, with a fish hooked or landed, and while
+   * yawning or already leaving.
+   */
+  travel(id: string): boolean {
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
+    if (!Object.hasOwn(this.progress.lakes, id)) return false;
+    if (id === this.lake.id) return this.place === 'cabin' ? this.out() : true;
+    this.reelIn();
+    this.reeling = false;
+    this.midnightWaits = false;
+    this.progress.save.lake = id;
+    this.destination = id;
+    this.told = false;
+    // the fade goes on from wherever it is, so a journey from a screen not yet faded in never jumps
+    this.fadeElapsed = this.fade() * NIGHT.fadeOut;
+    this.place = 'leaving';
+    this.persist();
+    return true;
+  }
+
+  /** The load's fade-in let go, for a test that wants the pond as it is and not as it comes up. */
+  arrived() {
+    this.arriving = false;
   }
 
   /** The yawn begins: the lure is reeled in (a coming or nibbling fish lets go), the reel let go, and the fade starts. */
@@ -280,6 +334,10 @@ export class Game {
   private stepNight(dt: number) {
     this.fadeElapsed += dt;
     if (this.place === 'yawning' && this.fadeElapsed >= NIGHT.fadeOut) this.wake();
+    else if (this.place === 'leaving' && this.fadeElapsed >= NIGHT.fadeOut && !this.told) {
+      this.told = true;
+      this.events.left?.(this.destination);
+    }
   }
 
   /** Morning at the cabin on the next day, saved: dawn, the water as clean as the lake is, the splashes gone. */
@@ -293,6 +351,8 @@ export class Game {
     this.splashes.clear();
     this.place = 'cabin';
     this.fadeElapsed = 0;
+    // waking is at home, where the cabin is: the save names the home, and the page loads afresh there if it is not
+    this.progress.save.lake = HOME.id;
     this.persist();
     this.events.woke?.(this.day);
   }
@@ -388,7 +448,7 @@ export class Game {
     this.lure.reelIn();
     this.release(i);
     // the cure: the fish is cured by being put in the bucket, the lake a step cleaner, and the count kept at once
-    const save = this.progress.save;
+    const save = this.progress.entry(this.lake.id);
     save.cured = Math.min(save.cured + 1, Number.MAX_SAFE_INTEGER);
     // and written in the journal under the fish's kind (the slot's own, the same as the kind it was hooked as)
     const id = KINDS[this.fish.kind[i]].id;
@@ -403,7 +463,7 @@ export class Game {
     this.events.cured?.(save.cured, this.lake.toClean);
     // a gift is given on the cure that earns it, from the next fight, and told that once
     const had = this.gear;
-    this.gear = this.bite.gear = gearFor(save.cured);
+    this.gear = this.bite.gear = gearFor(this.progress.curedTotal());
     for (const g of GEAR) if (this.gear[g.id] && !had[g.id]) this.events.gifted?.(g.name, g.words);
     return true;
   }
@@ -419,7 +479,7 @@ export class Game {
     this.bite.stowed(this.fish);
     this.lure.reelIn();
     this.drums.find(i);
-    const save = this.progress.save;
+    const save = this.progress.entry(this.lake.id);
     save.drums = this.drums.foundCount();
     this.contamination = Math.min(this.contamination, this.lake.contaminationAfter(save.cured, save.drums));
     // the water heals to it from where it is, as after a cure
@@ -443,7 +503,7 @@ export class Game {
     this.lure.reelIn();
     this.treasures.find(i);
     const id = this.lake.treasures.list[i].id;
-    const { found } = this.progress.save;
+    const { found } = this.progress.entry(this.lake.id);
     if (!found.includes(id)) found.push(id);
     this.persist();
     this.events.found?.(id);
@@ -604,7 +664,8 @@ export class Game {
     // lands before the yawn, which comes again
     if (this.place !== 'yawning') {
       this.progress.save.time = this.timeOfDay;
-      this.progress.save.place = this.place;
+      // leaving is for the pond of the lake the save names
+      this.progress.save.place = this.place === 'leaving' ? 'pond' : this.place;
     }
     this.progress.persist();
   }

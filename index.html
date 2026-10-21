@@ -351,6 +351,111 @@
   html[data-layout='portrait'] #journal .card {
     width: 100%;
   }
+  /* the lakes page: the journal's look and its card, a row a lake with its name, where the player is and how much of
+     its glow is left on the left, and the button that goes there on the right */
+  #lakes {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 7, 12, 0.78);
+    z-index: 10;
+  }
+  #lakes[hidden] {
+    display: none;
+  }
+  #lakes .card {
+    width: min(380px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 16px;
+    background: #1a1824;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+  }
+  #lakes h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    text-align: center;
+  }
+  #lakesList {
+    list-style: none;
+    margin: 8px 0 12px;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  #lakesList li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  #lakesList b {
+    display: block;
+    font-size: 15px;
+  }
+  #lakesList span {
+    display: block;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  /* the lake the player is at reads in the ink, and says so in words as well as in the tone */
+  #lakesList .here b,
+  #lakesList .here .where {
+    color: var(--ink);
+  }
+  #lakes .buttons {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+  #lakes button {
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    padding: 0 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #lakes button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  #lakes button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
+  }
+  #lakes button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  html[data-layout='sideways'] #lakes {
+    padding: 8px;
+  }
+  html[data-layout='sideways'] #lakes .card {
+    width: min(520px, 100%);
+    padding: 10px 14px;
+  }
+  html[data-layout='sideways'] #lakes h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  html[data-layout='sideways'] #lakesList {
+    margin: 6px 0;
+    gap: 8px;
+  }
+  html[data-layout='sideways'] #lakes button {
+    min-height: 36px;
+  }
+  html[data-layout='portrait'] #lakes .card {
+    width: 100%;
+  }
   /* the day's end: the cover that fades the screen to the night and back, its opacity the game's own fade written by the
      page as it changes (never a transition on the wall clock, so a picture holds still), over everything of the
      game's but a dialog; the yawn's words and the morning line and button stand over it, so they read on the dark */
@@ -366,7 +471,8 @@
   }
   #yawn,
   #morning,
-  #downButton {
+  #downButton,
+  #elsewhereButton {
     z-index: 6;
   }
   #yawn {
@@ -385,6 +491,22 @@
     text-align: center;
     text-wrap: balance;
     font-size: 18px;
+  }
+  #elsewhereButton {
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+    color: var(--ink);
+    min-width: 160px;
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+  #elsewhereButton:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
   }
   #downButton {
     bottom: 40px;
@@ -406,6 +528,7 @@
   #yawn[hidden],
   #morning[hidden],
   #downButton[hidden],
+  #elsewhereButton[hidden],
   #hud[hidden] {
     display: none;
   }
@@ -736,6 +859,9 @@
   html[data-layout='portrait'] #downButton {
     bottom: 28px;
   }
+  html[data-layout='portrait'] #elsewhereButton {
+    bottom: 88px;
+  }
   html[data-layout='portrait'] #toast {
     top: auto;
     bottom: 24px;
@@ -776,6 +902,9 @@
   }
   html[data-layout='sideways'] #downButton {
     bottom: 14px;
+  }
+  html[data-layout='sideways'] #elsewhereButton {
+    bottom: 72px;
   }
   html[data-layout='sideways'] #yawn {
     font-size: 18px;
@@ -859,7 +988,7 @@
   </div>
 </div>
 <div class="panel" id="welcome" hidden>
-  Welcome home. The pond's fish are glowing: catch them to clean it up.<br /><small
+  <span id="welcomeLine">Welcome home. The pond's fish are glowing: catch them to clean it up.</span><br /><small
     >press Cast<span class="keys">, or C,</span> to start</small
   >
 </div>
@@ -899,6 +1028,15 @@
     </div>
   </div>
 </div>
+<div id="lakes" role="dialog" aria-modal="true" aria-labelledby="lakesTitle" hidden>
+  <div class="card">
+    <h2 id="lakesTitle">Lakes</h2>
+    <ul id="lakesList"></ul>
+    <div class="buttons">
+      <button type="button" id="lakesClose">Close</button>
+    </div>
+  </div>
+</div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">
@@ -933,6 +1071,7 @@
   </button>
   <div class="panel" id="menuList" role="menu" hidden>
     <button id="journalButton" type="button" role="menuitem">Journal</button>
+    <button id="lakesButton" type="button" role="menuitem">Lakes</button>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
     <button id="bedButton" type="button" role="menuitem">Go to bed</button>
     <button id="startAgainButton" type="button" role="menuitem">Start again</button>
@@ -945,7 +1084,8 @@
 <div id="night" aria-hidden="true" hidden></div>
 <div class="panel" id="yawn" role="status" hidden></div>
 <div class="panel" id="morning" role="status" hidden></div>
-<button class="panel" id="downButton" type="button" hidden>Down to the pond</button>
+<button class="panel" id="downButton" type="button" hidden>Out to the Duck Pond</button>
+<button class="panel" id="elsewhereButton" type="button" hidden>Somewhere else…</button>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>
 </div>

@@ -4,8 +4,10 @@
  * a field a save does not have takes its default, and a field it has that
  * the game no longer knows is left alone.
  *
- * What is kept so far is the cure, how many fish have been cured, how many drums of waste hauled, the day's number, the
- * journal of what each kind has had caught, and the ids of the junk treasures found on the bed, the clock, and whether the player was at the pond or in the cabin. The
+ * What is kept so far is the lake the player is at, and for each lake the cure (how many fish have been cured, how many
+ * drums of waste hauled, the journal of what each kind has had caught and the ids of the junk treasures found on its
+ * bed), and, of the player and not of a lake, the day's number, the clock, and whether the player was at the pond or in
+ * the cabin. A save from before there were lakes held the lake's fields flat at the top, and reads as the home's. The
  * lake's contamination is worked out from the count and not kept itself, so
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
@@ -15,22 +17,33 @@ import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import type { Journal } from './journal';
 
-export interface Save {
+/** What the player has done at one lake: it is kept for every lake known, and a journey from one to another resets none. */
+export interface LakeSave {
   /** How many fish have been landed and cured, from nought; the lake is clean once it reaches what the cure asks. */
   cured: number;
-  /** Which day of play it is, from one: a whole number that goes up on waking at the cabin and never down. */
-  day: number;
   /** How many drums of waste have been hauled up from the bed, from nought, and never more than the pond has. */
   drums: number;
   /** What each kind of fish has had caught, by the kind's id: how many, the best weight and the day of the first. */
   journal: Journal;
   /** The ids of the treasures found and kept for the shelf, in the order they were found, each once and never more than the pond has. */
   found: string[];
+}
+
+export interface Save {
+  /** The id of the lake the player is at; the home's for an id the game does not know. */
+  lake: string;
+  /** What has been done at each lake, by id: one entry for every lake the game has, fresh where the save had none. */
+  lakes: Record<string, LakeSave>;
+  /** Which day of play it is, from one: a whole number that goes up on waking at the cabin and never down. */
+  day: number;
   /** Where the day's clock stood, a fraction of the day from nought up to but not reaching one; dawn in the cabin, where it is held. */
   time: number;
   /** Where the player was: at the pond or in the cabin. The yawn between is never kept, so a load lands before it. */
   place: 'pond' | 'cabin';
 }
+
+/** A save as a test may hand one in: any of the fields, the flat shape from before there were lakes included, which reads as the home's. */
+export type SaveSaid = Partial<Save> & Partial<LakeSave>;
 
 /** Where the save is kept. */
 export interface SaveStore {
@@ -126,25 +139,37 @@ function readFound(raw: unknown, lake: Lake): string[] {
   return out;
 }
 
-const fresh = (): Save => ({
-  cured: 0,
-  day: 1,
-  drums: 0,
-  journal: {},
-  found: [],
-  time: CLOCK.startsAt,
-  place: 'pond',
-});
+const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [] });
+
+/**
+ * One lake's entry as anyone may have written it, read against that lake: the count cured a whole number from nought,
+ * the drums held to the lake's own, the journal and the treasures as their readers have them. Anything missing or not
+ * what it should be is its default, so an entry that is not an object is a fresh one.
+ */
+function readEntry(raw: unknown, lake: Lake, day: number): LakeSave {
+  const out = freshEntry();
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return out;
+  const said = raw as Record<string, unknown>;
+  if (whole(said.cured) && said.cured >= 0) out.cured = said.cured;
+  if (whole(said.drums) && said.drums >= 0) out.drums = Math.min(said.drums, lake.drums.count);
+  out.journal = readJournal(said.journal, out.cured, day);
+  out.found = readFound(said.found, lake);
+  return out;
+}
 
 export class Progress {
   readonly save: Save;
 
-  /** Loaded from the store; loading alone never writes. */
+  /**
+   * Loaded from the store; loading alone never writes. `lakes` is every lake the game has, by id, which the save is
+   * read against (this file does not import the registry's content; the page hands it in, and a test a record of the
+   * lakes it plays).
+   */
   constructor(
     private readonly saves: SaveStore = browserStore(),
-    private readonly lake: Lake = HOME,
+    readonly lakes: Record<string, Lake> = { [HOME.id]: HOME },
   ) {
-    this.save = fresh();
+    this.save = this.fresh();
     const json = saves.load();
     if (json === null) return;
     let raw: unknown;
@@ -156,18 +181,49 @@ export class Progress {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return;
     // each field is read as if anyone had written it: one that is not what it should be is taken for its default
     const said = raw as Record<string, unknown>;
-    if (typeof said.cured === 'number' && Number.isSafeInteger(said.cured) && said.cured >= 0)
-      this.save.cured = said.cured;
-    if (typeof said.drums === 'number' && Number.isSafeInteger(said.drums) && said.drums >= 0)
-      this.save.drums = Math.min(said.drums, this.lake.drums.count);
     if (typeof said.day === 'number' && Number.isSafeInteger(said.day) && said.day >= 1) this.save.day = said.day;
-    this.save.journal = readJournal(said.journal, this.save.cured, this.save.day);
-    this.save.found = readFound(said.found, this.lake);
     if (typeof said.time === 'number' && Number.isFinite(said.time) && said.time >= 0 && said.time < 1)
       this.save.time = said.time;
     if (said.place === 'pond' || said.place === 'cabin') this.save.place = said.place;
     // the clock is held at dawn in the cabin, so a cabin save has no other time to keep
     if (this.save.place === 'cabin') this.save.time = CLOCK.startsAt;
+    // the lake the player was at, or the home for one the game does not know (a save from elsewhere, or a lake since taken away)
+    if (typeof said.lake === 'string' && Object.hasOwn(lakes, said.lake)) this.save.lake = said.lake;
+    // the lakes: a save with no `lakes` is from before there were any, and its flat fields are the home's entry; one with
+    // `lakes` takes it and leaves the flat fields alone; an entry under an id the game does not know is dropped
+    if (Object.hasOwn(said, 'lakes')) {
+      const kept = said.lakes;
+      if (typeof kept === 'object' && kept !== null && !Array.isArray(kept))
+        for (const id of Object.keys(lakes))
+          if (Object.hasOwn(kept, id))
+            this.save.lakes[id] = readEntry((kept as Record<string, unknown>)[id], lakes[id], this.save.day);
+    } else {
+      const home = this.homeId();
+      this.save.lakes[home] = readEntry(said, lakes[home] ?? HOME, this.save.day);
+    }
+  }
+
+  /** The home's id, or the first the registry has where the home is not in it (a test that plays some other lake alone). */
+  private homeId(): string {
+    return Object.hasOwn(this.lakes, HOME.id) ? HOME.id : (Object.keys(this.lakes)[0] ?? HOME.id);
+  }
+
+  private fresh(): Save {
+    const lakes: Record<string, LakeSave> = {};
+    for (const id of Object.keys(this.lakes)) lakes[id] = freshEntry();
+    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond' };
+  }
+
+  /** What has been done at the lake with this id: the live entry the game writes, made fresh if the save has none. */
+  entry(id: string): LakeSave {
+    return (this.save.lakes[id] ??= freshEntry());
+  }
+
+  /** The fish cured over every lake, which the gear is worked out from, so a journey resets none of it. */
+  curedTotal(): number {
+    let sum = 0;
+    for (const e of Object.values(this.save.lakes)) sum = Math.min(sum + e.cured, Number.MAX_SAFE_INTEGER);
+    return sum;
   }
 
   persist() {
@@ -176,7 +232,8 @@ export class Progress {
 
   /** Start over: the save wiped, in memory and in the store. */
   reset() {
-    Object.assign(this.save, fresh());
+    for (const key of Object.keys(this.save.lakes)) delete this.save.lakes[key];
+    Object.assign(this.save, this.fresh());
     this.saves.clear();
   }
 }

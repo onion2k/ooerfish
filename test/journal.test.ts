@@ -96,3 +96,16 @@ describe('the journal page’s words', () => {
     expect(page.treasures).toEqual([]);
   });
 });
+
+describe('the page’s heading names the lake', () => {
+  it('is “Journal” for the home, where the book began, and names any other lake', () => {
+    expect(journalWords({}, KINDS, 0, 2).title).toBe('Journal');
+    expect(journalWords({}, KINDS, 0, 2, [], [], null).title).toBe('Journal');
+    expect(journalWords({}, KINDS, 0, 3, [], [], 'the Reservoir').title).toBe('Journal: the Reservoir');
+  });
+
+  it('names the lake over the treasures too, and the pond otherwise', () => {
+    expect(journalWords({}, KINDS, 0, 2).foundTitle).toBe('Found in the pond');
+    expect(journalWords({}, KINDS, 0, 3, [], [], 'the Reservoir').foundTitle).toBe('Found in the Reservoir');
+  });
+});

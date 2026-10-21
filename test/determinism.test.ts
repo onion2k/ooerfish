@@ -44,6 +44,14 @@ describe('the same seed gives the same game', () => {
     expect(cabin.days, 'on the day it slept').toBe(5);
   });
 
+  it('plays the Reservoir out the same, twice: from dawn, and a night with no cabin to wake in', () => {
+    const dawn = playTwice({ seed: 4, lake: 'reservoir', frames: 1200, every: 100, label: 'the Reservoir' });
+    expect(dawn.diverged, dawn.note).toBe(null);
+    const night = playTwice({ seed: 2, lake: 'reservoir', frames: 1500, every: 30, startsAt: 0.99 });
+    expect(night.diverged, night.note).toBe(null);
+    expect(night.days, 'the day went up').toBeGreaterThan(1);
+  });
+
   it('hashes the save, so one written differently shows where the game does not', () => {
     const one = newGame(5).game;
     const two = newGame(5).game;

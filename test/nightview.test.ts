@@ -6,30 +6,40 @@ import { DT, newGame } from './helpers';
 
 describe('what the night says', () => {
   it('says nothing at the pond, and the bed is there to go to', () => {
-    expect(nightWords('pond', 1, false)).toEqual({ yawn: null, morning: null, bed: true });
+    expect(nightWords('pond', 1, false, 'Duck Pond')).toEqual({
+      yawn: null,
+      morning: null,
+      out: null,
+      bed: true,
+    });
   });
 
   it('yawns while yawning, and the bed is refused', () => {
-    const w = nightWords('yawning', 1, false);
+    const w = nightWords('yawning', 1, false, 'Duck Pond');
     expect(w.yawn).toBe('Yawn… time for bed');
     expect(w.morning).toBe(null);
     expect(w.bed).toBe(false);
   });
 
   it('names the day in the morning at the cabin, and the bed can be gone to again', () => {
-    expect(nightWords('cabin', 2, false)).toEqual({ yawn: null, morning: 'Day 2. Morning at the cabin.', bed: true });
-    expect(nightWords('cabin', 13, false).morning).toBe('Day 13. Morning at the cabin.');
-    expect(nightWords('cabin', 57, false).morning).toBe('Day 57. Morning at the cabin.');
+    expect(nightWords('cabin', 2, false, 'Duck Pond')).toEqual({
+      yawn: null,
+      morning: 'Day 2. Morning at the cabin.',
+      out: 'Out to the Duck Pond',
+      bed: true,
+    });
+    expect(nightWords('cabin', 13, false, 'Duck Pond').morning).toBe('Day 13. Morning at the cabin.');
+    expect(nightWords('cabin', 57, false, 'Duck Pond').morning).toBe('Day 57. Morning at the cabin.');
   });
 
   it('names the season in the morning from autumn on, and says nothing of summer', () => {
-    expect(nightWords('cabin', 15, false).morning).toBe('Day 15. An autumn morning at the cabin.');
-    expect(nightWords('cabin', 29, false).morning).toBe('Day 29. A winter morning at the cabin.');
-    expect(nightWords('cabin', 43, false).morning).toBe('Day 43. A spring morning at the cabin.');
+    expect(nightWords('cabin', 15, false, 'Duck Pond').morning).toBe('Day 15. An autumn morning at the cabin.');
+    expect(nightWords('cabin', 29, false, 'Duck Pond').morning).toBe('Day 29. A winter morning at the cabin.');
+    expect(nightWords('cabin', 43, false, 'Duck Pond').morning).toBe('Day 43. A spring morning at the cabin.');
   });
 
   it('refuses the bed with a fish on the line or landed', () => {
-    expect(nightWords('pond', 1, true).bed).toBe(false);
+    expect(nightWords('pond', 1, true, 'Duck Pond').bed).toBe(false);
   });
 });
 
@@ -65,9 +75,21 @@ const total = (el: Record<string, { writes: Record<string, number> }>) =>
 
 function view() {
   const { game } = newGame(3);
-  const el = { fade: stub(), yawn: stub(), morning: stub(), down: stub(), bed: stub() };
+  const el = { fade: stub(), yawn: stub(), morning: stub(), down: stub(), elsewhere: stub(), bed: stub() };
   return { game, el, night: new NightView(el, () => game) };
 }
+
+describe('the morning button', () => {
+  it('names the lake the save names, which after a wake at home is the home', () => {
+    expect(nightWords('cabin', 2, false, 'Reservoir').out).toBe('Out to the Reservoir');
+    expect(nightWords('cabin', 2, false, 'Duck Pond').out).toBe('Out to the Duck Pond');
+  });
+
+  it('is there only in the cabin', () => {
+    expect(nightWords('yawning', 2, false, 'Reservoir').out).toBeNull();
+    expect(nightWords('leaving', 2, false, 'Reservoir')).toEqual({ yawn: null, morning: null, out: null, bed: false });
+  });
+});
 
 describe('the night view', () => {
   it('shows nothing at the pond but the bed, enabled', () => {

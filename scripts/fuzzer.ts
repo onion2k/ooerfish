@@ -20,7 +20,7 @@ import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
 import { CLOCK, GEAR, KINDS } from '../src/lake';
-import { HOME } from '../src/lakes';
+import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -49,8 +49,8 @@ export interface FuzzResult {
   happened: Record<string, number>;
 }
 
-/** Play `frames` frames of the game at random from `seed`. */
-export function fuzz(seed: number, frames: number): FuzzResult {
+/** Play `frames` frames of the game at random from `seed`, in the lake `lakeId` names or, by default, the one the seed draws from a stream of its own. */
+export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult {
   // the monkey's own chance, apart from the game's, so what it decides does not shift what the game does
   const random = seeded(seed * 7 + 1);
   const done: Record<string, number> = {};
@@ -106,8 +106,11 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     happened,
   });
 
-  // the lake the monkey plays in: the home's, whose figures its saves are drawn from
-  const lake = HOME;
+  // the lake the monkey plays in, drawn from a stream of its own (half the seeds at each) so none of the monkey's other
+  // chance moves; its figures are those its saves are drawn from
+  const lakeIds = Object.keys(LAKES);
+  const lake = lakeNamed(lakeId ?? lakeIds[Math.floor(seeded(seed * 31 + 9)() * lakeIds.length)]);
+  done[`lake ${lake.id}`] = 1;
   try {
     // a returning player loads a save with fish already cured, so the lake starts anywhere from none cured to clean.
     // The count is drawn from a stream of its own, so it moves none of the monkey's other chance: two in five seeds
@@ -168,7 +171,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     const { timeAtStart, placeAtStart } = (() => {
       const pick = seeded(seed * 23 + 5);
       const time = pick();
-      return { timeAtStart: time, placeAtStart: pick() < 0.2 ? ('cabin' as const) : ('pond' as const) };
+      // a lake with no cabin has no room to wake in, so a start there is at the pond
+      return { timeAtStart: time, placeAtStart: pick() < 0.2 && lake.cabin ? ('cabin' as const) : ('pond' as const) };
     })();
     done['start in the cabin'] = placeAtStart === 'cabin' ? 1 : 0;
     // the day a returning player is on, across a year and a fortnight over so every season is played and the year comes
@@ -177,16 +181,16 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     done[`start in ${seasonOf(dayAtStart)}`] = 1;
     let store = memoryStore(
       JSON.stringify({
-        cured: curedAtStart,
-        drums: drumsAtStart,
-        journal: journalAtStart,
-        found: foundAtStart,
+        lake: lake.id,
+        lakes: {
+          [lake.id]: { cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart },
+        },
         time: timeAtStart,
         place: placeAtStart,
         day: dayAtStart,
       }),
     );
-    let game = new Game(new Progress(store, lake), { lake, random: seeded(seed), events });
+    let game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
     {
@@ -421,7 +425,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           const was = JSON.stringify(game.progress.save);
           const written = { place: game.progress.save.place, time: game.progress.save.time };
           store = memoryStore(store.json);
-          game = new Game(new Progress(store, lake), { lake, random: seeded(seed + frame), events });
+          game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed + frame), events });
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and

@@ -1,12 +1,13 @@
 /**
  * The day's end on the screen: the fade to the night and back, the yawn's words while the screen goes dark, the morning
- * line and the Down to the pond button once the player has woken in the cabin, and the Go to bed item in the menu. What
+ * line and the Out to the lake button once the player has woken in the cabin, and the Go to bed item in the menu. What
  * is said is `nightWords`, a pure function of where the player is, so it is tested without a page; the fade is the
  * game's own (`Game.fade`, stepped like everything else, never a CSS transition on the wall clock, so a picture holds
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
 import { seasonOf } from './calendar';
+import { theLake } from './lakes/page';
 import type { Place } from './night';
 
 export interface NightElements {
@@ -16,8 +17,10 @@ export interface NightElements {
   yawn: HTMLElement;
   /** The morning line. */
   morning: HTMLElement;
-  /** The Down to the pond button, shown with the morning line. */
+  /** The Out to the lake button, shown with the morning line. */
   down: HTMLElement;
+  /** The Somewhere else… button, shown with it, which opens the lakes page. */
+  elsewhere: HTMLElement;
   /** The Go to bed item in the menu, greyed when the night cannot be begun. */
   bed: HTMLButtonElement;
 }
@@ -26,6 +29,8 @@ export interface NightElements {
 export interface NightWords {
   yawn: string | null;
   morning: string | null;
+  /** The morning's button, naming the lake the save names; with it the Somewhere else… button is shown. */
+  out: string | null;
   bed: boolean;
 }
 
@@ -39,17 +44,22 @@ function morningOf(day: number): string {
   return `${season === 'autumn' ? 'An' : 'A'} ${season} morning`;
 }
 
-/** The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed off). */
-export function nightWords(place: Place, day: number, fighting: boolean): NightWords {
+/**
+ * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed off).
+ * The morning's button names the lake the save names, which after a wake is the home whichever lake the day ended at:
+ * going back is "Somewhere else…", the lakes page.
+ */
+export function nightWords(place: Place, day: number, fighting: boolean, lakeName: string): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
     morning: place === 'cabin' ? `Day ${day}. ${morningOf(day)} at the cabin.` : null,
-    bed: place !== 'yawning' && !fighting,
+    out: place === 'cabin' ? `Out to ${theLake(lakeName)}` : null,
+    bed: place === 'pond' || place === 'cabin' ? !fighting : false,
   };
 }
 
 export class NightView {
-  private was = { fade: '', yawn: '', morning: '', bed: '' };
+  private was = { fade: '', yawn: '', morning: '', out: '', bed: '' };
 
   constructor(
     private readonly el: NightElements,
@@ -61,7 +71,9 @@ export class NightView {
     const g = this.game();
     const { el, was } = this;
     const fighting = g.bite.phase === 'hooked' || g.bite.phase === 'landed';
-    const w = nightWords(g.place, g.day, fighting);
+    // the button names the lake the save names, which is the lake the page was loaded at but for the moment of a wake
+    const { lakes, save } = g.progress;
+    const w = nightWords(g.place, g.day, fighting, (lakes[save.lake] ?? g.lake).name);
 
     // a thousandth is finer than an eye or a frame can tell, and a fade that has not moved writes nothing
     const f = g.fade();
@@ -80,8 +92,13 @@ export class NightView {
     const morning = w.morning ?? '';
     if (morning !== was.morning) {
       was.morning = morning;
-      el.morning.hidden = el.down.hidden = morning === '';
+      el.morning.hidden = el.down.hidden = el.elsewhere.hidden = morning === '';
       el.morning.textContent = morning;
+    }
+    const out = w.out ?? '';
+    if (out !== was.out) {
+      was.out = out;
+      el.down.textContent = out;
     }
     const bed = w.bed ? 'on' : 'off';
     if (bed !== was.bed) {

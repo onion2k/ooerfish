@@ -39,6 +39,8 @@ describe('the fade', () => {
 
   it('rises from nought to one over the yawn, and stays at one beyond it', () => {
     expect(fadeAt('yawning', 0, OUT, IN)).toBe(0);
+    expect(fadeAt('leaving', OUT / 2, OUT, IN)).toBeCloseTo(0.5, 12);
+    expect(fadeAt('leaving', OUT * 2, OUT, IN)).toBe(1);
     expect(fadeAt('yawning', OUT / 2, OUT, IN)).toBeCloseTo(0.5, 12);
     expect(fadeAt('yawning', OUT, OUT, IN)).toBe(1);
     expect(fadeAt('yawning', OUT * 3, OUT, IN)).toBe(1);

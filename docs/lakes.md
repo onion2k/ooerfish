@@ -179,13 +179,13 @@ which is this spec copied into the repo as part 0. Parts 1 to 3 are the refactor
       test green with `DUCK_POND` handed in; `npm run look` unchanged.
 - [x] 3. **The page wires one lake,** `const lake = HOME` at boot (part 4 reads `save.lake` there), and the refactor's pass:
       `npm run check`, fuzz 1-24, the perf bytes written, every picture unchanged. Commit one.
-- [ ] 4. **The save per lake:** `lakes`, the flat read, the gear sum, the corpus files, the invariants, leaks.
+- [x] 4. **The save per lake:** `lakes`, the flat read, the gear sum, the corpus files, the invariants, leaks.
       Check: `test/saves`, `test/game`, `test/invariants`.
-- [ ] 5. **The Reservoir's content** and its pictures, the fuzzer and determinism playing it, its perf test.
+- [x] 5. **The Reservoir's content** and its pictures, the fuzzer and determinism playing it, its perf test.
       Check: fuzz 1-24 at both lakes, the pictures looked at, the frame said.
-- [ ] 6. **Travel and the wake at home:** `game.travel`, the reload under the fade, the cabin load's fade-in, the
+- [x] 6. **Travel and the wake at home:** `game.travel`, the reload under the fade, the cabin load's fade-in, the
       morning button renamed. Check: the travel and wake stages.
-- [ ] 7. **The map and the lakes page:** the map's parts and pin, the tap, the page, the menu item, "Somewhere else…".
+- [x] 7. **The map and the lakes page:** the map's parts and pin, the tap, the page, the menu item, "Somewhere else…".
       Check: `test/cabinroom`, the page stages, the pictures.
-- [ ] 8. **The pass:** `npm run check`, fuzz 1-24, perf before and after, the mutations (an unknown lake not read as
+- [x] 8. **The pass:** `npm run check`, fuzz 1-24, perf before and after, the mutations (an unknown lake not read as
       the pond; a cure at the Reservoir written to the pond's entry; the map's pin not moving), the report. Commit two.

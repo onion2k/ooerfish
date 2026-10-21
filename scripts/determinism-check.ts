@@ -35,6 +35,9 @@ async function main() {
     { seed, frames, every, startsAt: MIDNIGHT_EVE },
     { seed, frames, every, ...POND_SAVE },
     { seed, frames, every, ...CABIN_SAVE },
+    // and at the Reservoir, from dawn and from before midnight, so its dam, its null cabin and its wake are held to the seed too
+    { seed, frames, every, lake: 'reservoir', label: 'the Reservoir' },
+    { seed, frames, every, lake: 'reservoir', startsAt: MIDNIGHT_EVE, label: 'the Reservoir at midnight' },
   ]);
   const results: TwiceResult[] = [];
   await Promise.all(
