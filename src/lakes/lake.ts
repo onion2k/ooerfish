@@ -164,7 +164,7 @@ export interface CabinRoom {
     picture: { along: number; wide: number; high: number; at: number; frame: number };
     coat: { along: number; peg: number; wide: number; long: number };
     calendar: {
-      along: number;
+      across: number;
       wide: number;
       at: number;
       bar: number;

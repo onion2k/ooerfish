@@ -101,7 +101,8 @@ function cabinOf(lake: Lake): Cabin {
 
 /**
  * The wall calendar's measures, worked out from `CABIN_ROOM.furniture.calendar` once: a square's cell, the sheet's
- * height, and where square `i` (row by row from the top left, as it is read) is in the world, on the sheet's face.
+ * height, and where square `i` (row by row from the top left, as it is read) is in the world, on the sheet's face, which
+ * is on the end wall.
  */
 export function calendarGeometry(lake: Lake) {
   const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = cabinOf(lake);
@@ -109,31 +110,32 @@ export function calendarGeometry(lake: Lake) {
   const cal = CABIN_ROOM.furniture.calendar;
   const cell = (cal.wide - 2 * cal.margin) / CALENDAR.columns;
   const high = cal.bar + 2 * cal.margin + CALENDAR.rows * cell;
-  const wall = CABIN.body.across / 2 - CABIN_ROOM.inset;
-  // read from the room, facing the lake wall: whether the shore's direction runs to the reader's right decides which
-  // way a row is read, so that the first square is always the top left
+  const wall = CABIN.body.along / 2 - CABIN_ROOM.inset;
+  // read from the room, facing the end wall (toward +along): whether the room's `across` axis runs to the reader's right
+  // decides which way a row is read, so that the first square is always the top left
   const [ix, iy] = CABIN_AT.inward,
     [ax, ay] = CABIN_AT.along;
-  const reads = ax * iy - ay * ix >= 0 ? 1 : -1;
+  const reads = ay * ix - ax * iy >= 0 ? 1 : -1;
   return {
     cal,
     cell,
     high,
+    /** How far the end wall's face is along the shore from the room's middle. */
     wall,
-    /** Which way along the shore the reader's right is: 1 or -1. */
+    /** Which way across the room the reader's right is: 1 toward the lake, -1 away from it. */
     reads,
     size: cell * cal.mark,
     /** Square `i`'s middle in the world, and the direction the wall faces into the room, as a turn about z. */
     spot: (i: number): [number, number, number] => {
       const row = Math.floor(i / CALENDAR.columns),
         col = i % CALENDAR.columns;
-      const u = cal.along + reads * (-cal.wide / 2 + cal.margin + (col + 0.5) * cell);
+      const u = cal.across + reads * (-cal.wide / 2 + cal.margin + (col + 0.5) * cell);
       const z = CABIN_FLOOR + cal.at + high - cal.bar - cal.margin - (row + 0.5) * cell;
-      const [x, y] = place([wall - cal.depth - cal.proud, u, 0]);
+      const [x, y] = place([u, wall - cal.depth - cal.proud, 0]);
       return [x, y, z];
     },
-    /** The turn that puts a mark's own x, its normal, along the wall's, out into the room. */
-    yaw: Math.atan2(-iy, -ix),
+    /** The turn that puts a mark's own x, its normal, along the wall's, out into the room (toward -along). */
+    yaw: Math.atan2(-ay, -ax),
   };
 }
 
@@ -437,7 +439,7 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
     frustum(b, pipeAt(s.to.across, s.to.along), 8, s.pipe, s.pipe, runHigh - 0.01, ceiling - 0.04);
   });
 
-  // the shelf, the picture and the coat hang on the lake wall, flush to it
+  // the shelf, the picture and the coat hang on the lake wall, flush to it; the calendar hangs on the end wall
   const onWall = (b: Parameters<typeof block>[0], along: number, wy: number, depth: number, z0: number, z1: number) =>
     block(b, place, wall - depth, wall, along - wy / 2, along + wy / 2, floor + z0, floor + z1);
   const { shelf: sh, jar: jr } = fur;
@@ -538,11 +540,14 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
 
   // the calendar: a thin sheet of paper on the wall under a timber bar along its top; the marks on it are `CalendarDraw`'s
   const { cal, high: calHigh } = calendarGeometry(lake);
+  const endWall = calendarGeometry(lake).wall;
+  const onEnd = (b: Parameters<typeof block>[0], across: number, wx: number, depth: number, z0: number, z1: number) =>
+    block(b, place, across - wx / 2, across + wx / 2, endWall - depth, endWall, floor + z0, floor + z1);
   const sheetMesh = built((b) => {
-    onWall(b, cal.along, cal.wide, cal.depth, cal.at, cal.at + calHigh - cal.bar);
+    onEnd(b, cal.across, cal.wide, cal.depth, cal.at, cal.at + calHigh - cal.bar);
   });
   const barMesh = built((b) =>
-    onWall(b, cal.along, cal.wide + 0.04, cal.depth + 0.02, cal.at + calHigh - cal.bar, cal.at + calHigh),
+    onEnd(b, cal.across, cal.wide + 0.04, cal.depth + 0.02, cal.at + calHigh - cal.bar, cal.at + calHigh),
   );
 
   // a thin strip of colour at the sheet's left edge for each season's row, in the margin clear of the squares and just
@@ -550,9 +555,9 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
   const { cell, cal: cc, reads } = calendarGeometry(lake);
   const bandMesh = (row: number) =>
     built((b) => {
-      const edge = cc.along + reads * (-cc.wide / 2 + cc.margin / 2);
+      const edge = cc.across + reads * (-cc.wide / 2 + cc.margin / 2);
       const top = cc.at + calHigh - cc.bar - cc.margin - row * cell;
-      onWall(b, edge, cc.margin * 0.6, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
+      onEnd(b, edge, cc.margin * 0.6, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
     });
 
   // the moons: a small block in the top corner (away from the bands) of each full-moon and each new-moon square, two fifths
@@ -566,9 +571,9 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
         // the block wants the wall's own frame, so the square is worked out from its row and column as the bands' are
         const col = i % CALENDAR.columns,
           row = Math.floor(i / CALENDAR.columns);
-        const u = cc.along + reads * (-cc.wide / 2 + cc.margin + (col + 0.5) * cell) + reads * (cell * 0.28);
+        const u = cc.across + reads * (-cc.wide / 2 + cc.margin + (col + 0.5) * cell) + reads * (cell * 0.28);
         const h = cc.at + calHigh - cc.bar - cc.margin - (row + 0.5) * cell + cell * 0.28;
-        onWall(b, u, dot, cc.depth + cc.proud / 2, h - dot / 2, h + dot / 2);
+        onEnd(b, u, dot, cc.depth + cc.proud / 2, h - dot / 2, h + dot / 2);
       }
     });
 

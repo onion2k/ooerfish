@@ -500,16 +500,18 @@ const CABIN_ROOM = {
     picture: { along: 1.28, wide: 0.5, high: 0.4, at: 1.55, frame: 0.05 },
     coat: { along: -1.3, peg: 1.95, wide: 0.5, long: 1.0 },
     /**
-     * The wall calendar: a sheet `wide` along the lake wall with its foot `at` over the floor, a timber bar `bar` high
-     * along its top, and a `margin` of paper round the squares; the sheet's height is what the four rows of squares and
-     * those take, and each square is `mark` of its cell. It hangs above the window, as wide as it, with its foot just over
-     * the window's top frame (sill 0.9 + 1.3 high + the 0.14 frame is 2.34) and its top under the ceiling, so from the
-     * pillow it is the widest thing on the wall and a square reads; the lamp hangs well in front of the wall, off it.
+     * The wall calendar: a sheet `wide` along the end wall, the stove's, centred `across` the room with its foot `at` over
+     * the floor, a timber bar `bar` high along its top, and a `margin` of paper round the squares; the sheet's height is
+     * what the four rows of squares and those take, and each square is `mark` of its cell. It hangs on the end wall
+     * because the lake wall has no stretch wide enough for fourteen squares a row to be read from the pillow: it is
+     * seen at a slant there, the squares narrower than they are tall, but a metre and a third of paper over the bed's
+     * side and short of the stovepipe is the widest the room has in the pillow's view. Its foot is over the headboard's height, so the bed's side is clear under it, and low enough that the glow gauge in the
+     * screen's corner does not cover it; the lamp hangs well in front of the wall, off it.
      */
     calendar: {
-      along: CABIN.window.along,
-      wide: 1.6,
-      at: 2.38,
+      across: 0.53,
+      wide: 1.3,
+      at: 1.45,
       bar: 0.04,
       margin: 0.06,
       mark: 0.74,

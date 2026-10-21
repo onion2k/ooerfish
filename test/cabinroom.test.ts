@@ -211,8 +211,7 @@ describe('the cabin’s furniture', () => {
           expect(z, `${piece} in the doorway`).toBeLessThanOrEqual(0.05);
         // the window's opening and its frame stand 0.14 proud of the wall: nothing is hung or stood across them, and the
         // table below them, the mug standing further in on it, is clear. Above the frame the wall is free to hang
-        // on, since the light comes through the opening and not the wall over it: that is where the calendar is wide
-        // enough to read from the pillow.
+        // on, since the light comes through the opening and not the wall over it.
         if (hx - v < 0.2 && Math.abs(u - win.along) < win.width / 2 + win.frame && z > win.sill - win.frame)
           expect(z, `${piece} across the window`).toBeGreaterThanOrEqual(win.sill + win.high + win.frame - 1e-4);
       }
@@ -330,7 +329,8 @@ describe('the cabin’s two shelves', () => {
 describe('the cabin’s wall calendar', () => {
   const groups = roomGroups(ROOM_COLOURS, HOME, Object.values(LAKES));
   const g = calendarGeometry(HOME);
-  const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
+  // the calendar hangs on the end wall, the stove's, so what is proud of it is measured along the shore, and its width runs across the room
+  const hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
   const draw = new CalendarDraw(HOME);
   const colours = { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday };
   /** The scale of slot `i` of a matrices array: nought for a square not shown. */
@@ -358,7 +358,7 @@ describe('the cabin’s wall calendar', () => {
   });
 
   it('lays each band at the sheet’s left edge, within it, proud of the paper, at the height of its row', () => {
-    const left = (c: [number, number, number][]) => c.map(([u]) => u);
+    const left = (c: [number, number, number][]) => c.map(([, v]) => v);
     const sheet = corners(part(groups, 'calendarSheet'));
     const [sMin, sMax] = [Math.min(...left(sheet)), Math.max(...left(sheet))];
     const first = g.spot(0)[2] - CABIN_FLOOR;
@@ -367,18 +367,18 @@ describe('the cabin’s wall calendar', () => {
       const c = corners(part(groups, name));
       const us = left(c),
         hs = c.map(([, , h]) => h - CABIN_FLOOR),
-        vs = c.map(([, v]) => v);
-      // the reader's left is the lesser along-shore coordinate when the row reads that way, the greater when it does not
+        vs = c.map(([u]) => u);
+      // the reader's left is the lesser across-room coordinate when the row reads that way, the greater when it does not
       const edge = g.reads > 0 ? sMin : sMax;
       expect(Math.min(...us.map((u) => Math.abs(u - edge))), name).toBeLessThan(g.cal.margin);
       expect(Math.min(...us), name).toBeGreaterThanOrEqual(sMin - 1e-4);
       expect(Math.max(...us), name).toBeLessThanOrEqual(sMax + 1e-4);
       // clear of the squares, which start a margin in
-      const squareEdge = g.cal.along + g.reads * (-g.cal.wide / 2 + g.cal.margin);
+      const squareEdge = g.cal.across + g.reads * (-g.cal.wide / 2 + g.cal.margin);
       for (const u of us) expect((u - squareEdge) * g.reads, name).toBeLessThanOrEqual(1e-4);
       // proud of the paper, but not past the marks
-      expect(Math.min(...vs), name).toBeLessThan(hx - g.cal.depth);
-      expect(Math.min(...vs), name).toBeGreaterThanOrEqual(hx - g.cal.depth - g.cal.proud - 1e-4);
+      expect(Math.min(...vs), name).toBeLessThan(hy - g.cal.depth);
+      expect(Math.min(...vs), name).toBeGreaterThanOrEqual(hy - g.cal.depth - g.cal.proud - 1e-4);
       const top = first + g.cell / 2 - r * g.cell;
       expect(Math.max(...hs), name).toBeLessThanOrEqual(top + 1e-4);
       expect(Math.min(...hs), name).toBeGreaterThanOrEqual(top - g.cell - 1e-4);
@@ -391,7 +391,7 @@ describe('the cabin’s wall calendar', () => {
   describe('the moons', () => {
     /** The square (row by row) a world point on the sheet lies in, or -1: read from the cell's measures, not `spot`. */
     const squareOf = (c: [number, number, number]) => {
-      const col = Math.floor(((c[0] - g.cal.along) * g.reads + g.cal.wide / 2 - g.cal.margin) / g.cell);
+      const col = Math.floor(((c[1] - g.cal.across) * g.reads + g.cal.wide / 2 - g.cal.margin) / g.cell);
       const top = g.cal.at + g.high - g.cal.bar - g.cal.margin;
       const row = Math.floor((top - (c[2] - CABIN_FLOOR)) / g.cell);
       return col < 0 || col >= CALENDAR.columns || row < 0 || row >= CALENDAR.rows ? -1 : row * CALENDAR.columns + col;
@@ -434,20 +434,20 @@ describe('the cabin’s wall calendar', () => {
           const i = squareOf([u, v, h]);
           const [sx, sy, sz] = g.spot(i);
           const [su, sv, sh] = inCabin(sx, sy, sz);
-          const across = Math.max(...d.map((p) => p[0])) - Math.min(...d.map((p) => p[0]));
+          const across = Math.max(...d.map((p) => p[1])) - Math.min(...d.map((p) => p[1]));
           expect(across, name).toBeCloseTo(g.cell * 0.4, 4);
           // wholly inside the cell
           for (const p of d) {
-            expect(Math.abs(p[0] - su), name).toBeLessThanOrEqual(g.cell / 2 + 1e-4);
+            expect(Math.abs(p[1] - sv), name).toBeLessThanOrEqual(g.cell / 2 + 1e-4);
             expect(Math.abs(p[2] - sh), name).toBeLessThanOrEqual(g.cell / 2 + 1e-4);
           }
           // the mark's centre is not under it
-          expect(Math.hypot(u - su, h - sh), name).toBeGreaterThan(g.cell / 3);
+          expect(Math.hypot(v - sv, h - sh), name).toBeGreaterThan(g.cell / 3);
           // proud of the paper, behind the marks' plane
-          const vs = d.map((p) => p[1]);
-          expect(Math.min(...vs), name).toBeLessThan(hx - g.cal.depth);
-          expect(Math.min(...vs), name).toBeGreaterThanOrEqual(hx - g.cal.depth - g.cal.proud / 2 - 1e-4);
-          expect(Math.min(...vs), name).toBeGreaterThan(sv);
+          const us = d.map((p) => p[0]);
+          expect(Math.min(...us), name).toBeLessThan(hy - g.cal.depth);
+          expect(Math.min(...us), name).toBeGreaterThanOrEqual(hy - g.cal.depth - g.cal.proud / 2 - 1e-4);
+          expect(Math.min(...us), name).toBeGreaterThan(su);
         }
     });
 
@@ -470,12 +470,19 @@ describe('the cabin’s wall calendar', () => {
     expect(ROOM_PARTS).toContain('moonNew');
   });
 
-  it('hangs over the window, as wide as it, its foot over the window’s top frame and its squares at least a tenth of a metre apart', () => {
-    const win = CABIN_ROOM.window;
-    expect(g.cal.along).toBeCloseTo(win.along, 6);
-    expect(g.cal.wide).toBeGreaterThanOrEqual(win.width);
-    expect(g.cal.at).toBeGreaterThanOrEqual(win.sill + win.high + win.frame);
-    expect(g.cell).toBeGreaterThanOrEqual(0.1);
+  it('hangs on the end wall, not over the window: a metre and three tenths wide, over the bed’s headboard, short of the stovepipe, and its squares at least eight centimetres apart', () => {
+    // the lake wall's widest free stretch, between the door's frame and the shelf, is about 1.2 across and had to be shared
+    // with the coat: fourteen squares in it came to five pixels from the pillow, so the stove's wall it is
+    const { stove } = CABIN_ROOM.furniture,
+      { bed } = CABIN_ROOM;
+    expect(g.wall).toBeCloseTo(hy, 6);
+    expect(g.cal.wide).toBeGreaterThanOrEqual(1.3);
+    expect(g.cal.at).toBeGreaterThanOrEqual(bed.headboard);
+    expect(g.cal.across + g.cal.wide / 2, 'short of the pipe').toBeLessThan(stove.across - stove.pipe);
+    expect(g.cal.across - g.cal.wide / 2, 'inside the room').toBeGreaterThan(
+      -(CABIN.body.across / 2 - CABIN_ROOM.inset),
+    );
+    expect(g.cell).toBeGreaterThanOrEqual(0.08);
   });
 
   it('puts the sheet’s foot where it says and its top under the ceiling, a bar along the top', () => {
@@ -501,12 +508,12 @@ describe('the cabin’s wall calendar', () => {
     for (let i = 0; i < CALENDAR.days; i++) {
       const [x, y, z] = g.spot(i);
       const [u, v, h] = inCabin(x, y, z);
-      expect(v, 'proud of the paper').toBeCloseTo(hx - g.cal.depth - g.cal.proud, 4);
-      expect(Math.abs(u - g.cal.along) + g.size / 2).toBeLessThanOrEqual(g.cal.wide / 2 - g.cal.margin + 1e-4);
+      expect(u, 'proud of the paper').toBeCloseTo(hy - g.cal.depth - g.cal.proud, 4);
+      expect(Math.abs(v - g.cal.across) + g.size / 2).toBeLessThanOrEqual(g.cal.wide / 2 - g.cal.margin + 1e-4);
       expect(h - CABIN_FLOOR - g.size / 2).toBeGreaterThanOrEqual(g.cal.at);
       expect(h - CABIN_FLOOR + g.size / 2).toBeLessThanOrEqual(g.cal.at + g.high - g.cal.bar);
       rows.add(Math.round(h * 1000));
-      cols.add(Math.round(u * 1000));
+      cols.add(Math.round(v * 1000));
     }
     expect(rows.size).toBe(CALENDAR.rows);
     expect(cols.size).toBe(CALENDAR.columns);
@@ -515,9 +522,9 @@ describe('the cabin’s wall calendar', () => {
   it('reads left to right and top to bottom, so square 1 is to the right of square 0 as seen from the room', () => {
     const [x0, y0] = g.spot(0),
       [x1, y1] = g.spot(1);
-    const [ix, iy] = CABIN_AT.inward;
-    // facing the lake wall, the reader's right is (iy, -ix)
-    expect((x1 - x0) * iy + (y1 - y0) * -ix).toBeGreaterThan(0);
+    // facing the end wall, toward the shore's direction, the reader's right is (ay, -ax)
+    const [ax, ay] = CABIN_AT.along;
+    expect((x1 - x0) * ay + (y1 - y0) * -ax).toBeGreaterThan(0);
     expect(g.spot(CALENDAR.columns)[2]).toBeLessThan(g.spot(0)[2]);
   });
 
@@ -560,7 +567,7 @@ describe('the cabin’s wall calendar', () => {
         const m = grp.matrices;
         for (let i = 0; i < (grp.count ?? 1); i++) {
           const [u, v, z] = inCabin(m[i * 16 + 12], m[i * 16 + 13], m[i * 16 + 14]);
-          expect(Math.abs(v)).toBeLessThanOrEqual(hx);
+          expect(Math.abs(v)).toBeLessThanOrEqual(CABIN.body.across / 2 - CABIN_ROOM.inset);
           expect(z - CABIN_FLOOR).toBeGreaterThan(0);
           expect(z - CABIN_FLOOR).toBeLessThan(CABIN_ROOM.high);
           expect(Math.abs(u)).toBeLessThan(CABIN.body.along / 2 - CABIN_ROOM.inset);
@@ -569,11 +576,11 @@ describe('the cabin’s wall calendar', () => {
     }
   });
 
-  it('faces the marks into the room, away from the lake wall', () => {
+  it('faces the marks into the room, away from the end wall', () => {
     const m = draw.groups(1, colours)[1].matrices;
     // the mark’s own x, its normal, in the world is the matrix’s first column, scaled
-    const [ix, iy] = CABIN_AT.inward;
-    expect(m[0] * ix + m[1] * iy).toBeLessThan(0);
+    const [ax, ay] = CABIN_AT.along;
+    expect(m[0] * ax + m[1] * ay).toBeLessThan(0);
   });
 });
 
@@ -651,8 +658,7 @@ describe('the map on the lake wall', () => {
 
   it('stands clear of the calendar below it, and lies on the paper, proud of it, inside the picture’s rectangle', () => {
     const { cal, high } = calendarGeometry(HOME);
-    // the calendar hangs over the window, not under the picture: the two do not overlap along the wall
-    expect(Math.abs(cal.along - pic.along)).toBeGreaterThanOrEqual(cal.wide / 2 + pic.wide / 2 + pic.frame);
+    // the calendar hangs on the end wall, so it cannot overlap the picture on the lake wall; its top is under the ceiling
     expect(cal.at + high).toBeLessThan(CABIN_ROOM.high);
     const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
     for (const name of ['mapWater', 'mapDam'] as const)
