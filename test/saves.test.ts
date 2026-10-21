@@ -9,9 +9,15 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { CLOCK, DRUMS, KINDS, TREASURES } from '../src/lake';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { CLOCK, KINDS } from '../src/lake';
+import { HOME } from '../src/lakes';
+import type { Lake } from '../src/lakes/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
+
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 const DIR = new URL('saves/', import.meta.url);
 const files = readdirSync(DIR)
@@ -301,5 +307,25 @@ describe('saves from every shape the game has written', () => {
       now.filter((key) => !held.has(key)),
       'add a save in the new shape to test/saves',
     ).toEqual([]);
+  });
+});
+
+describe('a save read against the lake it is handed', () => {
+  const small: Lake = {
+    ...HOME,
+    drums: { ...HOME.drums, count: 1 },
+    treasures: { ...HOME.treasures, count: 1, list: HOME.treasures.list.slice(0, 1) },
+  };
+  const ids = HOME.treasures.list.map((t) => t.id);
+
+  it('holds the drums hauled to the lake’s own, and the home’s by default', () => {
+    expect(new Progress(memoryStore('{"drums": 5}'), small).save.drums).toBe(1);
+    expect(new Progress(memoryStore('{"drums": 5}')).save.drums).toBe(HOME.drums.count);
+  });
+
+  it('keeps only the treasures the lake has', () => {
+    const json = JSON.stringify({ cured: 3, found: [ids[1], ids[0]] });
+    expect(new Progress(memoryStore(json), small).save.found).toEqual([ids[0]]);
+    expect(new Progress(memoryStore(json)).save.found).toEqual([ids[1], ids[0]]);
   });
 });

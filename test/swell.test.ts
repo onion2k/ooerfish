@@ -2,8 +2,10 @@
 import { GRAVITY_MM, heightAt } from 'artshape-render/game/waves';
 import { describe, expect, it } from 'vitest';
 import { CLEAR_WAVES } from '../src/water/clear';
-import { WATER_PACE } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { STILL, surfaceOf, waterClock } from '../src/water/swell';
+
+const WATER_PACE = HOME.waterPace;
 
 describe('the water where it stands', () => {
   it('is the height the renderer draws its swells at, under the world’s own gravity', () => {

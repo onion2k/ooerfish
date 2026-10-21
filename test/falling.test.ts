@@ -5,9 +5,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MIST } from '../src/bursts';
-import { FALLING, PARTICLE_POOL, SEASONS, SEASON_DRESSING, SHORE_RADIUS } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { FALLING, PARTICLE_POOL, SEASONS, SEASON_DRESSING } from '../src/lake';
 import { fallingDue, fallingEmits, particleWindow, steadyLive } from '../src/falling';
-import { FALLS } from '../src/falls';
+import { fallsOf } from '../src/falls';
+
+const SHORE_RADIUS = HOME.radius;
 
 const world = { radius: SHORE_RADIUS, level: 0 };
 const others = SEASONS.filter((s) => s !== 'summer');
@@ -84,17 +87,19 @@ describe('the cadence', () => {
 describe('the pool', () => {
   it('holds what the falling things and the falls’ mist emit in the longest life, and the ring is the size it was', () => {
     for (const s of others) {
-      expect(particleWindow(s), s).toBeGreaterThan(steadyLive(s));
-      expect(particleWindow(s), s).toBeLessThan(PARTICLE_POOL);
+      expect(particleWindow(s, HOME), s).toBeGreaterThan(steadyLive(s));
+      expect(particleWindow(s, HOME), s).toBeLessThan(PARTICLE_POOL);
     }
-    expect(Math.max(...others.map(particleWindow)), 'the sum in the pool’s comment').toBeGreaterThan(1800);
+    expect(Math.max(...others.map((s) => particleWindow(s, HOME))), 'the sum in the pool’s comment').toBeGreaterThan(
+      1800,
+    );
     expect(PARTICLE_POOL).toBe(2048);
   });
 
   it('lets no flake outlive the ring: its life is under the time the ring takes to come round at the full rate', () => {
     const perSecond = (s: (typeof others)[number]) => {
       const f = SEASON_DRESSING[s].falling!;
-      return FALLING.emitters * f.count * (60 / f.every) + FALLS.length * MIST.count * (60 / MIST.every);
+      return FALLING.emitters * f.count * (60 / f.every) + fallsOf(HOME).length * MIST.count * (60 / MIST.every);
     };
     for (const s of others) {
       const f = SEASON_DRESSING[s].falling!;

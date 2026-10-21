@@ -8,25 +8,11 @@
  * fishing's, and come with it.
  *
  * Sized once, at the most a lake can hold, so nothing is made while it
- * swims, and a lake with more fish than that is told so by `fill`.
+ * swims, and a lake with more fish than that is told so by `fill`. The school swims in the lake it is handed (the
+ * home's unless told otherwise, until the page hands one over), and reads its shore, bed, boulders and jetty from it.
  */
-import {
-  FISH_ABOVE_BED,
-  FISH_CAPACITY,
-  FISH_KINDS,
-  FISH_SHALLOWEST,
-  FISH_SHORE,
-  KINDS,
-  SWIM,
-  bedDepth,
-  boulderGap,
-  inShore,
-  inside,
-  inward,
-  jettyGap,
-  nearestBoulder,
-  nearestOnDeck,
-} from './lake';
+import { FISH_CAPACITY, KINDS, SWIM } from './lake';
+import type { Lake } from './lakes/lake';
 import type { Random } from './random';
 
 /** A whole turn, which a beat is and a heading wraps at. */
@@ -49,6 +35,8 @@ const JETTY_LOOK = 1.5;
 const SINK = 0.4;
 
 export class School {
+  constructor(readonly lake: Lake) {}
+
   readonly x = new Float64Array(FISH_CAPACITY);
   readonly y = new Float64Array(FISH_CAPACITY);
   /** How far under the surface. */
@@ -87,7 +75,7 @@ export class School {
   fill(n: number, random: Random, cured = 0) {
     this.count = Math.min(n, FISH_CAPACITY);
     for (let i = 0; i < this.count; i++) {
-      this.kind[i] = FISH_KINDS[i % FISH_KINDS.length];
+      this.kind[i] = this.lake.fishKinds[i % this.lake.fishKinds.length];
       this.place(i, random);
     }
     this.cured.fill(0);
@@ -137,7 +125,7 @@ export class School {
     this.y[i] = y;
     this.heading[i] = heading;
     // the new place may be shallower than the one it was landed from, so it is brought to within that place's depths
-    const [least, most] = depthRange(x, y);
+    const [least, most] = depthRange(x, y, this.lake);
     this.depth[i] = Math.min(most, Math.max(least, this.depth[i]));
   }
 
@@ -149,13 +137,14 @@ export class School {
   }
 
   private place(i: number, random: Random) {
+    const { lake } = this;
     let x = 0,
       y = 0;
-    // a point well in from the shore; a hundred tries is far more than the pond's shape needs
+    // a point well in from the shore; a hundred tries is far more than a lake's shape needs
     for (let tries = 0; tries < 100; tries++) {
-      x = (random() * 2 - 1) * 40;
-      y = (random() * 2 - 1) * 30;
-      if (inside(x, y, FISH_SHORE + 2)) break;
+      x = (random() * 2 - 1) * lake.extent[0];
+      y = (random() * 2 - 1) * lake.extent[1];
+      if (lake.inside(x, y, lake.fishShore + 2)) break;
       x = y = 0;
     }
     this.x[i] = x;
@@ -165,7 +154,7 @@ export class School {
     // the same one draw as ever, put into the band of the fish's kind
     const [near, far] = KINDS[this.kind[i]].keeps;
     this.keeps[i] = near + random() * (far - near);
-    this.depth[i] = depthRange(x, y)[1] * this.keeps[i];
+    this.depth[i] = depthRange(x, y, lake)[1] * this.keeps[i];
     // a beat of its own, by its place in the school and not by chance, so the stream the seed gives is not moved
     this.phase[i] = (i * 2.399963) % (Math.PI * 2);
     this.turn[i] = this.rise[i] = this.pace[i] = 0;
@@ -215,6 +204,8 @@ export class School {
 
   /** Every fish on by `dt` seconds. */
   step(dt: number, random: Random) {
+    const { lake } = this;
+    const { jetty } = lake;
     for (let i = 0; i < this.count; i++) {
       if (i === this.held) continue;
       let heading = this.heading[i] + (random() * 2 - 1) * WANDER * dt;
@@ -224,13 +215,13 @@ export class School {
       const ax = x + Math.cos(heading) * LOOK,
         ay = y + Math.sin(heading) * LOOK;
       let away = Number.NaN;
-      if (!inShore(ax, ay, FISH_SHORE)) away = Math.atan2(-y, -x);
-      else if (boulderGap(ax, ay) < BOULDER_LOOK) {
-        const b = nearestBoulder(ax, ay);
+      if (!lake.inShore(ax, ay, lake.fishShore)) away = Math.atan2(-y, -x);
+      else if (lake.boulderGap(ax, ay) < BOULDER_LOOK) {
+        const b = lake.nearestBoulder(ax, ay);
         away = Math.atan2(y - b.y, x - b.x);
-      } else if (jettyGap(ax, ay) < JETTY_LOOK) {
+      } else if (jetty && jetty.gap(ax, ay) < JETTY_LOOK) {
         // from the nearest point of the deck, so a fish at its end turns off along it and one at its side turns off across
-        const [dx, dy] = nearestOnDeck(ax, ay);
+        const [dx, dy] = jetty.nearestOnDeck(ax, ay);
         away = Math.atan2(y - dy, x - dx);
       }
       if (!Number.isNaN(away)) {
@@ -242,12 +233,12 @@ export class School {
       // a step that would come within half a unit of the shore or a boulder is not taken, and the fish turns about: a
       // turn too slow can never beach it. A step away from whichever it is near is, so long as it comes no nearer the
       // other, so a fish that has come that near swims out again
-      if (inside(nx, ny, 0.5) || awayFromLand(x, y, nx, ny)) {
+      if (lake.inside(nx, ny, 0.5) || awayFromLand(lake, x, y, nx, ny)) {
         this.x[i] = nx;
         this.y[i] = ny;
       } else heading += Math.PI;
       this.heading[i] = Math.atan2(Math.sin(heading), Math.cos(heading));
-      const [lo, hi] = depthRange(this.x[i], this.y[i]);
+      const [lo, hi] = depthRange(this.x[i], this.y[i], lake);
       const want = Math.min(hi, Math.max(lo, hi * this.keeps[i]));
       const depth = this.depth[i] + (want - this.depth[i]) * Math.min(1, SINK * dt);
       // the bed rises under a fish swimming in toward the shore, faster than it eases up: it is kept off it
@@ -273,6 +264,7 @@ export function steerTo(
   speed: number,
   dt: number,
 ): number {
+  const { lake } = school;
   const x = school.x[i],
     y = school.y[i];
   const want = Math.atan2(ty - y, tx - x);
@@ -283,12 +275,12 @@ export function steerTo(
   const step = Math.min(speed * dt, Math.hypot(tx - x, ty - y));
   const nx = x + Math.cos(heading) * step,
     ny = y + Math.sin(heading) * step;
-  if (inside(nx, ny, 0.5) || awayFromLand(x, y, nx, ny)) {
+  if (lake.inside(nx, ny, 0.5) || awayFromLand(lake, x, y, nx, ny)) {
     school.x[i] = nx;
     school.y[i] = ny;
   } else heading += Math.PI;
   school.heading[i] = Math.atan2(Math.sin(heading), Math.cos(heading));
-  const [lo, hi] = depthRange(school.x[i], school.y[i]);
+  const [lo, hi] = depthRange(school.x[i], school.y[i], lake);
   const eased = school.depth[i] + (depth - school.depth[i]) * Math.min(1, SINK * 4 * dt);
   school.depth[i] = Math.min(hi, Math.max(lo, eased));
   return Math.hypot(tx - school.x[i], ty - school.y[i]);
@@ -299,17 +291,19 @@ export function steerTo(
  * the water and goes away from whichever it is near without coming nearer the other. Only asked when the plain test
  * fails, which is seldom, so a step in open water pays for none of it.
  */
-function awayFromLand(x: number, y: number, nx: number, ny: number): boolean {
-  if (!inside(nx, ny)) return false;
-  const gap = boulderGap(nx, ny);
-  const offBoulder = gap > 0.5 || gap > boulderGap(x, y);
-  const jetty = jettyGap(nx, ny);
-  const offJetty = jetty > 0.5 || jetty > jettyGap(x, y);
-  return offBoulder && offJetty && (inShore(nx, ny, 0.5) || inward(nx, ny) > inward(x, y));
+function awayFromLand(lake: Lake, x: number, y: number, nx: number, ny: number): boolean {
+  if (!lake.inside(nx, ny)) return false;
+  const gap = lake.boulderGap(nx, ny);
+  const offBoulder = gap > 0.5 || gap > lake.boulderGap(x, y);
+  // a lake with no jetty has no deck to keep off
+  const deck = lake.jetty;
+  const jetty = deck ? deck.gap(nx, ny) : Infinity;
+  const offJetty = jetty > 0.5 || jetty > deck!.gap(x, y);
+  return offBoulder && offJetty && (lake.inShore(nx, ny, 0.5) || lake.inward(nx, ny) > lake.inward(x, y));
 }
 
 /** How deep a fish may swim at a point: below the surface and above the bed, the gap halved where it is shallow. */
-export function depthRange(x: number, y: number): [number, number] {
-  const bed = bedDepth(x, y);
-  return [Math.min(FISH_SHALLOWEST, bed * 0.25), Math.max(bed * 0.5, bed - FISH_ABOVE_BED)];
+export function depthRange(x: number, y: number, lake: Lake): [number, number] {
+  const bed = lake.bedDepth(x, y);
+  return [Math.min(lake.fishShallowest, bed * 0.25), Math.max(bed * 0.5, bed - lake.fishAboveBed)];
 }

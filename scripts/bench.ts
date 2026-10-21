@@ -30,6 +30,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { careful } from '../src/angler';
 import { Game } from '../src/game';
 import { CLOCK, FISH_CAPACITY } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { AGREE, TOLERANCE, agreed, bestRatio, did, heldToDay, judge, swimming, type Seen } from './benching';
@@ -59,7 +60,7 @@ interface Scenario {
 
 /** A game from a seed, settled. */
 export function settled(seed: number): Game {
-  const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+  const game = new Game(new Progress(memoryStore(), HOME), { lake: HOME, random: seeded(seed) });
   for (let f = 0; f < 180; f++) game.step(DT);
   return game;
 }

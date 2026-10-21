@@ -19,23 +19,7 @@
  */
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
-import {
-  CLOCK,
-  DRUMS,
-  FIGHT,
-  FISHING,
-  FISH_CAPACITY,
-  FISH_COUNT,
-  GEAR,
-  SPLASH_CAPACITY,
-  TREASURES,
-  KINDS,
-  SWIM,
-  bedDepth,
-  contaminationAfter,
-  ground,
-  inside,
-} from './lake';
+import { CLOCK, FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM } from './lake';
 import { poseFish } from './swim';
 
 /**
@@ -45,8 +29,10 @@ import { poseFish } from './swim';
  */
 function treasureRules(game: Game, out: string[]) {
   const { found } = game.progress.save;
-  const { treasures, drums } = game;
-  const known = new Set<string>(TREASURES.list.map((t) => t.id));
+  const { treasures, drums, lake } = game;
+  const { inside, bedDepth } = lake;
+  const spec = lake.treasures;
+  const known = new Set<string>(spec.list.map((t) => t.id));
   const seen = new Set<string>();
   if (!Array.isArray(found)) return void out.push('the save has no list of treasures found');
   for (const id of found) {
@@ -54,20 +40,19 @@ function treasureRules(game: Game, out: string[]) {
     else if (seen.has(id)) out.push(`the save has the treasure ${id} twice`);
     seen.add(id);
   }
-  if (found.length > TREASURES.count)
-    out.push(`the save has ${found.length} treasures found, of ${TREASURES.count} in the pond`);
-  TREASURES.list.forEach((t, i) => {
+  if (found.length > spec.count) out.push(`the save has ${found.length} treasures found, of ${spec.count} in the lake`);
+  spec.list.forEach((t, i) => {
     if (treasures.found[i] && !seen.has(t.id)) out.push(`treasure ${t.id} is found, but the save does not say so`);
     if (!treasures.found[i] && seen.has(t.id)) out.push(`treasure ${t.id} is in the save, but it is still on the bed`);
     const [x, y] = [treasures.x[i], treasures.y[i]];
     const bed = bedDepth(x, y);
-    const [least, most] = TREASURES.where.depth;
-    if (!inside(x, y, TREASURES.where.margin) || !(bed >= least && bed <= most))
+    const [least, most] = spec.where.depth;
+    if (!inside(x, y, spec.where.margin) || !(bed >= least && bed <= most))
       out.push(`treasure ${i} is not on the bed under the water, at ${x}, ${y}`);
     for (let d = 0; d < drums.count; d++) {
       const gap = Math.hypot(x - drums.x[d], y - drums.y[d]);
-      if (gap < TREASURES.where.apart)
-        out.push(`treasure ${i} lies ${gap.toFixed(2)} from drum ${d}, under the ${TREASURES.where.apart} apart`);
+      if (gap < spec.where.apart)
+        out.push(`treasure ${i} lies ${gap.toFixed(2)} from drum ${d}, under the ${spec.where.apart} apart`);
     }
   });
 }
@@ -85,7 +70,7 @@ function treasureRules(game: Game, out: string[]) {
  */
 function journalRules(game: Game, out: string[]) {
   const { journal, cured } = game.progress.save;
-  const { fish } = game;
+  const { fish, lake } = game;
   const known = new Set<string>(KINDS.map((k) => k.id));
   let caught = 0;
   let sound = true;
@@ -121,7 +106,7 @@ function journalRules(game: Game, out: string[]) {
   }
   const said = KINDS.map((k, n) => Math.min(journal[k.id]?.caught ?? 0, slots[n]));
   const accounted = said.reduce((a, b) => a + b, 0);
-  const whole = accounted >= Math.min(cured, FISH_COUNT);
+  const whole = accounted >= Math.min(cured, lake.fishCount);
   KINDS.forEach((k, n) => {
     const wrong = whole ? curedOf[n] !== said[n] : curedOf[n] < said[n];
     if (wrong)
@@ -160,7 +145,8 @@ export function checkInvariants(game: Game): string[] {
   };
   if (!Number.isFinite(game.t) || game.t < 0) out.push(`the time is ${game.t}`);
 
-  const { fish } = game;
+  const { fish, lake } = game;
+  const { inside, bedDepth } = lake;
   if (!Number.isInteger(fish.count) || fish.count < 0 || fish.count > FISH_CAPACITY)
     out.push(`the lake has ${fish.count} fish, where it holds ${FISH_CAPACITY}`);
   const wrong: string[] = [];
@@ -221,7 +207,7 @@ export function checkInvariants(game: Game): string[] {
     out.push('the lure is not a number');
   else if (
     lure.phase === 'flying' &&
-    lure.at[2] < (inside(lure.at[0], lure.at[1]) ? 0 : ground(lure.at[0], lure.at[1])) - 1e-3
+    lure.at[2] < (inside(lure.at[0], lure.at[1]) ? 0 : lake.ground(lure.at[0], lure.at[1])) - 1e-3
   )
     out.push(`the lure is flying under what it flies over, ${where}`);
   else if (lure.phase === 'sinking') {
@@ -241,7 +227,7 @@ export function checkInvariants(game: Game): string[] {
   // and unless the lever has set it, it is exactly what the formula says of the fish cured and the drums hauled
   if (game.levers === 0) {
     const { cured, drums } = game.progress.save;
-    const truth = contaminationAfter(cured, drums);
+    const truth = lake.contaminationAfter(cured, drums);
     if (Math.abs(game.contamination - truth) > 1e-9)
       out.push(`the contamination is ${game.contamination}, but ${cured} cured and ${drums} hauled make it ${truth}`);
   }
@@ -277,8 +263,8 @@ export function checkInvariants(game: Game): string[] {
   seen.set(game, now);
   const { cured } = game.progress.save;
   if (!Number.isSafeInteger(cured) || cured < 0) out.push(`the lake has cured ${cured} fish`);
-  else if (fish.curedCount() !== Math.min(cured, FISH_COUNT))
-    out.push(`${fish.curedCount()} fish are cured, but the save says ${cured}, of ${FISH_COUNT} in the pond`);
+  else if (fish.curedCount() !== Math.min(cured, lake.fishCount))
+    out.push(`${fish.curedCount()} fish are cured, but the save says ${cured}, of ${lake.fishCount} in the lake`);
   // the gifts in force are the ones the count has earned, and nothing else; the zone a fight plays is that gear's width
   // (a fight under way keeps its own, so only a line at rest is held to the gear in force)
   const gear = gearFor(cured);
@@ -290,7 +276,8 @@ export function checkInvariants(game: Game): string[] {
   const hauled = game.drums.foundCount();
   if (!Number.isSafeInteger(game.progress.save.drums) || game.progress.save.drums < 0)
     out.push(`the save says ${game.progress.save.drums} drums hauled`);
-  else if (hauled < 0 || hauled > DRUMS.count) out.push(`${hauled} drums are hauled, of ${DRUMS.count} in the pond`);
+  else if (hauled < 0 || hauled > lake.drums.count)
+    out.push(`${hauled} drums are hauled, of ${lake.drums.count} in the lake`);
   else if (hauled !== game.progress.save.drums)
     out.push(`${hauled} drums are hauled, but the save says ${game.progress.save.drums}`);
   journalRules(game, out);

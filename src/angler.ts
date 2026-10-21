@@ -21,8 +21,6 @@ const LEAD = 0.15;
  * is not in that water; a player lets the lure sink through the bands again, and so does this hand.
  */
 export const PATIENCE = 12;
-/** The cast it aims: due north from the shore at about the power that reaches the middle, and how far it varies either. */
-const AIM = { angle: Math.PI / 2, power: 0.62, spread: 0.25, powerSpread: 0.08 } as const;
 
 /**
  * What a careful hand does on the bar, for the zone at `zone` moving at `speed` and the fish seen at `fishAt`: it holds
@@ -69,8 +67,10 @@ export class Angler {
     } else g.reel(false);
     this.waited = g.lure.phase === 'sinking' && phase === 'none' ? this.waited + dt : 0;
     if (g.lure.phase === 'lying' || this.waited > PATIENCE) g.reelIn();
+    // the cast it aims is the lake's to say: toward its middle, a little either way
+    const aim = g.lake.aim;
     if (g.lure.phase === 'ready')
-      g.cast(AIM.angle + (this.random() * 2 - 1) * AIM.spread, AIM.power + (this.random() * 2 - 1) * AIM.powerSpread);
+      g.cast(aim.angle + (this.random() * 2 - 1) * aim.spread, aim.power + (this.random() * 2 - 1) * aim.powerSpread);
     g.step(dt);
   }
 }

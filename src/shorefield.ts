@@ -7,7 +7,7 @@
  * texel to the nearest marked one, by Felzenszwalb and Huttenlocher's two passes of the lower envelope of parabolas.
  */
 import type { ShoreField } from 'artshape-render/game/shore';
-import { BANK_RISE, SHORE_RADIUS, STRETCH, inside } from './lake';
+import type { Lake } from './lakes/lake';
 
 /** How many texels the field is along each side: a texel is about a third of a unit, finer than the foam's lines. */
 export const SHORE_FIELD_SIZE = 256;
@@ -89,10 +89,11 @@ export function distanceTransform(marked: Uint8Array, w: number, h: number, sx: 
  * boulders, and in the water the distance to the nearest of either, taken from texel middles to the edge of the land
  * texel, half a texel nearer than its middle.
  */
-export function shoreField(size = SHORE_FIELD_SIZE): ShoreField {
+export function shoreField(size = SHORE_FIELD_SIZE, lake: Lake): ShoreField {
+  const { inside } = lake;
   // the shore's wobbles reach at most a quarter out past its mean, and the field a bank's rise beyond that is plenty
-  const halfX = SHORE_RADIUS * STRETCH * 1.25 + BANK_RISE * 0.2,
-    halfY = SHORE_RADIUS * 1.25 + BANK_RISE * 0.2;
+  const halfX = lake.radius * lake.stretch * 1.25 + lake.bankRise * 0.2,
+    halfY = lake.radius * 1.25 + lake.bankRise * 0.2;
   const min: [number, number] = [-halfX, -halfY],
     max: [number, number] = [halfX, halfY];
   const sx = (2 * halfX) / size,

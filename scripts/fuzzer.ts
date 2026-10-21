@@ -19,7 +19,8 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { CLOCK, DRUMS, FISH_COUNT, FISH_KINDS, GEAR, KINDS, TREASURES } from '../src/lake';
+import { CLOCK, GEAR, KINDS } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -105,6 +106,8 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     happened,
   });
 
+  // the lake the monkey plays in: the home's, whose figures its saves are drawn from
+  const lake = HOME;
   try {
     // a returning player loads a save with fish already cured, so the lake starts anywhere from none cured to clean.
     // The count is drawn from a stream of its own, so it moves none of the monkey's other chance: two in five seeds
@@ -113,9 +116,9 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       const pick = seeded(seed * 13 + 5);
       const u = pick();
       if (u < 0.4) return 0;
-      if (u < 0.6) return FISH_COUNT;
-      if (u < 0.8) return FISH_COUNT - 1 - Math.floor(pick() * 3);
-      return 1 + Math.floor(pick() * (FISH_COUNT - 1));
+      if (u < 0.6) return lake.fishCount;
+      if (u < 0.8) return lake.fishCount - 1 - Math.floor(pick() * 3);
+      return 1 + Math.floor(pick() * (lake.fishCount - 1));
     })();
     done['start cured'] = curedAtStart;
     // the gifts the part-cured start already holds, so some seeds fish with gear from the first frame
@@ -127,10 +130,12 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       const pick = seeded(seed * 17 + 3);
       // every fish cured leaves the pond clean only if the drums are hauled too: half of those starts leave one on the bed
       const drums =
-        curedAtStart === FISH_COUNT ? DRUMS.count - (pick() < 0.5 ? 1 : 0) : Math.floor(pick() * (DRUMS.count + 1));
+        curedAtStart === lake.fishCount
+          ? lake.drums.count - (pick() < 0.5 ? 1 : 0)
+          : Math.floor(pick() * (lake.drums.count + 1));
       const journal: Record<string, { caught: number; best: number; first: number }> = {};
       if (pick() < 0.7) {
-        const room = KINDS.map((_, i) => FISH_KINDS.filter((f) => f === i).length);
+        const room = KINDS.map((_, i) => lake.fishKinds.filter((f) => f === i).length);
         for (let n = 0; n < curedAtStart; n++) {
           const k = Math.floor(pick() * KINDS.length);
           if (room[k] < 1) continue;
@@ -149,7 +154,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
     const foundAtStart = (() => {
       const pick = seeded(seed * 19 + 11);
       if (pick() < 0.5) return [];
-      const ids = TREASURES.list.map((t) => t.id);
+      const ids = lake.treasures.list.map((t) => t.id);
       for (let i = ids.length - 1; i > 0; i--) {
         const j = Math.floor(pick() * (i + 1));
         [ids[i], ids[j]] = [ids[j], ids[i]];
@@ -181,7 +186,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
         day: dayAtStart,
       }),
     );
-    let game = new Game(new Progress(store), { random: seeded(seed), events });
+    let game = new Game(new Progress(store, lake), { lake, random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
     {
@@ -416,7 +421,7 @@ export function fuzz(seed: number, frames: number): FuzzResult {
           const was = JSON.stringify(game.progress.save);
           const written = { place: game.progress.save.place, time: game.progress.save.time };
           store = memoryStore(store.json);
-          game = new Game(new Progress(store), { random: seeded(seed + frame), events });
+          game = new Game(new Progress(store, lake), { lake, random: seeded(seed + frame), events });
           const now = JSON.stringify(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and

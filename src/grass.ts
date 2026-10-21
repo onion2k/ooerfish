@@ -10,20 +10,7 @@
  * written: the grass keeps off the water, off the angler's feet and off the boulders by asking the lake's own sums.
  */
 import type { GrassField, GrassKind, GrassOptions, Wind } from 'artshape-render/game/grass';
-import {
-  ANGLER,
-  BANK_RISE,
-  BANK_TOP,
-  CABIN,
-  SHORE_RADIUS,
-  STRETCH,
-  cabinGap,
-  groundUnder,
-  inShore,
-  jettyGap,
-  onFace,
-  onFall,
-} from './lake';
+import type { Lake } from './lakes/lake';
 import { PALETTE } from './palette';
 
 /**
@@ -44,8 +31,6 @@ export const LUSH: GrassKind = {
   give: 0.9,
 };
 
-/** The seed the blades are grown from: the field's own, so the grass stands still whatever the game's seed. */
-export const GRASS_SEED = 1971;
 /** A cell is half a unit: fine enough to follow the shore and a boulder's foot, coarse enough that the field is a few hundred a side. */
 const CELL = 0.5;
 /** How far the grass keeps back from the waterline, so it never leans out over the water or the foam. */
@@ -54,13 +39,16 @@ const SHORE_GAP = 0.9;
 const ANGLER_CLEAR = 4;
 
 /**
- * The grass field: half-unit cells over the banks out to the sun's shadow box, grass wherever the ground is dry,
- * a gap from the waterline, and not at the angler's feet, on the cliff's face, under the cabin or on the jetty's shore end; beyond the grid the same grass carries on at the top of
- * the banks to the horizon. The heights are the ground without the boulders, which the banks' sheet is drawn from.
+ * The grass field of a lake: half-unit cells over the banks out to the sun's shadow box, grass wherever the ground is
+ * dry, a gap from the waterline, and not at the angler's feet, on the cliff's face, under the cabin or on the jetty's
+ * shore end; beyond the grid the same grass carries on at the top of the banks to the horizon. The heights are the
+ * ground without the boulders, which the banks' sheet is drawn from. The blades are grown from the lake's own seed
+ * (`scenery.seeds.grass`), so the grass stands still whatever the game's seed.
  */
-export function bankField(kind: GrassKind = LUSH): GrassField {
-  const halfW = (SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH;
-  const halfH = SHORE_RADIUS * 1.5 + BANK_RISE;
+export function bankField(kind: GrassKind = LUSH, lake: Lake): GrassField {
+  const { groundUnder, inShore, onFace, onFall, onCabinOrDeck, angler } = lake;
+  const halfW = (lake.radius * 1.5 + lake.bankRise) * lake.stretch;
+  const halfH = lake.radius * 1.5 + lake.bankRise;
   const cols = Math.ceil((2 * halfW) / CELL);
   const rows = Math.ceil((2 * halfH) / CELL);
   const mask = new Uint8Array(cols * rows);
@@ -72,11 +60,11 @@ export function bankField(kind: GrassKind = LUSH): GrassField {
       const i = r * cols + c;
       heights[i] = groundUnder(x, y);
       const dry = !inShore(x, y, -SHORE_GAP);
-      const clear = Math.hypot(x - ANGLER.x, y - ANGLER.y) > ANGLER_CLEAR;
+      const clear = Math.hypot(x - angler.x, y - angler.y) > ANGLER_CLEAR;
       // none on the cliff's face, where the ground leans past the rock slope and the wall is bare rock, and none in a
       // fall's channel, where a blade at the lip would hang over the water
       // none under the cabin's roof or the keep-back round it, and none through the jetty's planks where it starts on the bank
-      const built = cabinGap(x, y) < CABIN.clear || jettyGap(x, y) < CABIN.clear;
+      const built = onCabinOrDeck(x, y);
       mask[i] = dry && clear && !onFace(x, y) && !onFall(x, y) && !built ? 1 : 0;
     }
   return {
@@ -87,8 +75,8 @@ export function bankField(kind: GrassKind = LUSH): GrassField {
     mask,
     heights,
     kinds: [kind],
-    outside: { kind: 0, height: BANK_TOP },
-    seed: GRASS_SEED,
+    outside: { kind: 0, height: lake.bankTop },
+    seed: lake.scenery.seeds.grass,
   };
 }
 

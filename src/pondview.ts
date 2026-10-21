@@ -6,7 +6,9 @@
  * player's fishing is `fightview.ts`'s, and the cure is the game's.
  */
 import type { Game } from './game';
-import { CURE, DRUMS, GIFT_GIVER, LAKE_NAME, contaminationAfter } from './lake';
+import { GIFT_GIVER } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
 
 export interface PondElements {
   gauge: HTMLElement;
@@ -60,10 +62,11 @@ export interface PondWords {
 }
 
 /** What the page says for this state of the pond. */
-export function pondWords(s: PondState): PondWords {
+export function pondWords(s: PondState, lake: Lake = HOME): PondWords {
+  const name = lake.name;
   // clean is every fish cured and every drum hauled, and the gauge is the lake's own formula for how far from it
-  const clean = s.cured >= s.toClean && s.drums >= DRUMS.count;
-  const glow = contaminationAfter(s.cured, s.drums);
+  const clean = s.cured >= s.toClean && s.drums >= lake.drums.count;
+  const glow = lake.contaminationAfter(s.cured, s.drums);
   let toast: PondWords['toast'] = null;
   const cureOn = s.t < s.toastUntil && s.toastCured > 0;
   const haulOn = s.t < s.hauledUntil && s.toastHauled > 0;
@@ -72,16 +75,15 @@ export function pondWords(s: PondState): PondWords {
   if (foundOn && (!haulOn || s.foundUntil > s.hauledUntil) && (!cureOn || s.foundUntil > s.toastUntil)) {
     toast = { lead: 'Found!', bold: "It's for the shelf." };
   } else if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
-    if (clean) toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
+    if (clean) toast = { lead: `The ${name} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
     else toast = { lead: 'Hauled out!', bold: 'The pond clears a lot.' };
   } else if (cureOn) {
-    if (s.toastCured === s.toClean && clean)
-      toast = { lead: `The ${LAKE_NAME} is clean!`, bold: 'Every fish is cured.' };
+    if (s.toastCured === s.toClean && clean) toast = { lead: `The ${name} is clean!`, bold: 'Every fish is cured.' };
     else toast = { lead: 'Cured!', bold: 'The pond clears a little.' };
   } else if (s.gift && s.t >= s.giftFrom && s.t < s.giftUntil)
     toast = { lead: `A gift from ${GIFT_GIVER}: ${s.gift.name}.`, bold: s.gift.words };
   // a player who has cured a fish is not welcomed again, on this visit or the next
-  return { name: LAKE_NAME, welcome: !s.cast && s.cured === 0 && s.drums === 0, glow, clean, toast };
+  return { name, welcome: !s.cast && s.cured === 0 && s.drums === 0, glow, clean, toast };
 }
 
 /** A share as a per cent, to a tenth, so a still bar writes nothing. */
@@ -104,9 +106,10 @@ export class PondView {
     private readonly el: PondElements,
     private readonly game: () => Game,
     private readonly heardFor: number,
+    private readonly lake: Lake,
   ) {
     el.bar.setAttribute('role', 'meter');
-    el.bar.setAttribute('aria-label', `Glow in the ${LAKE_NAME}, from clean to sick`);
+    el.bar.setAttribute('aria-label', `Glow in the ${lake.name}, from clean to sick`);
     el.bar.setAttribute('aria-valuemin', '0');
     el.bar.setAttribute('aria-valuemax', '100');
   }
@@ -144,21 +147,24 @@ export class PondView {
     const { el } = this;
     // the first cast takes the welcome away; a lure anywhere but at the rod has been cast
     if (g.lure.phase !== 'ready') this.cast = true;
-    const w = pondWords({
-      cured: g.progress.save.cured,
-      toClean: CURE.toClean,
-      drums: g.progress.save.drums,
-      cast: this.cast,
-      toastCured: this.toastCured,
-      toastUntil: this.toastUntil,
-      toastHauled: this.toastHauled,
-      hauledUntil: this.hauledUntil,
-      foundUntil: this.foundUntil,
-      gift: this.gift,
-      giftFrom: this.giftFrom,
-      giftUntil: this.giftUntil,
-      t: g.t,
-    });
+    const w = pondWords(
+      {
+        cured: g.progress.save.cured,
+        toClean: this.lake.toClean,
+        drums: g.progress.save.drums,
+        cast: this.cast,
+        toastCured: this.toastCured,
+        toastUntil: this.toastUntil,
+        toastHauled: this.toastHauled,
+        hauledUntil: this.hauledUntil,
+        foundUntil: this.foundUntil,
+        gift: this.gift,
+        giftFrom: this.giftFrom,
+        giftUntil: this.giftUntil,
+        t: g.t,
+      },
+      this.lake,
+    );
     if (this.was.gauge === '') {
       this.was.gauge = 'on';
       el.gauge.hidden = false;

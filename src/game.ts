@@ -13,25 +13,10 @@ import { Bite, type Strike } from './bite';
 import { BedFinds, places } from './bedfinds';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import {
-  CLOCK,
-  NIGHT,
-  DROP_NEAR,
-  contaminationAfter,
-  HEAL,
-  CURE,
-  GEAR,
-  FIGHT,
-  DRUMS,
-  TREASURES,
-  FISHING,
-  FISH_COUNT,
-  KINDS,
-  RELEASE,
-  ANGLER,
-  inside,
-  bedDepth,
-} from './lake';
+import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
+import { DRUM_RULES, TREASURE_RULES } from './rules';
 import { recorded } from './journal';
 import { Progress } from './progress';
 import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Gear, type Temper } from './fight';
@@ -75,15 +60,33 @@ export interface GameEvents {
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
 const HOOKED = { speed: 6, sway: 0.35, swayRate: 0.9, wide: 1.1 } as const;
 
-/** The lake as the things on its bed are placed in it: handed to `places`, once, since it is the same for every game. */
-const BED = { inside, bedDepth, from: [ANGLER.x, ANGLER.y] } as const;
-const DRUM_PLACES = places(DRUMS, BED);
-const TREASURE_PLACES = places(TREASURES, BED, DRUM_PLACES);
+/**
+ * Where the things on a lake's bed lie, worked out once for each lake and kept: the lake is the `BedWorld` that
+ * `places` asks, and the places are the same for every game played in it, however many are made.
+ */
+interface BedPlaces {
+  drums: [number, number][];
+  treasures: [number, number][];
+}
+const BED_PLACES = new WeakMap<Lake, BedPlaces>();
+
+/** The places of a lake's drums and treasures, the treasures clear of the drums. */
+function bedPlacesOf(lake: Lake): BedPlaces {
+  let made = BED_PLACES.get(lake);
+  if (!made) {
+    const drums = places(lake.drums, lake);
+    made = { drums, treasures: places(lake.treasures, lake, drums) };
+    BED_PLACES.set(lake, made);
+  }
+  return made;
+}
 
 /** How big a lure's splash is, against a pebble's one. */
 const LURE_SPLASH = 0.6;
 
 export interface GameOptions {
+  /** The lake it is played in, the home's unless told otherwise (`docs/lakes.md`). */
+  lake?: Lake;
   /** Chance; Math.random unless told otherwise, and the tests always tell. */
   random?: Random;
   /** Whoever shows what happens. */
@@ -95,13 +98,15 @@ export class Game {
   t = 0;
   /** Where chance comes from: replaced by the test API's `seed`. */
   random: Random;
-  readonly fish = new School();
+  /** The lake it is played in: its shore, bed, fish, finds and cure all come from it. */
+  readonly lake: Lake;
+  readonly fish: School;
   /** The drums of waste on the bed, from a seed of their own and not the game's chance. */
-  readonly drums = new BedFinds(DRUM_PLACES);
+  readonly drums: BedFinds;
   /** The junk treasures on the bed, from a seed of their own as well, clear of the drums; found ones are gone from it for good. */
-  readonly treasures = new BedFinds(TREASURE_PLACES);
+  readonly treasures: BedFinds;
   readonly splashes = new Splashes();
-  readonly lure = new Lure();
+  readonly lure: Lure;
   readonly bite: Bite;
   readonly line = new Line();
   /** Whether the reel is held, which pushes the zone up the fight's bar. */
@@ -154,33 +159,44 @@ export class Game {
     options: GameOptions = {},
   ) {
     this.random = options.random ?? Math.random;
+    const lake = (this.lake = options.lake ?? HOME);
+    const found = bedPlacesOf(lake);
+    this.fish = new School(lake);
+    this.drums = new BedFinds(found.drums);
+    this.treasures = new BedFinds(found.treasures);
+    this.lure = new Lure(lake);
     this.day = progress.save.day;
     // a cabin save is at dawn whatever its time says, since the clock is held there
     this.place = progress.save.place;
     this.timeOfDay = this.place === 'cabin' ? CLOCK.startsAt : progress.save.time;
-    this.contamination = contaminationAfter(progress.save.cured, progress.save.drums);
+    this.contamination = lake.contaminationAfter(progress.save.cured, progress.save.drums);
     this.drums.loadFirst(progress.save.drums);
-    this.treasures.load(progress.save.found.map((id) => TREASURES.list.findIndex((t) => t.id === id)));
+    this.treasures.load(progress.save.found.map((id) => lake.treasures.list.findIndex((t) => t.id === id)));
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.events = options.events ?? {};
     this.gear = gearFor(progress.save.cured);
     const e = this.events;
     // a nibble rings the water at the bobber, and the bite rings it bigger, so a bite is seen and not only read; the
     // rings are the water's own, through the splash pool, and unlike a pebble they do not scare the fish off
-    this.bite = new Bite({
-      nibbled: () => {
-        e.nibbled?.();
-        this.ring(FISHING.nibbleRing);
+    this.bite = new Bite(
+      {
+        nibbled: () => {
+          e.nibbled?.();
+          this.ring(FISHING.nibbleRing);
+        },
+        bitten: (heavy, quarry) => {
+          e.bitten?.(heavy, quarry);
+          this.ring(
+            quarry === 'drum' ? DRUM_RULES.ring : quarry === 'treasure' ? TREASURE_RULES.ring : FISHING.biteRing,
+          );
+        },
+        hooked: () => e.hooked?.(),
+        missed: () => e.missed?.(),
       },
-      bitten: (heavy, quarry) => {
-        e.bitten?.(heavy, quarry);
-        this.ring(quarry === 'drum' ? DRUMS.ring : quarry === 'treasure' ? TREASURES.ring : FISHING.biteRing);
-      },
-      hooked: () => e.hooked?.(),
-      missed: () => e.missed?.(),
-    });
+      lake,
+    );
     this.bite.gear = this.gear;
-    this.fish.fill(FISH_COUNT, () => this.random());
+    this.fish.fill(lake.fishCount, () => this.random());
     // the cured are as many of each kind as the journal says were caught; a save without a journal, or with one that
     // accounts for fewer than were cured, has the rest cured in slot order, as every save once was
     const { cured, journal } = progress.save;
@@ -291,7 +307,7 @@ export class Game {
       this.catchDrum = false;
       this.catchTreasure = -1;
       const i = this.bite.fish;
-      const [lx, ly] = FIGHT.landAt;
+      const [lx, ly] = this.lake.landAt;
       this.catchKind = this.fish.kind[i];
       const [least, most] = KINDS[this.catchKind].weight;
       this.catchWeight = Math.round((least + this.random() * (most - least)) * 100) / 100;
@@ -318,11 +334,11 @@ export class Game {
   /** A drum snagged and struck: hauled by its own profile, the lure at the drum, and no chance drawn for weight or temper. */
   private hookDrum() {
     const i = this.bite.drum;
-    const [lx, ly] = FIGHT.landAt;
+    const [lx, ly] = this.lake.landAt;
     const [x, y] = [this.drums.x[i], this.drums.y[i]];
     this.catchDrum = true;
     this.catchTreasure = -1;
-    this.catchWeight = DRUMS.weight;
+    this.catchWeight = this.lake.drums.weight;
     this.temper = 'steady';
     this.line.start(Math.hypot(x - lx, y - ly), drumFight(this.gear), this.random);
     this.bearing = Math.atan2(y - ly, x - lx);
@@ -330,17 +346,17 @@ export class Game {
     this.lure.phase = 'hooked';
     this.lure.at[0] = x;
     this.lure.at[1] = y;
-    this.lure.at[2] = -Math.max(0, bedDepth(x, y) - 0.3);
+    this.lure.at[2] = -Math.max(0, this.lake.bedDepth(x, y) - 0.3);
   }
 
   /** A treasure snagged and struck: hauled by its own profile, the lure at it, and no chance drawn for weight or temper. */
   private hookTreasure() {
     const i = this.bite.treasure;
-    const [lx, ly] = FIGHT.landAt;
+    const [lx, ly] = this.lake.landAt;
     const [x, y] = [this.treasures.x[i], this.treasures.y[i]];
     this.catchDrum = false;
     this.catchTreasure = i;
-    this.catchWeight = TREASURES.list[i].weight;
+    this.catchWeight = this.lake.treasures.list[i].weight;
     this.temper = 'steady';
     this.line.start(Math.hypot(x - lx, y - ly), treasureFight(this.gear), this.random);
     this.bearing = Math.atan2(y - ly, x - lx);
@@ -348,7 +364,7 @@ export class Game {
     this.lure.phase = 'hooked';
     this.lure.at[0] = x;
     this.lure.at[1] = y;
-    this.lure.at[2] = -Math.max(0, bedDepth(x, y) - 0.3);
+    this.lure.at[2] = -Math.max(0, this.lake.bedDepth(x, y) - 0.3);
   }
 
   /** The reel held, or let go. */
@@ -378,13 +394,13 @@ export class Game {
     const id = KINDS[this.fish.kind[i]].id;
     save.journal[id] = recorded(save.journal[id], this.catchWeight, this.day);
     // never above where it is: a lake the lever has made cleaner than the count says is not made dirtier by a cure
-    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured, save.drums));
+    this.contamination = Math.min(this.contamination, this.lake.contaminationAfter(save.cured, save.drums));
     // the water follows, from where it is now and not from where it was, so two cures close together never jump
     this.healFrom = this.waterDirt;
     this.healTo = this.contamination;
     this.healElapsed = 0;
     this.persist();
-    this.events.cured?.(save.cured, CURE.toClean);
+    this.events.cured?.(save.cured, this.lake.toClean);
     // a gift is given on the cure that earns it, from the next fight, and told that once
     const had = this.gear;
     this.gear = this.bite.gear = gearFor(save.cured);
@@ -405,13 +421,13 @@ export class Game {
     this.drums.find(i);
     const save = this.progress.save;
     save.drums = this.drums.foundCount();
-    this.contamination = Math.min(this.contamination, contaminationAfter(save.cured, save.drums));
+    this.contamination = Math.min(this.contamination, this.lake.contaminationAfter(save.cured, save.drums));
     // the water heals to it from where it is, as after a cure
     this.healFrom = this.waterDirt;
     this.healTo = this.contamination;
     this.healElapsed = 0;
     this.persist();
-    this.events.hauled?.(save.drums, DRUMS.count);
+    this.events.hauled?.(save.drums, this.lake.drums.count);
     return true;
   }
 
@@ -426,7 +442,7 @@ export class Game {
     this.bite.stowed(this.fish);
     this.lure.reelIn();
     this.treasures.find(i);
-    const id = TREASURES.list[i].id;
+    const id = this.lake.treasures.list[i].id;
     const { found } = this.progress.save;
     if (!found.includes(id)) found.push(id);
     this.persist();
@@ -440,14 +456,16 @@ export class Game {
    * fight left it, which was on the water. A small splash is told there.
    */
   private release(i: number) {
-    const heading = Math.atan2(-ANGLER.y, -ANGLER.x);
+    const { lake } = this;
+    const { angler } = lake;
+    const heading = Math.atan2(-angler.y, -angler.x);
     const [dx, dy] = [Math.cos(heading), Math.sin(heading)];
     let x = this.fish.x[i],
       y = this.fish.y[i];
     for (let k = 0; k <= RELEASE.steps; k++) {
       const out = RELEASE.distance + k * RELEASE.step;
-      const [px, py] = [ANGLER.x + dx * out, ANGLER.y + dy * out];
-      if (inside(px, py, RELEASE.margin)) {
+      const [px, py] = [angler.x + dx * out, angler.y + dy * out];
+      if (lake.inside(px, py, RELEASE.margin)) {
         [x, y] = [px, py];
         break;
       }
@@ -461,7 +479,7 @@ export class Game {
     if (this.catchDrum || this.catchTreasure >= 0) return this.fightFind(dt);
     const i = this.bite.fish;
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
-    const [lx, ly] = FIGHT.landAt;
+    const [lx, ly] = this.lake.landAt;
     const north = Math.PI / 2;
     const sway = HOOKED.sway * Math.sin((this.t - this.hookedAt) * HOOKED.swayRate);
     const b = Math.min(north + HOOKED.wide, Math.max(north - HOOKED.wide, this.bearing)) + sway;
@@ -486,18 +504,18 @@ export class Game {
   /** A drum or a treasure hauled on by `dt`: the lure is drawn in along the line toward the landing, the thing on the bed beneath it staying put until it is hauled or kept. */
   private fightFind(dt: number) {
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
-    const [lx, ly] = FIGHT.landAt;
+    const [lx, ly] = this.lake.landAt;
     const b = Math.min(Math.PI / 2 + HOOKED.wide, Math.max(Math.PI / 2 - HOOKED.wide, this.bearing));
     const [x, y] = [lx + Math.cos(b) * this.line.out, ly + Math.sin(b) * this.line.out];
     this.lure.at[0] = x;
     this.lure.at[1] = y;
-    this.lure.at[2] = -Math.min(Math.max(0, bedDepth(x, y) - 0.3), 0.3 + this.line.out * 0.08);
+    this.lure.at[2] = -Math.min(Math.max(0, this.lake.bedDepth(x, y) - 0.3), 0.3 + this.line.out * 0.08);
     // neither slips: it is landed when the meter is full, and waits otherwise
     if (was === 'landed') {
       this.bite.landed();
       this.reeling = false;
       this.events.landed?.(
-        this.catchTreasure >= 0 ? TREASURES.list[this.catchTreasure].name : 'drum of waste',
+        this.catchTreasure >= 0 ? this.lake.treasures.list[this.catchTreasure].name : 'drum of waste',
         this.catchWeight,
         this.temper,
       );
@@ -539,7 +557,7 @@ export class Game {
   drop(x: number, y: number, size = 1): boolean {
     // the cabin and the yawn have no water to drop anything on, and a splash made there would hang unmoving till morning
     if (this.place !== 'pond') return false;
-    if (![x, y, size].every(Number.isFinite) || size <= 0 || !inside(x, y)) return false;
+    if (![x, y, size].every(Number.isFinite) || size <= 0 || !this.lake.inside(x, y)) return false;
     this.splashes.add(x, y, this.t, size);
     this.events.splashed?.(x, y, size);
     this.bite.splashed(this.t, x, y, this.fish, this.lure);
@@ -555,7 +573,7 @@ export class Game {
         r = Math.sqrt(this.random()) * DROP_NEAR;
       const px = x + Math.cos(a) * r,
         py = y + Math.sin(a) * r;
-      if (inside(px, py, 1)) return this.drop(px, py);
+      if (this.lake.inside(px, py, 1)) return this.drop(px, py);
     }
     // nowhere near is on the water: the middle of the lake always is
     return this.drop(0, 0);

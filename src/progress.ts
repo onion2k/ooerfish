@@ -10,7 +10,9 @@
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
  */
-import { CLOCK, DRUMS, KINDS, TREASURES } from './lake';
+import { CLOCK, KINDS } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
 import type { Journal } from './journal';
 
 export interface Save {
@@ -112,13 +114,13 @@ function readJournal(raw: unknown, cured: number, day: number): Journal {
 }
 
 /**
- * The treasures found as anyone may have written them: a list, of which an id the pond has no treasure for, and a
+ * The treasures found as anyone may have written them: a list, of which an id the lake has no treasure for, and a
  * repeat of one already kept, is dropped, so what is kept is known, unique, in order, and no longer than the treasures
  * there are. Anything that is not a list is none.
  */
-function readFound(raw: unknown): string[] {
+function readFound(raw: unknown, lake: Lake): string[] {
   if (!Array.isArray(raw)) return [];
-  const known = new Set(TREASURES.list.map((t) => t.id));
+  const known = new Set(lake.treasures.list.map((t) => t.id));
   const out: string[] = [];
   for (const id of raw) if (typeof id === 'string' && known.has(id) && !out.includes(id)) out.push(id);
   return out;
@@ -138,7 +140,10 @@ export class Progress {
   readonly save: Save;
 
   /** Loaded from the store; loading alone never writes. */
-  constructor(private readonly saves: SaveStore = browserStore()) {
+  constructor(
+    private readonly saves: SaveStore = browserStore(),
+    private readonly lake: Lake = HOME,
+  ) {
     this.save = fresh();
     const json = saves.load();
     if (json === null) return;
@@ -154,10 +159,10 @@ export class Progress {
     if (typeof said.cured === 'number' && Number.isSafeInteger(said.cured) && said.cured >= 0)
       this.save.cured = said.cured;
     if (typeof said.drums === 'number' && Number.isSafeInteger(said.drums) && said.drums >= 0)
-      this.save.drums = Math.min(said.drums, DRUMS.count);
+      this.save.drums = Math.min(said.drums, this.lake.drums.count);
     if (typeof said.day === 'number' && Number.isSafeInteger(said.day) && said.day >= 1) this.save.day = said.day;
     this.save.journal = readJournal(said.journal, this.save.cured, this.save.day);
-    this.save.found = readFound(said.found);
+    this.save.found = readFound(said.found, this.lake);
     if (typeof said.time === 'number' && Number.isFinite(said.time) && said.time >= 0 && said.time < 1)
       this.save.time = said.time;
     if (said.place === 'pond' || said.place === 'cabin') this.save.place = said.place;

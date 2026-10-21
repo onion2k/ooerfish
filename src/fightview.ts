@@ -14,7 +14,9 @@
  */
 import type { Game } from './game';
 import type { GestureEvent } from './gesture';
-import { FIGHT, KINDS, TREASURES } from './lake';
+import { FIGHT, KINDS } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
 import type { Temper } from './fight';
 import { PALETTE, type Colour } from './palette';
 
@@ -115,12 +117,17 @@ export interface CardWords {
 /**
  * The card's words for a catch, as a pure function so a test needs no page; `kind` is an index into `KINDS`, `'drum'`
  * for a drum of waste, which has no temper and says so ("a drum of waste, 42.00 kg"), or `{ treasure }` for a junk
- * treasure by its index in `TREASURES`, which has none either and says a line about itself.
+ * treasure by its index in the lake's treasures, which has none either and says a line about itself.
  */
-export function cardWords(kind: number | 'drum' | { treasure: number }, temper: Temper, weight: number): CardWords {
+export function cardWords(
+  kind: number | 'drum' | { treasure: number },
+  temper: Temper,
+  weight: number,
+  lake: Lake = HOME,
+): CardWords {
   const kg = `${weight.toFixed(2)} kg`;
   if (typeof kind === 'object') {
-    const t = TREASURES.list[kind.treasure];
+    const t = lake.treasures.list[kind.treasure];
     return { name: t.name, weight: kg, line: `a ${t.name}, ${kg}`, about: t.line, ...(t.note ? { note: t.note } : {}) };
   }
   const name = kind === 'drum' ? 'drum of waste' : `${temper} ${KINDS[kind].name}`;
@@ -222,6 +229,7 @@ export class FightView {
     private readonly game: () => Game,
     private readonly toScreen: ToScreen,
     gesture: (e: GestureEvent) => void,
+    private readonly lake: Lake,
   ) {
     const { button, card } = el;
     this.bar = new FightBar(el);
@@ -275,6 +283,7 @@ export class FightView {
           g.catchTreasure >= 0 ? { treasure: g.catchTreasure } : g.catchDrum ? 'drum' : g.catchKind,
           g.temper,
           g.catchWeight,
+          this.lake,
         );
         el.name.textContent = words.name;
         el.weight.textContent = words.weight;

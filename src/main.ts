@@ -15,7 +15,7 @@ import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
 import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
-import { FALLS, fallGroups, fallMists, mistDue } from './falls';
+import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
 import { fallingDue, fallingEmits } from './falling';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
@@ -29,23 +29,19 @@ import { frameCost } from './frame-cost';
 import { quantised } from './heal';
 import { castWords } from './castwords';
 import { Game, type GameEvents } from './game';
+import { HOME } from './lakes';
+import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
 import {
-  CABIN_ROOM,
-  DRUMS,
   HEAL,
   KINDS,
   PARTICLE_POOL,
   PHONE,
-  SHORE_RADIUS,
   SPLASH_CAPACITY,
   type Season,
   SEASON_DRESSING,
   WATER_LEVEL,
   SWIM,
-  TREASURES,
-  VIEWS,
-  WATER_PACE,
   framingFor,
   type ViewName,
 } from './lake';
@@ -60,7 +56,7 @@ import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
 import { RIPPLE_FLOATS, rippleData } from './ripples';
-import { SHADOW_BOX, Scene, sceneryFigures } from './scene';
+import { Scene, sceneryFigures } from './scene';
 import { loadScenery } from './scenery';
 import { changed, readSettings, type Settings } from './settings';
 import { STYLES } from './water/styles';
@@ -102,6 +98,12 @@ main().catch((err: unknown) => {
 });
 
 async function main() {
+  // ---- the lake ----
+
+  // the one lake this page plays, chosen once at boot and never swapped (travel is a reload): the home for now, and part 4
+  // of `docs/lakes.md` reads it from the save, so that is the one line to change
+  const lake: Lake = HOME;
+
   // ---- the renderer ----
 
   const ctx = await createContext(canvas);
@@ -110,7 +112,7 @@ async function main() {
   renderer.camera.fov = 40;
   renderer.camera.near = 1;
   renderer.camera.far = 1500;
-  renderer.setSunShadow(SHADOW_BOX);
+  renderer.setSunShadow(lake.shadowBox);
 
   // ---- the game ----
 
@@ -190,7 +192,11 @@ async function main() {
       pond.gifted(name, words);
     },
   };
-  const game = new Game(new Progress(), { ...(seed !== null ? { random: seeded(+seed) } : {}), events });
+  const game = new Game(new Progress(undefined, lake), {
+    lake,
+    ...(seed !== null ? { random: seeded(+seed) } : {}),
+    events,
+  });
 
   // ---- the scene ----
 
@@ -203,17 +209,17 @@ async function main() {
   );
   renderer.setCardImages(scenery.masks);
 
-  const scene = new Scene();
+  const scene = new Scene(lake);
   // the rung the page is drawn on: full has the banks' grass, lean has none (the woodland costs a tenth of a
   // millisecond and stands on both). The address may ask for one (a test does, and so does a slow machine's owner);
   // without, the governor chooses once the page has booted.
   const asked = rungAsked(query.get('rung'));
   let rung: Rung = asked === 'auto' ? 'full' : asked;
   // worked out once, from the placements the groups are made from, and read back by the test API
-  const sceneryFigured = sceneryFigures(scene.placements(scenery.kit));
+  const sceneryFigured = sceneryFigures(scene.placements(scenery.kit), lake);
   // the grass field is made once, and handed over each time the full rung is drawn or a season's blades are: nothing in
   // it grows, so only the kind it carries changes between seasons
-  const baseField = bankField();
+  const baseField = bankField(undefined, lake);
   let field: ReturnType<typeof bankField> = baseField;
   /** The page put on a rung: the grass grown or let go, and the mist's fog allowed or not. */
   async function setRung(to: Rung) {
@@ -225,7 +231,8 @@ async function main() {
   // the cliff's falls are the page's picture, flowing down its notches; the mist they throw is made once and handed on;
   // the cabin, the room inside it and the jetty are built once and stand still; the room is wholly inside the cabin's
   // solid walls, so it is drawn and never seen until the camera is put in it
-  const mists = fallMists();
+  const mists = fallMists(lake);
+  const falls = fallsOf(lake);
   /** The falling things of the dressed season (empty in summer), made in `dress` once a season, and how many have been emitted. */
   let fallers: Emit[] = [];
   let fallEvery = 1;
@@ -246,10 +253,10 @@ async function main() {
     const palette = seasonPalette(season);
     renderer.setStatic([
       ...scene.static(scenery.kit, palette),
-      ...fallGroups(),
-      ...cabinGroups(palette),
-      ...roomGroups(ROOM_COLOURS),
-      ...jettyGroups(palette),
+      ...fallGroups(lake),
+      ...(lake.cabin ? cabinGroups(palette, lake) : []),
+      ...(lake.cabin ? roomGroups(ROOM_COLOURS, lake) : []),
+      ...(lake.jetty ? jettyGroups(palette, lake) : []),
     ]);
     field = { ...baseField, kinds: [seasonGrass(season)] };
     await setRung(rung);
@@ -257,7 +264,7 @@ async function main() {
     renderer.wind = { ...BREEZE, strength: SEASON_DRESSING[season].breeze };
     // the falling things of the season, made once here, and the particles' wind that carries them (still in summer)
     const falling = SEASON_DRESSING[season].falling;
-    fallers = fallingEmits(season, { radius: SHORE_RADIUS, level: WATER_LEVEL });
+    fallers = fallingEmits(season, { radius: lake.radius, level: WATER_LEVEL });
     fallEvery = falling?.every ?? 1;
     renderer.setWind(falling?.drift ?? [0, 0, 0]);
     dressed = season;
@@ -265,7 +272,7 @@ async function main() {
     dressMs = performance.now() - began;
   }
   await dress(seasonOf(game.day));
-  // the breeze is slow: the renderer's clock runs at the water's pace (`WATER_PACE`), so the gusts roll by slowly, and the
+  // the breeze is slow: the renderer's clock runs at the water's pace (`lake.waterPace`), so the gusts roll by slowly, and the
   // grass has no second clock of its own; `dress` sets its strength by the season
   /** The season the sky, the water and the swells are drawn in: the one being dressed, which is the day's from the moment of the wake. */
   const seasonNow = (): Season => dressing ?? 'summer';
@@ -274,19 +281,21 @@ async function main() {
   // the pool of lights holds the cabin's lamp only, written once; it is counted live while the player is in the cabin
   // and not at the pond, so a frame outside pays nothing for it
   const lights = new LightPool(LIGHT_CAPACITY);
-  const lamp: PointLight = {
-    position: lampAt(),
-    radius: CABIN_ROOM.lamp.radius,
-    colour: [...CABIN_ROOM.lamp.colour],
-    intensity: CABIN_ROOM.lamp.intensity,
-  };
-  lights.set(0, lamp);
+  const lamp: PointLight | null = lake.cabin
+    ? {
+        position: lampAt(lake),
+        radius: lake.cabin.room.lamp.radius,
+        colour: [...lake.cabin.room.lamp.colour],
+        intensity: lake.cabin.room.lamp.intensity,
+      }
+    : null;
+  if (lamp) lights.set(0, lamp);
   lights.clear();
   renderer.setLights(lights);
   let lampLit = false;
 
   // the foam rings the shore and the boulders from the lake's field, made once and before the first frame
-  renderer.setShoreField(shoreField());
+  renderer.setShoreField(shoreField(undefined, lake));
 
   const cam = renderer.camera;
   cam.target = [0, 0, 0];
@@ -340,7 +349,7 @@ async function main() {
   let rippling = 0;
   let rippleLife = 0;
   /** The cast's groups, after the fish's: the angler to the preview. */
-  const casting = new CastDraw();
+  const casting = new CastDraw(lake);
   /** What a cast is being aimed at, while one is: the preview is drawn from it. */
   let aim: Aim | null = null;
   /** The lens the page was made with, which every view but the room's keeps. */
@@ -377,13 +386,13 @@ async function main() {
   /** How many fish were cured when the fish's groups were last handed over, since their colour and glow go over only with the groups. */
   let curedDrawn = -1;
   /** The drums of waste, drawn on the bed, and how many were hauled when their groups were last handed over. */
-  const drumDraw = new DrumDraw();
+  const drumDraw = new DrumDraw(lake);
   let hauledDrawn = -1;
   /** The junk treasures, on the bed or on their shelves, and how many were found when their groups were last handed over. */
-  const treasureDraw = new TreasureDraw();
+  const treasureDraw = new TreasureDraw(lake);
   let foundDrawn = -1;
   /** The wall calendar's marks, and the day they were last handed over for, and how many handovers that has been. */
-  const calendarDraw = new CalendarDraw();
+  const calendarDraw = new CalendarDraw(lake);
   let dayDrawn = -1;
   let calendarHandovers = 0;
   /** The dirt the water is drawn at: the heal's value in whole steps, worked out here and nowhere else, so the groups and the uniforms never differ. */
@@ -426,10 +435,10 @@ async function main() {
         });
       dayDrawn = game.day;
       handovers++;
-      const water = style.groups(dirt);
+      const water = style.groups(dirt, lake);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
-      casting.surface = surfaceOf(style.wavesIn?.(seasonNow()) ?? style.waves, MM_PER_UNIT, WATER_PACE);
+      casting.surface = surfaceOf(style.wavesIn?.(seasonNow()) ?? style.waves, MM_PER_UNIT, lake.waterPace);
       // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
       renderer.setDynamic([
         ...water,
@@ -491,12 +500,12 @@ async function main() {
   }
   /** The camera put at the view of that name, even when it is the view already, so it is the way back from being turned away; one not known is refused. */
   async function setView(name: string, byMode = false) {
-    if (!Object.hasOwn(VIEWS, name)) return;
+    if (!Object.hasOwn(lake.views, name)) return;
     viewName = name as ViewName;
     // a view picked, from the test API, is look mode unless it is the mode itself that picked it
     if (!byMode) showMode(nextMode(mode, 'view').mode);
     // the Shore view is framed for a phone on a screen taller than it is wide
-    const v = framingFor(viewName, width / height);
+    const v = framingFor(lake, viewName, width / height);
     tall = height > width;
     look(v.x, v.y, v);
     aim = null;
@@ -726,8 +735,8 @@ async function main() {
       game.progress.save.journal,
       KINDS,
       game.drums.foundCount(),
-      DRUMS.count,
-      TREASURES.list,
+      lake.drums.count,
+      lake.treasures.list,
       game.progress.save.found,
     );
     journalKinds.replaceChildren(
@@ -867,6 +876,7 @@ async function main() {
     () => game,
     toScreen,
     gestureHeard,
+    lake,
   );
 
   const pond = new PondView(
@@ -880,6 +890,7 @@ async function main() {
     },
     () => game,
     HEARD_FOR,
+    lake,
   );
 
   const night = new NightView(
@@ -956,7 +967,7 @@ async function main() {
     const inCabin = game.place === 'cabin';
     if (inCabin !== lampLit) {
       lampLit = inCabin;
-      if (inCabin) lights.set(0, lamp);
+      if (inCabin && lamp) lights.set(0, lamp);
       else lights.clear();
       renderer.setLights(lights);
       if (!inCabin && game.place === 'pond' && viewName === 'cabin') void setView('shore', true);
@@ -1027,7 +1038,7 @@ async function main() {
     // costs a comparison and nothing else
     if (watered !== waterShown() || dayDrawn !== game.day) void showWater();
     // the falls' mist, on the game's own frame count: a paused lake throws none, and a step throws what it always does
-    for (let i = 0; i < FALLS.length; i++) if (mistDue(frames, i)) renderer.emit(mists[i]);
+    for (let i = 0; i < falls.length; i++) if (mistDue(frames, i, lake)) renderer.emit(mists[i]);
     // the season's falling things, on the same count, only while the game steps at the pond: a pond left for the cabin
     // or the yawn has nothing falling in the lake that is not seen
     if (game.place === 'pond')
@@ -1045,7 +1056,7 @@ async function main() {
     cam.update();
     // the renderer's clock is the game's at the water's pace, so a paused lake is still and a test that steps it draws
     // the same frame
-    renderer.time = waterClock(game.t, WATER_PACE);
+    renderer.time = waterClock(game.t, lake.waterPace);
     writeFrame();
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);
   }

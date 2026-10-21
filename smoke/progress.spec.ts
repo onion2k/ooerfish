@@ -9,11 +9,17 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
-import { DRUMS, FIGHT, FISH_COUNT, GEAR, HEAL, KINDS, jettyGap } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES } from '../src/rules';
+import { FIGHT, GEAR, HEAL, KINDS } from '../src/lake';
 
 /** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
 const ROD = GEAR.find((g) => g.id === 'rod')!;
 import { STANDARD, ready, set, start, watch } from './game';
+
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const FISH_COUNT = HOME.fishCount;
+const jettyGap = HOME.jetty!.gap;
 
 /** Play `frames` frames, and check nothing that must hold has broken. */
 async function play(page: Page, frames: number, stage: string) {

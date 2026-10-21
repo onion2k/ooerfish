@@ -2,48 +2,47 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { PALETTE } from '../src/palette';
-import {
-  BANK_TOP,
-  BANK_RISE,
-  BOULDERS,
-  CABIN,
-  CABIN_AT,
-  CABIN_FLOOR,
-  CABIN_ROOM,
-  CLIFF,
-  CURE,
-  DRUMS,
-  contaminationAfter,
-  FISH_CAPACITY,
-  FISH_COUNT,
-  DECK,
-  DECK_NEAR,
-  DECK_ROUND,
-  JETTY,
-  NOTCHES,
-  STRETCH,
-  channel,
-  cliffRise,
-  deckFrame,
-  onFace,
-  onFall,
-  MAX_DEPTH,
-  SHORE_POINTS,
-  bedDepth,
-  boulderGap,
-  cabinGap,
-  bareGround,
-  ground,
-  groundUnder,
-  jettyGap,
-  inShore,
-  inside,
-  nearestBoulder,
-  shoreRadius,
-  VIEWS,
-  PHONE,
-  framingFor,
-} from '../src/lake';
+import { DRUM_RULES } from '../src/rules';
+import { FISH_CAPACITY, PHONE, framingFor } from '../src/lake';
+import { HOME } from '../src/lakes';
+
+const BANK_TOP = HOME.bankTop;
+const BANK_RISE = HOME.bankRise;
+const BOULDERS = HOME.boulders;
+const CABIN = HOME.cabin!.spec;
+const CABIN_AT = HOME.cabin!.at;
+const CABIN_FLOOR = HOME.cabin!.floor;
+const CABIN_ROOM = HOME.cabin!.room;
+const CLIFF = HOME.cliff!.spec;
+const CURE = { toClean: HOME.toClean, total: HOME.total };
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const contaminationAfter = HOME.contaminationAfter;
+const FISH_COUNT = HOME.fishCount;
+const DECK = HOME.jetty!.deck;
+const DECK_NEAR = HOME.jetty!.near;
+const DECK_ROUND = HOME.jetty!.round;
+const JETTY = HOME.jetty!.spec;
+const NOTCHES = HOME.cliff!.notches;
+const STRETCH = HOME.stretch;
+const channel = HOME.cliff!.channel;
+const cliffRise = HOME.cliff!.rise;
+const deckFrame = HOME.jetty!.frame;
+const onFace = HOME.onFace;
+const onFall = HOME.onFall;
+const MAX_DEPTH = HOME.maxDepth;
+const SHORE_POINTS = HOME.shorePoints;
+const bedDepth = HOME.bedDepth;
+const boulderGap = HOME.boulderGap;
+const cabinGap = HOME.cabin!.gap;
+const bareGround = HOME.bareGround;
+const ground = HOME.ground;
+const groundUnder = HOME.groundUnder;
+const jettyGap = HOME.jetty!.gap;
+const inShore = HOME.inShore;
+const inside = HOME.inside;
+const nearestBoulder = HOME.nearestBoulder;
+const shoreRadius = HOME.shoreRadius;
+const VIEWS = HOME.views;
 
 describe('the cleaning', () => {
   const total = FISH_COUNT + DRUMS.count * DRUMS.worth;
@@ -563,24 +562,25 @@ describe('the phone as the rod', () => {
 
 describe('the framing of a view for a screen', () => {
   it('gives the Shore view the phone framing on a screen taller than it is wide, and every other view as it is', () => {
-    expect(framingFor('shore', 390 / 844)).toBe(VIEWS.phone);
-    expect(framingFor('shore', 1280 / 800)).toBe(VIEWS.shore);
+    expect(framingFor(HOME, 'shore', 390 / 844)).toBe(VIEWS.phone);
+    expect(framingFor(HOME, 'shore', 1280 / 800)).toBe(VIEWS.shore);
     // a square screen is not tall
-    expect(framingFor('shore', 1)).toBe(VIEWS.shore);
+    expect(framingFor(HOME, 'shore', 1)).toBe(VIEWS.shore);
     for (const name of ['boat', 'overhead', 'phone', 'cabinTall'] as const)
-      for (const aspect of [0.46, 1.6]) expect(framingFor(name, aspect), `${name} at ${aspect}`).toBe(VIEWS[name]);
+      for (const aspect of [0.46, 1.6])
+        expect(framingFor(HOME, name, aspect), `${name} at ${aspect}`).toBe(VIEWS[name]);
   });
 
   it('gives the cabin view its tall framing on a screen taller than it is wide, and no other', () => {
-    expect(framingFor('cabin', 412 / 915)).toBe(VIEWS.cabinTall);
-    expect(framingFor('cabin', 1280 / 800)).toBe(VIEWS.cabin);
-    expect(framingFor('cabin', 1)).toBe(VIEWS.cabin);
-    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor('cabin', aspect)).toBe(VIEWS.cabin);
+    expect(framingFor(HOME, 'cabin', 412 / 915)).toBe(VIEWS.cabinTall);
+    expect(framingFor(HOME, 'cabin', 1280 / 800)).toBe(VIEWS.cabin);
+    expect(framingFor(HOME, 'cabin', 1)).toBe(VIEWS.cabin);
+    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor(HOME, 'cabin', aspect)).toBe(VIEWS.cabin);
     // the tall framing opens the lens wider, since a room has no further back to stand
     expect(VIEWS.cabinTall.fov!).toBeGreaterThan(VIEWS.cabin.fov!);
   });
 
   it('is the Shore view as it is for an aspect that is no number', () => {
-    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor('shore', aspect)).toBe(VIEWS.shore);
+    for (const aspect of [NaN, 0, -1, Infinity]) expect(framingFor(HOME, 'shore', aspect)).toBe(VIEWS.shore);
   });
 });

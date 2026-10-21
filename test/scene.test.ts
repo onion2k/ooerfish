@@ -10,33 +10,18 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { GameGroup } from 'artshape-render/game/renderer';
-import {
-  ANGLER,
-  BANK_TOP,
-  BED_SHALLOWS,
-  BOULDER_DOMES,
-  CABIN,
-  CLIFF,
-  MAX_DEPTH,
-  NOTCHES,
-  SCENERY,
-  STRETCH,
-  bareGround,
-  cabinGap,
-  groundUnder,
-  inShore,
-  inside,
-  jettyGap,
-  onFace,
-  onFall,
-  shoreRadius,
-} from '../src/lake';
+import { HOME } from '../src/lakes';
+import type { Lake } from '../src/lakes/lake';
+import { cabinGroups, jettyGroups, postSpots } from '../src/cabin';
+import { type RoomColours, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
+import { fallFrames, fallGroups, fallMists, fallsOf } from '../src/falls';
+import { bankField } from '../src/grass';
+import { boulderMeshes, cliffLumpMeshes } from '../src/rocks';
+import { shoreField } from '../src/shorefield';
 import { PALETTE } from '../src/palette';
 import { seasonPalette } from '../src/season';
 import { SCENERY_ROLES, ROLE_COLOUR, readKit, readManifest, type Kit } from '../src/scenery';
 import {
-  DRESSING_SEED,
-  SHADOW_BOX,
   Scene,
   bedBands,
   bedCuts,
@@ -50,6 +35,28 @@ import { seeded } from '../src/random';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeFor } from '../src/trees';
 import { surface } from '../src/water/surface';
 import { newGame } from './helpers';
+
+const SHADOW_BOX = HOME.shadowBox;
+
+const ANGLER = HOME.angler;
+const BANK_TOP = HOME.bankTop;
+const BED_SHALLOWS = HOME.bedShallows;
+const BOULDER_DOMES = HOME.domes;
+const CABIN = HOME.cabin!.spec;
+const CLIFF = HOME.cliff!.spec;
+const MAX_DEPTH = HOME.maxDepth;
+const NOTCHES = HOME.cliff!.notches;
+const SCENERY = HOME.scenery;
+const STRETCH = HOME.stretch;
+const bareGround = HOME.bareGround;
+const cabinGap = HOME.cabin!.gap;
+const groundUnder = HOME.groundUnder;
+const inShore = HOME.inShore;
+const inside = HOME.inside;
+const jettyGap = HOME.jetty!.gap;
+const onFace = HOME.onFace;
+const onFall = HOME.onFall;
+const shoreRadius = HOME.shoreRadius;
 
 const kit: Kit = readKit(
   readManifest(JSON.parse(readFileSync('public/scenery/scenery.json', 'utf8'))),
@@ -81,7 +88,7 @@ function hashGroups(groups: GameGroup[]): string {
 
 /** The boulders and the cliff's lumps, each its own painted group: one to a dome and one to a lump. */
 const N_BOULDERS = BOULDER_DOMES.length;
-const N_LUMPS = cliffLumps().length;
+const N_LUMPS = cliffLumps(HOME).length;
 /** The bed's bands, a sheet and a group each, from the slate of the deep out to the sand of the shallows. */
 const BANDS = BED_SHALLOWS.bands;
 /** The ground's groups: the bed's bands, the boulders, the bed rocks, the weed, the banks, the cliff's face and its lumps. */
@@ -124,7 +131,7 @@ describe('a scene with the kit', () => {
 const BED_CEILING = 11_000;
 
 describe('the bed', () => {
-  const bands = bedBands();
+  const bands = bedBands(HOME);
   const sand = PALETTE.sand,
     slate = PALETTE.bed;
   /** How far a colour is from the slate toward the sand, channel by channel, nought the slate and one the sand. */
@@ -197,25 +204,26 @@ describe('the bed', () => {
   it('cuts the bands evenly from the middle, none empty, when the blend reaches past the deepest, and from the slate’s edge when it does not', () => {
     // past the deepest there is no water deep enough for the slate, so the first cut is at the middle itself, and a
     // band from nought to nought would draw nothing: the bands are cut evenly from the middle to the shallows' depth
-    const past = bedCuts({ ...BED_SHALLOWS, depth: 5.5, blend: 1.5 }, sand, slate);
+    const past = bedCuts(HOME, { ...BED_SHALLOWS, depth: 5.5, blend: 1.5 }, sand, slate);
     expect(past).toHaveLength(BED_SHALLOWS.bands);
     for (const b of past) expect(b.to, `${b.from} to ${b.to}`).toBeGreaterThan(b.from);
     const widths = past.slice(0, -1).map((b) => b.to - b.from);
     for (const w of widths) expect(w).toBeCloseTo(widths[0], 10);
     expect(depthAt(past[past.length - 1].from)).toBeCloseTo(5.5, 4);
     // short of the deepest, as the bed was before, the slate is the deepest band, ending where the blend does
-    const short = bedCuts({ ...BED_SHALLOWS, depth: 2.625, blend: 1.5 }, sand, slate);
+    const short = bedCuts(HOME, { ...BED_SHALLOWS, depth: 2.625, blend: 1.5 }, sand, slate);
     expect(short[0].colour).toEqual(slate);
     expect(depthAt(short[0].to)).toBeCloseTo(4.125, 4);
     expect(depthAt(short[short.length - 1].from)).toBeCloseTo(2.625, 4);
   });
 
   it('cuts by depth whatever the figures: two bands are the sand and the slate meeting at the depth, and no more', () => {
-    const two = bedCuts({ ...BED_SHALLOWS, depth: 2.625, bands: 2 }, sand, slate);
+    const two = bedCuts(HOME, { ...BED_SHALLOWS, depth: 2.625, bands: 2 }, sand, slate);
     expect(two.map((b) => b.colour)).toEqual([slate, sand]);
     expect(depthAt(two[0].to)).toBeCloseTo(2.625, 4);
     // one band could not hold both the sand and the slate, and a part of a band is no band
-    for (const bands of [1, 0, 2.5]) expect(() => bedCuts({ ...BED_SHALLOWS, bands })).toThrow(/two bands at least/);
+    for (const bands of [1, 0, 2.5])
+      expect(() => bedCuts(HOME, { ...BED_SHALLOWS, bands })).toThrow(/two bands at least/);
   });
 
   it('takes no more triangles than its ceiling, and no fewer than the one sheet it replaced', () => {
@@ -241,7 +249,7 @@ describe('the bed', () => {
       }
       expect(hashGroups(again.slice(0, BANDS))).toBe(hashGroups(first.slice(0, BANDS)));
       // the bands' sheets are made once, before the spy, so the cuts and colours are worked out again under it
-      expect(bedCuts()).toEqual(bands.map(({ from, to, colour }) => ({ from, to, colour })));
+      expect(bedCuts(HOME)).toEqual(bands.map(({ from, to, colour }) => ({ from, to, colour })));
     } finally {
       random.mockRestore();
     }
@@ -343,7 +351,7 @@ describe('the banks', () => {
 
   it('pick each of the 26 spot trees’ variants from its own draw of the dressing stream, and not from its place in the list', () => {
     // the pebbles drew three each (a model, a turn, a size); then each spot tree draws its pick, its turn and its size
-    const random = seeded(DRESSING_SEED);
+    const random = seeded(HOME.scenery.seeds.dressing);
     for (let i = 0; i < 70 * 3; i++) random();
     const spots = trees.slice(0, 26);
     for (const p of spots) {
@@ -525,7 +533,7 @@ describe('the kit groups', () => {
 });
 
 describe('the scenery figures the test API reports', () => {
-  const figures = sceneryFigures(placements);
+  const figures = sceneryFigures(placements, HOME);
   const stood = new Set(trees.map((p) => `${p.tree}${p.variant}`));
 
   it('count the models and tree variants placed, the placements, the triangles drawn (the bed’s bands among them) and the card groups, from the placements', () => {
@@ -539,14 +547,14 @@ describe('the scenery figures the test API reports', () => {
       else for (const part of p.model.parts) triangles += part.mesh.indices.length / 3;
     }
     for (const name of kitModels) for (const part of kit.models.get(name)!.parts) if (part.layer > 0) cards++;
-    for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
-    triangles += surface().indices.length / 3;
+    for (const band of bedBands(HOME)) triangles += band.mesh.indices.length / 3;
+    triangles += surface(HOME).indices.length / 3;
     expect(figures.triangles).toBe(triangles + ROCK_TRIANGLES);
     expect(figures.cards).toBe(cards);
   });
 
   it("count the water's surface, which takes no more triangles than its ceiling and more than the old coarse sheet", () => {
-    const water = surface().indices.length / 3;
+    const water = surface(HOME).indices.length / 3;
     expect(water).toBe(SURFACE_TRIANGLES);
     expect(water).toBeLessThanOrEqual(SURFACE_CEILING);
     expect(water).toBeGreaterThan(24 * 128 * 2);
@@ -603,14 +611,14 @@ describe('the woodland', () => {
   it('is held down so no top passes the shadow box, whatever the range and the kind', () => {
     for (const kind of ['broadleaf', 'conifer'] as const)
       for (const z of [0, 2.2, 12]) {
-        const h = treeHeight(kind, z, 1);
+        const h = treeHeight(kind, z, 1, HOME);
         expect(z + h, `${kind} at ${z}`).toBeLessThanOrEqual(SHADOW_BOX.max[2]);
         expect(h).toBeLessThanOrEqual(SCENERY.trees[kind][1]);
       }
     // a bank so high that the range would pass the box is held down; where there is room it is the height content picked
-    expect(treeHeight('conifer', 22, 1)).toBeLessThan(SCENERY.trees.conifer[1]);
-    expect(treeHeight('broadleaf', 0, 0)).toBe(SCENERY.trees.broadleaf[0]);
-    expect(treeHeight('broadleaf', 0, 1)).toBe(SCENERY.trees.broadleaf[1]);
+    expect(treeHeight('conifer', 22, 1, HOME)).toBeLessThan(SCENERY.trees.conifer[1]);
+    expect(treeHeight('broadleaf', 0, 0, HOME)).toBe(SCENERY.trees.broadleaf[0]);
+    expect(treeHeight('broadleaf', 0, 1, HOME)).toBe(SCENERY.trees.broadleaf[1]);
   });
 
   it('keeps clear of the water, the angler and the shadow box top, as the spot trees do', () => {
@@ -642,7 +650,7 @@ describe('the woodland', () => {
 describe('the cliff in the scene', () => {
   const groups = new Scene().static(kit);
   const rock = groups.filter((g) => g.albedo === PALETTE.cliff);
-  const lumps = cliffLumps();
+  const lumps = cliffLumps(HOME);
   const slopeOf = (m: { positions: Float32Array; indices: ArrayLike<number> }, t: number) => {
     const p = (k: number) => [0, 1, 2].map((a) => m.positions[m.indices[t * 3 + k] * 3 + a]);
     const [a, b, c] = [p(0), p(1), p(2)];
@@ -715,7 +723,7 @@ describe('the cliff in the scene', () => {
   });
 
   it('makes the lumps the same every call', () => {
-    expect(cliffLumps()).toEqual(lumps);
+    expect(cliffLumps(HOME)).toEqual(lumps);
   });
 
   it('stands no tree and no clump on the face, any corner of its footprint included', () => {
@@ -794,5 +802,78 @@ describe('a scene dressed for a season', () => {
     const p = seasonPalette('autumn');
     const albedos = autumn.map((g) => g.albedo);
     for (const k of ['grass', 'leaves', 'crown'] as const) expect(albedos).toContainEqual(p[k]);
+  });
+});
+
+describe('a scene of the home lake handed in', () => {
+  it('is the scene the builders drew before they took a lake: every group, matrix and mesh, and the figures the smoke holds', () => {
+    // the hash is of the groups as they were made at the commit before the builders took the lake (84 groups with the kit)
+    const groups = new Scene(HOME).static(kit);
+    expect(hashGroups(groups)).toBe('84:252b7a8f');
+    expect(hashGroups(new Scene(HOME).static())).toBe('43:1d2fc54');
+    expect(sceneryFigures(new Scene(HOME).placements(kit), HOME)).toEqual({
+      models: 30,
+      placements: 426,
+      triangles: 154941,
+      cards: 10,
+    });
+  });
+
+  it('keeps the pond’s rocks, bed and surface when a second lake builds its own', () => {
+    const bands = bedBands(HOME);
+    const boulders = boulderMeshes(HOME);
+    const water = surface(HOME);
+    const other = { ...HOME, id: 'other', cliff: null, jetty: null, cabin: null } as Lake;
+    expect(bedBands(other)).not.toBe(bands);
+    expect(boulderMeshes(other)).not.toBe(boulders);
+    expect(surface(other)).not.toBe(water);
+    expect(bedBands(HOME)).toBe(bands);
+    expect(boulderMeshes(HOME)).toBe(boulders);
+    expect(surface(HOME)).toBe(water);
+  });
+});
+
+describe('a lake with no cliff, jetty or cabin', () => {
+  // the pond's geometry with its dressing taken away, as the Reservoir will be: nothing is on its cliff's face or in a
+  // fall, and nothing keeps back from a cabin or a deck, which are not there
+  const bare = {
+    ...HOME,
+    id: 'bare',
+    cliff: null,
+    jetty: null,
+    cabin: null,
+    onFall: () => false,
+    onFace: () => false,
+    onCabinOrDeck: () => false,
+  } as Lake;
+
+  it('builds a scene with fewer groups and does not throw, with the kit and without', () => {
+    const home = new Scene(HOME).static(kit);
+    expect(() => new Scene(bare).static(kit)).not.toThrow();
+    const groups = new Scene(bare).static(kit);
+    // no cliff face and none of its lumps: one group for the face and one to each lump fewer
+    expect(groups.length).toBe(home.length - 1 - N_LUMPS);
+    expect(new Scene(bare).static()).toHaveLength(new Scene(HOME).static().length - 1 - N_LUMPS);
+  });
+
+  it('has no lumps, falls, cabin, room or deck to draw', () => {
+    expect(cliffLumps(bare)).toEqual([]);
+    expect(cliffLumpMeshes(cliffLumps(bare), bare)).toEqual([]);
+    expect(fallsOf(bare)).toEqual([]);
+    expect(fallFrames(bare)).toEqual([]);
+    expect(fallGroups(bare)).toEqual([]);
+    expect(fallMists(bare)).toEqual([]);
+    expect(cabinGroups(PALETTE, bare)).toEqual([]);
+    expect(jettyGroups(PALETTE, bare)).toEqual([]);
+    expect(postSpots(bare)).toEqual([]);
+    expect(roomGroups({} as RoomColours, bare)).toEqual([]);
+    expect(() => lampAt(bare)).toThrow(/no cabin/);
+    expect(() => calendarGeometry(bare)).toThrow(/no cabin/);
+  });
+
+  it('grows its grass, field and water without them', () => {
+    expect(bankField(undefined, bare).cols).toBe(bankField(undefined, HOME).cols);
+    expect(shoreField(16, bare).distances).toHaveLength(16 * 16);
+    expect(surface(bare).indices.length).toBeGreaterThan(0);
   });
 });

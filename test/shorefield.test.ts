@@ -1,8 +1,14 @@
 /** The lake's shore field: how far each point of the water is from the shore or a boulder, for the foam's lines. */
 import { describe, expect, it } from 'vitest';
-import { BOULDERS, JETTY, STRETCH, inside, shoreRadius } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { SHORE_FIELD_SIZE, distanceTransform, shoreField } from '../src/shorefield';
 import { seeded } from '../src/random';
+
+const BOULDERS = HOME.boulders;
+const JETTY = HOME.jetty!.spec;
+const STRETCH = HOME.stretch;
+const inside = HOME.inside;
+const shoreRadius = HOME.shoreRadius;
 
 /** The distance to the nearest land, worked out by hand: the closest of many points along the shore, round each boulder and along the deck's edges. */
 function byHand(x: number, y: number): number {
@@ -44,7 +50,7 @@ describe('the shore field', () => {
   });
 
   it('covers the lake, its texels the distance to the shore or a boulder within one texel, and nought on land', () => {
-    const f = shoreField();
+    const f = shoreField(undefined, HOME);
     expect(f.size).toBe(SHORE_FIELD_SIZE);
     expect(f.distances.length).toBe(f.size * f.size);
     const tx = (f.max[0] - f.min[0]) / f.size,
@@ -76,7 +82,7 @@ describe('the shore field', () => {
   });
 
   it('rings each boulder: nought at it, and its radius-and-a-unit out a unit or less', () => {
-    const f = shoreField();
+    const f = shoreField(undefined, HOME);
     const at = (x: number, y: number) => {
       const i = Math.floor(((x - f.min[0]) / (f.max[0] - f.min[0])) * f.size),
         j = Math.floor(((y - f.min[1]) / (f.max[1] - f.min[1])) * f.size);
@@ -89,7 +95,7 @@ describe('the shore field', () => {
   });
 
   it('rings the jetty’s deck: nought on it, the distance to its edge beside it and past its end', () => {
-    const f = shoreField();
+    const f = shoreField(undefined, HOME);
     const at = (x: number, y: number) => {
       const i = Math.floor(((x - f.min[0]) / (f.max[0] - f.min[0])) * f.size),
         j = Math.floor(((y - f.min[1]) / (f.max[1] - f.min[1])) * f.size);

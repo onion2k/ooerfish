@@ -2,14 +2,24 @@
 import { describe, expect, it } from 'vitest';
 import { DrumDraw, bankSpot, drumParts } from '../src/drumdraw';
 import { BedFinds, places } from '../src/bedfinds';
-import { ANGLER, DRUMS, CABIN, bareGround, bedDepth, cabinGap, inside, jettyGap } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES } from '../src/rules';
 import { PALETTE } from '../src/palette';
+
+const ANGLER = HOME.angler;
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const CABIN = HOME.cabin!.spec;
+const bareGround = HOME.bareGround;
+const bedDepth = HOME.bedDepth;
+const cabinGap = HOME.cabin!.gap;
+const inside = HOME.inside;
+const jettyGap = HOME.jetty!.gap;
 
 const drums = () => new BedFinds(places(DRUMS, { inside, bedDepth, from: [ANGLER.x, ANGLER.y] }));
 
 describe('the drum’s parts', () => {
   it('is painted on the body, a few dozen triangles in all, standing on the ground it is placed at', () => {
-    const { body, bands, atom } = drumParts();
+    const { body, bands, atom } = drumParts(HOME);
     expect(body.paint, 'painted').toBeInstanceOf(Float32Array);
     expect(bands.paint).toBeUndefined();
     const triangles = (m: { indices: ArrayLike<number> }) => m.indices.length / 3;
@@ -24,8 +34,8 @@ describe('the drum’s parts', () => {
   });
 
   it('is built the same each time', () => {
-    const a = drumParts(),
-      b = drumParts();
+    const a = drumParts(HOME),
+      b = drumParts(HOME);
     expect(Array.from(a.body.positions)).toEqual(Array.from(b.body.positions));
     expect(Array.from(a.atom.positions)).toEqual(Array.from(b.atom.positions));
   });
@@ -34,7 +44,7 @@ describe('the drum’s parts', () => {
 describe('the drums drawn', () => {
   it('is three groups, a yellow drum, its bands and its black atom, one placement a drum on the bed', () => {
     const d = drums();
-    const groups = new DrumDraw().groups(d);
+    const groups = new DrumDraw(HOME).groups(d);
     expect(groups).toHaveLength(3);
     expect(groups.map((g) => g.albedo)).toEqual([PALETTE.drum, PALETTE.drumBand, PALETTE.drumAtom]);
     for (const g of groups) {
@@ -53,7 +63,7 @@ describe('the drums drawn', () => {
 
   it('draws a hauled drum no more, and packs the rest from the first placement', () => {
     const d = drums();
-    const draw = new DrumDraw();
+    const draw = new DrumDraw(HOME);
     d.find(0);
     const groups = draw.groups(d);
     for (const g of groups) {
@@ -67,7 +77,7 @@ describe('the drums drawn', () => {
 
   it('builds its meshes once however often it is handed over, and writes into pools sized once', () => {
     const d = drums();
-    const draw = new DrumDraw();
+    const draw = new DrumDraw(HOME);
     const first = draw.groups(d);
     d.find(0);
     const second = draw.groups(d);
@@ -78,7 +88,7 @@ describe('the drums drawn', () => {
 
 describe('the drums hauled, standing on the bank by the cabin', () => {
   it('has a spot on the bank for each drum, on dry ground clear of the cabin’s roof and the jetty, and apart', () => {
-    const spots = Array.from({ length: DRUMS.count }, (_, i) => bankSpot(i));
+    const spots = Array.from({ length: DRUMS.count }, (_, i) => bankSpot(i, HOME));
     for (const [x, y, z] of spots) {
       expect(inside(x, y), 'not in the water').toBe(false);
       expect(cabinGap(x, y), 'beside the cabin, not under its roof').toBeGreaterThan(DRUMS.radius);
@@ -95,7 +105,7 @@ describe('the drums hauled, standing on the bank by the cabin', () => {
 
   it('draws none with none hauled, and a hauled drum at its own spot, the rest packed from the first', () => {
     const d = drums();
-    const draw = new DrumDraw();
+    const draw = new DrumDraw(HOME);
     for (const g of draw.bank(d)) expect(g.count).toBe(0);
     d.find(1);
     const one = draw.bank(d);
@@ -103,9 +113,9 @@ describe('the drums hauled, standing on the bank by the cabin', () => {
     expect(one.map((g) => g.albedo)).toEqual([PALETTE.drum, PALETTE.drumBand, PALETTE.drumAtom]);
     for (const g of one) {
       expect(g.count).toBe(1);
-      expect(g.matrices[12]).toBeCloseTo(bankSpot(1)[0], 5);
-      expect(g.matrices[13]).toBeCloseTo(bankSpot(1)[1], 5);
-      expect(g.matrices[14]).toBeCloseTo(bankSpot(1)[2], 5);
+      expect(g.matrices[12]).toBeCloseTo(bankSpot(1, HOME)[0], 5);
+      expect(g.matrices[13]).toBeCloseTo(bankSpot(1, HOME)[1], 5);
+      expect(g.matrices[14]).toBeCloseTo(bankSpot(1, HOME)[2], 5);
     }
     d.find(0);
     for (const g of draw.bank(d)) expect(g.count).toBe(2);
@@ -113,7 +123,7 @@ describe('the drums hauled, standing on the bank by the cabin', () => {
 
   it('never draws a drum on the bed and on the bank at once', () => {
     const d = drums();
-    const draw = new DrumDraw();
+    const draw = new DrumDraw(HOME);
     d.find(0);
     const bed = draw.groups(d)[0]?.count ?? 0;
     const bank = draw.bank(d)[0]?.count ?? 0;
@@ -122,7 +132,7 @@ describe('the drums hauled, standing on the bank by the cabin', () => {
 
   it('shares its meshes with the drums on the bed, and writes into pools sized once', () => {
     const d = drums();
-    const draw = new DrumDraw();
+    const draw = new DrumDraw(HOME);
     const bed = draw.groups(d);
     d.find(0);
     const a = draw.bank(d),

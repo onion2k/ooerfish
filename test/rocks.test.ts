@@ -1,13 +1,17 @@
 /** The lake's rocks as painted meshes: one to a boulder and one to a cliff lump, whole, sized, and the same every call. */
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { describe, expect, it } from 'vitest';
-import { BOULDER_DOMES, BOULDERS, ROCKS } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { boulderMeshes, cliffLumpMeshes, rockBudget } from '../src/rocks';
 import { cliffLumps } from '../src/scene';
 
-const boulders = boulderMeshes();
-const lumps = cliffLumps();
-const cliff = cliffLumpMeshes(lumps);
+const BOULDER_DOMES = HOME.domes;
+const BOULDERS = HOME.boulders;
+const ROCKS = HOME.rocks;
+
+const boulders = boulderMeshes(HOME);
+const lumps = cliffLumps(HOME);
+const cliff = cliffLumpMeshes(lumps, HOME);
 
 /** A mesh's reach in height and across, over all its vertices. */
 function extent(positions: Float32Array) {
@@ -140,19 +144,19 @@ describe('the cliff’s lumps as meshes', () => {
 
 describe('the rocks', () => {
   it('are the same bytes every call, and built once', () => {
-    const again = boulderMeshes();
+    const again = boulderMeshes(HOME);
     expect(again).toHaveLength(boulders.length);
     again.forEach((b, i) => {
       expect(b.mesh.positions).toEqual(boulders[i].mesh.positions);
       expect(b.mesh.paint).toEqual(boulders[i].mesh.paint);
       expect(b.matrix).toEqual(boulders[i].matrix);
     });
-    const lumpsAgain = cliffLumpMeshes(cliffLumps());
+    const lumpsAgain = cliffLumpMeshes(cliffLumps(HOME), HOME);
     lumpsAgain.forEach((b, i) => {
       expect(b.mesh.positions).toEqual(cliff[i].mesh.positions);
       expect(b.mesh.paint).toEqual(cliff[i].mesh.paint);
     });
-    expect(boulderMeshes()[0].mesh).toBe(boulders[0].mesh);
+    expect(boulderMeshes(HOME)[0].mesh).toBe(boulders[0].mesh);
   });
 
   it('differ from one another, each from a seed of its own by its place', () => {

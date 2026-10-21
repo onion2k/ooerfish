@@ -5,7 +5,8 @@
  * content tables itself. The gifts the cure count has earned (`gearFor`) are a further argument, and ease the figures
  * they name; the bobber's and the bait's belong to the bite, which asks `windowFor` and `noticeFor`.
  */
-import { DRUMS, FIGHT, FISHING, GEAR, SIZE, TEMPERS, TREASURES } from './lake';
+import { FIGHT, FISHING, GEAR, SIZE, TEMPERS } from './lake';
+import { DRUM_RULES, TREASURE_RULES } from './rules';
 import type { Random } from './random';
 
 export type Temper = (typeof TEMPERS)[number]['name'];
@@ -109,7 +110,7 @@ export function drumFight(gear: Gear = NO_GEAR): FightFigures {
     ...fightFor(0, 'steady', gear),
     dart: 0,
     drain: 0,
-    fill: DRUMS.fill * (gear.reel ? gift('reel').times : 1),
+    fill: DRUM_RULES.fill * (gear.reel ? gift('reel').times : 1),
     drum: true,
   };
 }
@@ -121,5 +122,5 @@ export function drumFight(gear: Gear = NO_GEAR): FightFigures {
  */
 export function treasureFight(gear: Gear = NO_GEAR): FightFigures {
   const drum = drumFight(gear);
-  return { ...drum, fill: TREASURES.fill * (gear.reel ? gift('reel').times : 1) };
+  return { ...drum, fill: TREASURE_RULES.fill * (gear.reel ? gift('reel').times : 1) };
 }

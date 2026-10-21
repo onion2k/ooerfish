@@ -10,7 +10,9 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import { pathPoints, rodTip } from './cast';
 import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
-import { ANGLER, DRUMS, TREASURES, ground } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
+import { DRUM_RULES, TREASURE_RULES } from './rules';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
@@ -125,9 +127,11 @@ export class CastDraw {
     lure: 1,
   };
 
-  constructor() {
-    const z = ground(ANGLER.x, ANGLER.y);
-    this.hand = [ANGLER.x + 0.6, ANGLER.y + 0.5, z + 5];
+  /** The lake it draws the cast over: where its angler stands and holds the rod, and what its casts land on. */
+  constructor(private readonly lake: Lake = HOME) {
+    const { angler } = lake;
+    const z = lake.ground(angler.x, angler.y);
+    this.hand = [angler.x + 0.6, angler.y + 0.5, z + 5];
   }
 
   /**
@@ -135,7 +139,7 @@ export class CastDraw {
    * middle is where the straight rod's would be, so it is straight unbent and bows as it bends.
    */
   private writeRod(bend: number, toward: ArrayLike<number>) {
-    const t0 = rodTip();
+    const t0 = rodTip(this.lake);
     const dx = toward[0] - t0[0],
       dy = toward[1] - t0[1];
     const flat = Math.hypot(dx, dy) || 1;
@@ -194,7 +198,7 @@ export class CastDraw {
     const on = bite.phase === 'hooked' || bite.phase === 'landed';
     const tension = bite.phase === 'hooked' ? line.tension : 0;
     // where the lure is: hanging from the tip when ready, or wherever its cast, or the fish in whose mouth it is, has it
-    const t0 = rodTip();
+    const t0 = rodTip(this.lake);
     if (lure.phase === 'ready') {
       this.end[0] = t0[0];
       this.end[1] = t0[1];
@@ -221,7 +225,8 @@ export class CastDraw {
     if (lure.phase === 'sinking') {
       let z = this.surface(lure.bobber[0], lure.bobber[1], game.t) + BOB.height * Math.sin(game.t * BOB.rate);
       // a drum pulls the bobber under harder than a fish does, and a treasure a little harder
-      if (bite.phase === 'biting') z -= DIP * (bite.drum >= 0 ? DRUMS.dip : bite.treasure >= 0 ? TREASURES.dip : 1);
+      if (bite.phase === 'biting')
+        z -= DIP * (bite.drum >= 0 ? DRUM_RULES.dip : bite.treasure >= 0 ? TREASURE_RULES.dip : 1);
       else if (bite.phase === 'nibbling' && bite.nibbledAt >= 0 && game.t - bite.nibbledAt < TWITCH.lasts)
         z -= TWITCH.depth * Math.sin((Math.PI * (game.t - bite.nibbledAt)) / TWITCH.lasts);
       // shaken while the window is open, so the bite is seen from the shore and not only read
@@ -254,7 +259,7 @@ export class CastDraw {
     }
 
     if (aim) {
-      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path);
+      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path, this.lake);
       for (let k = 0; k < PREVIEW_DOTS; k++)
         place(this.dots, k, this.path[k * 3], this.path[k * 3 + 1], this.path[k * 3 + 2]);
       out.dots = PREVIEW_DOTS;

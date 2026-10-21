@@ -7,29 +7,29 @@
 import { describe, expect, it, vi } from 'vitest';
 import { checkField, grassGround, levels } from 'artshape-render/game/grass';
 import { BREEZE, GRASS_OPTIONS, LUSH, bankField } from '../src/grass';
-import {
-  ANGLER,
-  BANK_RISE,
-  BANK_TOP,
-  CABIN,
-  CLIFF,
-  NOTCHES,
-  SEASONS,
-  SHORE_RADIUS,
-  STRETCH,
-  cabinGap,
-  groundUnder,
-  inShore,
-  jettyGap,
-  inside,
-  onFace,
-  onFall,
-  shoreRadius,
-} from '../src/lake';
+import { HOME } from '../src/lakes';
+import { SEASONS } from '../src/lake';
 import { PALETTE } from '../src/palette';
 import { seasonGrass, seasonPalette } from '../src/season';
 
-const field = bankField();
+const ANGLER = HOME.angler;
+const BANK_RISE = HOME.bankRise;
+const BANK_TOP = HOME.bankTop;
+const CABIN = HOME.cabin!.spec;
+const CLIFF = HOME.cliff!.spec;
+const NOTCHES = HOME.cliff!.notches;
+const SHORE_RADIUS = HOME.radius;
+const STRETCH = HOME.stretch;
+const cabinGap = HOME.cabin!.gap;
+const groundUnder = HOME.groundUnder;
+const inShore = HOME.inShore;
+const jettyGap = HOME.jetty!.gap;
+const inside = HOME.inside;
+const onFace = HOME.onFace;
+const onFall = HOME.onFall;
+const shoreRadius = HOME.shoreRadius;
+
+const field = bankField(undefined, HOME);
 const cells = Array.from({ length: field.cols * field.rows }, (_, i) => {
   const c = i % field.cols,
     r = Math.floor(i / field.cols);
@@ -162,7 +162,7 @@ describe('the banks field', () => {
     });
     let again;
     try {
-      again = bankField();
+      again = bankField(undefined, HOME);
     } finally {
       random.mockRestore();
     }

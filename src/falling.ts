@@ -8,7 +8,8 @@
 import type { Emit } from 'artshape-render/game/particles';
 import { MIST } from './bursts';
 import { FALLING, SEASON_DRESSING, type Season } from './lake';
-import { FALLS } from './falls';
+import { fallsOf } from './falls';
+import type { Lake } from './lakes/lake';
 
 /** The lake the emitters stand over: its mean shore radius, and the water's level, which a flake dies at. */
 export interface FallingWorld {
@@ -68,10 +69,10 @@ export function steadyLive(season: Season): number {
  * holds this many, so no drop is overwritten alive at the game's steady rate; a burst of splashes on top may shorten a
  * drop's last second, which is accepted (`PARTICLE_POOL`).
  */
-export function particleWindow(season: Season): number {
+export function particleWindow(season: Season, lake: Lake): number {
   const f = SEASON_DRESSING[season].falling;
   const window = f ? f.life * (1 + f.lifeSpread) : 0;
   const falling = f ? FALLING.emitters * f.count * window * (60 / f.every) : 0;
-  const mist = FALLS.length * MIST.count * (60 / MIST.every) * window;
+  const mist = fallsOf(lake).length * MIST.count * (60 / MIST.every) * window;
   return falling + mist;
 }

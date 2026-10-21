@@ -10,6 +10,7 @@ import { SWIM } from '../src/lake';
 import { seeded } from '../src/random';
 import { bodyLength, pose, poseFish } from '../src/swim';
 import { DT, newGame, settle } from './helpers';
+import { HOME } from '../src/lakes';
 
 const N = SWIM.segments.length + 1;
 const L = bodyLength(SWIM);
@@ -36,7 +37,7 @@ describe("a fish's body, posed", () => {
   });
 
   it('poses a scaled fish’s whole spine scale times as far, nose to tail fin, straight and still', () => {
-    const school = new School();
+    const school = new School(HOME);
     school.fill(1, seeded(3));
     const long = joints(),
       one = joints();
@@ -130,7 +131,7 @@ describe("a fish's body, posed", () => {
 describe("a fish's stroke, kept by the school", () => {
   /** A school of two at rest where they were put, stroked once so its last places are its places. */
   function two() {
-    const school = new School();
+    const school = new School(HOME);
     school.fill(2, seeded(3));
     school.stroke(DT);
     return school;

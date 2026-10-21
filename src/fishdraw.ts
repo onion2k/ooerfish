@@ -10,7 +10,7 @@
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
 import type { School } from './fish';
-import { FISH_CAPACITY, KIND_INDEX, KINDS, SWIM, bedDepth } from './lake';
+import { FISH_CAPACITY, KIND_INDEX, KINDS, SWIM } from './lake';
 import { frame } from './matrix';
 import { fin, loft } from './meshes';
 import { PALETTE } from './palette';
@@ -132,7 +132,7 @@ export class FishDraw {
           (bodyLength(SWIM) * size) / 2,
           size,
         );
-      else poseFish(j, SWIM, fish, i, bedDepth, size);
+      else poseFish(j, SWIM, fish, i, fish.lake.bedDepth, size);
       this.joints.set(j, i * JOINTS * 3);
       const lx = -Math.sin(fish.heading[i]),
         ly = Math.cos(fish.heading[i]);

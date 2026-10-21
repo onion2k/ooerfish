@@ -1,7 +1,12 @@
 /** The journal: an entry updated on each catch, and the words of its page. */
 import { describe, expect, it } from 'vitest';
 import { journalWords, recorded } from '../src/journal';
-import { DRUMS, KINDS, TREASURES } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { KINDS } from '../src/lake';
+
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 describe('an entry on a catch', () => {
   it('starts at one, with the weight as the best and the day as the first', () => {

@@ -2,10 +2,16 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { DECK, SPLASH_CAPACITY, inside, jettyGap, shoreRadius } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { SPLASH_CAPACITY } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, settle } from './helpers';
+
+const DECK = HOME.jetty!.deck;
+const inside = HOME.inside;
+const jettyGap = HOME.jetty!.gap;
+const shoreRadius = HOME.shoreRadius;
 
 /** A lake that keeps a note of every splash it tells of. */
 function lake(seed = 1) {

@@ -17,6 +17,7 @@
  */
 import { careful } from '../src/angler';
 import { Game } from '../src/game';
+import { HOME } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -166,7 +167,8 @@ export function playTwice({ seed, frames, every = 300, startsAt, save, label, me
   let days = 1;
   let outs = 0;
   for (let pass = 0; pass < 2; pass++) {
-    const game = new Game(new Progress(memoryStore(save === undefined ? undefined : JSON.stringify(save))), {
+    const game = new Game(new Progress(memoryStore(save === undefined ? undefined : JSON.stringify(save)), HOME), {
+      lake: HOME,
       random: seeded(seed),
     });
     const hashes: string[] = [];

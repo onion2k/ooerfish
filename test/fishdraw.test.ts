@@ -6,12 +6,15 @@
 import { FLOW_GLOW } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { describe, expect, it } from 'vitest';
-import { FISH_CAPACITY, FISH_KINDS, KINDS, SWIM } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { FISH_CAPACITY, KINDS, SWIM } from '../src/lake';
 import { CURED_GLOW, FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
 import { fin, loft } from '../src/meshes';
 import { PALETTE } from '../src/palette';
 import { bodyLength } from '../src/swim';
 import { newGame, settle } from './helpers';
+
+const FISH_KINDS = HOME.fishKinds;
 
 const SEGS = SWIM.segments.length;
 /** The placement of fish `i` in part `p`'s group: its translation and its own x, the way its front faces. */

@@ -13,7 +13,9 @@
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
 import type { BedFinds } from './bedfinds';
-import { DRUMS, FISHING, FISH_CAPACITY, TREASURES } from './lake';
+import { FISHING, FISH_CAPACITY } from './lake';
+import type { Lake } from './lakes/lake';
+import { DRUM_RULES, TREASURE_RULES } from './rules';
 import type { Lure } from './lure';
 import type { Random } from './random';
 
@@ -48,8 +50,8 @@ export class Bite {
   /** The junk treasure snagged, or minus one. */
   treasure = -1;
   /** Until when each drum keeps from the lure, having let go, and each treasure. */
-  readonly drumWary = new Float64Array(DRUMS.count);
-  readonly treasureWary = new Float64Array(TREASURES.count);
+  readonly drumWary: Float64Array;
+  readonly treasureWary: Float64Array;
   /** How long until the next nibble or the bite, or how long the window has left. */
   timer = 0;
   /** How many nibbles are still to come before the bite. */
@@ -65,7 +67,14 @@ export class Bite {
   /** The gifts held, which the game hands over when it has them: the bobber's window and the bait's notice. */
   gear: Gear = NO_GEAR;
 
-  constructor(private readonly events: BiteEvents = {}) {}
+  /** The bite's rules are the game's; how many drums and treasures lie on the bed is the lake's, so it is the lake that is handed in. */
+  constructor(
+    private readonly events: BiteEvents = {},
+    lake: Lake,
+  ) {
+    this.drumWary = new Float64Array(lake.drums.count);
+    this.treasureWary = new Float64Array(lake.treasures.count);
+  }
 
   /**
    * On by `dt` to the time `t`. The `drums` and the `treasures` on the bed are snagged by a lure lying on it within reach,
@@ -103,12 +112,12 @@ export class Bite {
       // no fish has come: a lure lying on the bed by a drum or a treasure may snag the nearer, and a snag dips the bobber
       // at once (heavily for a drum, lightly for a treasure)
       if ((drums || treasures) && lure.onBed) {
-        const d = drums ? drums.snagged(bx, by, DRUMS.reach, this.drumWary, t) : -1;
-        const k = treasures ? treasures.snagged(bx, by, TREASURES.reach, this.treasureWary, t) : -1;
+        const d = drums ? drums.snagged(bx, by, DRUM_RULES.reach, this.drumWary, t) : -1;
+        const k = treasures ? treasures.snagged(bx, by, TREASURE_RULES.reach, this.treasureWary, t) : -1;
         const dd = d >= 0 ? Math.hypot(drums!.x[d] - bx, drums!.y[d] - by) : Infinity;
         const kd = k >= 0 ? Math.hypot(treasures!.x[k] - bx, treasures!.y[k] - by) : Infinity;
         const drum = dd <= kd;
-        if ((d >= 0 || k >= 0) && random() < (drum ? DRUMS.rate : TREASURES.rate) * dt) {
+        if ((d >= 0 || k >= 0) && random() < (drum ? DRUM_RULES.rate : TREASURE_RULES.rate) * dt) {
           if (drum) this.drum = d;
           else this.treasure = k;
           this.phase = 'biting';

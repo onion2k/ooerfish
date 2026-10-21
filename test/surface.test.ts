@@ -4,8 +4,11 @@
  * than the old sheet's corners were apart, and the near water pulsed all together instead.
  */
 import { describe, expect, it } from 'vitest';
-import { SURFACE, VIEWS } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { shoreCamera, surface, surfaceLayout } from '../src/water/surface';
+
+const SURFACE = HOME.surface;
+const VIEWS = HOME.views;
 
 /** The old sheet's widest edge, 24 rings by 128 segments evenly round: the far east and west shore's diagonals. */
 const OLD_WIDEST = 4.296;
@@ -37,8 +40,8 @@ function widestEdge(
 }
 
 describe("the water's surface", () => {
-  const mesh = surface();
-  const [cx, cy] = shoreCamera();
+  const mesh = surface(HOME);
+  const [cx, cy] = shoreCamera(HOME);
 
   it('has no two neighbouring corners further apart than the spacing, anywhere within reach of the shore camera', () => {
     expect(SURFACE.spacing).toBe(0.5);
@@ -62,13 +65,13 @@ describe("the water's surface", () => {
   });
 
   it('is the rings and angles its layout says, built once', () => {
-    const { rings, angles } = surfaceLayout();
+    const { rings, angles } = surfaceLayout(HOME);
     expect(mesh.indices.length / 3).toBe((rings.length - 1) * (angles.length - 1) * 2);
-    expect(surface()).toBe(mesh);
+    expect(surface(HOME)).toBe(mesh);
   });
 
   it('runs its rings out from the middle and its angles once round, each further than the last', () => {
-    const { rings, angles } = surfaceLayout();
+    const { rings, angles } = surfaceLayout(HOME);
     expect(rings[0]).toBe(0);
     expect(rings.at(-1)).toBeCloseTo(1.08, 12);
     expect(angles[0]).toBe(0);
@@ -79,10 +82,10 @@ describe("the water's surface", () => {
 
   it('is the old coarse sheet where the reach finds nothing finer to do, and fine all over where it reaches everything', () => {
     // a reach just past the far bank's foot from the camera: most of the sheet is as coarse as it was
-    const all = surfaceLayout({ ...SURFACE, near: 200 });
+    const all = surfaceLayout(HOME, { ...SURFACE, near: 200 });
     expect(all.rings[0]).toBe(0);
     expect(all.angles.at(-1)).toBeCloseTo(Math.PI * 2, 12);
     expect(all.angles.length - 1).toBeGreaterThan(SURFACE.segments * 4);
-    expect(() => surfaceLayout({ ...SURFACE, near: 1 })).toThrow(/a near of 1 reaches none of the water/);
+    expect(() => surfaceLayout(HOME, { ...SURFACE, near: 1 })).toThrow(/a near of 1 reaches none of the water/);
   });
 });

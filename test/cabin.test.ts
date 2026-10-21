@@ -2,9 +2,17 @@
 import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { cabinGroups, jettyGroups, postSpots } from '../src/cabin';
-import { CABIN, CABIN_AT, JETTY, bareGround, deckFrame, jettyGap } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { PALETTE } from '../src/palette';
-import { SHADOW_BOX } from '../src/scene';
+
+const SHADOW_BOX = HOME.shadowBox;
+
+const CABIN = HOME.cabin!.spec;
+const CABIN_AT = HOME.cabin!.at;
+const JETTY = HOME.jetty!.spec;
+const bareGround = HOME.bareGround;
+const deckFrame = HOME.jetty!.frame;
+const jettyGap = HOME.jetty!.gap;
 
 /** Every vertex of a group's mesh, which is placed by the identity here. */
 function vertices(g: { mesh: { positions: Float32Array } }): [number, number, number][] {
@@ -22,7 +30,7 @@ const inCabin = ([x, y]: number[]) => {
 };
 
 describe('the cabin as drawn', () => {
-  const groups = cabinGroups();
+  const groups = cabinGroups(undefined, HOME);
   it('is five groups: the walls, the roof, the chimney, the door and the window, each in its own colour', () => {
     expect(groups.map((g) => g.albedo)).toEqual([
       PALETTE.cabinWall,
@@ -91,7 +99,7 @@ describe('the cabin as drawn', () => {
   });
 
   it('stands under the sun’s shadow box, every vertex of it', () => {
-    for (const g of [...groups, ...jettyGroups()])
+    for (const g of [...groups, ...jettyGroups(undefined, HOME)])
       for (const [x, y, z] of vertices(g)) {
         expect(x).toBeGreaterThan(SHADOW_BOX.min[0]);
         expect(x).toBeLessThan(SHADOW_BOX.max[0]);
@@ -103,7 +111,7 @@ describe('the cabin as drawn', () => {
   });
 
   it('is made the same every call', () => {
-    const again = cabinGroups();
+    const again = cabinGroups(undefined, HOME);
     again.forEach((g, i) => expect(Array.from(g.mesh.positions)).toEqual(Array.from(groups[i].mesh.positions)));
   });
 });
@@ -126,11 +134,11 @@ function facesOut(g: { mesh: { positions: Float32Array; indices: ArrayLike<numbe
 
 describe('the faces', () => {
   it('of every convex part face outward, so the frame the cabin is built in is not mirrored', () => {
-    const [, , chimney, door, window] = cabinGroups();
-    const [deck] = jettyGroups();
+    const [, , chimney, door, window] = cabinGroups(undefined, HOME);
+    const [deck] = jettyGroups(undefined, HOME);
     for (const [name, g] of Object.entries({ chimney, door, window, deck })) expect(facesOut(g), name).toBe(true);
     // and the roof’s two panels, each a convex prism of its own: the ridge sorts one from the other by the side it is on
-    const roof = cabinGroups()[1];
+    const roof = cabinGroups(undefined, HOME)[1];
     const half = roof.mesh.positions.length / 3 / 2;
     for (const side of [0, 1]) {
       const keep = (i: number) => i < half === (side === 0);
@@ -147,7 +155,7 @@ describe('the faces', () => {
 
 describe('the walls’ faces', () => {
   it('face away from the cabin: the sides outward in plan, the sloping gable up, the underside down', () => {
-    const walls = cabinGroups()[0];
+    const walls = cabinGroups(undefined, HOME)[0];
     const v = vertices(walls);
     const top = Math.max(...v.map((p) => p[2]));
     let sides = 0,
@@ -177,7 +185,7 @@ describe('the walls’ faces', () => {
 });
 
 describe('the jetty as drawn', () => {
-  const groups = jettyGroups();
+  const groups = jettyGroups(undefined, HOME);
   it('is two groups: the deck and the posts, in their colours', () => {
     expect(groups.map((g) => g.albedo)).toEqual([PALETTE.deck, PALETTE.post]);
   });
@@ -196,7 +204,7 @@ describe('the jetty as drawn', () => {
   });
 
   it('has a pair of posts at each place along it, each from the bed to the deck’s underside, under the deck', () => {
-    const spots = postSpots();
+    const spots = postSpots(HOME);
     expect(spots).toHaveLength(JETTY.posts.along.length * 2);
     for (const s of spots) {
       expect(s.foot, 'at the bed or the bank').toBe(bareGround(s.x, s.y));
@@ -217,8 +225,8 @@ describe('the jetty as drawn', () => {
 });
 
 describe('the timber’s painted edge', () => {
-  const cabin = cabinGroups(),
-    jetty = jettyGroups();
+  const cabin = cabinGroups(undefined, HOME),
+    jetty = jettyGroups(undefined, HOME);
   // the walls, roof, door, deck and posts are timber; the chimney is stone and the window is glass
   const timber = [cabin[0], cabin[1], cabin[3], jetty[0], jetty[1]];
   const plain = [cabin[2], cabin[4]];
@@ -242,7 +250,7 @@ describe('the timber’s painted edge', () => {
   });
 
   it('is the same bytes every time it is built', () => {
-    const again = [...cabinGroups(), ...jettyGroups()];
+    const again = [...cabinGroups(undefined, HOME), ...jettyGroups(undefined, HOME)];
     [...cabin, ...jetty].forEach((g, i) => {
       expect(again[i].mesh.positions).toEqual(g.mesh.positions);
       expect(again[i].mesh.paint).toEqual(g.mesh.paint);

@@ -2,7 +2,18 @@
 import { describe, expect, it } from 'vitest';
 import { BedFinds, places } from '../src/bedfinds';
 import { TreasureDraw, bedSpot, shelfSpot, treasureParts } from '../src/treasuredraw';
-import { ANGLER, CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, DRUMS, TREASURES, bedDepth, inside } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+
+const ANGLER = HOME.angler;
+const CABIN = HOME.cabin!.spec;
+const CABIN_AT = HOME.cabin!.at;
+const CABIN_FLOOR = HOME.cabin!.floor;
+const CABIN_ROOM = HOME.cabin!.room;
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+const bedDepth = HOME.bedDepth;
+const inside = HOME.inside;
 
 const world = { inside, bedDepth, from: [ANGLER.x, ANGLER.y] as const };
 const treasures = () => new BedFinds(places(TREASURES, world, places(DRUMS, world)));
@@ -13,8 +24,8 @@ const zs = (m: { positions: ArrayLike<number> }) =>
 describe('each treasure’s model', () => {
   it('is built the same each time, from parts that are painted or plain as they are made', () => {
     TREASURES.list.forEach((t, i) => {
-      const a = treasureParts(i),
-        b = treasureParts(i);
+      const a = treasureParts(i, HOME),
+        b = treasureParts(i, HOME);
       expect(a.length, t.id).toBeGreaterThan(0);
       expect(a.length, t.id).toBe(b.length);
       a.forEach((p, k) => {
@@ -28,7 +39,7 @@ describe('each treasure’s model', () => {
   it('is painted on at least its main part', () => {
     for (let i = 0; i < TREASURES.count; i++)
       expect(
-        treasureParts(i).some((p) => p.mesh.paint instanceof Float32Array),
+        treasureParts(i, HOME).some((p) => p.mesh.paint instanceof Float32Array),
         TREASURES.list[i].id,
       ).toBe(true);
   });
@@ -36,7 +47,7 @@ describe('each treasure’s model', () => {
   it('is under sixty triangles all together, and the six under a ceiling of their own', () => {
     let all = 0;
     for (let i = 0; i < TREASURES.count; i++) {
-      const n = treasureParts(i).reduce((sum, p) => sum + triangles(p.mesh), 0);
+      const n = treasureParts(i, HOME).reduce((sum, p) => sum + triangles(p.mesh), 0);
       expect(n, TREASURES.list[i].id).toBeGreaterThan(8);
       expect(n, TREASURES.list[i].id).toBeLessThan(60);
       all += n;
@@ -46,7 +57,7 @@ describe('each treasure’s model', () => {
 
   it('stands on the ground it is placed at and is the size the content says', () => {
     TREASURES.list.forEach((t, i) => {
-      const parts = treasureParts(i);
+      const parts = treasureParts(i, HOME);
       const z = parts.flatMap((p) => zs(p.mesh));
       expect(Math.min(...z), `${t.id} rests on z = 0`).toBeCloseTo(0, 5);
       expect(Math.max(...z), `${t.id} height`).toBeCloseTo(t.size.high, 1);
@@ -68,9 +79,11 @@ describe('the treasures drawn', () => {
 
   it('is a fixed pool of groups, a part each, one placement apiece, however many are found', () => {
     const t = treasures();
-    const draw = new TreasureDraw();
+    const draw = new TreasureDraw(HOME);
     const none = draw.groups(t);
-    const parts = Array.from({ length: TREASURES.count }, (_, i) => treasureParts(i).length).reduce((a, b) => a + b);
+    const parts = Array.from({ length: TREASURES.count }, (_, i) => treasureParts(i, HOME).length).reduce(
+      (a, b) => a + b,
+    );
     expect(none).toHaveLength(parts);
     for (const g of none) {
       expect(live(g)).toBe(1);
@@ -85,12 +98,12 @@ describe('the treasures drawn', () => {
 
   it('lays an unfound treasure on the bed where it lies, a little sunk, and a found one on its shelf', () => {
     const t = treasures();
-    const draw = new TreasureDraw();
+    const draw = new TreasureDraw(HOME);
     const offsets: number[] = [];
     let n = 0;
     for (let i = 0; i < TREASURES.count; i++) {
       offsets.push(n);
-      n += treasureParts(i).length;
+      n += treasureParts(i, HOME).length;
     }
     const before = draw.groups(t);
     TREASURES.list.forEach((_, i) => {
@@ -99,12 +112,12 @@ describe('the treasures drawn', () => {
       expect(m[13]).toBeCloseTo(t.y[i], 5);
       expect(m[14], 'on the bed under it').toBeLessThanOrEqual(-bedDepth(t.x[i], t.y[i]) + 0.1);
       expect(m[14]).toBeGreaterThan(-bedDepth(t.x[i], t.y[i]) - 0.5);
-      expect(Array.from(bedSpot(t, i)).slice(0, 2)).toEqual([t.x[i], t.y[i]]);
+      expect(Array.from(bedSpot(t, i, HOME)).slice(0, 2)).toEqual([t.x[i], t.y[i]]);
     });
     t.find(4);
     const after = draw.groups(t);
     const m = after[offsets[4]].matrices;
-    const [x, y, z] = shelfSpot(4);
+    const [x, y, z] = shelfSpot(4, HOME);
     expect(m[12]).toBeCloseTo(x, 5);
     expect(m[13]).toBeCloseTo(y, 5);
     expect(m[14]).toBeCloseTo(z, 5);
@@ -123,7 +136,7 @@ describe('where a treasure stands on the shelf', () => {
     const [ix, iy] = CABIN_AT.inward;
     const [ax, ay] = CABIN_AT.along;
     TREASURES.list.forEach((t, i) => {
-      const [x, y, z] = shelfSpot(i);
+      const [x, y, z] = shelfSpot(i, HOME);
       const dx = x - CABIN_AT.x,
         dy = y - CABIN_AT.y;
       const along = dx * ax + dy * ay;

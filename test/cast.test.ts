@@ -3,10 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { aimAt, flight, flightAt, pathPoints, rodTip } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { BOULDERS, CAST, bedDepth, boulderGap, ground, inside } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { CAST } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, settle } from './helpers';
+
+const BOULDERS = HOME.boulders;
+const bedDepth = HOME.bedDepth;
+const boulderGap = HOME.boulderGap;
+const ground = HOME.ground;
+const inside = HOME.inside;
 
 const NORTH = Math.PI / 2;
 
@@ -49,8 +56,8 @@ describe('the flight of a cast', () => {
       expect(reach(p), `power ${p}`).toBeGreaterThan(was);
       was = reach(p);
     }
-    expect(reach(1)).toBeGreaterThan(CAST.reach - 3);
-    expect(reach(1)).toBeLessThan(CAST.reach + 3);
+    expect(reach(1)).toBeGreaterThan(HOME.castReach - 3);
+    expect(reach(1)).toBeLessThan(HOME.castReach + 3);
   });
 
   it('lands on the bank when cast back over it, and on the water when cast across the pond', () => {

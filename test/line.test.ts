@@ -9,6 +9,7 @@ import { Line } from '../src/line';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT } from './helpers';
+import { HOME } from '../src/lakes';
 
 const NORTH = Math.PI / 2;
 let MIDDLE = 0;
@@ -316,7 +317,7 @@ describe('the fight', () => {
   it('keeps the hooked fish in the water, at the line’s length from the landing, and draws it in as the meter fills', () => {
     const { game } = hooked(4);
     const i = game.bite.fish;
-    const from = () => Math.hypot(game.fish.x[i] - FIGHT.landAt[0], game.fish.y[i] - FIGHT.landAt[1]);
+    const from = () => Math.hypot(game.fish.x[i] - HOME.landAt[0], game.fish.y[i] - HOME.landAt[1]);
     const was = from();
     for (let f = 0; f < 120 / DT && game.bite.phase === 'hooked'; f++) {
       game.reel(below(game.line));

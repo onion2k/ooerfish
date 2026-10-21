@@ -6,9 +6,11 @@
  * real relays are `npm run pair`'s, not this test's.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { ANGLER } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { ready, start, watch } from './game';
 import { connect, openPhone, padBox, pairingFromOverlay, thumbDown, thumbTo, thumbUp } from './phoneside';
+
+const ANGLER = HOME.angler;
 
 /** What the stand-in keeps: its link, and what the screen has said to it. */
 interface PhoneSide {

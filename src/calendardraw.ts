@@ -10,6 +10,7 @@ import { built, face } from 'artshape-render/mesh/lowpoly';
 import { calendarMarks } from './calendar';
 import { calendarGeometry } from './cabinroom';
 import { CALENDAR } from './lake';
+import type { Lake } from './lakes/lake';
 import { place } from './matrix';
 import type { Colour } from './palette';
 
@@ -19,10 +20,15 @@ function unitSquare() {
 }
 
 export class CalendarDraw {
-  private readonly geometry = calendarGeometry();
+  private readonly geometry: ReturnType<typeof calendarGeometry>;
   private readonly mesh = unitSquare();
   private readonly gone = new Float32Array(CALENDAR.days * 16);
   private readonly today = new Float32Array(16);
+
+  /** The wall it marks is the room's in `lake`, which must have a cabin. */
+  constructor(lake: Lake) {
+    this.geometry = calendarGeometry(lake);
+  }
 
   /** The two mark groups for that day, written into matrices that are the same each time. */
   groups(day: number, colours: { gone: Colour; today: Colour }): GameGroup[] {

@@ -8,9 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import { WATCH, grew, sizes, trouble } from '../scripts/leaks';
 import { crowd } from '../scripts/phonemonkey';
-import { TREASURES } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { TREASURE_RULES } from '../src/rules';
 import { seeded } from '../src/random';
 import { newGame } from './helpers';
+
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 describe('what must stay bounded', () => {
   it('reads the sizes off a game, and has a ceiling for every one', () => {

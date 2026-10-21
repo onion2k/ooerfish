@@ -11,7 +11,7 @@ import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import type { BedFinds } from './bedfinds';
 import { placeAt } from './cabin';
-import { CABIN_AT, DRUMS, bareGround, bedDepth } from './lake';
+import type { Lake } from './lakes/lake';
 import { place } from './matrix';
 import { PALETTE } from './palette';
 
@@ -33,8 +33,8 @@ const BANDS = {
 const ATOM = { nucleus: 0.15, inner: 0.27, outer: 0.78, span: Math.PI / 3, lift: 0.03, arcs: 3 };
 
 /** The drum's three parts, built at its own size standing on z = 0: the body, the bands and the atom. */
-export function drumParts(): { body: Mesh & { paint?: Float32Array }; bands: Mesh; atom: Mesh } {
-  const { radius: r, height: h } = DRUMS;
+export function drumParts(lake: Lake): { body: Mesh & { paint?: Float32Array }; bands: Mesh; atom: Mesh } {
+  const { radius: r, height: h } = lake.drums;
   const body = painted(split(built((b) => frustum(b, at(0, 0, 0), SIDES, r, r, 0, h, { top: true }))), {
     set: PAINT_SET,
     choice: 'gate',
@@ -65,35 +65,42 @@ export function drumParts(): { body: Mesh & { paint?: Float32Array }; bands: Mes
 }
 
 /**
- * Where hauled drum `i` stands on the bank by the cabin, in the world: at its own spot of `DRUMS.bank` in front of the
+ * Where hauled drum `i` stands on the bank by the cabin, in the world: at its own spot of `drums.bank` in front of the
  * cabin, sunk a little into the ground there, and which way it faces by its index. A drum hauled up is put here, so the
  * pond's cleaning is seen on the shore as well as in the water.
  */
-export function bankSpot(i: number): [number, number, number, number] {
-  const { across, along } = DRUMS.bank[i];
-  const [x, y] = placeAt(CABIN_AT)([across, along, 0]);
-  return [x, y, bareGround(x, y) - SUNK, i * 1.3 + 0.6];
+export function bankSpot(i: number, lake: Lake): [number, number, number, number] {
+  if (!lake.cabin) throw new Error(`${lake.name} has no cabin, so no bank spot by it`);
+  const { across, along } = lake.drums.bank[i];
+  const [x, y] = placeAt(lake.cabin.at)([across, along, 0]);
+  return [x, y, lake.bareGround(x, y) - SUNK, i * 1.3 + 0.6];
 }
 
 export class DrumDraw {
   /** Each part's placements, sixteen floats a drum, sized once for the drums there are. */
-  private readonly matrices = [0, 1, 2].map(() => new Float32Array(DRUMS.count * 16));
+  private readonly matrices: Float32Array[];
   /** The same for the drums stood on the bank. */
-  private readonly bankMatrices = [0, 1, 2].map(() => new Float32Array(DRUMS.count * 16));
+  private readonly bankMatrices: Float32Array[];
   private parts: ReturnType<typeof drumParts> | null = null;
+
+  /** The drums of `lake`: its bed under them, its drums' size, and its cabin's bank for the hauled ones to stand on. */
+  constructor(private readonly lake: Lake) {
+    this.matrices = [0, 1, 2].map(() => new Float32Array(lake.drums.count * 16));
+    this.bankMatrices = [0, 1, 2].map(() => new Float32Array(lake.drums.count * 16));
+  }
 
   /**
    * The groups for the drums still on the bed, packed from the first placement: a hauled drum is left out, so it is
    * drawn no more. Says nothing of the others; call it again when one is hauled. The parts' meshes are built once.
    */
   groups(drums: BedFinds): GameGroup[] {
-    this.parts ??= drumParts();
+    this.parts ??= drumParts(this.lake);
     let live = 0;
     for (let i = 0; i < drums.count; i++) {
       if (drums.found[i]) continue;
       const x = drums.x[i],
         y = drums.y[i];
-      for (const m of this.matrices) place(m, live, x, y, -bedDepth(x, y) - SUNK, i * 1.3, 1);
+      for (const m of this.matrices) place(m, live, x, y, -this.lake.bedDepth(x, y) - SUNK, i * 1.3, 1);
       live++;
     }
     return this.pack(this.matrices, live);
@@ -104,11 +111,12 @@ export class DrumDraw {
    * drum still on the bed is left out, so none is drawn twice. The meshes are the same ones as the bed's.
    */
   bank(drums: BedFinds): GameGroup[] {
-    this.parts ??= drumParts();
+    this.parts ??= drumParts(this.lake);
     let live = 0;
     for (let i = 0; i < drums.count; i++) {
-      if (!drums.found[i]) continue;
-      const [x, y, z, yaw] = bankSpot(i);
+      // a lake with no cabin has no bank to stand a hauled drum on, and draws it nowhere
+      if (!drums.found[i] || !this.lake.cabin) continue;
+      const [x, y, z, yaw] = bankSpot(i, this.lake);
       for (const m of this.bankMatrices) place(m, live, x, y, z, yaw, 1);
       live++;
     }

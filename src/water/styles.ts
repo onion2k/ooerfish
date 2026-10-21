@@ -8,6 +8,7 @@ import type { ClearWater } from 'artshape-render/game/clear';
 import type { GameGroup } from 'artshape-render/game/renderer';
 import type { GerstnerWave } from 'artshape-render/game/waves';
 import type { Season } from '../lake';
+import type { Lake } from '../lakes/lake';
 import type { TimeOfDay } from '../look';
 import { clear } from './clear';
 
@@ -17,7 +18,7 @@ export interface WaterStyle {
   /** What it is called on the lab's panel. */
   label: string;
   /** The groups the water is drawn with, at a contamination from clear (0) to sick (1). */
-  groups(contamination: number): GameGroup[];
+  groups(contamination: number, lake: Lake): GameGroup[];
   /** The swells that move its surface, which what floats on it rides: none, and it lies still. */
   waves?: readonly GerstnerWave[];
   /** The same swells in a season's amplitude, which the bobber must ride when the look is handed them. */

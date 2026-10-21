@@ -275,6 +275,10 @@ Each stage is a feature, built and verified before the next, every gate green at
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**
 11. **The lakes after the first,** and each one's big fish.
+    _A first slice is being built (21 Oct 2026, `docs/lakes.md`): the Duck Pond becomes one lake of several, the
+    Reservoir is the second (an oval with a dam, sixteen fish, three drums, no cabin), every lake is open from the
+    start, and a map in the cabin is how the player travels. The big fish, the other lakes' treasures and a stream
+    are not; the stream was set aside as too much change at once._
 12. **The festivals and birthdays.**
 13. **The real clock's extras.**
 14. **The hidden things.**

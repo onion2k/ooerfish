@@ -4,7 +4,8 @@
  * cast and nothing kept; on the water it sinks by the step until the line or the bed stops it.
  */
 import { flightAt, landingTime } from './cast';
-import { CAST, bedDepth, inside } from './lake';
+import { CAST } from './lake';
+import type { Lake } from './lakes/lake';
 
 export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying' | 'hooked';
 
@@ -23,16 +24,19 @@ export class Lure {
   depth = 0;
   sunk = 0;
 
+  /** The lake it is cast over: its rod's tip, its water and its bed. */
+  constructor(private readonly lake: Lake) {}
+
   /** Thrown, from the rod's tip, at the time `t`. */
   cast(angle: number, power: number, t: number) {
     this.phase = 'flying';
     this.angle = angle;
     this.power = Math.min(1, Math.max(0, power));
     this.castAt = t;
-    this.flies = landingTime(angle, this.power);
+    this.flies = landingTime(angle, this.power, this.lake);
     this.depth = 0;
     this.sunk = 0;
-    flightAt(angle, this.power, 0, this.at);
+    flightAt(angle, this.power, 0, this.at, this.lake);
   }
 
   /** Brought back to the rod, ready to cast again. */
@@ -46,9 +50,9 @@ export class Lure {
   step(t: number, dt: number): [number, number] | null {
     if (this.phase === 'flying') {
       const since = t - this.castAt;
-      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at);
+      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at, this.lake);
       if (since < this.flies) return null;
-      if (inside(this.at[0], this.at[1])) {
+      if (this.lake.inside(this.at[0], this.at[1])) {
         this.phase = 'sinking';
         this.bobber[0] = this.at[0];
         this.bobber[1] = this.at[1];
@@ -75,7 +79,7 @@ export class Lure {
 
   /** How deep the line or the bed lets it sink under its bobber. */
   private stop(): number {
-    return Math.max(0, Math.min(CAST.lineDepth, bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed));
+    return Math.max(0, Math.min(CAST.lineDepth, this.lake.bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed));
   }
 
   /**
@@ -84,7 +88,7 @@ export class Lure {
    */
   get onBed(): boolean {
     if (this.phase !== 'sinking') return false;
-    const bed = bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed;
+    const bed = this.lake.bedDepth(this.bobber[0], this.bobber[1]) - CAST.aboveBed;
     return bed <= CAST.lineDepth && this.depth >= bed - 1e-9;
   }
 

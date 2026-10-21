@@ -16,7 +16,7 @@
  * another's edge and no crack opens where the swells move them apart.
  */
 import type { Mesh } from 'artshape-render/mesh/types';
-import { STRETCH, SURFACE, VIEWS, shoreRadius } from '../lake';
+import type { Lake } from '../lakes/lake';
 import { sheet } from '../meshes';
 
 /** How far past the shore the surface reaches, as a share of the way out: under the bank, so no gap shows at the edge. */
@@ -36,25 +36,29 @@ const MARGIN = 4.5;
 /** Two angles this close are the same angle: the coarse ones are sums, and a sum can miss its mark by a hair. */
 const SAME = 1e-9;
 
-/** Where on the sheet a share `k` of the way out at an angle is, in the world's own units. */
-function at(k: number, angle: number): [number, number] {
-  const r = k * shoreRadius(angle);
-  return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
+/** Where on a lake's sheet a share `k` of the way out at an angle is, in the world's own units. */
+function atOn(lake: Lake): (k: number, angle: number) => [number, number] {
+  return (k, angle) => {
+    const r = k * lake.shoreRadius(angle);
+    return [Math.cos(angle) * r * lake.stretch, Math.sin(angle) * r];
+  };
 }
 
 /** The Shore view's camera's place on the ground, by the orbit's own sum (artshape-render's `gpu/camera.ts`). */
-export function shoreCamera(): [number, number] {
-  const v = VIEWS.shore;
+export function shoreCamera(lake: Lake): [number, number] {
+  const v = lake.views.shore;
   const across = v.radius * Math.sin(v.polar);
   return [v.x + across * Math.cos(v.azimuth), v.y + across * Math.sin(v.azimuth)];
 }
 
-/** What the sheet's layout is made from: `SURFACE`'s figures, unless a test hands it others. */
+/** What the sheet's layout is made from: the lake's `surface` figures, unless a test hands it others. */
 export type SurfaceFigures = { rings: number; segments: number; spacing: number; near: number };
 
 /** The rings' distances out and the corners' angles round: coarse as the sheet always was, and fine near the camera. */
-export function surfaceLayout(figures: SurfaceFigures = SURFACE): { rings: number[]; angles: number[] } {
-  const [cx, cy] = shoreCamera();
+export function surfaceLayout(lake: Lake, given?: SurfaceFigures): { rings: number[]; angles: number[] } {
+  const figures = given ?? lake.surface;
+  const at = atOn(lake);
+  const [cx, cy] = shoreCamera(lake);
   // where the sheet comes within reach: the least share of the way out, the angles either side, and how far apart a
   // step out and a step round put two corners there at the most, so the fine steps can be sized from it
   let kFrom = PAST_SHORE,
@@ -103,14 +107,16 @@ export function surfaceLayout(figures: SurfaceFigures = SURFACE): { rings: numbe
   return { rings, angles };
 }
 
-let made: Mesh | null = null;
+const made = new WeakMap<Lake, Mesh>();
 
-/** The surface, made the first time it is asked for. */
-export function surface(): Mesh {
-  if (made) return made;
-  const { rings, angles } = surfaceLayout();
-  made = sheet(at, () => 0, 0, PAST_SHORE, rings, angles);
-  return made;
+/** The surface of a lake, made the first time it is asked for and kept for that lake. */
+export function surface(lake: Lake): Mesh {
+  let kept = made.get(lake);
+  if (kept) return kept;
+  const { rings, angles } = surfaceLayout(lake, lake.surface);
+  kept = sheet(atOn(lake), () => 0, 0, PAST_SHORE, rings, angles);
+  made.set(lake, kept);
+  return kept;
 }
 
 /** One placement where the mesh was built: the surface is laid out in the world's own units. */

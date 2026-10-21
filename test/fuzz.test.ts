@@ -1,7 +1,9 @@
 /** The monkey itself: it gets about, and a clean seed is clean. `npm run fuzz` is the long form. */
 import { describe, expect, it } from 'vitest';
 import { fuzz } from '../scripts/fuzzer';
-import { FISH_COUNT } from '../src/lake';
+import { HOME } from '../src/lakes';
+
+const FISH_COUNT = HOME.fishCount;
 
 describe('the fuzzer', () => {
   it('plays a seed through without breaking a rule, and does everything a player can', () => {

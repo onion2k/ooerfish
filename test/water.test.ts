@@ -2,11 +2,13 @@
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { FLOW_CLEAR } from 'artshape-render/game/flow';
 import { describe, expect, it } from 'vitest';
-import { WATER_PACE } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { timeNamed } from '../src/look';
 import { PALETTE } from '../src/palette';
 import { CLEAR, CLEAR_WAVES } from '../src/water/clear';
 import { STYLES } from '../src/water/styles';
+
+const WATER_PACE = HOME.waterPace;
 
 describe('the ways of drawing the water', () => {
   it('are one, the see-through water, named and labelled', () => {
@@ -17,7 +19,7 @@ describe('the ways of drawing the water', () => {
   it('give one water group, flowing the clear way, at any contamination', () => {
     for (const s of STYLES)
       for (const dirt of [0, 0.5, 1]) {
-        const groups = s.groups(dirt);
+        const groups = s.groups(dirt, HOME);
         expect(groups.length, s.name).toBe(1);
         const [water] = groups;
         expect(water.patterns?.length).toBe(PATTERN_STRIDE);
@@ -29,8 +31,8 @@ describe('the ways of drawing the water', () => {
 
   it('are the same twice for the same contamination, and a different colour for another', () => {
     for (const s of STYLES) {
-      expect(s.groups(0.3)[0].albedo).toEqual(s.groups(0.3)[0].albedo);
-      expect(s.groups(0.3)[0].albedo).not.toEqual(s.groups(0.7)[0].albedo);
+      expect(s.groups(0.3, HOME)[0].albedo).toEqual(s.groups(0.3, HOME)[0].albedo);
+      expect(s.groups(0.3, HOME)[0].albedo).not.toEqual(s.groups(0.7, HOME)[0].albedo);
     }
   });
 
@@ -238,7 +240,7 @@ describe('the see-through water', () => {
     expect(look.rippleAmount).toBe(0.3);
     expect(look.rippleCut).toBe(0.4);
     // the flow is fine, slow and gently tilted: 3.5 cells, a fifth of a unit a second
-    const [, scale, speed, steepness] = Array.from(clear.groups(0)[0].patterns!.subarray(0, 4));
+    const [, scale, speed, steepness] = Array.from(clear.groups(0, HOME)[0].patterns!.subarray(0, 4));
     expect([scale, speed, steepness].map((v) => Math.round(v * 100) / 100)).toEqual([3.5, 0.2, 0.3]);
     // the water is a bright turquoise when cured (part 4, chosen from the sheet of 15 October over the saturated blue of
     // part 2, which darkened it): blue over green over red, near and deep, and green near the blue
@@ -256,7 +258,7 @@ describe('the see-through water', () => {
   });
 
   it('is deep green when sick and deep blue-teal when clean', () => {
-    const deep = (dirt: number) => Array.from(clear.groups(dirt)[0].patterns!.subarray(4, 7));
+    const deep = (dirt: number) => Array.from(clear.groups(dirt, HOME)[0].patterns!.subarray(4, 7));
     const [r0, g0, b0] = deep(0);
     expect(b0, 'clean, blue the most').toBeGreaterThan(g0);
     expect(b0).toBeGreaterThan(r0);

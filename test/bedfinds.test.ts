@@ -1,7 +1,17 @@
 /** The things on the bed (the drums of waste, now): where they lie, from a seed of their own, and which are found. */
 import { describe, expect, it } from 'vitest';
 import { BedFinds, places as bedPlaces, type BedSpec } from '../src/bedfinds';
-import { ANGLER, DRUMS, TREASURES, MAX_DEPTH, bedDepth, boulderGap, inside, BOULDERS } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+
+const ANGLER = HOME.angler;
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+const MAX_DEPTH = HOME.maxDepth;
+const bedDepth = HOME.bedDepth;
+const boulderGap = HOME.boulderGap;
+const inside = HOME.inside;
+const BOULDERS = HOME.boulders;
 
 const world = { inside, bedDepth, from: [ANGLER.x, ANGLER.y] as const };
 const places = () => bedPlaces(DRUMS, world);

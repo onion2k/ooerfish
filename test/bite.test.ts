@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { flight } from '../src/cast';
 import { Game } from '../src/game';
 import { Bite } from '../src/bite';
-import { DRUMS, FISHING, KIND_INDEX, TREASURES } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { FISHING, KIND_INDEX } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, castAtDrum, cureAll, lieByDrum, lieByTreasure } from './helpers';
+
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 const NORTH = Math.PI / 2;
 
@@ -490,7 +495,7 @@ describe('a drum on the bed and the lure', () => {
   it('tells the bite heavy, hooks it with a strike inside the window, and lets go with none', () => {
     const told: boolean[] = [];
     const game = beside();
-    const bite = new Bite({ bitten: (heavy) => told.push(heavy === true) });
+    const bite = new Bite({ bitten: (heavy) => told.push(heavy === true) }, HOME);
     let t = game.t;
     for (let f = 0; f < 200 && bite.phase === 'none'; f++)
       bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums);
@@ -559,7 +564,7 @@ describe('a treasure on the bed and the lure', () => {
   it('snags a lure lying on the bed within reach, with every fish cured, and dips the bobber lightly', () => {
     const told: [boolean | undefined, string | undefined][] = [];
     const game = beside(3);
-    const bite = new Bite({ bitten: (heavy, quarry) => told.push([heavy, quarry]) });
+    const bite = new Bite({ bitten: (heavy, quarry) => told.push([heavy, quarry]) }, HOME);
     let t = game.t;
     for (let f = 0; f < 200 && bite.phase === 'none'; f++)
       bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums, game.treasures);

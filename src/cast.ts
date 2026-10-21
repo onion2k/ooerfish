@@ -4,7 +4,9 @@
  * so the preview drawn while aiming is the very flight the lure will fly, the same to the bit, and a test can ask
  * where any cast lands without playing it.
  */
-import { ANGLER, CAST, ground, inside } from './lake';
+import { CAST } from './lake';
+import type { Lake } from './lakes/lake';
+import { HOME } from './lakes';
 
 /** Gravity, in world units a second each second: the renderer's own, a tenth of a metre a unit. */
 export const GRAVITY = 98.1;
@@ -15,30 +17,54 @@ const HALVINGS = 30;
 const LONGEST = 6;
 
 /** Where the rod's tip is, which every cast is thrown from. */
-export function rodTip(): [number, number, number] {
-  return [ANGLER.x, ANGLER.y + ANGLER.tipReach, ground(ANGLER.x, ANGLER.y) + ANGLER.tipHeight];
+export function rodTip(lake: Lake = HOME): [number, number, number] {
+  const a = lake.angler;
+  return [a.x, a.y + a.tipReach, lake.ground(a.x, a.y) + a.tipHeight];
 }
-const TIP = rodTip();
 
-/** The speed of a cast at full power: what throws it `CAST.reach` across flat water from the tip's height. */
-const FULL = (() => {
+/** What a lake's casts are thrown from and at: its rod's tip and the speed of a cast at full power, worked out once for each lake. */
+interface Throw {
+  tip: [number, number, number];
+  full: number;
+}
+const THROWS = new WeakMap<Lake, Throw>();
+
+/** The speed of a cast at full power: what throws it the lake's `castReach` across flat water from the tip's height. */
+function fullSpeed(h: number, reach: number): number {
   const c = Math.cos(CAST.launch),
-    s = Math.sin(CAST.launch),
-    h = TIP[2];
+    s = Math.sin(CAST.launch);
   const range = (v: number) => ((v * c) / GRAVITY) * (v * s + Math.sqrt((v * s) ** 2 + 2 * GRAVITY * h));
   let lo = 0,
     hi = 1000;
   for (let k = 0; k < 60; k++) {
     const mid = (lo + hi) / 2;
-    if (range(mid) < CAST.reach) lo = mid;
+    if (range(mid) < reach) lo = mid;
     else hi = mid;
   }
   return (lo + hi) / 2;
-})();
+}
+
+/** The lake's throw, made the first time it is asked for and kept: the same lake is always thrown the same. */
+function throwOf(lake: Lake): Throw {
+  let made = THROWS.get(lake);
+  if (!made) {
+    const tip = rodTip(lake);
+    made = { tip, full: fullSpeed(tip[2], lake.castReach) };
+    THROWS.set(lake, made);
+  }
+  return made;
+}
 
 /** Where a cast of `angle` and `power` is at time `t` after it was thrown, written into `out`. */
-export function flightAt(angle: number, power: number, t: number, out: Float64Array | number[]): void {
-  const v = FULL * Math.sqrt(Math.min(1, Math.max(0, power)));
+export function flightAt(
+  angle: number,
+  power: number,
+  t: number,
+  out: Float64Array | number[],
+  lake: Lake = HOME,
+): void {
+  const { tip: TIP, full } = throwOf(lake);
+  const v = full * Math.sqrt(Math.min(1, Math.max(0, power)));
   const across = v * Math.cos(CAST.launch) * t;
   out[0] = TIP[0] + Math.cos(angle) * across;
   out[1] = TIP[1] + Math.sin(angle) * across;
@@ -46,25 +72,25 @@ export function flightAt(angle: number, power: number, t: number, out: Float64Ar
 }
 
 /** What is under a point: the water's surface over the lake, the bank's ground elsewhere. */
-function under(x: number, y: number): number {
-  return inside(x, y) ? 0 : ground(x, y);
+function under(lake: Lake, x: number, y: number): number {
+  return lake.inside(x, y) ? 0 : lake.ground(x, y);
 }
 
 const at = new Float64Array(3);
 
 /** How long a cast is in the air before its path first meets what is under it. */
-export function landingTime(angle: number, power: number): number {
+export function landingTime(angle: number, power: number, lake: Lake = HOME): number {
   let was = 0;
   for (let t = WALK; t <= LONGEST; t += WALK) {
-    flightAt(angle, power, t, at);
-    if (at[2] <= under(at[0], at[1])) {
+    flightAt(angle, power, t, at, lake);
+    if (at[2] <= under(lake, at[0], at[1])) {
       // between the last step above and this one below, halved until it is exact
       let lo = was,
         hi = t;
       for (let k = 0; k < HALVINGS; k++) {
         const mid = (lo + hi) / 2;
-        flightAt(angle, power, mid, at);
-        if (at[2] <= under(at[0], at[1])) hi = mid;
+        flightAt(angle, power, mid, at, lake);
+        if (at[2] <= under(lake, at[0], at[1])) hi = mid;
         else lo = mid;
       }
       return hi;
@@ -84,26 +110,32 @@ export interface Flight {
 }
 
 /** Where a cast of `angle` and `power` lands, whether on the water, and when. */
-export function flight(angle: number, power: number): Flight {
-  const time = landingTime(angle, power);
+export function flight(angle: number, power: number, lake: Lake = HOME): Flight {
+  const time = landingTime(angle, power, lake);
   const out = new Float64Array(3);
-  flightAt(angle, power, time, out);
-  return { landing: [out[0], out[1], out[2]], onWater: inside(out[0], out[1]), time };
+  flightAt(angle, power, time, out, lake);
+  return { landing: [out[0], out[1], out[2]], onWater: lake.inside(out[0], out[1]), time };
 }
 
 /**
  * The preview: `n` points along a cast's arc, evenly in time from the tip to where it lands, written into `out`, three
  * floats each; the last is the landing itself. Says whether it lands on the water.
  */
-export function pathPoints(angle: number, power: number, n: number, out: Float64Array | Float32Array): boolean {
-  const time = landingTime(angle, power);
+export function pathPoints(
+  angle: number,
+  power: number,
+  n: number,
+  out: Float64Array | Float32Array,
+  lake: Lake = HOME,
+): boolean {
+  const time = landingTime(angle, power, lake);
   for (let k = 0; k < n; k++) {
-    flightAt(angle, power, (time * k) / (n - 1), at);
+    flightAt(angle, power, (time * k) / (n - 1), at, lake);
     out[k * 3] = at[0];
     out[k * 3 + 1] = at[1];
     out[k * 3 + 2] = at[2];
   }
-  return inside(out[(n - 1) * 3], out[(n - 1) * 3 + 1]);
+  return lake.inside(out[(n - 1) * 3], out[(n - 1) * 3 + 1]);
 }
 
 /**
@@ -111,7 +143,8 @@ export function pathPoints(angle: number, power: number, n: number, out: Float64
  * none and full until the flight is as far from the tip as the point is. A point past the reach gets full power. For
  * the test API and the tests, which put a lure where they want it.
  */
-export function aimAt(x: number, y: number): { angle: number; power: number } {
+export function aimAt(x: number, y: number, lake: Lake = HOME): { angle: number; power: number } {
+  const TIP = throwOf(lake).tip;
   const dx = x - TIP[0],
     dy = y - TIP[1];
   const angle = Math.atan2(dy, dx),
@@ -120,7 +153,7 @@ export function aimAt(x: number, y: number): { angle: number; power: number } {
     hi = 1;
   for (let k = 0; k < 40; k++) {
     const mid = (lo + hi) / 2;
-    const f = flight(angle, mid);
+    const f = flight(angle, mid, lake);
     if (Math.hypot(f.landing[0] - TIP[0], f.landing[1] - TIP[1]) < want) lo = mid;
     else hi = mid;
   }

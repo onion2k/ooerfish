@@ -5,12 +5,22 @@ import { fightFor, treasureFight, type Temper } from '../src/fight';
 import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { ANGLER, CLOCK, DRUMS, FISH_COUNT, KINDS, RELEASE, TREASURES, contaminationAfter, inside } from '../src/lake';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { CLOCK, KINDS, RELEASE } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
+import { HOME, LAKES, lakeNamed } from '../src/lakes';
+import type { Lake } from '../src/lakes/lake';
 import { NIGHT } from '../src/lake';
 import { DT, castAtDrum, castAtTreasure, newGame, settle } from './helpers';
+
+const ANGLER = HOME.angler;
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const FISH_COUNT = HOME.fishCount;
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+const contaminationAfter = HOME.contaminationAfter;
+const inside = HOME.inside;
 
 describe('the lake', () => {
   it('starts at the beginning of its time, and keeps time a step at a time', () => {
@@ -112,7 +122,7 @@ describe('a cured fish goes back into the pond', () => {
     expect(game.fish.cured[3]).toBe(1);
     expect(game.fish.curedCount()).toBe(1);
     // not placed afresh: its heading and stroke are the ones it had, and its depth is within the water where it was let go
-    const [least, most] = depthRange(game.fish.x[3], game.fish.y[3]);
+    const [least, most] = depthRange(game.fish.x[3], game.fish.y[3], HOME);
     expect(game.fish.depth[3]).toBeGreaterThanOrEqual(least);
     expect(game.fish.depth[3]).toBeLessThanOrEqual(most);
     expect(game.progress.save.cured).toBe(1);
@@ -1084,5 +1094,78 @@ describe('the time and the place are saved', () => {
     const { game, store } = newGame(1, '{"cured": 1, "place": "cabin"}');
     game.step(CLOCK.saveEvery * 3);
     expect(store.json, 'nothing written in the cabin').toBe('{"cured": 1, "place": "cabin"}');
+  });
+});
+
+describe('the game in a lake it is handed', () => {
+  /** The pond's geometry with nothing built on it and a small stock: five fish, one drum, no treasure. */
+  const small = (): Lake => {
+    const total = 5 + 1 * DRUM_RULES.worth;
+    return {
+      ...HOME,
+      id: 'stub',
+      name: 'Stub Pond',
+      cliff: null,
+      jetty: null,
+      cabin: null,
+      fishCount: 5,
+      drums: { ...HOME.drums, count: 1 },
+      treasures: { ...HOME.treasures, count: 0, list: [] },
+      toClean: 5,
+      total,
+      contaminationAfter: (cured, drums) => Math.max(0, 1 - (cured + drums * DRUM_RULES.worth) / total),
+    };
+  };
+
+  it('is the home lake unless told another', () => {
+    const game = new Game(new Progress(memoryStore()), { random: seeded(1) });
+    expect(game.lake).toBe(HOME);
+    expect(HOME.id in LAKES).toBe(true);
+    expect(lakeNamed('no such lake')).toBe(HOME);
+  });
+
+  it('fills the fish, places the drums and the treasures, and counts the cure by the lake', () => {
+    const lake = small();
+    const game = new Game(new Progress(memoryStore(), lake), { lake, random: seeded(1) });
+    expect(game.lake).toBe(lake);
+    expect(game.fish.count).toBe(5);
+    expect(game.drums.count).toBe(1);
+    expect(game.treasures.count).toBe(0);
+    expect(lake.contaminationAfter(5, 1)).toBe(0);
+    expect(game.contamination).toBe(1);
+    // the drum lies on the bed in the lake's water, where the pond's own first drum would
+    expect(lake.inside(game.drums.x[0], game.drums.y[0], lake.drums.where.margin)).toBe(true);
+  });
+
+  it('keeps every rule over three hundred frames, and a cure cleans by the lake’s own sum', () => {
+    const lake = small();
+    const game = new Game(new Progress(memoryStore(JSON.stringify({ cured: 5, drums: 1 })), lake), {
+      lake,
+      random: seeded(2),
+    });
+    expect(game.contamination, 'five cured and the drum hauled make it clean').toBe(0);
+    expect(game.pondClean).toBe(true);
+    for (let f = 0; f < 300; f++) {
+      game.step(DT);
+      expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+    }
+  });
+
+  it('keeps the rules with fish swimming and a lure cast, in a lake with no jetty', () => {
+    const lake = small();
+    const game = new Game(new Progress(memoryStore(), lake), { lake, random: seeded(3) });
+    game.cast(Math.PI / 2, 0.6);
+    for (let f = 0; f < 300; f++) {
+      game.step(DT);
+      expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+    }
+  });
+
+  it('places a lake’s bed finds the same each time it is asked', () => {
+    const lake = small();
+    const a = new Game(new Progress(memoryStore(), lake), { lake, random: seeded(1) });
+    const b = new Game(new Progress(memoryStore(), lake), { lake, random: seeded(9) });
+    expect([...a.drums.x]).toEqual([...b.drums.x]);
+    expect([...a.drums.y]).toEqual([...b.drums.y]);
   });
 });

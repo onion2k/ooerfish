@@ -15,29 +15,8 @@
  * are the ones they always had, and tuning the dressing never moves them.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import {
-  MAX_DEPTH,
-  ANGLER,
-  BANK_RISE,
-  BANK_TOP,
-  BED_SHALLOWS,
-  CABIN,
-  CLIFF,
-  NOTCHES,
-  SCENERY,
-  SHORE_RADIUS,
-  STRETCH,
-  bareGround,
-  bedDepth,
-  bowlDepthAt,
-  cabinGap,
-  groundUnder,
-  inside,
-  jettyGap,
-  onFace,
-  onFall,
-  shoreRadius,
-} from './lake';
+import type { BedShallows, Lake } from './lakes/lake';
+import { HOME } from './lakes';
 import { place } from './matrix';
 import { ball, box, sheet, splitBySlope } from './meshes';
 import type { Mesh } from 'artshape-render/mesh/types';
@@ -48,41 +27,23 @@ import { surface } from './water/surface';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
 import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeBounds, treeFor, type TreeKind } from './trees';
 
-/** How far out the banks are drawn, as a share of the shore's distance: past where the camera sees, so no edge shows. */
-const BANKS_TO = 12;
-/**
- * Where the banks' rings go, as stops of (from, to, how many rings): fine up the cliff's wall, where the ground rises
- * eighteen units in a few, then coarser behind it and packed outward to `BANKS_TO`. The sheet has enough segments round
- * that a fall's notch, two or three units wide, is a few of them.
- */
-const BANK_STOPS: readonly [number, number, number][] = [
-  [0.98, CLIFF.foot, 2],
-  [CLIFF.foot, CLIFF.top + 0.04, 16],
-  [CLIFF.top + 0.04, 1.6, 8],
-];
+/** How many rings the far banks take beyond the stops, and how many segments the sheet has round. */
 const BANK_FAR_RINGS = 24;
 const BANK_SEGMENTS = 360;
 
-/** The rings the banks' sheet is laid out in. */
-function bankRings(): number[] {
-  const ks: number[] = [BANK_STOPS[0][0]];
-  for (const [from, to, n] of BANK_STOPS) for (let i = 1; i <= n; i++) ks.push(from + (to - from) * (i / n));
-  const last = BANK_STOPS[BANK_STOPS.length - 1][1];
-  for (let i = 1; i <= BANK_FAR_RINGS; i++) ks.push(last + (BANKS_TO - last) * (i / BANK_FAR_RINGS) ** 1.5);
+/**
+ * The rings the banks' sheet is laid out in: the lake's stops (`lake.scenery.banks`, fine up a cliff's wall where it has
+ * one, then coarser and packed outward) and then out to how far the banks are drawn, past where the camera sees.
+ */
+function bankRings(lake: Lake): number[] {
+  const { stops, to } = lake.scenery.banks;
+  const ks: number[] = [stops[0][0]];
+  for (const [from, end, n] of stops) for (let i = 1; i <= n; i++) ks.push(from + (end - from) * (i / n));
+  const last = stops[stops.length - 1][1];
+  for (let i = 1; i <= BANK_FAR_RINGS; i++) ks.push(last + (to - last) * (i / BANK_FAR_RINGS) ** 1.5);
   return ks;
 }
 
-/** How many stones line the shore, and how many trees stand on the banks. */
-const STONES = 70;
-const TREES = 26;
-/** How many rocks lie on the bed, and how many clumps of weed grow from it, of how many blades each. */
-const ROCKS = 36;
-const CLUMPS = 14;
-const BLADES = 5;
-/** The seed the stones and trees are placed from: the lake's own, so they stand still whatever the game's seed. */
-const SCENERY_SEED = 1971;
-/** The seed the kit's dressing is drawn from: a constant of its own, so it is independent of the stream above and of the game. */
-export const DRESSING_SEED = 4417;
 /** How many tries a placement the cliff's face turned away gets to find a clear place on the plateau behind. */
 const PLATEAU_TRIES = 200;
 /** How far, in radians round the shore, a pebble slides at a time to get off the cabin's ground or the deck, and how many slides it gets. */
@@ -135,10 +96,12 @@ interface Spot {
 
 const lerp = (range: readonly [number, number], k: number) => range[0] + (range[1] - range[0]) * k;
 
-/** Where a ring `k` of the way out from the middle is, at an angle, on the lake's own stretched shape. */
-function ring(k: number, angle: number): [number, number] {
-  const r = k * shoreRadius(angle);
-  return [Math.cos(angle) * r * STRETCH, Math.sin(angle) * r];
+/** Where a ring `k` of the way out from the middle is, at an angle, on a lake's own stretched shape. */
+function ringOn(lake: Lake): (k: number, angle: number) => [number, number] {
+  return (k, angle) => {
+    const r = k * lake.shoreRadius(angle);
+    return [Math.cos(angle) * r * lake.stretch, Math.sin(angle) * r];
+  };
 }
 
 /** A band of the bed: from and to which shares of the shore's distance it reaches, and the colour it is drawn in. */
@@ -158,12 +121,12 @@ const BED_RINGS = 28;
 const BED_SEGMENTS = 160;
 
 /** How far out from the middle, as a share of the shore's distance, the bowl is a depth deep: the bowl only shallows outward. */
-function shareAtDepth(depth: number): number {
+function shareAtDepth(lake: Lake, depth: number): number {
   let deep = 0,
     shallow = 1;
   for (let i = 0; i < 60; i++) {
     const mid = (deep + shallow) / 2;
-    if (bowlDepthAt(mid) > depth) deep = mid;
+    if (lake.bowlDepthAt(mid) > depth) deep = mid;
     else shallow = mid;
   }
   return (deep + shallow) / 2;
@@ -177,17 +140,18 @@ function shareAtDepth(depth: number): number {
  * slate and the sand fall out of the same rule as the blend. Fewer than two bands could not hold both, and is refused.
  */
 export function bedCuts(
-  shallows: { depth: number; blend: number; bands: number; beach: number } = BED_SHALLOWS,
+  lake: Lake,
+  shallows?: BedShallows,
   sand: Colour = PALETTE.sand,
   slate: Colour = PALETTE.bed,
 ): BedCut[] {
-  const { depth, blend, bands, beach } = shallows;
+  const { depth, blend, bands, beach } = shallows ?? lake.bedShallows;
   if (!Number.isInteger(bands) || bands < 2) throw new Error(`the bed needs two bands at least, not ${bands}`);
-  const deep = shareAtDepth(depth + blend),
-    shallow = shareAtDepth(depth);
+  const deep = shareAtDepth(lake, depth + blend),
+    shallow = shareAtDepth(lake, depth);
   const edges = [0];
   // asked of the depth and not of the share, which at the deepest point comes out a hair over nought and not nought
-  if (depth + blend < MAX_DEPTH) {
+  if (depth + blend < lake.maxDepth) {
     edges.push(deep);
     for (let i = 1; i < bands - 2; i++) edges.push(deep + ((shallow - deep) * i) / (bands - 2));
     // with only the two, the slate meets the sand at the shallows' depth itself
@@ -202,21 +166,25 @@ export function bedCuts(
   edges.push(beach);
   const cuts: BedCut[] = [];
   for (let i = 0; i < bands; i++) {
-    const t = Math.min(1, Math.max(0, (bowlDepthAt((edges[i] + edges[i + 1]) / 2) - depth) / blend));
+    const t = Math.min(1, Math.max(0, (lake.bowlDepthAt((edges[i] + edges[i + 1]) / 2) - depth) / blend));
     cuts.push({ from: edges[i], to: edges[i + 1], colour: mix(sand, slate, t) });
   }
   return cuts;
 }
 
-let bands: BedBand[] | undefined;
+const bands = new WeakMap<Lake, BedBand[]>();
 
 /**
- * The bed's bands as sheets, made once: each the ground without the boulders between its radii, on the rings the one
- * sheet had and a ring at each cut, so the bed is the shape it was and neighbouring bands meet on the same ring.
+ * The bed's bands as sheets, made once for each lake: each the ground without the boulders between its radii, on the
+ * rings the one sheet had and a ring at each cut, so the bed is the shape it was and neighbouring bands meet on the
+ * same ring.
  */
-export function bedBands(): readonly BedBand[] {
-  bands ??= bedCuts().map((cut) => {
-    const { beach } = BED_SHALLOWS;
+export function bedBands(lake: Lake): readonly BedBand[] {
+  let made = bands.get(lake);
+  if (made) return made;
+  const ring = ringOn(lake);
+  made = bedCuts(lake, undefined, PALETTE.sand, PALETTE.bed).map((cut) => {
+    const { beach } = lake.bedShallows;
     const rings = [cut.from];
     for (let i = 1; i < BED_RINGS; i++) {
       // the one sheet's rings, packed toward the middle as `sheet` packs them
@@ -224,9 +192,10 @@ export function bedBands(): readonly BedBand[] {
       if (k > cut.from && k < cut.to) rings.push(k);
     }
     rings.push(cut.to);
-    return { ...cut, mesh: sheet(ring, groundUnder, 0, 0, rings, BED_SEGMENTS) };
+    return { ...cut, mesh: sheet(ring, lake.groundUnder, 0, 0, rings, BED_SEGMENTS) };
   });
-  return bands;
+  bands.set(lake, made);
+  return made;
 }
 
 /**
@@ -234,15 +203,15 @@ export function bedBands(): readonly BedBand[] {
  * so the top stays under the sun's shadow whatever the range says, for a tree standing at height `z`. A variant is one
  * tall, so the height is also the scale it is drawn at.
  */
-export function treeHeight(tree: TreeKind, z: number, u: number): number {
-  return Math.min(lerp(SCENERY.trees[tree], u), (SHADOW_BOX.max[2] - z) * 0.999);
+export function treeHeight(tree: TreeKind, z: number, u: number, lake: Lake): number {
+  return Math.min(lerp(lake.scenery.trees[tree], u), (lake.shadowBox.max[2] - z) * 0.999);
 }
 
 /** A tree stood at a place from the three draws it takes of the dressing stream, in order: its pick, its turn and its height. */
-function treeAt(x: number, y: number, pick: number, turn: number, size: number): TreePlacement {
-  const z = bareGround(x, y);
+function treeAt(lake: Lake, x: number, y: number, pick: number, turn: number, size: number): TreePlacement {
+  const z = lake.bareGround(x, y);
   const { tree, variant } = treeFor(pick);
-  return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size) };
+  return { kind: 'tree', tree, variant, x, y, z, yaw: turn * Math.PI * 2, height: treeHeight(tree, z, size, lake) };
 }
 
 /** A lump of rock embedded in the cliff: where it is, which way it is turned, and its half-widths along the wall, out from it and up. */
@@ -261,24 +230,28 @@ export interface CliffLump {
  * The lumps of rock along the cliff's crest and its foot, drawn from a seed of their own so nothing else moves: each
  * kind spread evenly across the part of the wall that stands whole, jittered, its middle on the ground (so the lower
  * half is sunk in the wall or the ledge), and slid along the wall from any fall's channel, which is left bare for the
- * water. The same every call.
+ * water. The same every call, and none for a lake with no cliff.
  */
-export function cliffLumps(): CliffLump[] {
-  const random = seeded(CLIFF.seed);
-  const reach = CLIFF.half - CLIFF.edge - 0.04;
+export function cliffLumps(lake: Lake): CliffLump[] {
+  if (!lake.cliff) return [];
+  const { spec: cliff, notches } = lake.cliff;
+  const ring = ringOn(lake);
+  const { groundUnder } = lake;
+  const random = seeded(cliff.seed);
+  const reach = cliff.half - cliff.edge - 0.04;
   const out: CliffLump[] = [];
   for (const where of ['crest', 'foot', 'face'] as const) {
-    const { count, k, size, spread } = CLIFF.lumps[where];
+    const { count, k, size, spread } = cliff.lumps[where];
     for (let i = 0; i < count; i++) {
       const rx = lerp(size, random());
       const ry = rx * (where === 'crest' ? 0.5 + random() * 0.3 : 0.8 + random() * 0.4);
       const rz = rx * (where === 'crest' ? 0.9 + random() * 0.5 : 0.6 + random() * 0.4);
       const turn = (random() - 0.5) * 0.6;
-      let angle = CLIFF.middle + reach * (((i + 0.5 + (random() - 0.5) * 0.5) / count) * 2 - 1);
+      let angle = cliff.middle + reach * (((i + 0.5 + (random() - 0.5) * 0.5) / count) * 2 - 1);
       let [x, y] = ring(k + (random() - 0.5) * spread, angle);
       // slid along the wall, away from a channel it would stand in, until it clears it
       for (let step = 0; step < 60; step++) {
-        const n = NOTCHES.find(
+        const n = notches.find(
           (m) => Math.abs((x - m.x) * m.along[0] + (y - m.y) * m.along[1]) < m.width / 2 + Math.max(rx, ry) * 0.5 + 0.5,
         );
         if (!n) break;
@@ -310,12 +283,20 @@ const PALETTE_KEYS = new Map<Colour, keyof Palette>(
 const NO_KIT = {};
 
 export class Scene {
+  /** The lake it draws: the pond unless one is handed in, and every figure and sum of the lake's is read from it. */
+  constructor(private readonly lake: Lake = HOME) {}
+
   /**
    * Everything the one seeded stream draws, in the order it always has: the stones, trees, bed rocks and weed (the
    * boulders are `rocks.ts`'s, from seeds of their own). The stones' and trees' spots are kept for the kit, which stands its own models on them.
    */
   private layout() {
-    const random = seeded(SCENERY_SEED);
+    const { lake } = this;
+    const { counts } = lake.scenery;
+    const { stones: STONES, trees: TREES, rocks: ROCKS, clumps: CLUMPS, blades: BLADES } = counts;
+    const { bareGround, bedDepth } = lake;
+    const ring = ringOn(lake);
+    const random = seeded(lake.scenery.seeds.scene);
 
     // stones along the water's edge, half sunk, of a few sizes
     const stones = new Float32Array(STONES * 16);
@@ -377,8 +358,13 @@ export class Scene {
    * last in the list, and the cliff turns away what it must. The same every call.
    */
   placements(kit: Kit): Placement[] {
+    const { lake } = this;
+    const { scenery, bareGround, onFace, onFall } = lake;
     const { stoneSpots, treeSpots } = this.layout();
-    const random = seeded(DRESSING_SEED);
+    const random = seeded(scenery.seeds.dressing);
+    const ring = ringOn(lake);
+    const cliff = lake.cliff?.spec;
+    const clearOfCabin = (x: number, y: number) => !lake.onCabinOrDeck(x, y);
     // by name, so the pick does not depend on the order the manifest happens to list the models in
     const named = [...kit.models.values()].sort((a, b) => (a.name < b.name ? -1 : 1));
     const pick = (models: KitModel[]) => models[Math.floor(random() * models.length)];
@@ -387,15 +373,15 @@ export class Scene {
     // the plateau behind, from a stream of the cliff's own, after the draws: every other is exactly where it would have
     // been, none is lost, and the counts are the content's
     // what the cabin or the deck turned away is moved from a stream of its own, so the cliff's are where they were
-    const spareCliff = seeded(CLIFF.seed + 1);
-    const spareForCabin = seeded(CLIFF.seed + 2);
+    const spareCliff = seeded((cliff?.seed ?? 0) + 1);
+    const spareForCabin = seeded((cliff?.seed ?? 0) + 2);
     // a pebble the draws stood on the jetty's shore end slides along the shore to the nearest bank beside it, at the same
     // distance from the water: it is one pebble still, and the stream is not touched
     const alongShore = (make: (x: number, y: number) => KitPlacement, drawn: KitPlacement): KitPlacement => {
       const free = (p: KitPlacement) => footprint(p).every(([x, y]) => clearOfCabin(x, y));
       if (free(drawn)) return drawn;
-      const angle = Math.atan2(drawn.y, drawn.x / STRETCH);
-      const k = Math.hypot(drawn.x / STRETCH, drawn.y) / shoreRadius(angle);
+      const angle = Math.atan2(drawn.y, drawn.x / lake.stretch);
+      const k = Math.hypot(drawn.x / lake.stretch, drawn.y) / lake.shoreRadius(angle);
       for (let n = 1; n <= SLIDE_TRIES; n++)
         for (const sign of [1, -1]) {
           const [x, y] = ring(k, angle + sign * n * SLIDE_STEP);
@@ -412,15 +398,16 @@ export class Scene {
     ) => {
       const offCliff = (p: Placement) => footprint(p).every(([x, y]) => !onFace(x, y) && !onFall(x, y));
       const clear = (p: Placement) => offCliff(p) && footprint(p).every(([x, y]) => clearOfCabin(x, y));
-      if (clear(drawn)) return drawn;
+      // a lake with no cliff has no plateau to move a placement onto, and leaves it where it was drawn
+      if (clear(drawn) || !cliff) return drawn;
       // the cliff's own turned away keep their stream; those only the cabin or the deck turned away take the other
       const spare = offCliff(drawn) ? spareForCabin : spareCliff;
       let moved = drawn;
       for (let tries = 0; tries < PLATEAU_TRIES; tries++) {
-        const angle = CLIFF.middle + (spare() * 2 - 1) * (CLIFF.half - CLIFF.edge - 0.05);
+        const angle = cliff.middle + (spare() * 2 - 1) * (cliff.half - cliff.edge - 0.05);
         // further out as it goes, by a square root, as the woodland is, or nearer by a square, as the clumps are
         const u = spare();
-        const from = Math.max(lo, CLIFF.top + 0.3);
+        const from = Math.max(lo, cliff.top + 0.3);
         const [x, y] = ring(from + (hi - from) * (near ? u * u : Math.sqrt(u)), angle);
         moved = make(x, y);
         if (clear(moved)) break;
@@ -432,13 +419,13 @@ export class Scene {
     for (const { x, y } of stoneSpots) {
       const model = pick(pebbles);
       const yaw = random() * Math.PI * 2;
-      const scale = lerp(SCENERY.pebbles.scale, random());
+      const scale = lerp(scenery.pebbles.scale, random());
       const stone = (x: number, y: number): KitPlacement => ({
         model,
         kind: 'pebble',
         x,
         y,
-        z: bareGround(x, y) - SCENERY.pebbles.sunk * model.bounds.max[2] * scale,
+        z: bareGround(x, y) - scenery.pebbles.sunk * model.bounds.max[2] * scale,
         yaw,
         scale,
       });
@@ -451,27 +438,30 @@ export class Scene {
       const pick = random(),
         turn = random(),
         size = random();
-      out.push(onPlateau((x, y) => treeAt(x, y, pick, turn, size), treeAt(x, y, pick, turn, size), [1.5, 2.3]));
+      out.push(
+        onPlateau((x, y) => treeAt(lake, x, y, pick, turn, size), treeAt(lake, x, y, pick, turn, size), [1.5, 2.3]),
+      );
     }
 
     // clumps: a kind by its weight, a model of it, a place nearer the water more often than far, and kept only if
     // dry to its corners and clear of the angler
-    const kinds = Object.entries(SCENERY.clumps.kinds).filter(([k]) => named.some((m) => m.kind === k));
+    const kinds = Object.entries(scenery.clumps.kinds).filter(([k]) => named.some((m) => m.kind === k));
     const total = kinds.reduce((n, [, v]) => n + v.weight, 0);
     let made = 0;
-    for (let tries = 0; made < SCENERY.clumps.count && tries < SCENERY.clumps.count * TRIES; tries++) {
+    for (let tries = 0; made < scenery.clumps.count && tries < scenery.clumps.count * TRIES; tries++) {
       let at = random() * total;
       const [kind, spec] = kinds.find(([, v]) => (at -= v.weight) < 0) ?? kinds[kinds.length - 1];
       const model = pick(named.filter((m) => m.kind === kind));
       const angle = random() * Math.PI * 2;
       const u = random();
-      const [x, y] = ring(1 + (SCENERY.clumps.reach - 1) * u * u, angle);
+      const [x, y] = ring(1 + (scenery.clumps.reach - 1) * u * u, angle);
       const yaw = random() * Math.PI * 2;
       const scale = lerp(spec.scale, random());
       const placed: Placement = { model, kind: 'clump', x, y, z: bareGround(x, y), yaw, scale };
       if (
         !footprint(placed).every(
-          ([fx, fy]) => !inside(fx, fy, 0) && Math.hypot(fx - ANGLER.x, fy - ANGLER.y) >= SCENERY.clumps.clear,
+          ([fx, fy]) =>
+            !lake.inside(fx, fy, 0) && Math.hypot(fx - lake.angler.x, fy - lake.angler.y) >= scenery.clumps.clear,
         )
       )
         continue;
@@ -481,7 +471,7 @@ export class Scene {
 
     // the woodland: more trees in a band out from the banks, denser further out by a square root, the near south bank
     // kept clear; the top held under the sun's shadow as the spot trees' are
-    const { count, band, southBand } = SCENERY.woodland;
+    const { count, band, southBand } = scenery.woodland;
     for (let i = 0; i < count; i++) {
       const draw = random();
       const angle = random() * Math.PI * 2;
@@ -490,7 +480,9 @@ export class Scene {
       const [x, y] = ring(lo + (hi - lo) * u, angle);
       const turn = random();
       const size = random();
-      out.push(onPlateau((x, y) => treeAt(x, y, draw, turn, size), treeAt(x, y, draw, turn, size), [lo, hi]));
+      out.push(
+        onPlateau((x, y) => treeAt(lake, x, y, draw, turn, size), treeAt(lake, x, y, draw, turn, size), [lo, hi]),
+      );
     }
     return out;
   }
@@ -516,18 +508,24 @@ export class Scene {
 
   private build(kit?: Kit): GameGroup[] {
     const palette = PALETTE;
+    const { lake } = this;
+    const ring = ringOn(lake);
     const { stones, trunks, puffs, rocks, blades } = this.layout();
     // the bed and the banks, one height in sheets of their own colours, meeting under the water at the shore: the bed's
     // bands from the slate of the deep to the sand of the shallows, and the banks; the sheets are the ground without
     // the boulders, which are drawn on it as their own
     // the banks, cut by slope: the grass where the ground is gentle, the rock where it leans past the rock slope
-    const { steep, gentle } = splitBySlope(sheet(ring, groundUnder, 0, 0, bankRings(), BANK_SEGMENTS), CLIFF.rockSlope);
+    // (a lake with no cliff has no rock slope, so all its banks are the grass's)
+    const { steep, gentle } = splitBySlope(
+      sheet(ring, lake.groundUnder, 0, 0, bankRings(lake), BANK_SEGMENTS),
+      lake.cliff?.spec.rockSlope ?? Infinity,
+    );
     const one = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
     const groups: GameGroup[] = [
-      ...bedBands().map((band) => ({ mesh: band.mesh, matrices: one, albedo: band.colour, roughness: 0.95 })),
+      ...bedBands(lake).map((band) => ({ mesh: band.mesh, matrices: one, albedo: band.colour, roughness: 0.95 })),
       // the boulders and the cliff's lumps are faceted rock with a painted edge, a group each at its own stretch
-      ...boulderMeshes().map(({ mesh, matrix }) => ({
+      ...boulderMeshes(lake).map(({ mesh, matrix }) => ({
         mesh,
         matrices: matrix,
         albedo: palette.boulder,
@@ -536,8 +534,8 @@ export class Scene {
       { mesh: ball(1, 3, 6), matrices: rocks, albedo: palette.bedRock, roughness: 0.85 },
       { mesh: box(1, 1, 1), matrices: blades, albedo: palette.weed, roughness: 0.8 },
       { mesh: gentle, matrices: one, albedo: palette.grass, roughness: 0.9 },
-      { mesh: steep, matrices: one, albedo: palette.cliff, roughness: 0.92 },
-      ...cliffLumpMeshes(cliffLumps()).map(({ mesh, matrix }) => ({
+      ...(lake.cliff ? [{ mesh: steep, matrices: one, albedo: palette.cliff, roughness: 0.92 }] : []),
+      ...cliffLumpMeshes(cliffLumps(lake), lake).map(({ mesh, matrix }) => ({
         mesh,
         matrices: matrix,
         albedo: palette.cliff,
@@ -606,7 +604,7 @@ export interface SceneryFigures {
 }
 
 /** The figures of a set of placements, worked out from them as `static` makes its groups from them. */
-export function sceneryFigures(placements: Placement[]): SceneryFigures {
+export function sceneryFigures(placements: Placement[], lake: Lake): SceneryFigures {
   const placed = new Set<KitModel>();
   const variants = new Set<string>();
   let triangles = 0;
@@ -622,18 +620,13 @@ export function sceneryFigures(placements: Placement[]): SceneryFigures {
   let cards = 0;
   for (const model of placed) for (const part of model.parts) if (part.layer > 0) cards++;
   // the rocks, each a placement of a mesh of its own: the boulders in the water and the cliff's lumps
-  const rocks = [...boulderMeshes(), ...cliffLumpMeshes(cliffLumps())];
+  const rocks = [...boulderMeshes(lake), ...cliffLumpMeshes(cliffLumps(lake), lake)];
   for (const rock of rocks) triangles += rock.mesh.indices.length / 3;
   // the bed's bands, drawn once each and counted with the rest, so a band given rings of its own shows in the figure
-  for (const band of bedBands()) triangles += band.mesh.indices.length / 3;
+  for (const band of bedBands(lake)) triangles += band.mesh.indices.length / 3;
   // the water's surface, drawn once, so a sheet made finer shows in the figure and is held under its ceiling
-  triangles += surface().indices.length / 3;
+  triangles += surface(lake).indices.length / 3;
   return { models: placed.size + variants.size, placements: placements.length + rocks.length, triangles, cards };
-}
-
-/** Whether a point is clear of the cabin's roof and the jetty's deck, and the keep-back round them. */
-function clearOfCabin(x: number, y: number): boolean {
-  return cabinGap(x, y) >= CABIN.clear && jettyGap(x, y) >= CABIN.clear;
 }
 
 /** The corners of a placement's footprint on the ground, after its yaw and scale, and its middle. */
@@ -645,17 +638,3 @@ export function footprint(p: Placement): [number, number][] {
   const at = (x: number, y: number): [number, number] => [p.x + (c * x - s * y) * scale, p.y + (s * x + c * y) * scale];
   return [at(0, 0), at(min[0], min[1]), at(max[0], min[1]), at(min[0], max[1]), at(max[0], max[1])];
 }
-
-/**
- * What the sun's shadow is fitted to: the lake and the banks round it, up to the tallest tree standing on the cliff's
- * plateau (the trees at true scale stand up to thirty-two tall, on a plateau twenty over the water), with a unit to
- * spare. It was forty before the cliff.
- */
-export const SHADOW_BOX = {
-  min: [-(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, -(SHORE_RADIUS * 1.5 + BANK_RISE), -8] as [number, number, number],
-  max: [
-    (SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH,
-    SHORE_RADIUS * 1.5 + BANK_RISE,
-    BANK_TOP + CLIFF.height + Math.max(...Object.values(SCENERY.trees).map((r) => r[1])) + 1,
-  ] as [number, number, number],
-};

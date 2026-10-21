@@ -18,10 +18,13 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { FISH_KINDS, HEAL } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { HEAL } from '../src/lake';
 import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
+
+const FISH_KINDS = HOME.fishKinds;
 
 /**
  * How far the pictures may differ before it is a change and not the GPU: not a pixel whose colour is off by more

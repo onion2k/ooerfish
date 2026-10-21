@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { checkInvariants } from '../src/invariants';
 import { depthRange } from '../src/fish';
 import { fightFor, gearFor } from '../src/fight';
-import { DECK, DRUMS, TREASURES, bedDepth, contaminationAfter, inside } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { newGame, settle } from './helpers';
+
+const DECK = HOME.jetty!.deck;
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+const bedDepth = HOME.bedDepth;
+const contaminationAfter = HOME.contaminationAfter;
+const inside = HOME.inside;
 
 describe('what must always hold', () => {
   it('holds of a new lake, and of one played a while', () => {
@@ -95,7 +103,7 @@ describe('what must always hold', () => {
     game.fish.x[0] = x;
     game.fish.y[0] = 0;
     game.fish.heading[0] = 0;
-    game.fish.depth[0] = depthRange(x, 0)[0];
+    game.fish.depth[0] = depthRange(x, 0, HOME)[0];
     game.fish.rise[0] = -10;
     expect(checkInvariants(game)).toEqual([]);
     game.fish.rise[0] = 10;
@@ -289,7 +297,7 @@ describe('the treasures on the bed', () => {
     game.progress.save.found = ['lure', 'lure'];
     expect(bad(game)).toMatch(/the save has the treasure lure twice/);
     game.progress.save.found = [...TREASURES.list.map((t) => t.id), 'duck'];
-    expect(bad(game)).toMatch(/the save has 7 treasures found, of 6 in the pond/);
+    expect(bad(game)).toMatch(/the save has 7 treasures found, of 6 in the lake/);
   });
 
   it('holds the treasures found on the bed to the save’s ids', () => {

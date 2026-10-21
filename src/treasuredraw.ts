@@ -13,7 +13,7 @@ import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import type { BedFinds } from './bedfinds';
 import { placeAt } from './cabin';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, TREASURES, bedDepth } from './lake';
+import type { Lake } from './lakes/lake';
 import { place } from './matrix';
 import { PALETTE, type Colour } from './palette';
 
@@ -35,11 +35,11 @@ const REST = Math.sin(Math.PI / 3);
 const paint = (mesh: Mesh) => painted(split(mesh), { set: PAINT_SET, choice: 'gate' });
 
 /**
- * Treasure `i`'s parts, built at one standing on z = 0 about the origin and facing +x, to the size `TREASURES` says.
+ * Treasure `i`'s parts, built at one standing on z = 0 about the origin and facing +x, to the size the lake's `treasures` say.
  * The same every time, and each under sixty triangles together.
  */
-export function treasureParts(i: number): TreasurePart[] {
-  switch (TREASURES.list[i].id) {
+export function treasureParts(i: number, lake: Lake): TreasurePart[] {
+  switch (lake.treasures.list[i].id) {
     case 'lure': {
       // a spinner lying on its side: a rusted spindle with a bright blade at its head and a hook's bar
       const body = built((b) => rod(b, [-0.3, 0, 0.1 * REST], [0.3, 0, 0.1 * REST], 0.1, 6, true));
@@ -118,14 +118,16 @@ export function treasureParts(i: number): TreasurePart[] {
 }
 
 /** Where treasure `i` lies on the bed, a little sunk, and which way it points: its own, from its index. */
-export function bedSpot(treasures: BedFinds, i: number): [number, number, number, number] {
+export function bedSpot(treasures: BedFinds, i: number, lake: Lake): [number, number, number, number] {
   const [x, y] = [treasures.x[i], treasures.y[i]];
-  return [x, y, -bedDepth(x, y) - SUNK, i * 2.1];
+  return [x, y, -lake.bedDepth(x, y) - SUNK, i * 2.1];
 }
 
 /** Where treasure `i` stands on its shelf in the cabin, in the world: on the shelf's top, facing into the room. */
-export function shelfSpot(i: number): [number, number, number, number] {
-  const t = TREASURES.list[i];
+export function shelfSpot(i: number, lake: Lake): [number, number, number, number] {
+  if (!lake.cabin) throw new Error(`${lake.name} has no cabin, so no shelf`);
+  const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = lake.cabin;
+  const t = lake.treasures.list[i];
   const sh = t.shelf.on === 'lower' ? CABIN_ROOM.furniture.shelf : CABIN_ROOM.furniture.shelfUpper;
   const wall = CABIN.body.across / 2 - CABIN_ROOM.inset;
   const [x, y] = placeAt(CABIN_AT)([wall - sh.deep / 2, t.shelf.along, 0]);
@@ -139,19 +141,25 @@ export class TreasureDraw {
   private matrices: Float32Array[] = [];
   private parts: TreasurePart[][] | null = null;
 
+  /** The treasures of `lake`: its bed under the ones lost, and its cabin's shelves for the ones found. */
+  constructor(private readonly lake: Lake) {}
+
   /**
    * The groups of every treasure, a part each: the ones still on the bed lie there, and the ones found stand on the
    * shelf. Call again when the count found changes; the meshes are built and the matrices sized once.
    */
   groups(treasures: BedFinds): GameGroup[] {
-    this.parts ??= TREASURES.list.map((_, i) => treasureParts(i));
+    const { lake } = this;
+    this.parts ??= lake.treasures.list.map((_, i) => treasureParts(i, lake));
     if (this.matrices.length === 0)
       for (const p of this.parts) for (let k = 0; k < p.length; k++) this.matrices.push(new Float32Array(16));
     const out: GameGroup[] = [];
     let g = 0;
     this.parts.forEach((parts, i) => {
-      const [x, y, z, yaw] = treasures.found[i] ? shelfSpot(i) : bedSpot(treasures, i);
-      const scale = treasures.found[i] ? TREASURES.shelfScale : TREASURES.bedScale;
+      // a find in a lake with no cabin has no shelf to stand on, and is drawn on the bed at no size at all
+      const shelved = treasures.found[i] && lake.cabin !== null;
+      const [x, y, z, yaw] = shelved ? shelfSpot(i, lake) : bedSpot(treasures, i, lake);
+      const scale = shelved ? lake.treasures.shelfScale : treasures.found[i] ? 0 : lake.treasures.bedScale;
       for (const p of parts) {
         const m = this.matrices[g++];
         place(m, 0, x, y, z, yaw, scale);

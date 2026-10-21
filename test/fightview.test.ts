@@ -2,9 +2,12 @@
 import { describe, expect, it } from 'vitest';
 import { cardWords, fightPicture } from '../src/fightview';
 import { Game } from '../src/game';
-import { TREASURES } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { TREASURE_RULES } from '../src/rules';
 import { careful } from '../src/angler';
 import { DT, newGame } from './helpers';
+
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 const NORTH = Math.PI / 2;
 const MIDDLE = 0.55;

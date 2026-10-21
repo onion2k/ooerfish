@@ -3,22 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { School } from '../src/fish';
 import { seeded } from '../src/random';
 import { checkInvariants } from '../src/invariants';
-import {
-  BOULDERS,
-  CLOCK,
-  FISH_CAPACITY,
-  FISH_COUNT,
-  FISH_KINDS,
-  KINDS,
-  JETTY,
-  STRETCH,
-  bedDepth,
-  boulderGap,
-  inside,
-  jettyGap,
-  shoreRadius,
-} from '../src/lake';
+import { HOME } from '../src/lakes';
+import { CLOCK, FISH_CAPACITY, KINDS } from '../src/lake';
 import { DT, newGame, settle } from './helpers';
+
+const BOULDERS = HOME.boulders;
+const FISH_COUNT = HOME.fishCount;
+const FISH_KINDS = HOME.fishKinds;
+const JETTY = HOME.jetty!.spec;
+const STRETCH = HOME.stretch;
+const bedDepth = HOME.bedDepth;
+const boulderGap = HOME.boulderGap;
+const inside = HOME.inside;
+const jettyGap = HOME.jetty!.gap;
+const shoreRadius = HOME.shoreRadius;
 
 describe('the fish', () => {
   it('start in the water, as many as the lake has', () => {
@@ -139,7 +137,7 @@ describe('the fish', () => {
     const across = Math.atan2(-ix, iy);
     // a fish whose wander is stilled, headed straight at the deck from a few units off its side, begins to turn from it
     // while still well away, as it does from a boulder, and not only when a step would be refused
-    const school = new School();
+    const school = new School(HOME);
     school.fill(1, () => 0.5);
     const [fx, fy] = onDeck(8, JETTY.width / 2 + 3.5);
     school.x[0] = fx;
@@ -247,7 +245,7 @@ describe('what must always hold of the fish and the levers', () => {
 
 describe('the cured fish', () => {
   const stocked = (n: number, cured = 0, seed = 3) => {
-    const school = new School();
+    const school = new School(HOME);
     school.fill(n, seeded(seed), cured);
     return school;
   };
@@ -324,8 +322,8 @@ describe('the cured fish', () => {
       expect(Array.from(b[key]), key).toEqual(Array.from(a[key]));
     const ra = seeded(7),
       rb = seeded(7);
-    new School().fill(FISH_COUNT, ra);
-    new School().fill(FISH_COUNT, rb, 7);
+    new School(HOME).fill(FISH_COUNT, ra);
+    new School(HOME).fill(FISH_COUNT, rb, 7);
     expect(rb()).toBe(ra());
   });
 });
@@ -357,14 +355,14 @@ describe('the kinds in the school', () => {
     // measured on the school before kinds: seed 4 made 90 draws, and the next was this
     const inner = seeded(4);
     let calls = 0;
-    const school = new School();
+    const school = new School(HOME);
     school.fill(FISH_COUNT, () => (calls++, inner()));
     expect(calls).toBe(90);
     expect(inner()).toBe(0.47165641421452165);
   });
 
   it('keep the kind through a respawn and a refill', () => {
-    const school = new School();
+    const school = new School(HOME);
     school.fill(FISH_COUNT, seeded(4));
     const kinds = Array.from(school.kind.slice(0, FISH_COUNT));
     school.respawn(2, seeded(9));

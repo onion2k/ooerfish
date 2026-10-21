@@ -7,12 +7,13 @@
  *
  * Each is made from a seed of its own, by its place in the lake's content and never from the game's chance, so the
  * rocks are the same every run and one more rock moves no other. They are built once, the first time they are asked
- * for, and kept: a mesh is never built in a frame.
+ * for, and kept: a mesh is never built in a frame. They are kept for each lake, so a second lake builds its own and the
+ * first's stay.
  */
 import { painted, split, type PaintChoice } from 'artshape-render/mesh/paint';
 import { at, built, lump } from 'artshape-render/mesh/lowpoly';
 import type { Mesh } from 'artshape-render/mesh/types';
-import { BOULDER_DOMES, ROCKS } from './lake';
+import type { Lake, RockFigures } from './lakes/lake';
 import { place } from './matrix';
 import { seeded } from './random';
 import type { CliffLump } from './scene';
@@ -22,10 +23,6 @@ export interface Rock {
   mesh: ReturnType<typeof painted>;
   matrix: Float32Array;
 }
-
-/** The seeds the rocks are cut from, by index: the boulders from one hundred and the cliff's lumps from two hundred. */
-const BOULDER_SEED = 100;
-const LUMP_SEED = 200;
 
 /**
  * How many ridgelines a rock of a world radius carries: one for a pebble, two for a stone and three for a boulder.
@@ -44,6 +41,7 @@ interface Shaping {
 
 /** One rock's faceted mesh, split and painted: `axes` its half-widths, `seed` its cut, `choice` which ridges, `set` which paint. */
 function rockMesh(
+  rocks: RockFigures,
   axes: [number, number, number],
   seed: number,
   choice: PaintChoice,
@@ -52,12 +50,12 @@ function rockMesh(
   { floor = -Infinity, shape = (m) => m }: Shaping = {},
 ): Rock['mesh'] {
   const unit = built((b) =>
-    lump(b, at(0, 0, 0), seeded(seed), ROCKS.rings, ROCKS.segments, axes, { give: ROCKS.give, floor }),
+    lump(b, at(0, 0, 0), seeded(seed), rocks.rings, rocks.segments, axes, { give: rocks.give, floor }),
   );
   return painted(split(shape(unit)), {
     set,
     choice,
-    ...(choice === 'ridge' ? { ridge: { budget, spacing: ROCKS.spacing } } : {}),
+    ...(choice === 'ridge' ? { ridge: { budget, spacing: rocks.spacing } } : {}),
   });
 }
 
@@ -94,44 +92,62 @@ function twoHalves(mesh: Mesh, up: number, down: number): Mesh {
   return s;
 }
 
-let boulders: Rock[] | undefined;
+const boulders = new WeakMap<Lake, Rock[]>();
 
 /**
  * One painted mesh to each boulder's dome, with its middle at the waterline and its waterline radius across, the upper
  * half stretched to how high it stands and the lower to how deep it is sunk, on the ridge choice with a budget by its
- * radius, and its matrix a scale of one at the dome's place and turn. The same meshes every call.
+ * radius, and its matrix a scale of one at the dome's place and turn. The same meshes every call. The seeds are the lake's
+ * (`scenery.seeds`: the boulders count up from one, the cliff's lumps from another).
  */
-export function boulderMeshes(): Rock[] {
-  boulders ??= BOULDER_DOMES.map((d, i) => {
+export function boulderMeshes(lake: Lake): Rock[] {
+  const kept = boulders.get(lake);
+  if (kept) return kept;
+  const made = lake.domes.map((d, i) => {
     const under = -d.base;
     const rise = d.tall - under;
     // where the dome meets the waterline, narrower than its foot
     const radius = d.wide * Math.sqrt(1 - (under / d.tall) ** 2);
-    const mesh = rockMesh([radius, radius, 1], BOULDER_SEED + i, 'ridge', rockBudget(radius), 0, {
-      shape: (m) => twoHalves(m, rise, under),
-    });
+    const mesh = rockMesh(
+      lake.rocks,
+      [radius, radius, 1],
+      lake.scenery.seeds.boulder + i,
+      'ridge',
+      rockBudget(radius),
+      0,
+      {
+        shape: (m) => twoHalves(m, rise, under),
+      },
+    );
     const matrix = new Float32Array(16);
     place(matrix, 0, d.x, d.y, 0, i * 1.3, 1);
     return { mesh, matrix };
   });
-  return boulders;
+  boulders.set(lake, made);
+  return made;
 }
 
-let lumps: { key: string; rocks: Rock[] } | undefined;
+const lumps = new WeakMap<Lake, { key: string; rocks: Rock[] }>();
 
 /**
  * One painted mesh to each of the cliff's lumps (given, in their order), at the lump's own half-widths, on the gate's
  * choice and set two, its matrix a scale of one at the lump's place and yaw. Built once for the lumps first given, and
  * again only if they are not those.
  */
-export function cliffLumpMeshes(of: readonly CliffLump[]): Rock[] {
+export function cliffLumpMeshes(of: readonly CliffLump[], lake: Lake): Rock[] {
   const key = of.map((l) => [l.x, l.y, l.z, l.yaw, l.rx, l.ry, l.rz].join()).join(';');
-  if (lumps?.key === key) return lumps.rocks;
+  const kept = lumps.get(lake);
+  if (kept?.key === key) return kept.rocks;
   const rocks = of.map((l, i) => {
     const matrix = new Float32Array(16);
     place(matrix, 0, l.x, l.y, l.z, l.yaw, 1);
-    return { mesh: rockMesh([l.rx, l.ry, l.rz], LUMP_SEED + i, 'gate', 0, 2, { floor: ROCKS.floor * l.rz }), matrix };
+    return {
+      mesh: rockMesh(lake.rocks, [l.rx, l.ry, l.rz], lake.scenery.seeds.lump + i, 'gate', 0, 2, {
+        floor: lake.rocks.floor * l.rz,
+      }),
+      matrix,
+    };
   });
-  lumps = { key, rocks };
+  lumps.set(lake, { key, rocks });
   return rocks;
 }

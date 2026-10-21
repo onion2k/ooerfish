@@ -3,7 +3,7 @@
  * the window and the door in the lake-facing wall, and a lamp hung from the ceiling. The cabin's outer walls are the
  * solid blocks of `cabin.ts`, unchanged, so the room is wholly inside them and is never seen from outside; it is the
  * picture of waking, and the game knows nothing of it. Where everything stands and how big it is is the lake's
- * (`CABIN_ROOM`), the colours are handed in, and each part is made once, in the world's own frame, and placed by the
+ * (`lake.cabin.room`), the colours are handed in, and each part is made once, in the world's own frame, and placed by the
  * identity, with the timber taking the wood's painted edge as the cabin's does.
  */
 import { FLOW_GLOW, packFlow } from 'artshape-render/game/flow';
@@ -12,7 +12,8 @@ import { block, built, frustum, prism } from 'artshape-render/mesh/lowpoly';
 import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { placeAt } from './cabin';
-import { CABIN, CABIN_AT, CABIN_FLOOR, CABIN_ROOM, CALENDAR } from './lake';
+import type { Cabin, Lake } from './lakes/lake';
+import { CALENDAR } from './lake';
 import type { Colour } from './palette';
 
 /** The room's parts, in the order `roomGroups` makes them: a group, and a colour, each. */
@@ -84,14 +85,19 @@ function timber(mesh: Mesh) {
   return painted(split(mesh), { set: WOOD, choice: 'gate' });
 }
 
-/** The room's frame: `across` in toward the lake and `along` the shore, as the cabin's own, in the world. */
-const place = placeAt(CABIN_AT);
+/** The cabin a room is in: a lake with none has no room, and what asks for one is refused by name. */
+function cabinOf(lake: Lake): Cabin {
+  if (!lake.cabin) throw new Error(`${lake.name} has no cabin, so no room`);
+  return lake.cabin;
+}
 
 /**
  * The wall calendar's measures, worked out from `CABIN_ROOM.furniture.calendar` once: a square's cell, the sheet's
  * height, and where square `i` (row by row from the top left, as it is read) is in the world, on the sheet's face.
  */
-export function calendarGeometry() {
+export function calendarGeometry(lake: Lake) {
+  const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = cabinOf(lake);
+  const place = placeAt(CABIN_AT);
   const cal = CABIN_ROOM.furniture.calendar;
   const cell = (cal.wide - 2 * cal.margin) / CALENDAR.columns;
   const high = cal.bar + 2 * cal.margin + CALENDAR.rows * cell;
@@ -124,13 +130,17 @@ export function calendarGeometry() {
 }
 
 /** Where the lamp hangs, in the world: the bulb's middle. */
-export function lampAt(): [number, number, number] {
-  const [x, y] = place([CABIN_ROOM.lamp.across, CABIN_ROOM.lamp.along, 0]);
+export function lampAt(lake: Lake): [number, number, number] {
+  const { at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = cabinOf(lake);
+  const [x, y] = placeAt(CABIN_AT)([CABIN_ROOM.lamp.across, CABIN_ROOM.lamp.along, 0]);
   return [x, y, CABIN_FLOOR + CABIN_ROOM.high - CABIN_ROOM.lamp.drop - 0.12];
 }
 
 /** The room's drawn parts, one group a part in `ROOM_PARTS`' order. */
-export function roomGroups(colours: RoomColours): GameGroup[] {
+export function roomGroups(colours: RoomColours, lake: Lake): GameGroup[] {
+  if (!lake.cabin) return [];
+  const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = lake.cabin;
+  const place = placeAt(CABIN_AT);
   const { inset, high, slab, bed, window: win, door, lamp } = CABIN_ROOM;
   // the room's walls are `inset` inside the cabin's; local x runs across (toward the lake) and y along the shore
   const hx = CABIN.body.across / 2 - inset,
@@ -220,7 +230,7 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
   });
 
   // the lamp: a cord from the ceiling, a shade, and the bulb glowing under it
-  const [, , bulbZ] = lampAt();
+  const [, , bulbZ] = lampAt(lake);
   const lampPlace = ([x, y, z]: [number, number, number]): [number, number, number] =>
     place([lamp.across + x, lamp.along + y, z]);
   const cord = 0.03;
@@ -382,7 +392,7 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
   });
 
   // the calendar: a thin sheet of paper on the wall under a timber bar along its top; the marks on it are `CalendarDraw`'s
-  const { cal, high: calHigh } = calendarGeometry();
+  const { cal, high: calHigh } = calendarGeometry(lake);
   const sheetMesh = built((b) => {
     onWall(b, cal.along, cal.wide, cal.depth, cal.at, cal.at + calHigh - cal.bar);
   });
@@ -392,7 +402,7 @@ export function roomGroups(colours: RoomColours): GameGroup[] {
 
   // a thin strip of colour at the sheet's left edge for each season's row, in the margin clear of the squares and just
   // proud of the paper as the marks are, so the year's four rows can be told at a glance
-  const { cell, cal: cc, reads } = calendarGeometry();
+  const { cell, cal: cc, reads } = calendarGeometry(lake);
   const bandMesh = (row: number) =>
     built((b) => {
       const edge = cc.along + reads * (-cc.wide / 2 + cc.margin / 2);

@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { Angler } from '../src/angler';
 import { Game, type GameEvents } from '../src/game';
 import { checkInvariants } from '../src/invariants';
-import { CURE, DRUMS, contaminationAfter } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES } from '../src/rules';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT } from './helpers';
+
+const CURE = { toClean: HOME.toClean, total: HOME.total };
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const contaminationAfter = HOME.contaminationAfter;
 
 /** A game that tells what was cured, on a save of its own that the test can read. */
 function cureGame(seed = 1, json: string | null = null) {

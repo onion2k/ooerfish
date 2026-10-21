@@ -29,7 +29,8 @@
 import { Game } from '../src/game';
 import { particleWindow } from '../src/falling';
 import { seasonOf } from '../src/calendar';
-import { DRUMS, FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY, TREASURES } from '../src/lake';
+import { FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { collectionsKept, crowd, type Crowd } from './phonemonkey';
@@ -47,9 +48,9 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   'save bytes': { ceiling: 2_000 },
   // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those there are
   'journal kinds': { ceiling: KINDS.length },
-  'drums hauled': { ceiling: DRUMS.count },
+  'drums hauled': { ceiling: HOME.drums.count },
   // and the junk treasures found are kept by id, none twice, of the pond's six
-  'treasures found': { ceiling: TREASURES.count },
+  'treasures found': { ceiling: HOME.treasures.count },
   // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
@@ -73,7 +74,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'journal kinds': Object.keys(game.progress.save.journal).length,
     'drums hauled': game.progress.save.drums,
     'treasures found': game.progress.save.found.length,
-    'particle window': particleWindow(seasonOf(game.day)),
+    'particle window': particleWindow(seasonOf(game.day), HOME),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }
@@ -134,7 +135,7 @@ export function leakRun({ seed, minutes }: LeakOptions): LeakRun {
   const started = performance.now();
   const samples: Record<string, number[]> = {};
   try {
-    const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+    const game = new Game(new Progress(memoryStore(), HOME), { lake: HOME, random: seeded(seed) });
     // a busy room for the whole run, from a chance of its own so the game plays as it did
     const room = crowd(() => game, seeded(seed * 13 + 5));
     for (let minute = 0; minute < minutes; minute++) {

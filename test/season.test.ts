@@ -17,6 +17,7 @@ import { TIMES, nearestTime, timeNamed, timesFor } from '../src/look';
 import { mix } from '../src/palette';
 import { CLEAR, CLEAR_WAVES, clear, wavesFor } from '../src/water/clear';
 import { surfaceOf } from '../src/water/swell';
+import { HOME } from '../src/lakes';
 
 const others = SEASONS.filter((s) => s !== 'summer');
 
@@ -72,15 +73,15 @@ describe('the other seasons', () => {
 describe('what is handed a palette', () => {
   const winter = seasonPalette('winter');
   it('the cabin and the jetty take their roof and deck from it, and are as they were without', () => {
-    expect(cabinGroups(winter).some((g) => g.albedo === winter.cabinRoof)).toBe(true);
-    expect(jettyGroups(winter).some((g) => g.albedo === winter.deck)).toBe(true);
-    expect(cabinGroups().some((g) => g.albedo === PALETTE.cabinRoof)).toBe(true);
-    expect(jettyGroups().some((g) => g.albedo === PALETTE.deck)).toBe(true);
+    expect(cabinGroups(winter, HOME).some((g) => g.albedo === winter.cabinRoof)).toBe(true);
+    expect(jettyGroups(winter, HOME).some((g) => g.albedo === winter.deck)).toBe(true);
+    expect(cabinGroups(undefined, HOME).some((g) => g.albedo === PALETTE.cabinRoof)).toBe(true);
+    expect(jettyGroups(undefined, HOME).some((g) => g.albedo === PALETTE.deck)).toBe(true);
   });
 
   it('the field carries the kind it is given, LUSH by default', () => {
-    expect(bankField().kinds).toEqual([LUSH]);
-    expect(bankField(seasonGrass('winter')).kinds).toEqual([seasonGrass('winter')]);
+    expect(bankField(undefined, HOME).kinds).toEqual([LUSH]);
+    expect(bankField(seasonGrass('winter'), HOME).kinds).toEqual([seasonGrass('winter')]);
   });
 });
 

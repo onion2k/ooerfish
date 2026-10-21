@@ -3,25 +3,43 @@
  * running from the lip down to just under the lake's surface, leaning a little out from the face so the rock does not
  * cover it, a white disc of foam where it lands, and the mist thrown up there. They are the page's picture and the
  * game knows nothing of them: no fish is affected, and a lure cast into one is only in the water. Where the notches
- * are is the lake's (`CLIFF.notches`), so the strip, the channel it runs in and the lumps that keep clear of it
+ * are is the lake's (`lake.cliff.notches`), so the strip, the channel it runs in and the lumps that keep clear of it
  * are held to one place; what is here is how the water looks and moves.
  *
  * The renderer's clock runs at the water's pace (`WATER_PACE`), slow for a calm pond, so a fall's flow is made
  * faster by its inverse to seem to fall at the speed it is given. Without that the water would drift down the wall.
+ * A lake with no cliff has no falls, and every builder here gives nothing for it.
  */
 import { FLOW_RIPPLE, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE, type GameGroup } from 'artshape-render/game/renderer';
 import type { Emit } from 'artshape-render/game/particles';
 import { MIST, mist } from './bursts';
-import { CLIFF, NOTCHES, WATER_PACE, groundUnder, inward } from './lake';
+import type { Lake, Notch } from './lakes/lake';
 import { box, disc } from './meshes';
 import { PALETTE } from './palette';
 
-/** How fast each fall seems to fall, in world units a second of the game's clock: the wide one slower, the narrow one quicker. */
-const SPEEDS = [7, 8.5] as const;
+/** A fall: where it comes down, as wide as the notch it runs in, and how fast it seems to fall (in world units a second of the game's clock). */
+export interface Fall {
+  angle: number;
+  width: number;
+  speed: number;
+}
 
-/** A fall: where it comes down, as wide as the notch it runs in, and how fast it seems to fall. */
-export const FALLS = CLIFF.notches.map(({ angle, width }, i) => ({ angle, width, speed: SPEEDS[i] }));
+const fallsKept = new WeakMap<Lake, Fall[]>();
+
+/** The falls of a lake, one to each notch in its cliff, at the speeds the lake gives them: none for a lake with no cliff. Made once for each lake. */
+export function fallsOf(lake: Lake): readonly Fall[] {
+  let made = fallsKept.get(lake);
+  if (!made) {
+    made = (lake.cliff?.notches ?? []).map(({ angle, width }, i) => ({
+      angle,
+      width,
+      speed: lake.cliff!.fallSpeeds[i],
+    }));
+    fallsKept.set(lake, made);
+  }
+  return made;
+}
 
 /** The water's look: its ripples' size, how much it glows from itself, how thick the strip is, and the foam's height over the surface. */
 const LOOK = { scale: 0.5, glow: 0.35, thick: 0.3, foamHeight: 0.08 } as const;
@@ -44,12 +62,14 @@ export interface FallFrame {
 }
 
 /** The frames of the strips, one for each fall, worked out from the notches. */
-export function fallFrames(): FallFrame[] {
-  return NOTCHES.map((n) => {
+export function fallFrames(lake: Lake): FallFrame[] {
+  const { groundUnder, inward } = lake;
+  const crest = lake.cliff?.spec.top ?? 0;
+  return notchesOf(lake).map((n) => {
     // the lip: out along the notch's line from the shore to where the wall tops out
     let px = n.x,
       py = n.y;
-    for (let s = 0; s < 4000 && 1 - inward(px, py) < CLIFF.top; s++) {
+    for (let s = 0; s < 4000 && 1 - inward(px, py) < crest; s++) {
       px = n.x - n.inward[0] * s * 0.02;
       py = n.y - n.inward[1] * s * 0.02;
     }
@@ -77,11 +97,19 @@ export function fallFrames(): FallFrame[] {
   });
 }
 
+/** The notches a lake's falls run down: none without a cliff. */
+function notchesOf(lake: Lake): readonly Notch[] {
+  return lake.cliff?.notches ?? [];
+}
+
 /** What the fall draws: a strip of rippling water for each, and one group of the foam discs where they land. */
-export function fallGroups(): GameGroup[] {
-  const frames = fallFrames();
+export function fallGroups(lake: Lake): GameGroup[] {
+  const falls = fallsOf(lake);
+  if (falls.length === 0) return [];
+  const notches = notchesOf(lake);
+  const frames = fallFrames(lake);
   const groups: GameGroup[] = frames.map((f, i) => ({
-    mesh: box(f.length, FALLS[i].width, LOOK.thick, true),
+    mesh: box(f.length, falls[i].width, LOOK.thick, true),
     matrices: f.matrix,
     albedo: PALETTE.fallWater,
     roughness: 0.3,
@@ -89,14 +117,14 @@ export function fallGroups(): GameGroup[] {
     patterns: packFlow(new Float32Array(PATTERN_STRIDE), 0, {
       kind: FLOW_RIPPLE,
       scale: LOOK.scale,
-      speed: FALLS[i].speed / WATER_PACE,
+      speed: falls[i].speed / lake.waterPace,
       glow: LOOK.glow,
       second: [0.95, 0.98, 1],
     }),
   }));
   const foam = new Float32Array(frames.length * 16);
   frames.forEach((f, i) => {
-    const r = FALLS[i].width * 0.8;
+    const r = falls[i].width * 0.8;
     foam.set(
       [
         r,
@@ -111,8 +139,8 @@ export function fallGroups(): GameGroup[] {
         0,
         1,
         0,
-        f.foot[0] + NOTCHES[i].inward[0] * 0.3,
-        f.foot[1] + NOTCHES[i].inward[1] * 0.3,
+        f.foot[0] + notches[i].inward[0] * 0.3,
+        f.foot[1] + notches[i].inward[1] * 0.3,
         LOOK.foamHeight,
         1,
       ],
@@ -124,8 +152,9 @@ export function fallGroups(): GameGroup[] {
 }
 
 /** The mist each fall throws up at its foot, made once: the page hands the same Emit to the renderer each time it is due. */
-export function fallMists(): Emit[] {
-  return fallFrames().map((f, i) => mist(f.foot[0], f.foot[1], NOTCHES[i].inward[0], NOTCHES[i].inward[1]));
+export function fallMists(lake: Lake): Emit[] {
+  const notches = notchesOf(lake);
+  return fallFrames(lake).map((f, i) => mist(f.foot[0], f.foot[1], notches[i].inward[0], notches[i].inward[1]));
 }
 
 /**
@@ -133,6 +162,6 @@ export function fallMists(): Emit[] {
  * that apart so it is not thrown in a lump. Counted from the game's own frame, so a paused lake throws none and a test
  * that steps it throws the same every run.
  */
-export function mistDue(frame: number, i: number): boolean {
-  return (frame + i * Math.floor(MIST.every / FALLS.length)) % MIST.every === 0;
+export function mistDue(frame: number, i: number, lake: Lake): boolean {
+  return (frame + i * Math.floor(MIST.every / fallsOf(lake).length)) % MIST.every === 0;
 }

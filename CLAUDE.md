@@ -281,8 +281,25 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   `looksBaked()` and `drawnDirt()` read the page's own state), each resolving
   once its change is ready to draw, and the page's `mode`. `src/invariants.ts`
   lists the rules that must always hold.
-- Content lives in `src/lake.ts`: the shore's shape, the bed, the banks, the
-  boulders, the fish count and capacity, and the named views. A boulder is a
+- **The lakes** (`docs/lakes.md`): a lake is a `Lake` object (`src/lakes/lake.ts`, the interface): its id and
+  name, its geometry (`shoreRadius`, `inside`, `inShore`, `inward`, `bedDepth`, `ground`, `bareGround`,
+  `groundUnder`), its boulders, its dressing (`cliff` with the falls, `jetty` and `cabin` with the room, each or
+  `null`; the scenery's counts and seeds; the shadow box), its fishing (`fishCount`, `fishKinds`, the placement
+  extents and margins, `angler`, `landAt`, `castReach`, the pace angler's `aim`, `waterPace`), its bed finds (the
+  drums' and treasures' specs and the treasures' list), its `views`, its `surface` figures and its own cure
+  arithmetic (`toClean`, `total`, `contaminationAfter`). The Duck Pond is `DUCK_POND` in `src/lakes/duckpond.ts`,
+  `LAKES` in `src/lakes/index.ts` is the registry by id and `HOME` the pond, where the cabin is; `lakeNamed(id)`
+  gives the home for an unknown id. `src/lake.ts` holds the rules only (`CLOCK`, `FIGHT`, `FISHING`, `SWIM`,
+  `GEAR`, `KINDS` the dictionary of kinds, `CALENDAR`, the seasons, the particles) and `src/rules.ts` the drums' and
+  treasures' rule halves and `WATER_LEVEL`, which the lakes read. Every builder and reader takes the lake (`new
+Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`, `fallsOf(lake)`,
+  `cabinGroups(palette, lake)`, `roomGroups`, the draws, `School`, `Bite`, `Lure`, the cast, `checkInvariants`
+  through `game.lake`, `new Game(progress, { lake })`, `new Progress(store, lake)`), and the memos that were the
+  module's (`bedBands`, the surface, the boulders, the falls, the bed's places) are a `WeakMap` by lake, so a second
+  lake moves nothing of the first. The page builds one lake at boot (`main.ts`); nothing in `src/` but `src/lakes/`
+  names the Duck Pond. `test/lakes.test.ts` holds the pond's geometry to the bit by a snapshot taken before the
+  move; `game.lake()` and `game.lakes()` read the lake and the registry. Content figures are the lake's: the
+  shore's shape, the bed, the banks, the boulders, the fish count, and the named views. A boulder is a
   bit of bank in the water: `inside` is false within its waterline (a margin
   counted from it as from the shore), `ground` is its dome, and `bedDepth`
   shallows over its flank, so the fish, splashes, rings, casts and invariants

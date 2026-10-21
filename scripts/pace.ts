@@ -12,6 +12,7 @@
  */
 import { Angler } from '../src/angler';
 import { Game } from '../src/game';
+import { HOME } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 
@@ -29,7 +30,7 @@ export interface PaceRun {
 
 /** One lake from a seed, fished until the fish are in the bucket or the time is up. */
 export function paceRun(seed: number, fish = CHECK.fish, capMinutes = CHECK.capMinutes): PaceRun {
-  const game = new Game(new Progress(memoryStore()), { random: seeded(seed) });
+  const game = new Game(new Progress(memoryStore(), HOME), { lake: HOME, random: seeded(seed) });
   // the angler's own chance, apart from the lake's
   const angler = new Angler(game, seeded(seed * 7 + 3));
   const frames = Math.round(capMinutes * 3600);

@@ -2,8 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Temper } from '../src/fight';
 import { Line } from '../src/line';
-import { DRUMS, FIGHT, TEMPERS, TREASURES } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { FIGHT, TEMPERS } from '../src/lake';
 import { seeded } from '../src/random';
+
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
 const TEMPER_NAMES: Temper[] = ['calm', 'steady', 'feisty'];
 const HEFTS = [0, 0.5, 1];

@@ -10,11 +10,14 @@
  */
 import { Gesture, type GestureTarget } from '../src/gesture';
 import type { Game } from '../src/game';
-import { PHONE, VIEWS } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { PHONE } from '../src/lake';
 import { PhoneSession, gestureFrom } from '../src/phone/session';
 import type { Link } from '../src/phone/link';
 import { parsePhoneMessage } from '../src/phone/protocol';
 import type { Random } from '../src/random';
+
+const VIEWS = HOME.views;
 
 /** The Shore view's heading: the camera stands on the south bank, an azimuth round from the target, and looks back at it. */
 const HEADING = VIEWS.shore.azimuth + Math.PI;

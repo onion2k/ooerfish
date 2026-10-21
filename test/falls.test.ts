@@ -7,10 +7,18 @@
 import { describe, expect, it } from 'vitest';
 import { FLOW_RIPPLE } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
-import { CLIFF, NOTCHES, WATER_PACE, ground, inside } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { PALETTE } from '../src/palette';
-import { FALLS, fallFrames, fallGroups, fallMists, mistDue } from '../src/falls';
+import { fallsOf, fallFrames, fallGroups, fallMists, mistDue } from '../src/falls';
 import { MIST } from '../src/bursts';
+
+const FALLS = fallsOf(HOME);
+
+const CLIFF = HOME.cliff!.spec;
+const NOTCHES = HOME.cliff!.notches;
+const WATER_PACE = HOME.waterPace;
+const ground = HOME.ground;
+const inside = HOME.inside;
 
 describe('the falls', () => {
   it('are one for each notch in the crest, at its angle and as wide as it', () => {
@@ -23,7 +31,7 @@ describe('the falls', () => {
 });
 
 describe('a fall’s strip', () => {
-  const frames = fallFrames();
+  const frames = fallFrames(HOME);
   it('starts at the notch’s lip and ends under the water, one strip a fall', () => {
     expect(frames).toHaveLength(FALLS.length);
     frames.forEach((f, i) => {
@@ -78,7 +86,7 @@ describe('a fall’s strip', () => {
 });
 
 describe('the falls’ groups', () => {
-  const groups = fallGroups();
+  const groups = fallGroups(HOME);
   const strips = groups.filter((g) => g.patterns);
 
   it('are a rippling strip a fall, flowing near white in the fall’s pale water', () => {
@@ -115,12 +123,12 @@ describe('the falls’ groups', () => {
 
 describe('the mist', () => {
   it('is one Emit a fall, made once, at its foot', () => {
-    const mists = fallMists();
+    const mists = fallMists(HOME);
     expect(mists).toHaveLength(FALLS.length);
     mists.forEach((m, i) => {
       expect(m.count).toBe(MIST.count);
-      expect(m.position[0]).toBeCloseTo(fallFrames()[i].foot[0], 6);
-      expect(m.position[1]).toBeCloseTo(fallFrames()[i].foot[1], 6);
+      expect(m.position[0]).toBeCloseTo(fallFrames(HOME)[i].foot[0], 6);
+      expect(m.position[1]).toBeCloseTo(fallFrames(HOME)[i].foot[1], 6);
     });
   });
 
@@ -128,18 +136,20 @@ describe('the mist', () => {
     const every = MIST.every;
     for (let i = 0; i < FALLS.length; i++) {
       const due: number[] = [];
-      for (let frame = 1; frame <= 600; frame++) if (mistDue(frame, i)) due.push(frame);
+      for (let frame = 1; frame <= 600; frame++) if (mistDue(frame, i, HOME)) due.push(frame);
       expect(due).toHaveLength(600 / every);
       for (let d = 1; d < due.length; d++) expect(due[d] - due[d - 1]).toBe(every);
       // asked again, the same
       const again: number[] = [];
-      for (let frame = 1; frame <= 600; frame++) if (mistDue(frame, i)) again.push(frame);
+      for (let frame = 1; frame <= 600; frame++) if (mistDue(frame, i, HOME)) again.push(frame);
       expect(again).toEqual(due);
     }
   });
 
   it('is not due on the same frame for two falls, so the mist is not thrown in a lump', () => {
     for (let frame = 1; frame <= 600; frame++)
-      expect(FALLS.map((_, i) => mistDue(frame, i)).filter(Boolean).length, `frame ${frame}`).toBeLessThanOrEqual(1);
+      expect(FALLS.map((_, i) => mistDue(frame, i, HOME)).filter(Boolean).length, `frame ${frame}`).toBeLessThanOrEqual(
+        1,
+      );
   });
 });

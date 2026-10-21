@@ -3,19 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { BAND_PARTS, FURNITURE, ROOM_PARTS, calendarGeometry, lampAt, roomGroups } from '../src/cabinroom';
 import { CalendarDraw } from '../src/calendardraw';
-import {
-  CABIN,
-  CABIN_AT,
-  CABIN_FLOOR,
-  CABIN_ROOM,
-  CALENDAR,
-  SEASONS,
-  TREASURES,
-  WAKING_EYE,
-  bareGround,
-} from '../src/lake';
+import { HOME } from '../src/lakes';
+import { TREASURE_RULES } from '../src/rules';
+import { CALENDAR, SEASONS } from '../src/lake';
 import { ROOM_COLOURS } from '../src/palette';
-import { SHADOW_BOX } from '../src/scene';
+
+const SHADOW_BOX = HOME.shadowBox;
+
+const CABIN = HOME.cabin!.spec;
+const CABIN_AT = HOME.cabin!.at;
+const CABIN_FLOOR = HOME.cabin!.floor;
+const CABIN_ROOM = HOME.cabin!.room;
+const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+const WAKING_EYE = HOME.cabin!.wakingEye;
+const bareGround = HOME.bareGround;
 
 type Group = ReturnType<typeof roomGroups>[number];
 const part = (groups: Group[], name: (typeof ROOM_PARTS)[number]) => groups[ROOM_PARTS.indexOf(name)];
@@ -32,7 +33,7 @@ function corners(g: Group): [number, number, number][] {
 }
 
 describe('the cabin’s room as drawn', () => {
-  const groups = roomGroups(ROOM_COLOURS);
+  const groups = roomGroups(ROOM_COLOURS, HOME);
   const halfAlong = CABIN.body.along / 2,
     halfAcross = CABIN.body.across / 2;
 
@@ -53,7 +54,7 @@ describe('the cabin’s room as drawn', () => {
   });
 
   it('is built the same each time', () => {
-    const again = roomGroups(ROOM_COLOURS);
+    const again = roomGroups(ROOM_COLOURS, HOME);
     for (const [i, g] of groups.entries()) {
       expect(Array.from(again[i].mesh.positions), ROOM_PARTS[i]).toEqual(Array.from(g.mesh.positions));
       expect(Array.from(again[i].mesh.indices)).toEqual(Array.from(g.mesh.indices));
@@ -123,7 +124,7 @@ describe('the cabin’s room as drawn', () => {
   });
 
   it('hangs its lamp inside the room, under the ceiling, over the floor', () => {
-    const [x, y, z] = lampAt();
+    const [x, y, z] = lampAt(HOME);
     const [u, v] = inCabin(x, y, z);
     expect(Math.abs(u)).toBeLessThan(halfAlong - CABIN_ROOM.inset);
     expect(Math.abs(v)).toBeLessThan(halfAcross - CABIN_ROOM.inset);
@@ -133,7 +134,7 @@ describe('the cabin’s room as drawn', () => {
 });
 
 describe('the cabin’s furniture', () => {
-  const groups = roomGroups(ROOM_COLOURS);
+  const groups = roomGroups(ROOM_COLOURS, HOME);
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset,
     hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
   const pieces = Object.keys(FURNITURE) as (keyof typeof FURNITURE)[];
@@ -209,7 +210,7 @@ describe('the cabin’s furniture', () => {
     const names = pieces.flatMap((p) => [...FURNITURE[p]]);
     const tris = names.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
     expect(tris).toBeLessThan(1500);
-    const again = roomGroups(ROOM_COLOURS);
+    const again = roomGroups(ROOM_COLOURS, HOME);
     for (const name of names) {
       expect(Array.from(part(again, name).mesh.positions), name).toEqual(Array.from(part(groups, name).mesh.positions));
       expect(Array.from(part(again, name).mesh.indices), name).toEqual(Array.from(part(groups, name).mesh.indices));
@@ -233,7 +234,7 @@ describe('the cabin’s furniture', () => {
 });
 
 describe('the cabin’s two shelves', () => {
-  const groups = roomGroups(ROOM_COLOURS);
+  const groups = roomGroups(ROOM_COLOURS, HOME);
   const fur = CABIN_ROOM.furniture;
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset,
     hy = CABIN.body.along / 2 - CABIN_ROOM.inset;
@@ -315,10 +316,10 @@ describe('the cabin’s two shelves', () => {
 });
 
 describe('the cabin’s wall calendar', () => {
-  const groups = roomGroups(ROOM_COLOURS);
-  const g = calendarGeometry();
+  const groups = roomGroups(ROOM_COLOURS, HOME);
+  const g = calendarGeometry(HOME);
   const hx = CABIN.body.across / 2 - CABIN_ROOM.inset;
-  const draw = new CalendarDraw();
+  const draw = new CalendarDraw(HOME);
   const colours = { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday };
   /** The scale of slot `i` of a matrices array: nought for a square not shown. */
   const shownSlots = (m: Float32Array) =>

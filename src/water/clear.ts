@@ -145,7 +145,7 @@ export const clear: WaterStyle = {
   label: 'See-through',
   waves: CLEAR_WAVES,
   wavesIn: wavesFor,
-  groups(contamination) {
+  groups(contamination, lake) {
     const k = held(contamination);
     const patterns = packFlow(new Float32Array(PATTERN_STRIDE), 0, {
       kind: FLOW_CLEAR,
@@ -156,7 +156,7 @@ export const clear: WaterStyle = {
     });
     return [
       {
-        mesh: surface(),
+        mesh: surface(lake),
         matrices: AT_ORIGIN,
         albedo: mix(PALETTE.clearShallow, PALETTE.sickShallow, k),
         roughness: 0.1,

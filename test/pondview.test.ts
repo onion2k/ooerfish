@@ -1,8 +1,14 @@
 /** The pond on the screen: the glow gauge, the welcome line, and the lines said when a fish is cured and when the pond is clean. */
 import { describe, expect, it } from 'vitest';
-import { CURE, DRUMS, LAKE_NAME, contaminationAfter } from '../src/lake';
+import { HOME } from '../src/lakes';
+import { DRUM_RULES } from '../src/rules';
 import { PondView, pondWords, type PondState } from '../src/pondview';
 import { DT, newGame } from './helpers';
+
+const CURE = { toClean: HOME.toClean, total: HOME.total };
+const DRUMS = { ...DRUM_RULES, ...HOME.drums };
+const LAKE_NAME = HOME.name;
+const contaminationAfter = HOME.contaminationAfter;
 
 const state = (over: Partial<PondState> = {}): PondState => ({
   cured: 0,
@@ -196,7 +202,7 @@ function view() {
     welcome: stub(),
     toast: stub(),
   };
-  const pond = new PondView(el, () => game, 2);
+  const pond = new PondView(el, () => game, 2, HOME);
   return { game, el, pond };
 }
 const total = (el: Record<string, { writes: Record<string, number> }>) =>

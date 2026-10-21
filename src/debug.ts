@@ -26,7 +26,8 @@ import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
 import { seasonOf } from './calendar';
-import { ANGLER, KINDS, TREASURES, bedDepth, type Season } from './lake';
+import { KINDS, type Season } from './lake';
+import { LAKES } from './lakes';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
@@ -164,6 +165,10 @@ export interface GameApi {
   seed(n: number): void;
 
   state(): GameState;
+  /** The lake being played: the id the save calls it and the name the page shows. */
+  lake(): { id: string; name: string };
+  /** The id of every lake the game has, in the order it names them. */
+  lakes(): string[];
   fish(): Fish[];
   /** Each drum of waste on the bed, where it lies and whether it is hauled. */
   drums(): DrumState[];
@@ -451,6 +456,8 @@ export function createApi(host: DebugHost): GameApi {
       waterDirt: game.waterDirt,
       timeOfDay: game.timeOfDay,
     }),
+    lake: () => ({ id: game.lake.id, name: game.lake.name }),
+    lakes: () => Object.keys(LAKES),
     fish() {
       const { fish } = game;
       return Array.from({ length: fish.count }, (_, i) => ({
@@ -466,20 +473,20 @@ export function createApi(host: DebugHost): GameApi {
       return Array.from({ length: drums.count }, (_, i) => ({
         x: drums.x[i],
         y: drums.y[i],
-        bed: bedDepth(drums.x[i], drums.y[i]),
+        bed: game.lake.bedDepth(drums.x[i], drums.y[i]),
         hauled: drums.found[i] === 1,
-        bank: bankSpot(i).slice(0, 3) as [number, number, number],
+        bank: bankSpot(i, game.lake).slice(0, 3) as [number, number, number],
       }));
     },
     treasures() {
       const { treasures } = game;
-      return TREASURES.list.map((t, i) => ({
+      return game.lake.treasures.list.map((t, i) => ({
         id: t.id,
         x: treasures.x[i],
         y: treasures.y[i],
-        bed: bedDepth(treasures.x[i], treasures.y[i]),
+        bed: game.lake.bedDepth(treasures.x[i], treasures.y[i]),
         found: treasures.found[i] === 1,
-        shelf: shelfSpot(i).slice(0, 3) as [number, number, number],
+        shelf: shelfSpot(i, game.lake).slice(0, 3) as [number, number, number],
       }));
     },
     splashes() {
@@ -535,7 +542,7 @@ export function createApi(host: DebugHost): GameApi {
         host.draw(1 / 60);
       };
       const want = quarry === undefined || quarry === 'drum' ? -1 : KINDS.findIndex((k) => k.id === quarry);
-      const treasure = TREASURES.list.findIndex((t) => t.id === quarry);
+      const treasure = game.lake.treasures.list.findIndex((t) => t.id === quarry);
       // a drum or a treasure is hauled, not played: the reel is held and the fight pictured a few seconds in
       const hauled = quarry === 'drum' || treasure >= 0;
       /**
@@ -544,7 +551,8 @@ export function createApi(host: DebugHost): GameApi {
        * passes every kind's water on the way down.
        */
       const fishFor = (wanted: (i: number) => boolean): boolean => {
-        const dist = (i: number) => Math.hypot(game.fish.x[i] - ANGLER.x, game.fish.y[i] - ANGLER.y);
+        const dist = (i: number) =>
+          Math.hypot(game.fish.x[i] - game.lake.angler.x, game.fish.y[i] - game.lake.angler.y);
         for (let attempt = 0; attempt < 12; attempt++) {
           let near = -1;
           for (let i = 0; i < game.fish.count; i++) {
@@ -552,7 +560,7 @@ export function createApi(host: DebugHost): GameApi {
             if (near < 0 || dist(i) < dist(near)) near = i;
           }
           if (near < 0) return false;
-          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near]);
+          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], game.lake);
           if (!game.cast(angle, power)) return false;
           for (let f = 0; f < 2400 && game.bite.phase !== 'biting'; f++) {
             frame();
@@ -567,13 +575,13 @@ export function createApi(host: DebugHost): GameApi {
         // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
         const i = game.drums.found.indexOf(0);
         if (i < 0) return false;
-        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i]);
+        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake);
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (treasure >= 0) {
         // the lure thrown to the treasure, if it is still on the bed, and left to lie there, where it is snagged
         if (game.treasures.found[treasure]) return false;
-        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure]);
+        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure], game.lake);
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (want >= 0) {
@@ -622,7 +630,7 @@ export function createApi(host: DebugHost): GameApi {
     preview() {
       const to = host.aiming();
       if (!to) return null;
-      const f = flight(to.angle, to.power);
+      const f = flight(to.angle, to.power, game.lake);
       return { x: f.landing[0], y: f.landing[1], z: f.landing[2], onWater: f.onWater };
     },
     drop: (x, y) => game.drop(x, y),
