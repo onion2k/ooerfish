@@ -1018,3 +1018,63 @@ test('desk-morning-out', async ({ page }) => {
   await expect(page).toHaveScreenshot('desk-morning-out.png', TOLERANCE);
   expect(problems).toEqual([]);
 });
+
+/**
+ * The moon (`docs/moon.md`, part 2): the disc in the night sky from the shore, its phase cut by a sky-coloured disc
+ * slid across it. The new moon (day 5) is dark, with the glow reading brightest against the darkest night; the first
+ * quarter (day 7) is half across; the Reservoir sees the same moon over its dam. The full moon is in the night
+ * pictures of day 1.
+ */
+test.describe('the moon', () => {
+  for (const [name, save] of [
+    ['moon-new-night', { cured: 6, day: 5 }],
+    ['moon-quarter-night', { cured: 6, day: 7 }],
+    ['moon-reservoir-night', { lake: 'reservoir', cured: 2, day: 7 }],
+  ] as const)
+    test(name, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save });
+      await set(page, { ...STANDARD, time: 'night' }, 180);
+      await hideOverlays(page);
+      expect((await page.evaluate(() => window.game!.moon())).shown).toBe(true);
+      await expect(page.locator('#view')).toHaveScreenshot(`${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+});
+
+/**
+ * Sleeping through (`docs/moon.md`, part 4): the sleep page open at the pond on day 1, at a desk's width and a phone's,
+ * with the new moon four nights off and the full moon eight; and the morning on a full-moon day, from a load in the
+ * cabin on day 9 with the line that says so.
+ */
+test('desk-sleep-page', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 4 } });
+  await set(page, STANDARD, 30);
+  await page.evaluate(() => window.game!.openSleep());
+  await expect(page.getByRole('button', { name: 'Till the new moon (4 nights)' })).toBeFocused();
+  await expect(page).toHaveScreenshot('desk-sleep-page.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test.describe('the sleep page on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-sleep-page', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 4 } });
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
+    await page.evaluate(() => window.game!.openSleep());
+    await expect(page).toHaveScreenshot('phone-sleep-page.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+test('desk-morning-full-moon', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 4, day: 9, place: 'cabin' } });
+  await page.evaluate(() => window.game!.step(160));
+  await expect(page.locator('#morning')).toHaveText('Day 9. Morning at the cabin. Full moon tonight.');
+  await expect(page).toHaveScreenshot('desk-morning-full-moon.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});

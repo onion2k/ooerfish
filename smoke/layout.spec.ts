@@ -49,6 +49,7 @@ const BREAKPOINTS = [
  *   journalCard the journal's page, a modal of the same kind: held inside the screen and left out of the overlap rule, and
  *               its words must fit it without scrolling.
  *   lakesCard   the lakes page, a modal of the same kind, its two rows and their buttons fitting it without scrolling.
+ *   sleepCard   the sleep page, a modal of the same kind, its two choices fitting it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
  */
@@ -79,7 +80,7 @@ const FIGHT_SAMPLES = 12;
 const FIGHT_GAP = 30;
 
 /** The modal pages' cards, which lie over the other overlays by design. */
-const MODALS = ['startAgainCard', 'journalCard', 'lakesCard'];
+const MODALS = ['startAgainCard', 'journalCard', 'lakesCard', 'sleepCard'];
 
 /** How near an overlay's edge may come to the bobber, the line's end or the fish, in CSS pixels: a finger-width of nothing is not asked, but the point must not sit on the edge. */
 const POINT_MARGIN = 6;
@@ -101,6 +102,7 @@ type Moment =
   | 'journal found'
   | 'lakes'
   | 'lakes cabin'
+  | 'sleep'
   | 'yawn'
   | 'morning';
 const MOMENTS: Moment[] = [
@@ -118,6 +120,7 @@ const MOMENTS: Moment[] = [
   'journal found',
   'lakes',
   'lakes cabin',
+  'sleep',
   'yawn',
   'morning',
 ];
@@ -137,6 +140,7 @@ const AT_LEAST: Record<Moment, number> = {
   'journal found': 1,
   lakes: 1,
   'lakes cabin': 1,
+  sleep: 1,
   // the gauge, the menu and the words; and, in the cabin, the line and the two buttons with them
   yawn: 3,
   morning: 5,
@@ -184,6 +188,12 @@ async function boxes(page: Page): Promise<Box[]> {
       if (lakes) {
         const r = lakes.getBoundingClientRect();
         out.push({ id: 'lakesCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+      // and the sleep page
+      const sleep = document.querySelector<HTMLElement>('#sleep:not([hidden]) .card');
+      if (sleep) {
+        const r = sleep.getBoundingClientRect();
+        out.push({ id: 'sleepCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
       return out;
     },
@@ -242,6 +252,10 @@ async function reach(page: Page, moment: Moment) {
     }
     if (m === 'lakes' || m === 'lakes cabin') {
       await g.openLakes();
+      return g.pagesOpen();
+    }
+    if (m === 'sleep') {
+      await g.openSleep();
       return g.pagesOpen();
     }
     if (m === 'drum card') return g.fishTo('landed', 'drum');
@@ -392,6 +406,21 @@ for (const bp of BREAKPOINTS) {
             const wanted = moment === 'lakes' ? 1 : 2;
             if (fit.buttons !== wanted)
               failures.add(`${still}: the lakes page has ${fit.buttons} buttons, not ${wanted}`);
+          }
+
+          // the sleep page's two choices all fit its card, with nothing left to scroll to
+          if (moment === 'sleep') {
+            const fit = await page.evaluate(() => {
+              const card = document.querySelector<HTMLElement>('#sleep .card')!;
+              return {
+                scroll: card.scrollHeight,
+                shown: card.clientHeight,
+                buttons: document.querySelectorAll('#sleepList button').length,
+              };
+            });
+            if (fit.scroll > fit.shown + 1)
+              failures.add(`${still}: the sleep page's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
+            if (fit.buttons !== 2) failures.add(`${still}: the sleep page has ${fit.buttons} choices, not 2`);
           }
 
           // the keyboard hint names keys a phone does not have

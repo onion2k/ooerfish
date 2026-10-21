@@ -13,7 +13,7 @@ import { Bite, type Strike } from './bite';
 import { BedFinds, places } from './bedfinds';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE } from './lake';
+import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE, MOON } from './lake';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
@@ -165,6 +165,8 @@ export class Game {
   private sinceSaved = 0;
   /** The load is still fading in at the pond, over `NIGHT.fadeIn` of stepped time (the world runs on beneath it). */
   private arriving: boolean;
+  /** How many nights the yawn in train will sleep through, one to `MOON.days`; one whenever the player is not yawning. */
+  nights = 1;
   /** The lake being left for, while the player is `leaving`, and whether the page has been told. */
   private destination = '';
   private told = false;
@@ -275,7 +277,18 @@ export class Game {
 
   /** The player goes to bed early, from the pond or the cabin; refused, and nothing changed, with a fish hooked or landed or while yawning or leaving. */
   sleep(): boolean {
+    return this.sleepThrough(1);
+  }
+
+  /**
+   * The player goes to bed and sleeps `nights` nights, the wake that ends the yawn being that many days on: the yawn is
+   * as `sleep`'s. Refused, and nothing changed, with a fish hooked or landed, while yawning or leaving, and for a
+   * number of nights that is not a whole number from one to a round of the moon.
+   */
+  sleepThrough(nights: number): boolean {
     if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
+    if (!Number.isInteger(nights) || nights < 1 || nights > MOON.days) return false;
+    this.nights = nights;
     this.yawn();
     return true;
   }
@@ -340,9 +353,10 @@ export class Game {
     }
   }
 
-  /** Morning at the cabin on the next day, saved: dawn, the water as clean as the lake is, the splashes gone. */
-  private wake() {
-    this.day = Math.min(this.day + 1, Number.MAX_SAFE_INTEGER);
+  /** Morning at the cabin `nights` days on, saved: dawn, the water as clean as the lake is, the splashes gone. */
+  private wake(nights = this.nights) {
+    this.nights = 1;
+    this.day = Math.min(this.day + nights, Number.MAX_SAFE_INTEGER);
     this.progress.save.day = this.day;
     this.timeOfDay = CLOCK.startsAt;
     // the night has passed, so a heal still running is over

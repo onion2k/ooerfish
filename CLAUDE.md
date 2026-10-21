@@ -172,6 +172,24 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   boot and at a wake into a new season, in the cabin, then that season's four looks baked (about 33 ms); a wake inside
   a season hands nothing over. `game.season()` reads it all (`name`, `dressed`, `statics`, `dressMs`, `bakeMs`,
   `falling`, `mist`). The calendar's rows carry a band each in the season's colour (`BAND_PARTS` in `cabinroom.ts`).
+- **The moon** (`docs/moon.md`): an eight-day round from the day, `MOON` in `lake.ts` (`days` 8, `full` 0, `new` 4,
+  `darkest` 0.35, the eight names, the disc's `distance`, `radius` and `direction`), day 1 a full moon by the user's
+  choice so tonight's look as drawn is the full moon's; `moonOf(day)`, `moonName`, `moonLight` (1 at full, `darkest`
+  at new, a cosine between), `nextFull` and `nextNew` in `src/calendar.ts`, pure; the year's 56 days hold seven
+  rounds, so the calendar's full and new moons are fixed squares (`moonFull` and `moonNew`, static parts of the room).
+  `timesFor(season, phase)` in `look.ts` scales the night's ambient, moonlight, zenith, horizon and glitter by
+  `moonLight` and never the exposure, since the fish's glow is added before the exposure and must read brighter
+  against a darker night; the cube stays keyed `season:time`. The night's light is lowered to 25° (`TIMES.night.sun`)
+  and the disc has a direction of its own at 2.7° (`MOON.direction`), since the shore's lens sees no higher: the moon
+  rises over the ridge in the frame's corner. `MoonDraw` (`src/moondraw.ts`) is two discs far along that direction,
+  the moon unlit through `FLOW_GLOW` in `MOON_COLOUR` and a shadow in the night sky's colour slid across it by the
+  phase (`shadowOffset`), scaled to nothing except at night, handed over by `main.ts` only when the look's name, the
+  phase or the season changes (`game.moon()` reads `phase`, `name`, `light`, `nextFull`, `nextNew`, `shown`,
+  `handovers`). The morning line says "Full moon tonight." or "New moon tonight.". **Sleeping through:**
+  `Game.sleepThrough(nights)` (1 to `MOON.days`, refused as bed is) yawns and wakes `nights` days on, one persist,
+  at home; "Sleep through…" in the ⋯ menu opens `#sleep` (`sleepWords` in `src/sleep/page.ts`: the marked nights
+  ahead in order of distance, the weather's and the festivals' later), a page that stops the clock;
+  `game.openSleep(open)` and `game.sleepThrough(n)` are the API, and the fuzzer sleeps through at random.
 - **The cabin's room** (`src/cabinroom.ts`): the interior the player wakes in,
   built once at boot into the static set from `CABIN_ROOM` in `lake.ts` (walls
   inset from the cabin's, facing in, a floor, a bed, the window's frame, the

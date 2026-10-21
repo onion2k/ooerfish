@@ -270,6 +270,10 @@ Each stage is a feature, built and verified before the next, every gate green at
    drawn today is summer's, then autumn, winter and spring, each seen as the banks' colours, the sky and the water's
    finish, the wind and waves, leaves, snow or blossom falling on the wind, and mist at autumn dawns and on winter
    mornings and nights. The moon, the weather, the festivals and sleeping through are not._
+   _A second slice is being built (21 Oct 2026, `docs/moon.md`): the moon's eight-day round from the day, day 1 a full
+   moon, the night darker at the new moon with the glow reading best, a disc with its phase in the night sky, the full
+   and new moons marked on the calendar, and "Sleep through…" to the next marked night. The weather and the festivals
+   are not._
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**

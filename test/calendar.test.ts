@@ -1,7 +1,7 @@
 /** The wall calendar's arithmetic: a day of play to the squares gone and today's. */
 import { describe, expect, it } from 'vitest';
-import { calendarMarks, seasonOf } from '../src/calendar';
-import { CALENDAR, SEASONS } from '../src/lake';
+import { calendarMarks, moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from '../src/calendar';
+import { CALENDAR, MOON, SEASONS } from '../src/lake';
 
 describe('the calendar’s marks', () => {
   it('has four seasons of fourteen squares', () => {
@@ -64,5 +64,55 @@ describe('the season of a day', () => {
 
   it('reads a bad day as day one, as the squares do', () => {
     for (const bad of [0, -3, 1.5, NaN, Infinity]) expect(seasonOf(bad)).toBe('summer');
+  });
+});
+
+describe('the moon', () => {
+  it('is full on days 1, 9 and 57, new on 5, and the quarters on 3 and 7', () => {
+    for (const d of [1, 9, 57]) expect(moonName(moonOf(d))).toBe('full');
+    expect(moonName(moonOf(5))).toBe('new');
+    expect(moonName(moonOf(3))).toBe('last quarter');
+    expect(moonName(moonOf(7))).toBe('first quarter');
+  });
+
+  it('has eight names in order from the full moon', () => {
+    expect(MOON.names).toHaveLength(MOON.days);
+    expect(MOON.names[MOON.full]).toBe('full');
+    expect(MOON.names[MOON.new]).toBe('new');
+  });
+
+  it('gives all its light at full, the least at new, and the same either side', () => {
+    expect(moonLight(0)).toBe(1);
+    expect(moonLight(4)).toBeCloseTo(MOON.darkest, 12);
+    expect(moonLight(1)).toBeCloseTo(moonLight(7), 12);
+    expect(moonLight(3)).toBeCloseTo(moonLight(5), 12);
+    for (let p = 0; p < MOON.days; p++) expect(moonLight(p)).toBeGreaterThanOrEqual(MOON.darkest - 1e-12);
+  });
+
+  it('holds seven rounds in the year of 56 days, so day 57 is day 1', () => {
+    expect(CALENDAR.days / MOON.days).toBe(7);
+    expect(moonOf(57)).toBe(moonOf(1));
+    expect(moonOf(113)).toBe(moonOf(1));
+  });
+
+  it('reads a bad day as day one', () => {
+    for (const d of [0, -3, 2.5, NaN, Infinity]) expect(moonOf(d)).toBe(moonOf(1));
+  });
+
+  it('counts the nights to the next full and new moon, one to eight', () => {
+    expect(nextFull(1)).toBe(8);
+    expect(nextFull(2)).toBe(7);
+    expect(nextFull(8)).toBe(1);
+    expect(nextFull(9)).toBe(8);
+    expect(nextNew(1)).toBe(4);
+    expect(nextNew(5)).toBe(8);
+    expect(nextNew(4)).toBe(1);
+    expect(nextNew(0)).toBe(nextNew(1));
+    for (let d = 1; d <= 20; d++) {
+      expect(nextFull(d)).toBeGreaterThanOrEqual(1);
+      expect(nextFull(d)).toBeLessThanOrEqual(8);
+      expect(moonOf(d + nextFull(d))).toBe(MOON.full);
+      expect(moonOf(d + nextNew(d))).toBe(MOON.new);
+    }
   });
 });

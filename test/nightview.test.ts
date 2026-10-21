@@ -28,13 +28,17 @@ describe('what the night says', () => {
       out: 'Out to the Duck Pond',
       bed: true,
     });
-    expect(nightWords('cabin', 13, false, 'Duck Pond').morning).toBe('Day 13. Morning at the cabin.');
-    expect(nightWords('cabin', 57, false, 'Duck Pond').morning).toBe('Day 57. Morning at the cabin.');
+    expect(nightWords('cabin', 13, false, 'Duck Pond').morning).toBe('Day 13. Morning at the cabin. New moon tonight.');
+    expect(nightWords('cabin', 57, false, 'Duck Pond').morning).toBe(
+      'Day 57. Morning at the cabin. Full moon tonight.',
+    );
   });
 
   it('names the season in the morning from autumn on, and says nothing of summer', () => {
     expect(nightWords('cabin', 15, false, 'Duck Pond').morning).toBe('Day 15. An autumn morning at the cabin.');
-    expect(nightWords('cabin', 29, false, 'Duck Pond').morning).toBe('Day 29. A winter morning at the cabin.');
+    expect(nightWords('cabin', 29, false, 'Duck Pond').morning).toBe(
+      'Day 29. A winter morning at the cabin. New moon tonight.',
+    );
     expect(nightWords('cabin', 43, false, 'Duck Pond').morning).toBe('Day 43. A spring morning at the cabin.');
   });
 
@@ -75,7 +79,15 @@ const total = (el: Record<string, { writes: Record<string, number> }>) =>
 
 function view() {
   const { game } = newGame(3);
-  const el = { fade: stub(), yawn: stub(), morning: stub(), down: stub(), elsewhere: stub(), bed: stub() };
+  const el = {
+    fade: stub(),
+    yawn: stub(),
+    morning: stub(),
+    down: stub(),
+    elsewhere: stub(),
+    bed: stub(),
+    sleep: stub(),
+  };
   return { game, el, night: new NightView(el, () => game) };
 }
 
@@ -100,6 +112,7 @@ describe('the night view', () => {
     expect(el.morning.hidden).toBe(true);
     expect(el.down.hidden).toBe(true);
     expect(el.bed.disabled).toBe(false);
+    expect(el.sleep.disabled, 'Sleep through… is held by the same flag as Go to bed').toBe(false);
   });
 
   it('writes the fade as the game stepped it, the words with it, and the bed greyed while yawning', () => {
@@ -112,6 +125,7 @@ describe('the night view', () => {
     expect(el.yawn.hidden).toBe(false);
     expect(el.yawn.textContent).toBe('Yawn… time for bed');
     expect(el.bed.disabled).toBe(true);
+    expect(el.sleep.disabled).toBe(true);
     expect(el.morning.hidden).toBe(true);
   });
 
@@ -150,5 +164,20 @@ describe('the night view', () => {
     night.show();
     night.show();
     expect(total(el), 'nothing written for a fade that has not moved').toBe(yawning);
+  });
+});
+
+describe('the moon in the morning line', () => {
+  const morning = (day: number) => nightWords('cabin', day, false, 'Duck Pond').morning;
+
+  it('says the full moon and the new moon after the morning line, and nothing on other days', () => {
+    expect(morning(1)).toBe('Day 1. Morning at the cabin. Full moon tonight.');
+    expect(morning(9)).toBe('Day 9. Morning at the cabin. Full moon tonight.');
+    expect(morning(5)).toBe('Day 5. Morning at the cabin. New moon tonight.');
+    for (const d of [2, 3, 4, 6, 7, 8]) expect(morning(d)).not.toMatch(/moon/);
+  });
+
+  it('leaves the yawn’s words alone', () => {
+    expect(nightWords('yawning', 5, false, 'Duck Pond').yawn).toBe('Yawn… time for bed');
   });
 });

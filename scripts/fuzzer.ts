@@ -19,7 +19,7 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { CLOCK, GEAR, KINDS } from '../src/lake';
+import { CLOCK, GEAR, KINDS, MOON } from '../src/lake';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
@@ -227,7 +227,15 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     done['bites in a clean pond'] = 0;
     done['most cured'] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
-    for (const what of ['woke at midnight', 'woke from bed', 'bed refused', 'down to the pond', 'frames in the cabin'])
+    for (const what of [
+      'woke at midnight',
+      'woke from bed',
+      'bed refused',
+      'slept through',
+      'sleep through refused',
+      'down to the pond',
+      'frames in the cabin',
+    ])
       done[what] = 0;
     /** A cast, counted when it is thrown into a pond with no uncured fish left. */
     const cast = (angle: number, power: number) => {
@@ -402,6 +410,25 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
               throw new Error(`a bed refused mid-fight changed the game: ${was} then ${nightState(game)}`);
           }
           did('go to bed');
+        },
+      ],
+      [
+        0.5,
+        () => {
+          // sleeping through a few nights, refused as the bed is (mid-fight, yawning) and then to change nothing at all
+          const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+          const was = nightState(game);
+          // the number of nights is the frame's, so as not to draw from the stream the other actions are chosen by
+          const nights = 1 + (frame % MOON.days);
+          if (game.sleepThrough(nights)) {
+            bed.chosen = true;
+            done['slept through']++;
+          } else if (fighting) {
+            done['sleep through refused']++;
+            if (nightState(game) !== was)
+              throw new Error(`a sleep through refused mid-fight changed the game: ${was} then ${nightState(game)}`);
+          }
+          did('sleep through');
         },
       ],
       [

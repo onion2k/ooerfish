@@ -19,7 +19,7 @@
  */
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
-import { CLOCK, FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM } from './lake';
+import { CLOCK, FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON } from './lake';
 import { poseFish } from './swim';
 
 /**
@@ -327,6 +327,11 @@ function nightRules(
   if (!Number.isSafeInteger(day) || day < 1) out.push(`the day is ${day}`);
   else if (was && day < was.day) out.push(`the day went back from ${was.day} to ${day}`);
   if (game.progress.save.day !== day) out.push(`the day is ${day}, but the save says ${game.progress.save.day}`);
+  // a yawn sleeps through a whole number of nights, one to a round of the moon, and is back to one once it is over
+  if (!Number.isInteger(game.nights) || game.nights < 1 || game.nights > MOON.days)
+    out.push(`the yawn sleeps through ${game.nights} nights`);
+  else if (place !== 'yawning' && game.nights !== 1)
+    out.push(`${game.nights} nights are kept, with the player ${place}`);
   const { time } = game.progress.save;
   const kept: string = game.progress.save.place;
   if (!(Number.isFinite(time) && time >= 0 && time < 1)) out.push(`the save says the time is ${time}`);

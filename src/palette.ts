@@ -207,4 +207,10 @@ export const ROOM_COLOURS = {
   bandAutumn: [0.55, 0.3, 0.04] as Colour,
   bandWinter: [0.7, 0.82, 0.95] as Colour,
   bandSpring: [0.85, 0.45, 0.55] as Colour,
+  // the calendar's moons: a pale warm dot for a full moon's square and a dark blue-black one for a new moon's
+  moonFull: [0.98, 0.94, 0.7] as Colour,
+  moonNew: [0.08, 0.1, 0.22] as Colour,
 };
+
+/** The moon's disc, a warm pale (`docs/moon.md`), unlit in the sky; at the file's end, apart from the room's colours. */
+export const MOON_COLOUR: Colour = [0.95, 0.93, 0.8];

@@ -12,7 +12,8 @@ import { PAINT_DEFAULT, type PaintSet } from 'artshape-render/game/paint';
 import type { GameRenderer } from 'artshape-render/game/renderer';
 import type { Gpu } from 'artshape-render/gpu/context';
 import { bakeEnvironment, type EnvImage, type Environment } from 'artshape-render/render/env';
-import { SEASON_DRESSING, type Season } from './lake';
+import { moonLight } from './calendar';
+import { MOON, SEASON_DRESSING, type Season } from './lake';
 import { PALETTE, mix, type Colour } from './palette';
 
 /**
@@ -105,7 +106,9 @@ export const TIMES: readonly TimeOfDay[] = [
     at: 0,
     zenith: PALETTE.nightZenith,
     horizon: PALETTE.nightHorizon,
-    sun: [-0.3, 0.4, 0.86],
+    // about 25 degrees above the horizon, on the bearing it always had, so the moon is in the shore view's frame
+    // (it was 59 degrees, over the angler's head); the moonlit shadow and the toon bands move with it, once, meant
+    sun: [-0.5438, 0.725, 0.4226],
     sunColour: PALETTE.moonlight,
     ambient: 0.25,
     glitter: 0.12,
@@ -147,28 +150,47 @@ export const TIMES: readonly TimeOfDay[] = [
   },
 ];
 
-const made = new Map<Season, readonly TimeOfDay[]>();
+/** The lists made, by season and then by phase: looked up each frame, so no key is built to find one. */
+const made = new Map<Season, (readonly TimeOfDay[] | undefined)[]>();
 
 /**
- * The four times of a season: `TIMES` with each look's zenith, horizon and sun colour mixed toward the season's tint
- * and its fill scaled, nothing else moved, so the stepping is the same in every season. Summer's mix is nought and its
- * ambient one, so it is `TIMES` itself. Memoised: a season is made once, and the same list is the same objects.
+ * The four times of a season at a phase of the moon: `TIMES` with each look's zenith, horizon and sun colour mixed
+ * toward the season's tint and its fill scaled, then the night's ambient, moonlight, zenith, horizon and glitter
+ * scaled by `moonLight(phase)` (the tint mixes first, then the phase scales). Exposure is not scaled, since the fish's
+ * glow is added before it and must read brighter against a darker night; the sky and ground light follow the ambient
+ * through `lookFor`. Dawn, day and dusk are the same at every phase, and the full moon (the default) in summer is
+ * `TIMES` itself. Memoised by season and phase: the same pair is the same list of the same objects.
  */
-export function timesFor(season: Season): readonly TimeOfDay[] {
-  let list = made.get(season);
+export function timesFor(season: Season, phase: number = MOON.full): readonly TimeOfDay[] {
+  let phases = made.get(season);
+  if (!phases) made.set(season, (phases = []));
+  let list = phases[phase];
   if (!list) {
     const { sky, ambient } = SEASON_DRESSING[season];
+    const k = moonLight(phase);
     list =
-      sky.mix === 0 && ambient === 1
+      sky.mix === 0 && ambient === 1 && k === 1
         ? TIMES
-        : TIMES.map((t) => ({
-            ...t,
-            zenith: mix(t.zenith, sky.tint, sky.mix),
-            horizon: mix(t.horizon, sky.tint, sky.mix),
-            sunColour: mix(t.sunColour, sky.tint, sky.mix * 0.5),
-            ambient: t.ambient * ambient,
-          }));
-    made.set(season, list);
+        : TIMES.map((t) => {
+            const seasonal = {
+              ...t,
+              zenith: mix(t.zenith, sky.tint, sky.mix),
+              horizon: mix(t.horizon, sky.tint, sky.mix),
+              sunColour: mix(t.sunColour, sky.tint, sky.mix * 0.5),
+              ambient: t.ambient * ambient,
+            };
+            if (t.name !== 'night' || k === 1) return seasonal;
+            const dim = (c: Colour): Colour => mix([0, 0, 0], c, k);
+            return {
+              ...seasonal,
+              zenith: dim(seasonal.zenith),
+              horizon: dim(seasonal.horizon),
+              sunColour: dim(seasonal.sunColour),
+              ambient: seasonal.ambient * k,
+              glitter: seasonal.glitter * k,
+            };
+          });
+    phases[phase] = list;
   }
   return list;
 }

@@ -14,7 +14,8 @@ import {
 import { CalendarDraw } from '../src/calendardraw';
 import { HOME, LAKES } from '../src/lakes';
 import { TREASURE_RULES } from '../src/rules';
-import { CALENDAR, SEASONS } from '../src/lake';
+import { CALENDAR, MOON, SEASONS } from '../src/lake';
+import { moonOf } from '../src/calendar';
 import { ROOM_COLOURS } from '../src/palette';
 
 const SHADOW_BOX = HOME.shadowBox;
@@ -385,9 +386,86 @@ describe('the cabin’s wall calendar', () => {
     expect(rowsTop).toEqual([...rowsTop].sort((a, b) => b - a));
   });
 
+  describe('the moons', () => {
+    /** The square (row by row) a world point on the sheet lies in, or -1: read from the cell's measures, not `spot`. */
+    const squareOf = (c: [number, number, number]) => {
+      const col = Math.floor(((c[0] - g.cal.along) * g.reads + g.cal.wide / 2 - g.cal.margin) / g.cell);
+      const top = g.cal.at + g.high - g.cal.bar - g.cal.margin;
+      const row = Math.floor((top - (c[2] - CABIN_FLOOR)) / g.cell);
+      return col < 0 || col >= CALENDAR.columns || row < 0 || row >= CALENDAR.rows ? -1 : row * CALENDAR.columns + col;
+    };
+    /** A part's dots as separate sets of corners: its vertices sorted into the squares they lie in. */
+    const dots = (name: 'moonFull' | 'moonNew') => {
+      const bySquare = new Map<number, [number, number, number][]>();
+      for (const c of corners(part(groups, name))) {
+        const i = squareOf(c);
+        bySquare.set(i, [...(bySquare.get(i) ?? []), c]);
+      }
+      return [...bySquare.values()];
+    };
+    const centre = (d: [number, number, number][]) =>
+      [0, 1, 2].map((k) => (Math.min(...d.map((p) => p[k])) + Math.max(...d.map((p) => p[k]))) / 2);
+    const want = (phase: number) =>
+      Array.from({ length: CALENDAR.days }, (_, i) => i).filter((i) => moonOf(i + 1) === phase);
+
+    it('has a dot for each full and each new moon, seven of each, on exactly the squares moonOf says', () => {
+      for (const [name, phase] of [
+        ['moonFull', MOON.full],
+        ['moonNew', MOON.new],
+      ] as const) {
+        const squares = dots(name).map((d) => squareOf(centre(d) as [number, number, number]));
+        expect(squares.length, name).toBe(7);
+        expect(
+          squares.sort((a, b) => a - b),
+          name,
+        ).toEqual(want(phase));
+        expect(FURNITURE.calendar, name).toContain(name);
+      }
+      expect(want(MOON.full)).toEqual([0, 8, 16, 24, 32, 40, 48]);
+      expect(want(MOON.new)).toEqual([4, 12, 20, 28, 36, 44, 52]);
+    });
+
+    it('lays each dot in a corner of its square, clear of the mark’s centre, a third of a cell across', () => {
+      for (const name of ['moonFull', 'moonNew'] as const)
+        for (const d of dots(name)) {
+          const [u, v, h] = centre(d);
+          const i = squareOf([u, v, h]);
+          const [sx, sy, sz] = g.spot(i);
+          const [su, sv, sh] = inCabin(sx, sy, sz);
+          const across = Math.max(...d.map((p) => p[0])) - Math.min(...d.map((p) => p[0]));
+          expect(across, name).toBeCloseTo(g.cell / 3, 4);
+          // wholly inside the cell
+          for (const p of d) {
+            expect(Math.abs(p[0] - su), name).toBeLessThanOrEqual(g.cell / 2 + 1e-4);
+            expect(Math.abs(p[2] - sh), name).toBeLessThanOrEqual(g.cell / 2 + 1e-4);
+          }
+          // the mark's centre is not under it
+          expect(Math.hypot(u - su, h - sh), name).toBeGreaterThan(g.cell / 3);
+          // proud of the paper, behind the marks' plane
+          const vs = d.map((p) => p[1]);
+          expect(Math.min(...vs), name).toBeLessThan(hx - g.cal.depth);
+          expect(Math.min(...vs), name).toBeGreaterThanOrEqual(hx - g.cal.depth - g.cal.proud / 2 - 1e-4);
+          expect(Math.min(...vs), name).toBeGreaterThan(sv);
+        }
+    });
+
+    it('are two colours of their own, a pale one and a dark one, apart from every room colour', () => {
+      const light = (c: readonly number[]) => c[0] + c[1] + c[2];
+      expect(light(ROOM_COLOURS.moonFull)).toBeGreaterThan(light(ROOM_COLOURS.calendarSheet));
+      expect(light(ROOM_COLOURS.moonNew)).toBeLessThan(0.6);
+      for (const mine of ['moonFull', 'moonNew'] as const)
+        for (const [other, c] of Object.entries(ROOM_COLOURS))
+          if (other !== mine) expect(c.join(), `${mine} against ${other}`).not.toBe(ROOM_COLOURS[mine].join());
+      expect(part(groups, 'moonFull').albedo).toBe(ROOM_COLOURS.moonFull);
+      expect(part(groups, 'moonNew').albedo).toBe(ROOM_COLOURS.moonNew);
+    });
+  });
+
   it('keeps the marks off the static room, so they move with the day and not with the build', () => {
     expect(ROOM_PARTS).not.toContain('calendarGone');
     expect(ROOM_PARTS).not.toContain('calendarToday');
+    expect(ROOM_PARTS).toContain('moonFull');
+    expect(ROOM_PARTS).toContain('moonNew');
   });
 
   it('puts the sheet’s foot where it says and its top under the ceiling, a bar along the top', () => {
@@ -398,9 +476,9 @@ describe('the cabin’s wall calendar', () => {
     expect(Math.min(...bar)).toBeCloseTo(g.cal.at + g.high - g.cal.bar, 4);
   });
 
-  it('is a few triangles: the sheet, bar and four bands six blocks’ worth, the marks a quad each', () => {
+  it('is a few triangles: the sheet, bar and four bands six blocks’ worth and the fourteen moons a block each, the marks a quad each', () => {
     const tris = FURNITURE.calendar.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
-    expect(tris).toBeLessThanOrEqual(6 * 12);
+    expect(tris).toBeLessThanOrEqual(6 * 12 + 14 * 12);
     const marks = draw.groups(1, colours);
     expect(marks[0].mesh.indices.length / 3).toBe(2);
     expect(marks[0].count).toBe(CALENDAR.days);

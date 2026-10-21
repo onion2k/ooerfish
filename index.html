@@ -456,6 +456,99 @@
   html[data-layout='portrait'] #lakes .card {
     width: 100%;
   }
+  /* the sleep page: the lakes page's look and card, a row a marked night with the button that sleeps through to it */
+  #sleep {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 7, 12, 0.78);
+    z-index: 10;
+  }
+  #sleep[hidden] {
+    display: none;
+  }
+  #sleep .card {
+    width: min(380px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 16px;
+    background: #1a1824;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+  }
+  #sleep h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    text-align: center;
+  }
+  #sleepList {
+    list-style: none;
+    margin: 8px 0 12px;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  #sleepList li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  #sleepList button {
+    flex: 1;
+  }
+  #sleep .buttons {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+  #sleep button {
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    padding: 0 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #sleep button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  #sleep button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
+  }
+  #sleep button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  html[data-layout='sideways'] #sleep {
+    padding: 8px;
+  }
+  html[data-layout='sideways'] #sleep .card {
+    width: min(520px, 100%);
+    padding: 10px 14px;
+  }
+  html[data-layout='sideways'] #sleep h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  html[data-layout='sideways'] #sleepList {
+    margin: 6px 0;
+    gap: 8px;
+  }
+  html[data-layout='sideways'] #sleep button {
+    min-height: 36px;
+  }
+  html[data-layout='portrait'] #sleep .card {
+    width: 100%;
+  }
   /* the day's end: the cover that fades the screen to the night and back, its opacity the game's own fade written by the
      page as it changes (never a transition on the wall clock, so a picture holds still), over everything of the
      game's but a dialog; the yawn's words and the morning line and button stand over it, so they read on the dark */
@@ -1037,6 +1130,15 @@
     </div>
   </div>
 </div>
+<div id="sleep" role="dialog" aria-modal="true" aria-labelledby="sleepTitle" hidden>
+  <div class="card">
+    <h2 id="sleepTitle">Sleep through…</h2>
+    <ul id="sleepList"></ul>
+    <div class="buttons">
+      <button type="button" id="sleepClose">Close</button>
+    </div>
+  </div>
+</div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
 <div class="panel" id="gauge" hidden>
   <div id="gaugeBar" aria-hidden="true">
@@ -1074,6 +1176,7 @@
     <button id="lakesButton" type="button" role="menuitem">Lakes</button>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
     <button id="bedButton" type="button" role="menuitem">Go to bed</button>
+    <button id="sleepButton" type="button" role="menuitem">Sleep through…</button>
     <button id="startAgainButton" type="button" role="menuitem">Start again</button>
   </div>
 </div>

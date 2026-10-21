@@ -730,6 +730,8 @@ test.describe('Start again', () => {
     await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Go to bed' })).toBeFocused();
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('menuitem', { name: 'Sleep through…' })).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Start again' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(DIALOG)).toBeVisible();
@@ -1257,7 +1259,7 @@ test.describe('the time is saved and the menu stops the clock', () => {
     await start(page, { save: { cured: 2, day: 5, place: 'cabin' }, paused: true });
     expect(await api(page, () => window.game!.place())).toBe('cabin');
     expect(await api(page, () => window.game!.view())).toBe('cabin');
-    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin.');
+    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin. New moon tonight.');
     await expect(page.locator('#downButton')).toBeVisible();
     const before = await clock(page);
     await play(page, 120, 'two seconds in the cabin');
@@ -1808,6 +1810,115 @@ test.describe('the lakes', () => {
     await page.evaluate(() => window.game!.travel('reservoir'));
     await page.evaluate(() => window.game!.openLakes());
     await expect(page.locator('#lakes')).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The moon (`docs/moon.md`, part 2): the sky's two discs follow the day's phase and the look's name. Drawn at night only,
+ * handed over once for each change of the look or the phase, the same at both lakes. Seeded and paused.
+ */
+test.describe('the moon', () => {
+  const moon = (page: Page) => page.evaluate(() => window.game!.moon());
+
+  test('a new moon on day 5 is drawn at night, not by day, and handed over once for each change of the look', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2, day: 5 } });
+    const boot = await moon(page);
+    expect(boot).toMatchObject({ phase: 4, name: 'new', shown: false });
+    expect(boot.light).toBeCloseTo(0.35, 12);
+    expect(boot.handovers, 'the boot handed the dynamic set over once, the discs with it').toBe(1);
+
+    await page.evaluate(() => window.game!.time('night'));
+    const night = await moon(page);
+    expect(night).toMatchObject({ phase: 4, name: 'new', shown: true });
+    expect(night.handovers, 'the first night').toBe(boot.handovers + 1);
+    await play(page, 120, 'two seconds of the night');
+    expect((await moon(page)).handovers, 'a frame of the night hands nothing over').toBe(night.handovers);
+
+    await page.evaluate(() => window.game!.time('day'));
+    expect(await moon(page), 'by day nothing is drawn').toMatchObject({ shown: false, handovers: night.handovers + 1 });
+    await page.evaluate(() => window.game!.time('night'));
+    expect(await moon(page), 'and night again, one more handover').toMatchObject({
+      shown: true,
+      handovers: night.handovers + 2,
+    });
+    expect(problems).toEqual([]);
+  });
+
+  test('day 1 is a full moon, drawn at night', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2 } });
+    await page.evaluate(() => window.game!.time('night'));
+    expect(await moon(page)).toMatchObject({ phase: 0, name: 'full', light: 1, shown: true });
+    expect(problems).toEqual([]);
+  });
+
+  test('the Reservoir’s day 7 is a first quarter, drawn at night', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { lake: 'reservoir', day: 7 } });
+    await page.evaluate(() => window.game!.time('night'));
+    expect(await moon(page)).toMatchObject({ phase: 6, name: 'first quarter', shown: true });
+    expect(problems).toEqual([]);
+  });
+  // sleeping through (part 4): the page from the menu with the nights ahead in order of distance, the clock stopped
+  // while it is open, a choice that yawns and wakes the chosen days on, and the refusal mid-fight
+  test('Sleep through… opens the page from the menu, stops the clock, and a choice wakes that many days on, at home', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2 } });
+    await play(page, 60, 'a second before the page');
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Sleep through…' }).click();
+    await expect(page.locator('#sleep')).toBeVisible();
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
+    await expect(page.locator('#sleepList button')).toHaveText([
+      'Till the new moon (4 nights)',
+      'Till the full moon (8 nights)',
+    ]);
+    const before = await page.evaluate(() => window.game!.state().t);
+    await play(page, 120, 'two seconds with the page open');
+    expect(await page.evaluate(() => window.game!.state().t), 'the clock is stopped').toBe(before);
+    // Escape closes it, and the clock runs again
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sleep')).toBeHidden();
+    await play(page, 60, 'a second after');
+    expect(await page.evaluate(() => window.game!.state().t)).toBeGreaterThan(before);
+
+    await page.evaluate(() => window.game!.openSleep());
+    await page.getByRole('button', { name: 'Till the new moon (4 nights)' }).click();
+    await expect(page.locator('#sleep')).toBeHidden();
+    expect(await page.evaluate(() => window.game!.place())).toBe('yawning');
+    await page.evaluate(() => window.game!.step(45));
+    expect(await page.evaluate(() => window.game!.fade()), 'the screen fades').toBeGreaterThan(0.3);
+    await page.evaluate(() => window.game!.step(160));
+    expect(
+      await page.evaluate(() => ({
+        place: window.game!.place(),
+        day: window.game!.day(),
+        lake: window.game!.lake().id,
+        phase: window.game!.moon().name,
+      })),
+    ).toEqual({ place: 'cabin', day: 5, lake: 'duckpond', phase: 'new' });
+    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin. New moon tonight.');
+    expect(problems).toEqual([]);
+  });
+
+  test('Sleep through… is greyed and refused mid-fight', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    expect(await page.evaluate(() => window.game!.fishTo('fight'))).toBe(true);
+    await page.evaluate(() => window.game!.step(2));
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Sleep through…' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => window.game!.sleepThrough(3))).toBe(false);
+    expect(await page.evaluate(() => window.game!.place())).toBe('pond');
+    await page.evaluate(() => window.game!.openSleep());
+    for (const b of await page.locator('#sleepList button').all()) await expect(b).toBeDisabled();
     expect(problems).toEqual([]);
   });
 });

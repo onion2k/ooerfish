@@ -221,6 +221,43 @@ export const FISH_CAPACITY = 32;
 export const CALENDAR = { days: 56, rows: 4, columns: 14, seasonDays: 14 } as const;
 
 /**
+ * The moon (`docs/moon.md`): a round of eight days, so the year's 56 hold exactly seven and each season two full moons
+ * and two new, and the calendar's moons are fixed squares. Day 1 is the full moon, the user's choice, since the night
+ * as it was drawn is the full moon's and no night picture's light has to change by it; day 5 is the new. `darkest` is
+ * the share of the full moon's light the new moon gives, an estimate. `names` run from the full moon, by phase.
+ */
+export const MOON = {
+  days: 8,
+  full: 0,
+  new: 4,
+  darkest: 0.35,
+  /**
+   * The disc in the sky: how far from the world's origin along the night's light, and its radius, which is four
+   * degrees of sky at that distance (2 x atan(radius / distance)). The renderer's far plane is 1500 (`main.ts`) and
+   * the furthest camera, the Reservoir's overhead view, is 176 from the origin, so the disc is at most 1076 from any eye.
+   */
+  distance: 900,
+  radius: 31.4,
+  /**
+   * Where the disc lies, a unit vector from the origin. It is not the night's light, which is lowered to 25 degrees
+   * and cannot be seen from the shore: that view looks 15 degrees down with a 40 degree lens, so its top edge is 4.5
+   * degrees above the horizon and a cliff or a ridge fills the sky above the lake. This is the patch of sky that is
+   * left, up in the corner over the west bank, at about 2.5 degrees up.
+   */
+  direction: [-0.4192, 0.9066, 0.048],
+  names: [
+    'full',
+    'waning gibbous',
+    'last quarter',
+    'waning crescent',
+    'new',
+    'waxing crescent',
+    'first quarter',
+    'waxing gibbous',
+  ],
+} as const;
+
+/**
  * The year's seasons in order, a row of the calendar each. The year starts in summer, chosen by the user, so the lake as
  * it was drawn before the seasons is summer's and day one is unchanged; then autumn, winter and spring, and the year
  * comes round to summer again.

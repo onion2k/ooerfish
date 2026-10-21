@@ -13,7 +13,8 @@ import { painted, split } from 'artshape-render/mesh/paint';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { placeAt } from './cabin';
 import type { Cabin, Lake } from './lakes/lake';
-import { CALENDAR } from './lake';
+import { moonOf } from './calendar';
+import { CALENDAR, MOON } from './lake';
 import type { Colour } from './palette';
 
 /** The room's parts, in the order `roomGroups` makes them: a group, and a colour, each. */
@@ -48,6 +49,8 @@ export const ROOM_PARTS = [
   'bandAutumn',
   'bandWinter',
   'bandSpring',
+  'moonFull',
+  'moonNew',
   'mapWater',
   'mapDam',
 ] as const;
@@ -72,7 +75,7 @@ export const FURNITURE = {
   chest: ['chest'],
   picture: ['frame', 'canvas', 'mapWater', 'mapDam'],
   coat: ['peg', 'coat'],
-  calendar: ['calendarSheet', 'calendarBar', ...BAND_PARTS],
+  calendar: ['calendarSheet', 'calendarBar', ...BAND_PARTS, 'moonFull', 'moonNew'],
 } as const satisfies Record<string, readonly RoomPart[]>;
 
 /** The paint set the timber takes, the wood's faint warm lip, as the cabin's own does. */
@@ -552,6 +555,23 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
       onWall(b, edge, cc.margin * 0.5, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
     });
 
+  // the moons: a small block in the top corner (away from the bands) of each full-moon and each new-moon square, a third
+  // of a cell across, proud of the paper by half as much as the marks are, so a mark laid on the square covers it and
+  // never the other way; painted on the wood's set like the bands, which the marks, being faces, are not
+  const dotMesh = (phase: number) =>
+    built((b) => {
+      const dot = cell / 3;
+      for (let i = 0; i < CALENDAR.days; i++) {
+        if (moonOf(i + 1) !== phase) continue;
+        // the block wants the wall's own frame, so the square is worked out from its row and column as the bands' are
+        const col = i % CALENDAR.columns,
+          row = Math.floor(i / CALENDAR.columns);
+        const u = cc.along + reads * (-cc.wide / 2 + cc.margin + (col + 0.5) * cell) + reads * (cell * 0.32);
+        const h = cc.at + calHigh - cc.bar - cc.margin - (row + 0.5) * cell + cell * 0.32;
+        onWall(b, u, dot, cc.depth + cc.proud / 2, h - dot / 2, h + dot / 2);
+      }
+    });
+
   const timbered = (mesh: Mesh, part: RoomPart, roughness: number): GameGroup => ({
     mesh: timber(mesh),
     matrices: ONE,
@@ -596,6 +616,8 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
     bandAutumn: timbered(bandMesh(1), 'bandAutumn', 1),
     bandWinter: timbered(bandMesh(2), 'bandWinter', 1),
     bandSpring: timbered(bandMesh(3), 'bandSpring', 1),
+    moonFull: timbered(dotMesh(MOON.full), 'moonFull', 0.8),
+    moonNew: timbered(dotMesh(MOON.new), 'moonNew', 0.9),
     bulb: { mesh: bulb, matrices: ONE, albedo: colours.bulb, roughness: 0.4, patterns: lit(BULB_GLOW, colours.bulb) },
   };
   return ROOM_PARTS.map((part) => made[part]);

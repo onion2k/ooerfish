@@ -16,6 +16,7 @@ import { cabinGroups, jettyGroups } from './cabin';
 import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
 import { MapDraw, mapHit } from './mapdraw';
+import { MoonDraw } from './moondraw';
 import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
 import { fallingDue, fallingEmits } from './falling';
@@ -34,6 +35,7 @@ import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
 import { YOU_ARE_HERE, lakesWords } from './lakes/page';
+import { sleepWords } from './sleep/page';
 import {
   HEAL,
   KINDS,
@@ -51,8 +53,8 @@ import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type Tim
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { waterPoint } from './pick';
-import { ROOM_COLOURS } from './palette';
-import { seasonOf } from './calendar';
+import { ROOM_COLOURS, mix } from './palette';
+import { moonOf, seasonOf } from './calendar';
 import { mistFor, seasonGrass, seasonPalette } from './season';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
@@ -260,6 +262,8 @@ async function main() {
   /** The season last dressed (null before the first), how many static sets were handed over, and what the last cost. */
   let dressed: Season | null = null;
   let dressing: Season | null = null;
+  /** The phase of the moon the night's look was last made for, so a wake into another re-lights it. */
+  let phaseLit = moonOf(game.day);
   let statics = 0;
   let dressMs = 0;
   /**
@@ -393,7 +397,7 @@ async function main() {
   /** Whether a drag turns the camera: in look mode at the pond, and never in the room, where the bed's pillow is the one place to look from, nor while the screen fades. */
   const orbitOn = () => orbits(mode) && viewName !== 'cabin' && game.place === 'pond';
   /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
-  let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow()));
+  let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day)));
   let viewName: ViewName = 'shore';
   /** Whether the screen was taller than wide when the camera was last put at a view. */
   let tall = false;
@@ -415,6 +419,13 @@ async function main() {
   const calendarDraw = lake.cabin ? new CalendarDraw(lake) : null;
   let dayDrawn = -1;
   let calendarHandovers = 0;
+  /**
+   * The moon's two discs, and the look, phase and season they were last handed over for (none before the first). They
+   * are in the sky at the same place at both lakes, so only the look's name, the phase (the day's) and the season (whose
+   * tint is in the shadow's sky colour) can change them; `showLight` hands them over again when one has, never a frame.
+   */
+  const moonDraw = new MoonDraw();
+  const moonDrawn: { time: string; phase: number; season: Season | null } = { time: '', phase: -1, season: null };
   /** The map's pin, on the lake the save names, and the lake it was last handed over for (none before the first), and how many handovers that has been. */
   const mapDraw = lake.cabin ? new MapDraw(lake, Object.values(LAKES)) : null;
   let lakeDrawn = '';
@@ -429,6 +440,19 @@ async function main() {
     rippleLife = water.ringLife ?? 0;
     renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
   }
+  /** Whether the sky's discs were written for another look, phase or season than the page is at. */
+  const moonStale = () =>
+    moonDrawn.time !== time.name || moonDrawn.phase !== moonOf(game.day) || moonDrawn.season !== seasonNow();
+  /** The sky's two discs for the look and phase the page is at, and the key they were written for noted. */
+  function moonGroups() {
+    const phase = moonOf(game.day);
+    moonDrawn.time = time.name;
+    moonDrawn.phase = phase;
+    moonDrawn.season = seasonNow();
+    const night = timesFor(seasonNow(), phase).find((t) => t.name === 'night')!;
+    // the sky low where the moon stands is mostly the horizon's colour, which the shadow must match to be unseen
+    return moonDraw.groups(time.name, phase, { sky: mix(night.zenith, night.horizon, 0.85) });
+  }
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
     const cured = game.fish.curedCount();
@@ -441,7 +465,8 @@ async function main() {
       hauledDrawn !== hauled ||
       foundDrawn !== found ||
       dayDrawn !== game.day ||
-      lakeDrawn !== game.progress.save.lake
+      lakeDrawn !== game.progress.save.lake ||
+      moonStale()
     ) {
       watered = dirt;
       curedDrawn = cured;
@@ -451,12 +476,19 @@ async function main() {
       // a new season is dressed at the wake, in the cabin, where nothing moves; a wake inside a season hands nothing over
       // and its four looks are baked for it, about 35 ms, with the page lit as the same time of day in the new season
       const next = seasonOf(game.day);
+      const phase = moonOf(game.day);
+      // a new phase re-lights the night, whose values moved; the cube is the full moon's, so nothing is baked for it
+      if (next === dressing && phase !== phaseLit) {
+        phaseLit = phase;
+        void showLight(timesFor(next, phase).find((t) => t.name === time.name) ?? time);
+      }
+      if (next !== dressing) phaseLit = phase;
       if (next !== dressing)
         void dress(next).then(() => {
           const began = performance.now();
           bakeLooks(ctx, next);
           bakeMs = performance.now() - began;
-          return showLight(timesFor(next).find((t) => t.name === time.name) ?? time);
+          return showLight(timesFor(next, moonOf(game.day)).find((t) => t.name === time.name) ?? time);
         });
       dayDrawn = game.day;
       if (lakeDrawn !== game.progress.save.lake) mapHandovers++;
@@ -474,6 +506,8 @@ async function main() {
         ...drumDraw.groups(game.drums),
         ...drumDraw.bank(game.drums),
         ...treasureDraw.groups(game.treasures),
+        // the moon, after the drums and treasures so the slots ahead of it are as they were
+        ...moonGroups(),
         // the calendar hangs in the home's cabin, and a lake with none has no wall to hang it on
         ...(calendarDraw
           ? calendarDraw.groups(game.day, { gone: ROOM_COLOURS.calendarGone, today: ROOM_COLOURS.calendarToday })
@@ -513,7 +547,7 @@ async function main() {
   }
   /** The light of the time of that name, which the game's clock is put at; one not known is refused. */
   async function setTime(name: string) {
-    const to = timesFor(seasonNow()).find((t) => t.name === name);
+    const to = timesFor(seasonNow(), moonOf(game.day)).find((t) => t.name === name);
     if (!to) return;
     game.setTimeOfDay(to.at);
     await showLight(to);
@@ -528,6 +562,8 @@ async function main() {
     renderer.fog = mistFor(seasonNow(), to.name, MM_PER_UNIT);
     finish();
     await lit;
+    // the sky's discs follow the look's name, the phase and the season: handed over with the dynamic set, once a change
+    if (moonStale()) return showWater();
     await renderer.prepare();
   }
   /** The camera put at the view of that name, even when it is the view already, so it is the way back from being turned away; one not known is refused. */
@@ -602,7 +638,8 @@ async function main() {
    * Whether a page holds the game still: the menu's list, the journal, the lakes page, the Start again question or the pairing card.
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
    */
-  const pagesOpen = () => journalOpen || lakesOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
+  const pagesOpen = () =>
+    journalOpen || lakesOpen || sleepOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
   /** What a page open still lets through: a hold ending is always heard, or a reel would stay held under it. */
   const LETTING_GO: ReadonlySet<string> = new Set(['up', 'cancel', 'release', 'blur', 'left-cast', 'gone']);
   /** Every way of playing comes in here, so one gate keeps them all out while a page is open. */
@@ -918,6 +955,54 @@ async function main() {
     const id = go.dataset.lake!;
     void closeLakes().then(() => travelTo(id));
   });
+  // The sleep page is the lakes page's kind, written from `sleepWords` each time it opens: a button a marked night. A
+  // choice closes the page and then sleeps through, so the game's yawn (`yawned`, which puts the page in look mode and
+  // drops an aim) is what any bed is. It opens from the menu's Sleep through…, at the pond and in the cabin, and is
+  // held off with a fish on the line (the item is greyed by `NightView` and the buttons here are).
+  const sleepPage = byId('sleep');
+  const sleepList = byId('sleepList');
+  const sleepClose = byId<HTMLButtonElement>('sleepClose');
+  let sleepOpen = false;
+  function openSleep(): Promise<void> {
+    showMenu(false);
+    if (sleepOpen || (game.place !== 'pond' && game.place !== 'cabin')) return Promise.resolve();
+    const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+    sleepList.replaceChildren(
+      ...sleepWords(game.day, fighting).map((row) => {
+        const item = document.createElement('li');
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.textContent = row.label;
+        go.disabled = !row.enabled;
+        go.dataset.nights = String(row.nights);
+        item.append(go);
+        return item;
+      }),
+    );
+    sleepPage.hidden = false;
+    sleepOpen = true;
+    letGoOfReel();
+    (sleepList.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? sleepClose).focus();
+    return Promise.resolve();
+  }
+  const closeSleep = () => {
+    if (!sleepOpen) return Promise.resolve();
+    sleepPage.hidden = true;
+    sleepOpen = false;
+    menuButton.focus();
+    return Promise.resolve();
+  };
+  byId('sleepButton').addEventListener('click', () => void openSleep());
+  sleepClose.addEventListener('click', () => void closeSleep());
+  sleepPage.addEventListener('pointerdown', (e) => {
+    if (e.target === sleepPage) void closeSleep();
+  });
+  sleepList.addEventListener('click', (e) => {
+    const go = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('button[data-nights]') : null;
+    if (!go || go.disabled) return;
+    const nights = Number(go.dataset.nights);
+    void closeSleep().then(() => game.sleepThrough(nights));
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!menuList.hidden && e.target instanceof Node && !byId('menu').contains(e.target)) showMenu(false);
   });
@@ -928,6 +1013,10 @@ async function main() {
     }
     if (e.key === 'Escape' && lakesOpen) {
       void closeLakes();
+      return;
+    }
+    if (e.key === 'Escape' && sleepOpen) {
+      void closeSleep();
       return;
     }
     if (e.key === 'Escape' && !startAgain.hidden) {
@@ -1038,6 +1127,7 @@ async function main() {
       down: byId('downButton'),
       elsewhere: byId('elsewhereButton'),
       bed: byId<HTMLButtonElement>('bedButton'),
+      sleep: byId<HTMLButtonElement>('sleepButton'),
     },
     () => game,
   );
@@ -1170,7 +1260,7 @@ async function main() {
     gestures.sync();
     // the day's clock has run on: when it has come to the next look, the page is lit as that, once, so a frame in
     // play compares a name and nothing more; the environments are all baked, so this is a uniform write
-    const want = nearestTime(game.timeOfDay, timesFor(seasonNow()));
+    const want = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day)));
     if (want !== time) void showLight(want);
     // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
     // costs a comparison and nothing else
@@ -1263,6 +1353,7 @@ async function main() {
     startAgain: () => openStartAgain(),
     openJournal: (open) => (open ? openJournal() : closeJournal()),
     openLakes: (open) => (open ? openLakes() : closeLakes()),
+    openSleep: (open) => (open ? openSleep() : closeSleep()),
     setSettings,
     setDirt,
     setTime,
@@ -1274,6 +1365,7 @@ async function main() {
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
     calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
+    moon: () => ({ handovers: moonDraw.handovers, shown: moonDraw.shown() }),
     map: () => ({ pin: mapDraw?.pin() ?? '', handovers: mapHandovers }),
     mapOnScreen: () => {
       if (!mapDraw) return null;

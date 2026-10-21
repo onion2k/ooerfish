@@ -7,13 +7,14 @@ import { describe, expect, it } from 'vitest';
 import { grassGround } from 'artshape-render/game/grass';
 import { noFog } from 'artshape-render/game/fog';
 import { LUSH, bankField } from '../src/grass';
-import { SEASONS, SEASON_DRESSING, WATER_LEVEL, type Season } from '../src/lake';
+import { MOON, SEASONS, SEASON_DRESSING, WATER_LEVEL, type Season } from '../src/lake';
+import { moonLight } from '../src/calendar';
 import { PALETTE } from '../src/palette';
 import { cabinGroups, jettyGroups } from '../src/cabin';
 import { mistFor, seasonGrass, seasonPalette } from '../src/season';
 import { GRAVITY_MM, heightAt } from 'artshape-render/game/waves';
 import { BREEZE } from '../src/grass';
-import { TIMES, nearestTime, timeNamed, timesFor } from '../src/look';
+import { TIMES, lookFor, nearestTime, timeNamed, timesFor } from '../src/look';
 import { mix } from '../src/palette';
 import { CLEAR, CLEAR_WAVES, clear, wavesFor } from '../src/water/clear';
 import { surfaceOf } from '../src/water/swell';
@@ -219,5 +220,54 @@ describe('the mist', () => {
           for (const c of fog.colour) expect(c).toBeGreaterThanOrEqual(0);
         } else expect(fog).toEqual(off);
       }
+  });
+});
+
+describe('the night by the moon', () => {
+  const night = (season: Season, phase?: number) => timesFor(season, phase)[0];
+
+  it('is summer at the full moon equal to TIMES, and no-phase is the full moon', () => {
+    expect(timesFor('summer', MOON.full)).toEqual(TIMES);
+    expect(timesFor('summer')).toBe(timesFor('summer', MOON.full));
+  });
+
+  it('lowers the night’s sun to about 25 degrees on the same bearing, in every look', () => {
+    const [x, y, z] = TIMES[0].sun;
+    expect(Math.asin(z / Math.hypot(x, y, z)) * (180 / Math.PI)).toBeCloseTo(25, 0);
+    expect(x / y).toBeCloseTo(-0.3 / 0.4, 2);
+  });
+
+  it.each(SEASONS)('%s: the new moon’s night is moonLight of the full moon’s, with the exposure the same', (s) => {
+    const full = night(s, MOON.full);
+    const dark = night(s, MOON.new);
+    const k = moonLight(MOON.new);
+    expect(dark.ambient).toBeCloseTo(full.ambient * k, 12);
+    expect(dark.glitter).toBeCloseTo(full.glitter * k, 12);
+    for (const key of ['sunColour', 'zenith', 'horizon'] as const)
+      dark[key].forEach((v, i) => expect(v).toBeCloseTo(full[key][i] * k, 12));
+    expect(dark.exposure).toBe(full.exposure);
+    expect(dark.sun).toEqual(full.sun);
+  });
+
+  it.each(SEASONS)('%s: dawn, day and dusk are the same at every phase', (s) => {
+    for (let p = 1; p < MOON.days; p++)
+      for (const i of [1, 2, 3]) expect(timesFor(s, p)[i]).toEqual(timesFor(s, MOON.full)[i]);
+  });
+
+  it('is memoised by season and phase', () => {
+    for (const s of SEASONS) for (let p = 0; p < MOON.days; p++) expect(timesFor(s, p)).toBe(timesFor(s, p));
+    expect(timesFor('summer', 4)).not.toBe(timesFor('summer', 0));
+  });
+
+  it('carries the phase to the water’s glitter', () => {
+    const bright = (p: number) => clear.clear(0, true, night('summer', p), 'summer').sparkleBright!;
+    expect(bright(MOON.new)).toBeCloseTo(bright(MOON.full) * moonLight(MOON.new), 9);
+  });
+
+  it('lights the sky and ground with the ambient, so they follow the phase', () => {
+    const full = lookFor(night('summer', MOON.full));
+    const dark = lookFor(night('summer', MOON.new));
+    dark.skyLight.forEach((v, i) => expect(v).toBeCloseTo(full.skyLight[i] * moonLight(MOON.new), 9));
+    dark.groundLight.forEach((v, i) => expect(v).toBeCloseTo(full.groundLight[i] * moonLight(MOON.new), 9));
   });
 });

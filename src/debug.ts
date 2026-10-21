@@ -25,7 +25,7 @@ import type { PhoneReading } from './phone/session';
 import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
-import { seasonOf } from './calendar';
+import { moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from './calendar';
 import { KINDS, type Season } from './lake';
 import { LAKES } from './lakes';
 import { bankSpot } from './drumdraw';
@@ -252,6 +252,21 @@ export interface GameApi {
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
   /**
+   * The moon on the game's day (`docs/moon.md`): its `phase` (0 full to 7), `name`, `light` (the share of the full
+   * moon's the night gives), the nights to the `nextFull` and `nextNew` (one to eight), and how many times the sky's
+   * discs have been handed over (`handovers`, once a change of the look's name or the phase, and the first of all) and
+   * whether they are on the sky now (`shown`: the look is the night).
+   */
+  moon(): {
+    phase: number;
+    name: string;
+    light: number;
+    nextFull: number;
+    nextNew: number;
+    handovers: number;
+    shown: boolean;
+  };
+  /**
    * The season the day is in, and what the page has dressed of it: `name` is the day's, `dressed` the season last
    * handed to the renderer (null before the dressing exists), `statics` how many times the static set was handed over for
    * a season, `falling` the falling things emitted, and `mist` whether the fog is on, and `dressMs` how long the last
@@ -303,6 +318,12 @@ export interface GameApi {
    * opened away from the pond and the cabin (in a yawn or a journey's fade). A Go on it is a click on its button.
    */
   openLakes(open?: boolean): Promise<void>;
+  /**
+   * Opens the sleep page as the menu's Sleep through… item does, resolving once it is shown, or closes it again with
+   * `false`. It stops the game's step while open as every page does, and is not opened away from the pond and the
+   * cabin. A choice on it is a click on its button.
+   */
+  openSleep(open?: boolean): Promise<void>;
   /**
    * The map on the cabin's wall: the id of the lake its pin was last handed over on (the lake the save names, which
    * is the home's whenever the player is in the cabin, but for the moment of a journey's fade), and how many times
@@ -362,6 +383,12 @@ export interface GameApi {
   fade(): number;
   /** Go to bed, as the menu's item does, from the pond or the cabin; says whether it began the night, which it does not with a fish hooked or landed or while yawning. */
   sleep(): Promise<boolean>;
+  /**
+   * Sleep through `nights` nights, as a choice on the sleep page does: the yawn as `sleep`'s, and the wake that many
+   * days on, in the cabin at home. Says whether it began, which it does not with a fish hooked or landed, while
+   * yawning or leaving, or for nights that are not a whole number from one to a round of the moon (eight).
+   */
+  sleepThrough(nights: number): Promise<boolean>;
   /** Go down to the pond from the cabin, as the button does, look mode at the Shore view and the clock running; resolves once the camera is ready, saying whether the player came out. */
   out(): Promise<boolean>;
   /**
@@ -424,6 +451,7 @@ export interface DebugHost {
   startAgain(): Promise<void>;
   openJournal(open: boolean): Promise<void>;
   openLakes(open: boolean): Promise<void>;
+  openSleep(open: boolean): Promise<void>;
   map(): { pin: string; handovers: number };
   mapOnScreen(): { x: number; y: number } | null;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
@@ -435,6 +463,8 @@ export interface DebugHost {
   drawnCured(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
+  /** The sky's discs: how many times they were handed over, and whether they are drawn now. */
+  moon(): { handovers: number; shown: boolean };
   /** What the page has dressed of the season, which the API joins to the day's name. */
   season(): Omit<SeasonReading, 'name'>;
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
@@ -675,6 +705,17 @@ export function createApi(host: DebugHost): GameApi {
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
     calendar: () => host.calendar(),
+    moon: () => {
+      const phase = moonOf(game.day);
+      return {
+        phase,
+        name: moonName(phase),
+        light: moonLight(phase),
+        nextFull: nextFull(game.day),
+        nextNew: nextNew(game.day),
+        ...host.moon(),
+      };
+    },
     season: () => ({ name: seasonOf(game.day), ...host.season() }),
     // time is stopped away from the pond, and the cabin's view is the one place to look from there: both let go unanswered
     time: ((name?: string) =>
@@ -699,6 +740,7 @@ export function createApi(host: DebugHost): GameApi {
     startAgain: () => host.startAgain(),
     openJournal: (open = true) => host.openJournal(open),
     openLakes: (open = true) => host.openLakes(open),
+    openSleep: (open = true) => host.openSleep(open),
     map: () => host.map(),
     mapOnScreen: () => host.mapOnScreen(),
 
@@ -729,6 +771,7 @@ export function createApi(host: DebugHost): GameApi {
     place: () => game.place,
     fade: () => game.fade(),
     sleep: () => Promise.resolve(game.sleep()),
+    sleepThrough: (nights) => Promise.resolve(game.sleepThrough(nights)),
     out: () => host.out(),
     travel: (id) => host.travel(id),
     arrived: () => game.arrived(),

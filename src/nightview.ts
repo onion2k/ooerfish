@@ -6,7 +6,8 @@
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
-import { seasonOf } from './calendar';
+import { moonOf, seasonOf } from './calendar';
+import { MOON } from './lake';
 import { theLake } from './lakes/page';
 import type { Place } from './night';
 
@@ -23,6 +24,8 @@ export interface NightElements {
   elsewhere: HTMLElement;
   /** The Go to bed item in the menu, greyed when the night cannot be begun. */
   bed: HTMLButtonElement;
+  /** The Sleep through… item beside it, greyed by the same flag: the bed and sleeping through are refused together. */
+  sleep: HTMLButtonElement;
 }
 
 /** What the page says of the night: the yawn's line, the morning's, and whether Go to bed may be pressed. */
@@ -31,6 +34,7 @@ export interface NightWords {
   morning: string | null;
   /** The morning's button, naming the lake the save names; with it the Somewhere else… button is shown. */
   out: string | null;
+  /** Whether Go to bed and Sleep through… may be pressed, which they are together. */
   bed: boolean;
 }
 
@@ -44,6 +48,14 @@ function morningOf(day: number): string {
   return `${season === 'autumn' ? 'An' : 'A'} ${season} morning`;
 }
 
+/** The marked night's line: the full moon's or the new moon's, and nothing on the nights between. */
+function moonLine(day: number): string {
+  const phase = moonOf(day);
+  if (phase === MOON.full) return ' Full moon tonight.';
+  if (phase === MOON.new) return ' New moon tonight.';
+  return '';
+}
+
 /**
  * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed off).
  * The morning's button names the lake the save names, which after a wake is the home whichever lake the day ended at:
@@ -52,7 +64,7 @@ function morningOf(day: number): string {
 export function nightWords(place: Place, day: number, fighting: boolean, lakeName: string): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
-    morning: place === 'cabin' ? `Day ${day}. ${morningOf(day)} at the cabin.` : null,
+    morning: place === 'cabin' ? `Day ${day}. ${morningOf(day)} at the cabin.${moonLine(day)}` : null,
     out: place === 'cabin' ? `Out to ${theLake(lakeName)}` : null,
     bed: place === 'pond' || place === 'cabin' ? !fighting : false,
   };
@@ -103,7 +115,7 @@ export class NightView {
     const bed = w.bed ? 'on' : 'off';
     if (bed !== was.bed) {
       was.bed = bed;
-      el.bed.disabled = !w.bed;
+      el.bed.disabled = el.sleep.disabled = !w.bed;
     }
   }
 }
