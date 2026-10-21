@@ -552,22 +552,22 @@ export function roomGroups(colours: RoomColours, lake: Lake, lakes: readonly Lak
     built((b) => {
       const edge = cc.along + reads * (-cc.wide / 2 + cc.margin / 2);
       const top = cc.at + calHigh - cc.bar - cc.margin - row * cell;
-      onWall(b, edge, cc.margin * 0.5, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
+      onWall(b, edge, cc.margin * 0.6, cc.depth + cc.proud / 2, top - cell * 0.94, top - cell * 0.06);
     });
 
-  // the moons: a small block in the top corner (away from the bands) of each full-moon and each new-moon square, a third
+  // the moons: a small block in the top corner (away from the bands) of each full-moon and each new-moon square, two fifths
   // of a cell across, proud of the paper by half as much as the marks are, so a mark laid on the square covers it and
   // never the other way; painted on the wood's set like the bands, which the marks, being faces, are not
   const dotMesh = (phase: number) =>
     built((b) => {
-      const dot = cell / 3;
+      const dot = cell * 0.4;
       for (let i = 0; i < CALENDAR.days; i++) {
         if (moonOf(i + 1) !== phase) continue;
         // the block wants the wall's own frame, so the square is worked out from its row and column as the bands' are
         const col = i % CALENDAR.columns,
           row = Math.floor(i / CALENDAR.columns);
-        const u = cc.along + reads * (-cc.wide / 2 + cc.margin + (col + 0.5) * cell) + reads * (cell * 0.32);
-        const h = cc.at + calHigh - cc.bar - cc.margin - (row + 0.5) * cell + cell * 0.32;
+        const u = cc.along + reads * (-cc.wide / 2 + cc.margin + (col + 0.5) * cell) + reads * (cell * 0.28);
+        const h = cc.at + calHigh - cc.bar - cc.margin - (row + 0.5) * cell + cell * 0.28;
         onWall(b, u, dot, cc.depth + cc.proud / 2, h - dot / 2, h + dot / 2);
       }
     });

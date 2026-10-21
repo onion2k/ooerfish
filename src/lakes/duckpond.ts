@@ -502,9 +502,20 @@ const CABIN_ROOM = {
     /**
      * The wall calendar: a sheet `wide` along the lake wall with its foot `at` over the floor, a timber bar `bar` high
      * along its top, and a `margin` of paper round the squares; the sheet's height is what the four rows of squares and
-     * those take, and each square is `mark` of its cell.
+     * those take, and each square is `mark` of its cell. It hangs above the window, as wide as it, with its foot just over
+     * the window's top frame (sill 0.9 + 1.3 high + the 0.14 frame is 2.34) and its top under the ceiling, so from the
+     * pillow it is the widest thing on the wall and a square reads; the lamp hangs well in front of the wall, off it.
      */
-    calendar: { along: 1.275, wide: 0.66, at: 1.08, bar: 0.04, margin: 0.03, mark: 0.74, depth: 0.03, proud: 0.012 },
+    calendar: {
+      along: CABIN.window.along,
+      wide: 1.6,
+      at: 2.38,
+      bar: 0.04,
+      margin: 0.06,
+      mark: 0.74,
+      depth: 0.03,
+      proud: 0.012,
+    },
   },
 } as const;
 

@@ -199,8 +199,9 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   naming each piece's parts), painted with the wood's set, every vertex inside
   the cabin's outer walls so no outside picture changes, each piece on the floor
   or hung on a wall, clear of the camera's eye, the door and the window, and all
-  of it under 1500 triangles, held by `test/cabinroom.test.ts`. **The wall calendar** (`docs/time.md`) hangs under
-  the picture: a sheet and bar in the static set (`calendarSheet`, `calendarBar`), and the year's `CALENDAR.days`
+  of it under 1500 triangles, held by `test/cabinroom.test.ts`. **The wall calendar** (`docs/time.md`) hangs over the window, as wide as it (the room test's
+  window rule guards the opening and its frame only, so the wall above is free to hang on), where it reads from the
+  pillow: a sheet and bar in the static set (`calendarSheet`, `calendarBar`), and the year's `CALENDAR.days`
   (56, four rows of fourteen) squares as two moving parts, `calendarGone` and `calendarToday`, from the pure
   `calendarMarks(day)` in `src/calendar.ts`, drawn by `CalendarDraw` (`src/calendardraw.ts`, matrices sized once, a
   square not shown scaled to nothing) and handed over by `main.ts` only when `game.day` changes; `game.calendar()`

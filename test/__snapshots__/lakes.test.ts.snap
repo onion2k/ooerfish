@@ -154,14 +154,14 @@ exports[`the Duck Pond, held to what the module answered before it was an object
           ],
         ],
         "calendar": {
-          "along": 1.275,
-          "at": 1.08,
+          "along": 2.6,
+          "at": 2.38,
           "bar": 0.04,
           "depth": 0.03,
-          "margin": 0.03,
+          "margin": 0.06,
           "mark": 0.74,
           "proud": 0.012,
-          "wide": 0.66,
+          "wide": 1.6,
         },
         "chair": {
           "across": 1.9,
