@@ -39,6 +39,8 @@ export function fallingEmits(season: Season, world: FallingWorld): Emit[] {
       growth: f.growth,
       colour: f.colour,
       fade: f.fade,
+      // a leaf or a petal, drawn as one and tumbling; snow is the disc it was
+      shape: f.shape ?? 'disc',
       alpha: 1,
       gravity: f.gravity,
       // a flake reaching the water is gone

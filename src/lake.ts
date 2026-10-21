@@ -769,11 +769,13 @@ export interface Mist {
  * One kind of falling thing, as the renderer's particles are asked for it (`docs/seasons.md`, part 4): the colour it
  * starts and the one it fades to, its size and growth, how long it lives and how much that varies, how much of
  * gravity it feels (little: it drifts), how many each emitter drops each time, how many game frames pass between one
- * emitter's drops, and the wind that carries it, in world units a second.
+ * emitter's drops, and the wind that carries it, in world units a second. Its shape is the renderer's: a leaf or a
+ * petal tumbles as it falls, and a flake left as the disc is the soft round dot it was.
  */
 export interface Falling {
   colour: Colour;
   fade?: Colour;
+  shape?: 'leaf' | 'petal';
   size: number;
   growth: number;
   life: number;
@@ -826,8 +828,9 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
     water: { near: [0.16, 0.5, 0.48], crest: [0.92, 0.9, 0.8], sparkle: 0.85 },
     breeze: 0.5,
     waves: 1.2,
-    // russet leaves darkening to brown as they go, drifting on the stronger breeze
+    // russet leaves darkening to brown as they go, tumbling on the stronger breeze
     falling: {
+      shape: 'leaf',
       colour: [0.6, 0.24, 0.04],
       fade: [0.22, 0.1, 0.03],
       size: 0.35,
@@ -887,6 +890,7 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
     waves: 1,
     // pink petals, small, on a soft breeze
     falling: {
+      shape: 'petal',
       colour: [0.95, 0.55, 0.7],
       fade: [0.85, 0.4, 0.55],
       size: 0.16,

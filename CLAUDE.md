@@ -162,7 +162,8 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   and sparkle (`style.clear(..., season)`), `breeze` (the grass wind's strength), `waves` (an amplitude scale,
   `wavesFor`, which the bobber's surface is rebuilt from), `falling` (the particles of leaves, snow or blossom:
   `fallingEmits` in `src/falling.ts`, a ring of `FALLING.emitters` over the lake, emitted on a cadence from `simulate`
-  at the pond only, carried by `setWind`; the pool stays `PARTICLE_POOL`, 2048, since a bigger ring moves the slot each
+  at the pond only, carried by `setWind`; autumn's are the renderer's `leaf` shape and spring's its `petal`
+  (`Falling.shape`, from artshape-render v0.49.0, each tumbling from its own hash), winter's the disc; the pool stays `PARTICLE_POOL`, 2048, since a bigger ring moves the slot each
   droplet's chance is drawn from and so nineteen pictures; the window of a fall and the falls' mist over the longest
   life is held under it in `leaks`) and `mist` (the renderer's fog, `mistFor`, low over `WATER_LEVEL` at autumn dawn
   and winter dawn and night, about 0.2 ms, off on the lean rung with the grass; the flakes fall on lean too). The page

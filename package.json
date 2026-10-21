@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "artshape-physics": "github:onion2k/artshape-physics#v0.8.0",
-    "artshape-render": "github:onion2k/artshape-render#v0.44.0",
+    "artshape-render": "github:onion2k/artshape-render#v0.49.0",
     "qrcode": "1.5.4",
     "trystero": "0.26.0"
   },

@@ -37,6 +37,11 @@ describe.each(others)('%s', (s) => {
     for (const e of emits) expect(e.floor).toBe(world.level);
   });
 
+  it('is drawn as the season’s shape: a leaf in autumn, a petal in spring, and the disc for snow', () => {
+    const want = { autumn: 'leaf', winter: 'disc', spring: 'petal' }[s];
+    for (const e of emits) expect(e.shape).toBe(want);
+  });
+
   it('has colours in [0, 1], a gravity in [0, 1], and drifts down, not up', () => {
     for (const e of emits) {
       for (const c of [...e.colour, ...(e.fade ?? [])]) {

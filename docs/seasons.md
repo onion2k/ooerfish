@@ -46,7 +46,9 @@ too, as the last part, measured, dropped to a slice of its own if it cannot fit 
     `renderer.wind` takes the season's breeze. All free, written in `finish`.
   - _The falling things:_ `src/falling.ts` (pure: the emitters of a season, a ring of `FALLING.emitters` points over
     the lake and banks at `FALLING.height`, each a `count`, `life`, `size`, `colour`, `gravity`, `floor` at the water,
-    and a cadence in game frames) emitted from `simulate` as the falls' mist is (`mistDue`), through
+    a `shape` where the season has one (autumn's leaves are the renderer's `leaf`, spring's petals its `petal`, from
+    artshape-render v0.49.0, each turning and folding as it falls from its own hash; snow is the disc) and a cadence
+    in game frames) emitted from `simulate` as the falls' mist is (`mistDue`), through
     `renderer.emit`, carried sideways by `renderer.setWind` set to the season's wind; nothing in a frame is made. The
     particle pool grows from 2048 to what the worst season needs at its steady state (rate × life, about 300 live
     plus the splashes), named in `scripts/leaks.ts`. Paused, nothing is emitted (as the mist). The lean rung draws them too (found in part 6: lean drops the grass and the mist, not the particles), since the
