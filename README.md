@@ -10,21 +10,55 @@ no meter runs out but the day.
 
 `DESIGN.md` says what the game is to be, and the order it is built in.
 
-## How it is played
+## How to play
 
-Find a fish by its glow and what the surface does, drag back to cast and let
-go, let the lure sink, strike when the bobber dips, and reel with an eye on
-the line's tension. The catch is cured as it is landed and let go, gold, back
-into the lake, and the lake's water turns from green to blue.
+It is live at [fish.ooer.com](https://fish.ooer.com), on a phone or a desktop; every push to `main` deploys there.
+Nothing is ever lost and no meter runs out but the day, so there is no wrong way to play.
 
-**Not yet, but it plays.** The page opens straight onto the sick Duck Pond at dawn, its water seen through
-to its bed, its rocks and weed and the glowing fish among them. "Cast" (or the C key) puts the camera at the
-shore, where you drag back to aim, let go to cast, tap to strike when the bobber dips and hold to reel a fish
-into the zone on the bar; tap the catch to put it in the bucket, which cures it and clears the pond a twelfth,
-kept in the save. The day runs round from dawn. A tap on the water drops a pebble that sends rings across it.
-`docs/game.md` is the plan the first slice was built from, and `DESIGN.md` says the
-rest. `npm run dev`, then `http://localhost:5204/`; `?seed=3&paused=1&caustics=off&paint=off` are for
-tests and comparing, and nothing about the game is in the address.
+**The loop.** You are at the Duck Pond at dawn, its water seen through to the bed and the glowing fish among the
+weed. Press **Cast** (or the **C** key): the camera comes to the shore, and from there
+
+- **drag back** anywhere on the screen to aim (the arc shows where the lure will land), and **let go** to cast;
+- the lure sinks under its bobber; a fish comes to it only at its own depth, so the sink is the choice: bream in
+  the shallows, perch in the middle, pike near the bed;
+- **tap** (or **space**) the moment the bobber dips, to strike;
+- **hold** (or hold space) to reel: the fish darts on the bar and the reel held pushes the zone up it, so keep the
+  fish in the zone and the meter fills; let it out too long and the fish slips off, and nothing is lost;
+- **tap the catch** to put it in the bucket. That cures it: it goes back into the pond gold and never bites again,
+  and the pond clears a little. A lure left lying on the bed may snag a drum of waste or a junk treasure instead;
+  hauled or kept the same way.
+
+Curing brings gifts from the Sunny Atom: a stronger line, a faster reel, a longer rod, a bigger bobber, tastier
+bait. The pond is clean when every fish is cured and every drum hauled.
+
+**Looking round.** Outside cast mode a **drag** turns the camera and the **wheel** zooms; a **tap on the water** drops
+a pebble. A **tap on the cabin** walks in.
+
+**The day.** A day is twelve minutes, dawn to midnight. At midnight you yawn, the screen fades and you wake in the
+cabin next morning; **Go to bed** in the ⋯ menu does the same early, and **Sleep through…** skips to the next full or
+new moon. The year is four seasons of fourteen days, summer first, and the moon goes round in eight: the night is
+darkest at the new moon, when the fish glow brightest.
+
+**The cabin.** The ⋯ menu's **Go to the cabin** (or a tap on it from the shore) walks in without ending the day; time
+stops inside. The calendar on the wall is the year, a square a day, with the seasons' bands and the moons marked;
+the map in the frame is the lakes, a pin on where you fished last; the shelves hold what you have found. **Out to
+the lake** takes you back to the same moment.
+
+**The lakes.** All open from the start: tap the map, or **Lakes** in the ⋯ menu, and **Go**. The Duck Pond is home,
+where the cabin is; the Reservoir is bigger, deeper and under a dam, with sixteen fish and three drums. Wherever you
+are at midnight, you wake at home. Each lake keeps its own count of cures; the gifts are yours and come with you.
+
+**The journal** (in the ⋯ menu) is what you have caught at this lake, the biggest of each kind, and what you found
+on the bed.
+
+**A phone as the rod.** **Pair a phone** in the ⋯ menu shows a code; scan it and the phone is the rod: flick to cast,
+tilt to aim, hold the pad to reel, and the bite buzzes in your hand. The screen keeps the picture.
+
+**Start again** in the ⋯ menu wipes the save after asking. Progress is kept in the browser, saved as you play.
+
+For the game at your own machine: `npm run dev`, then `http://localhost:5204/`. `?seed=3&paused=1&caustics=off&paint=off`
+are for the tests and for comparing, and nothing about the game is in the address. `docs/` holds the plan each
+feature was built from, and `DESIGN.md` the rest.
 
 ## What is here
 
@@ -60,7 +94,10 @@ the game's palette.
     src/mode.ts        look or cast: what a drag does, and the camera's part in switching
     src/debug.ts       window.game, the test API
     src/invariants.ts  what must always hold
-    src/lake.ts        content: the shore, the bed, the banks, the fish, the views
+    src/lake.ts        the rules: the clock, the fight, the gear, the kinds, the calendar, the seasons, the moon
+    src/lakes/         each lake as a Lake object: the Duck Pond, the Reservoir, the registry; the lakes page
+    src/calendar.ts    the day's square, its season and its moon, as pure sums; season.ts the season's dressing
+    src/cabinroom.ts   the cabin's room: the furniture, the calendar, the map; moondraw.ts the moon in the sky
     src/fish.ts        the school, swimming
     src/water/         the water seen into, a file and a line in STYLES
     src/look.ts        the toon look and the times of day
