@@ -150,6 +150,7 @@ export async function hideOverlays(page: Page) {
       'menu',
       'bucket',
       'morning',
+      'radio',
       'downButton',
       'elsewhereButton',
       'yawn',

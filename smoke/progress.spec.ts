@@ -1259,9 +1259,7 @@ test.describe('the time is saved and the menu stops the clock', () => {
     await start(page, { save: { cured: 2, day: 5, place: 'cabin' }, paused: true });
     expect(await api(page, () => window.game!.place())).toBe('cabin');
     expect(await api(page, () => window.game!.view())).toBe('cabin');
-    await expect(page.locator('#morning')).toHaveText(
-      'Day 5. Morning at the cabin. New moon tonight. A sun-shower today.',
-    );
+    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin.');
     await expect(page.locator('#downButton')).toBeVisible();
     const before = await clock(page);
     await play(page, 120, 'two seconds in the cabin');
@@ -1415,7 +1413,7 @@ test.describe('the seasons', () => {
   test('a load on day 15 in the cabin says an autumn morning, and is autumn', async ({ page }) => {
     const problems = watch(page);
     await start(page, { save: { cured: 2, day: 15, place: 'cabin' }, paused: true });
-    await expect(page.locator('#morning')).toHaveText('Day 15. An autumn morning at the cabin. Foggy today.');
+    await expect(page.locator('#morning')).toHaveText('Day 15. An autumn morning at the cabin.');
     expect((await page.evaluate(() => window.game!.season())).name).toBe('autumn');
     expect(problems).toEqual([]);
   });
@@ -1908,9 +1906,7 @@ test.describe('the moon', () => {
         phase: window.game!.moon().name,
       })),
     ).toEqual({ place: 'cabin', day: 5, lake: 'duckpond', phase: 'new' });
-    await expect(page.locator('#morning')).toHaveText(
-      'Day 5. Morning at the cabin. New moon tonight. A sun-shower today.',
-    );
+    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin.');
     expect(problems).toEqual([]);
   });
 
@@ -2166,7 +2162,7 @@ test.describe('the weather', () => {
       place: 'cabin',
     });
     expect((await page.evaluate(() => window.game!.weather())).name).toBe('rain');
-    await expect(page.locator('#morning')).toHaveText('Day 11. Morning at the cabin. Rain today.');
+    await expect(page.locator('#morning')).toHaveText('Day 11. Morning at the cabin.');
     expect(problems).toEqual([]);
   });
 
@@ -2194,6 +2190,100 @@ test.describe('the weather', () => {
     expect(await page.evaluate(() => window.game!.weather('hail'))).toBe(false);
     expect(await page.evaluate(() => window.game!.weather())).toEqual(before);
     await play(page, 30, 'a half second after');
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The cabin's radio (`docs/radio.md`): a forecast and a line of gossip under the morning line, shown with it and only in
+ * the cabin. Seeded and paused, stepped through the test API.
+ */
+test.describe('the radio', () => {
+  const panel = (page: Page) => page.locator('#radio');
+
+  test('a wake on day 13 forecasts rain and a new moon, and the morning line is only the day and the hour', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 5, paused: true, save: { cured: 2, day: 12, time: 0.999, place: 'pond' } });
+    await play(page, 400, 'midnight crossed, the yawn over and the fade lifted');
+    expect(await page.evaluate(() => window.game!.place())).toBe('cabin');
+    expect(await page.evaluate(() => window.game!.day())).toBe(13);
+    await expect(page.locator('#morning')).toHaveText('Day 13. Morning at the cabin.');
+    await expect(panel(page)).toBeVisible();
+    const lines = (await panel(page).innerText()).split('\n');
+    expect(lines[0]).toBe('Sunny Atom Radio says rain today, and a new moon tonight.');
+    const radio = await page.evaluate(() => window.game!.radio());
+    expect(radio.shown).toBe(true);
+    expect(radio.forecast).toBe(lines[0]);
+    expect(radio.gossip).toBe(lines[1]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a walk in by day shows the radio with the afternoon, and out to the pond hides it', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 5, paused: true, save: { cured: 2, day: 2, time: 0.6, place: 'pond' } });
+    expect(await page.evaluate(() => window.game!.weather().name)).toBe('sunny');
+    await expect(panel(page)).toBeHidden();
+    await page.evaluate(() => window.game!.enter());
+    await play(page, 120, 'the fade in');
+    expect(await page.evaluate(() => window.game!.place())).toBe('cabin');
+    await expect(page.locator('#morning')).toHaveText('Day 2. Afternoon at the cabin.');
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).toContainText('Sunny Atom Radio says a fine day.');
+    expect((await page.evaluate(() => window.game!.radio())).shown).toBe(true);
+    await page.evaluate(() => window.game!.out());
+    await play(page, 10, 'out to the pond');
+    await expect(panel(page)).toBeHidden();
+    expect((await page.evaluate(() => window.game!.radio())).shown).toBe(false);
+    expect(problems).toEqual([]);
+  });
+
+  test('a clean Reservoir is the town’s gossip, even from the Duck Pond’s cabin', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, {
+      seed: 5,
+      paused: true,
+      save: {
+        lake: 'duckpond',
+        day: 3,
+        place: 'cabin',
+        lakes: { reservoir: { cured: 16, drums: 3, journal: {}, found: [] } },
+      },
+    });
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).toContainText('the Reservoir');
+    expect(problems).toEqual([]);
+  });
+
+  test('a first fish of a kind caught yesterday is gossiped by its kind', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, {
+      seed: 5,
+      paused: true,
+      save: {
+        cured: 2,
+        day: 3,
+        place: 'cabin',
+        journal: { pike: { caught: 1, best: 3, first: 2 } },
+      },
+    });
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page)).toContainText('pike');
+    expect(problems).toEqual([]);
+  });
+
+  test('the radio is hidden while the player yawns', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 5, paused: true, save: { cured: 2, day: 2, place: 'cabin' } });
+    await expect(panel(page)).toBeVisible();
+    await page.evaluate(() => window.game!.out());
+    await play(page, 5, 'down at the pond');
+    await page.evaluate(() => window.game!.sleep());
+    await page.evaluate(() => window.game!.step(45));
+    expect(await page.evaluate(() => window.game!.place())).toBe('yawning');
+    await expect(panel(page)).toBeHidden();
+    expect((await page.evaluate(() => window.game!.radio())).shown).toBe(false);
     expect(problems).toEqual([]);
   });
 });

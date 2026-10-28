@@ -576,14 +576,32 @@
     text-align: center;
     font-size: 22px;
   }
+  /* centred by auto margins, not left 50% and a transform: a fixed box placed at left 50% has only the right half of
+     the screen to shrink to fit in, which squeezed these to a narrow column on a phone */
   #morning {
     top: 26px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 16px;
+    right: 16px;
+    width: fit-content;
+    margin: 0 auto;
     max-width: calc(100% - 32px);
     text-align: center;
     text-wrap: balance;
     font-size: 18px;
+  }
+  /* the wireless's forecast and gossip, one to a line, under the morning line */
+  #radio {
+    top: 86px;
+    left: 16px;
+    right: 16px;
+    width: fit-content;
+    margin: 0 auto;
+    z-index: 6;
+    max-width: calc(100% - 32px);
+    text-align: center;
+    text-wrap: balance;
+    white-space: pre-line;
+    font-size: 14px;
   }
   #elsewhereButton {
     bottom: 100px;
@@ -949,6 +967,9 @@
   html[data-layout='portrait'] #morning {
     top: 172px;
   }
+  html[data-layout='portrait'] #radio {
+    top: 260px;
+  }
   html[data-layout='portrait'] #downButton {
     bottom: 28px;
   }
@@ -992,6 +1013,9 @@
   html[data-layout='sideways'] #morning,
   html[data-layout='sideways'] #toast {
     top: 76px;
+  }
+  html[data-layout='sideways'] #radio {
+    top: 130px;
   }
   html[data-layout='sideways'] #downButton {
     bottom: 14px;
@@ -1188,6 +1212,7 @@
 <div id="night" aria-hidden="true" hidden></div>
 <div class="panel" id="yawn" role="status" hidden></div>
 <div class="panel" id="morning" role="status" hidden></div>
+<div class="panel" id="radio" role="status" hidden></div>
 <button class="panel" id="downButton" type="button" hidden>Out to the Duck Pond</button>
 <button class="panel" id="elsewhereButton" type="button" hidden>Somewhere else…</button>
 <div id="boot">

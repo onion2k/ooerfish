@@ -15,12 +15,12 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
 
 ## Part A: finish the calendar (stages 5 and 6)
 
-- [ ] **A1. The weather** (stage 6, slice 3; `docs/weather.md`). Five weathers from the day, pure in `calendar.ts`:
+- [x] **A1. The weather** (stage 6, slice 3; `docs/weather.md`, landed 28 Oct 2026). Five weathers from the day, pure in `calendar.ts`:
       sunny, rain, fog, sun-shower, wind. Rain is falling particles and rings on the water, and brings fish up; fog
       is the renderer's fog thick over the lake, hiding the glow a catch's kind is told by; the sun-shower is rain by
       day with a rainbow; wind bends the cast's flight and its preview. The fuzzer reaches every weather; the
       determinism hash takes it in; the sleep page lists the weather's nights.
-- [ ] **A2. The radio and the morning** (stage 5, slice 4). The cabin's morning line becomes the radio: today's
+- [ ] **A2. The radio and the morning** (stage 5, slice 4; `docs/radio.md`, being built). The cabin's morning line becomes the radio: today's
       forecast, the moon, the season, and a line of gossip from a small pool keyed by what has happened (a lake
       cleaned, a drum hauled, a treasure found). Words a pure function in `src/radio.ts` with a unit test, as
       `nightWords` is. No sound yet: the radio is text until Part D. The mail waits on Part B.

@@ -1202,6 +1202,7 @@ async function main() {
       fade: byId('night'),
       yawn: byId('yawn'),
       morning: byId('morning'),
+      radio: byId('radio'),
       down: byId('downButton'),
       elsewhere: byId('elsewhereButton'),
       bed: byId<HTMLButtonElement>('bedButton'),
@@ -1454,6 +1455,7 @@ async function main() {
     drawnDirt: () => watered,
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
+    radio: () => night.radio(),
     calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
     moon: () => ({ handovers: moonDraw.handovers, shown: moonDraw.shown() }),
     weather: () => ({

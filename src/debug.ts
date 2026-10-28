@@ -251,6 +251,8 @@ export interface GameApi {
   drawnCured(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
+  /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
+  radio(): { forecast: string; gossip: string; shown: boolean };
   /**
    * The moon on the game's day (`docs/moon.md`): its `phase` (0 full to 7), `name`, `light` (the share of the full
    * moon's the night gives), the nights to the `nextFull` and `nextNew` (one to eight), and how many times the sky's
@@ -489,6 +491,8 @@ export interface DebugHost {
   drawnCured(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
+  /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
+  radio(): { forecast: string; gossip: string; shown: boolean };
   /** The sky's discs: how many times they were handed over, and whether they are drawn now. */
   moon(): { handovers: number; shown: boolean };
   /** The weather as the page has dressed it: the rainbow's handovers, the fog's density drawn, and what falls. */
@@ -738,6 +742,7 @@ export function createApi(host: DebugHost): GameApi {
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
     calendar: () => host.calendar(),
+    radio: () => host.radio(),
     moon: () => {
       const phase = moonOf(game.day);
       return {

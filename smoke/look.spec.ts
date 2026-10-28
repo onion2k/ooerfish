@@ -667,8 +667,8 @@ test.describe('the phone as the rod', () => {
  * The day's end with the real HUD over the real page (`docs/day.md`): the yawn with the screen half faded and its
  * words, and the morning in the cabin with its line and the button, at a desk's width and a phone's. Seeded and paused.
  */
-async function night(page: Page, scene: 'yawn' | 'morning') {
-  await start(page, { seed: 11, paused: true, save: { cured: 4, day: 1 } });
+async function night(page: Page, scene: 'yawn' | 'morning', day = 1) {
+  await start(page, { seed: 11, paused: true, save: { cured: 4, day } });
   await page.evaluate(async (m) => {
     const g = window.game!;
     g.step(60);
@@ -701,6 +701,15 @@ test('the menu open at a desk’s width', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+// the radio under the morning line (`docs/radio.md`): day 13 wakes to rain and a new moon
+test('desk-radio-morning', async ({ page }) => {
+  const problems = watch(page);
+  await night(page, 'morning', 12);
+  await expect(page.locator('#radio')).toContainText('rain today, and a new moon tonight');
+  await expect(page).toHaveScreenshot('desk-radio-morning.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
 test.describe('the morning on a phone', () => {
   test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
 
@@ -708,6 +717,14 @@ test.describe('the morning on a phone', () => {
     const problems = watch(page);
     await night(page, 'morning');
     await expect(page).toHaveScreenshot('phone-morning.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('radio-morning', async ({ page }) => {
+    const problems = watch(page);
+    await night(page, 'morning', 12);
+    await expect(page.locator('#radio')).toContainText('rain today, and a new moon tonight');
+    await expect(page).toHaveScreenshot('phone-radio-morning.png', TOLERANCE);
     expect(problems).toEqual([]);
   });
 });
@@ -1089,9 +1106,7 @@ test('desk-morning-full-moon', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 11, paused: true, save: { cured: 4, day: 9, place: 'cabin' } });
   await page.evaluate(() => window.game!.step(160));
-  await expect(page.locator('#morning')).toHaveText(
-    'Day 9. Morning at the cabin. Full moon tonight. A sun-shower today.',
-  );
+  await expect(page.locator('#morning')).toHaveText('Day 9. Morning at the cabin.');
   await expect(page).toHaveScreenshot('desk-morning-full-moon.png', TOLERANCE);
   expect(problems).toEqual([]);
 });

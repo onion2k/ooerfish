@@ -79,7 +79,7 @@ export function weatherOf(day: number): Weather {
  * step of `seeded(day)` is not that: its first draw climbs in a straight line with the seed, so the weather came in
  * runs of a fortnight.
  */
-function dayHash(day: number): number {
+export function dayHash(day: number): number {
   let h = day >>> 0;
   h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0;
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;

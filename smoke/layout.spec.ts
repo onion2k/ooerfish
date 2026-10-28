@@ -43,6 +43,7 @@ const BREAKPOINTS = [
  *               may contain the bobber's point.
  *   yawn        the words while the screen fades to the night.
  *   morning     the line on waking in the cabin.
+ *   radio       the wireless's forecast and gossip, two lines under the morning line.
  *   downButton  Out to the lake, beside the morning line.
  *   elsewhereButton  Somewhere else…, above it: the way to the lakes page.
  *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
@@ -68,6 +69,7 @@ const OVERLAYS = [
   'biteMark',
   'yawn',
   'morning',
+  'radio',
   'downButton',
   'elsewhereButton',
 ] as const;
@@ -141,9 +143,9 @@ const AT_LEAST: Record<Moment, number> = {
   lakes: 1,
   'lakes cabin': 1,
   sleep: 1,
-  // the gauge, the menu and the words; and, in the cabin, the line and the two buttons with them
+  // the gauge, the menu and the words; and, in the cabin, the line, the radio under it and the two buttons with them
   yawn: 3,
-  morning: 5,
+  morning: 6,
 };
 
 interface Box {

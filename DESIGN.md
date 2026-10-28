@@ -265,6 +265,10 @@ Each stage is a feature, built and verified before the next, every gate green at
    of day and the player's place are saved, so a load opens where they were; the ⋯ menu and all it opens stop the
    clock as the journal does; and a wall calendar in the cabin, the year's fifty-six squares with the days gone
    darkened and today marked. Sleeping through, the radio and the mail are not, and wait on the weather and the town._
+   _Sleeping through came with the moon (stage 6). The radio is being built (28 Oct 2026, `docs/radio.md`): the
+   cabin's morning is a broadcast under the line, Sunny Atom Radio's forecast (the weather, the moon tonight, the
+   season's first day) and one line of gossip from what the save says has happened, in the townsfolk's roles since
+   their names are not decided; no sound, and no radio in the room, by the user's choice. The mail waits on the town._
 6. **The seasons, the moon and the weather.**
    _A first slice is being built (20 Oct 2026, `docs/seasons.md`): the day's season, summer first so the lake as
    drawn today is summer's, then autumn, winter and spring, each seen as the banks' colours, the sky and the water's

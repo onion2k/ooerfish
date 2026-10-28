@@ -6,9 +6,9 @@
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
-import { moonOf, seasonOf, weatherOf } from './calendar';
-import { MOON } from './lake';
+import { seasonOf } from './calendar';
 import { theLake } from './lakes/page';
+import { radioWords } from './radio';
 import type { Place } from './night';
 
 export interface NightElements {
@@ -18,6 +18,8 @@ export interface NightElements {
   yawn: HTMLElement;
   /** The morning line. */
   morning: HTMLElement;
+  /** The radio's panel under it: the forecast and the gossip, one to a line. */
+  radio: HTMLElement;
   /** The Out to the lake button, shown with the morning line. */
   down: HTMLElement;
   /** The Somewhere else… button, shown with it, which opens the lakes page. */
@@ -59,30 +61,6 @@ function hourOf(day: number, timeName: string): string {
   return `${season === 'autumn' ? 'An' : 'A'} ${season} ${hour}`;
 }
 
-/** The marked night's line: the full moon's or the new moon's, and nothing on the nights between. */
-function moonLine(day: number): string {
-  const phase = moonOf(day);
-  if (phase === MOON.full) return ' Full moon tonight.';
-  if (phase === MOON.new) return ' New moon tonight.';
-  return '';
-}
-
-/** The day's weather in a sentence, and nothing on a sunny day. */
-export function weatherLine(day: number): string {
-  switch (weatherOf(day)) {
-    case 'rain':
-      return ' Rain today.';
-    case 'fog':
-      return ' Foggy today.';
-    case 'shower':
-      return ' A sun-shower today.';
-    case 'wind':
-      return ' Windy today.';
-    case 'sunny':
-      return '';
-  }
-}
-
 /**
  * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed and the
  * way into the cabin off), and the name of the clock's look (`dawn`, `day`, `dusk` or `night`), which the cabin's line
@@ -99,10 +77,7 @@ export function nightWords(
 ): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
-    morning:
-      place === 'cabin'
-        ? `Day ${day}. ${hourOf(day, timeName)} at the cabin.${moonLine(day)}${weatherLine(day)}`
-        : null,
+    morning: place === 'cabin' ? `Day ${day}. ${hourOf(day, timeName)} at the cabin.` : null,
     out: place === 'cabin' ? `Out to ${theLake(lakeName)}` : null,
     bed: place === 'pond' || place === 'cabin' ? !fighting : false,
     cabin: place === 'pond' && !fighting,
@@ -111,6 +86,18 @@ export function nightWords(
 
 export class NightView {
   private was = { fade: '', yawn: '', morning: '', out: '', bed: '', cabin: '' };
+  /**
+   * The radio's last words, and what they were worked out for. The clock holds in the cabin and the save cannot change
+   * there, so the words are worked out again only when the day or the hour moves or the cabin is newly entered, never
+   * each frame.
+   */
+  private said = { forecast: '', gossip: '', text: '', day: 0, hour: '', shown: false };
+
+  /** The radio's words as last written to the page, and whether they are shown. */
+  radio(): { forecast: string; gossip: string; shown: boolean } {
+    const { forecast, gossip, shown } = this.said;
+    return { forecast, gossip, shown };
+  }
 
   constructor(
     private readonly el: NightElements,
@@ -147,6 +134,32 @@ export class NightView {
       was.morning = morning;
       el.morning.hidden = el.down.hidden = el.elsewhere.hidden = morning === '';
       el.morning.textContent = morning;
+    }
+    // the radio is heard with the morning line, and its words are worked out only when what they are of has moved
+    const { said } = this;
+    if (morning === '') {
+      if (said.shown) {
+        said.shown = false;
+        said.day = 0;
+        said.forecast = said.gossip = '';
+        el.radio.hidden = true;
+      }
+    } else {
+      const hour = this.timeName();
+      if (!said.shown || said.day !== g.day || said.hour !== hour) {
+        const r = radioWords(g.day, save, lakes, hour);
+        const text = `${r.forecast}\n${r.gossip}`;
+        said.shown = true;
+        said.day = g.day;
+        said.hour = hour;
+        said.forecast = r.forecast;
+        said.gossip = r.gossip;
+        el.radio.hidden = false;
+        if (text !== said.text) {
+          said.text = text;
+          el.radio.textContent = text;
+        }
+      }
     }
     const out = w.out ?? '';
     if (out !== was.out) {
