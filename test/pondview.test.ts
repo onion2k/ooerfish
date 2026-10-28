@@ -20,6 +20,9 @@ const state = (over: Partial<PondState> = {}): PondState => ({
   toastHauled: 0,
   hauledUntil: -Infinity,
   foundUntil: -Infinity,
+  answered: null,
+  answeredFrom: -Infinity,
+  answeredUntil: -Infinity,
   gift: null,
   giftFrom: -Infinity,
   giftUntil: -Infinity,
@@ -168,6 +171,39 @@ describe('what the pond says of a gift', () => {
   });
 });
 
+describe('what the pond says of a request answered', () => {
+  const said = (over: Partial<PondState>) =>
+    pondWords(
+      state({
+        cured: 2,
+        toastCured: 2,
+        toastUntil: 2,
+        answered: 'biggest',
+        answeredFrom: 2,
+        answeredUntil: 4,
+        ...over,
+      }),
+    ).toast;
+  it('names who will be pleased, once the cure’s own line is over', () => {
+    expect(said({ t: 2 })).toEqual({ lead: 'Answered!', bold: 'Flo Keel will be pleased.' });
+    expect(said({ t: 3.9 })?.lead).toBe('Answered!');
+    expect(said({ t: 4 }), 'over at the time').toBe(null);
+  });
+  it('lets the cure’s line have the first two seconds', () => {
+    expect(said({ t: 1 })?.lead).toBe('Cured!');
+  });
+  it('says none for an id it does not know', () => {
+    expect(said({ t: 3, answered: 'nobody' })).toBe(null);
+  });
+  it('is said before the gift, which waits behind it', () => {
+    const gift = { name: 'a stronger line', words: 'The meter drains more slowly.' };
+    const both = (t: number) => said({ t, gift, giftFrom: 4, giftUntil: 6 })?.lead;
+    expect(both(1)).toBe('Cured!');
+    expect(both(3)).toBe('Answered!');
+    expect(both(5)).toContain('A gift from');
+  });
+});
+
 /** An element that counts how many times each thing on it was written, so a page not changed is seen to be left alone. */
 function stub() {
   const writes: Record<string, number> = {};
@@ -235,6 +271,26 @@ const total = (el: Record<string, { writes: Record<string, number> }>) =>
   Object.values(el).reduce((n, e) => n + Object.values(e.writes).reduce((a, b) => a + b, 0), 0);
 
 describe('the pond view', () => {
+  it('says Cured!, then Answered!, then the gift, one after another', () => {
+    const { game, el, pond } = view();
+    // the game tells the cure, the gift and then the answer, in that order
+    pond.cured(2, CURE.toClean);
+    pond.gifted('a stronger line', 'The meter drains more slowly.');
+    pond.answered('ducks');
+    pond.show();
+    expect(el.toast.innerHTML).toContain('Cured!');
+    game.t = 2.5;
+    pond.show();
+    expect(el.toast.innerHTML).toContain('Answered!');
+    expect(el.toast.innerHTML).toContain('<b>Ida Penny will be pleased.</b>');
+    game.t = 4.5;
+    pond.show();
+    expect(el.toast.innerHTML).toContain('A gift from the Sunny Atom');
+    game.t = 6.5;
+    pond.show();
+    expect(el.toast.hidden).toBe(true);
+  });
+
   it('says the gift after the cure’s line, once, and then nothing', () => {
     const { game, el, pond } = view();
     pond.cured(2, CURE.toClean);

@@ -818,6 +818,52 @@ test.describe('the journal', () => {
   });
 });
 
+/** The post with all three letters open, and with the ducks and the rival answered (`docs/post.md`). */
+const POST_OPEN_SAVE = { cured: 3, day: 2 };
+const POST_ANSWERED_SAVE = {
+  cured: 12,
+  day: 3,
+  drums: 2,
+  journal: { pike: { caught: 1, best: 4.1, first: 2 } },
+  requests: ['ducks', 'biggest'],
+};
+
+test.describe('the post', () => {
+  test('the page at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: POST_OPEN_SAVE });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openPost());
+    await expect(page.locator('#postClose')).toBeFocused();
+    await expect(page).toHaveScreenshot('desk-post.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('the page with the ducks and the rival answered', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: POST_ANSWERED_SAVE });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openPost());
+    await expect(page.locator('#postClose')).toBeFocused();
+    await expect(page).toHaveScreenshot('desk-post-answered.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the page at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: POST_OPEN_SAVE });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => window.game!.openPost());
+      await expect(page.locator('#postClose')).toBeFocused();
+      await expect(page).toHaveScreenshot('phone-post.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
 /** Every treasure found, with a journal part filled and a drum hauled, on the second day: the longest page the journal has. */
 const FOUND_SAVE = {
   ...JOURNAL_SAVE,

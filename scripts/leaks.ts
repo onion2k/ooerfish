@@ -31,6 +31,7 @@ import { particleWindow } from '../src/falling';
 import { seasonOf } from '../src/calendar';
 import { FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
+import { REQUESTS } from '../src/town/requests';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { collectionsKept, crowd, type Crowd } from './phonemonkey';
@@ -51,6 +52,8 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   'drums hauled': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.drums.count)) },
   // and the junk treasures found are kept by id, none twice, of the most any lake has
   'treasures found': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.treasures.count)) },
+  // the town's requests are kept by id, none twice, of the ones it has
+  'requests answered': { ceiling: REQUESTS.length },
   // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
@@ -74,6 +77,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'journal kinds': Object.keys(game.progress.entry(game.lake.id).journal).length,
     'drums hauled': game.progress.entry(game.lake.id).drums,
     'treasures found': game.progress.entry(game.lake.id).found.length,
+    'requests answered': game.progress.save.requests.length,
     'particle window': particleWindow(seasonOf(game.day), game.lake, game.weather),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };

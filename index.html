@@ -155,7 +155,8 @@
      as something to press and not the browser's grey */
   #pairingClose,
   #startAgain button,
-  #journal button {
+  #journal button,
+  #post button {
     font: inherit;
     font-weight: 700;
     color: var(--ink);
@@ -170,12 +171,14 @@
   }
   #pairingClose:hover,
   #startAgain button,
-  #journal button:hover {
+  #journal button:hover,
+  #post button:hover {
     background: rgba(255, 255, 255, 0.14);
   }
   #pairingClose:focus-visible,
   #startAgain button,
-  #journal button:focus-visible {
+  #journal button:focus-visible,
+  #post button:focus-visible {
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
@@ -349,6 +352,96 @@
   }
   /* portrait: the whole width of a phone, less its gutter, and the words a little larger to be read held at arm's length */
   html[data-layout='portrait'] #journal .card {
+    width: 100%;
+  }
+  /* the post's page: the journal's card and look, a letter each with who it is from over it and, once answered, the
+     reply set apart under it */
+  #post {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 7, 12, 0.78);
+    z-index: 10;
+  }
+  #post[hidden] {
+    display: none;
+  }
+  #post .card {
+    width: min(380px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 16px;
+    background: #1a1824;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    text-align: left;
+  }
+  #post h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    text-align: center;
+  }
+  #postList {
+    list-style: none;
+    margin: 8px 0;
+    padding: 0;
+    display: grid;
+    gap: 14px;
+  }
+  #postList b {
+    display: block;
+    font-size: 15px;
+  }
+  #postList p {
+    margin: 2px 0 0;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  /* an answered letter's heading and its reply read in the ink, the open ones in the dim, as the journal's caught kinds do */
+  #postList .answered p {
+    color: var(--ink);
+  }
+  #postList .answered p:not(.reply) {
+    color: var(--dim);
+  }
+  #postList .reply {
+    margin-top: 6px;
+    padding-left: 10px;
+    border-left: 2px solid rgba(255, 255, 255, 0.28);
+  }
+  #post .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  html[data-layout='sideways'] #post {
+    padding: 8px;
+  }
+  html[data-layout='sideways'] #post .card {
+    width: min(640px, 100%);
+    padding: 10px 14px;
+  }
+  html[data-layout='sideways'] #post h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  html[data-layout='sideways'] #postList {
+    gap: 8px;
+    margin: 6px 0;
+  }
+  html[data-layout='sideways'] #postList b {
+    font-size: 13px;
+  }
+  html[data-layout='sideways'] #postList p {
+    font-size: 12px;
+  }
+  html[data-layout='sideways'] #post button {
+    min-height: 36px;
+  }
+  html[data-layout='portrait'] #post .card {
     width: 100%;
   }
   /* the lakes page: the journal's look and its card, a row a lake with its name, where the player is and how much of
@@ -1145,6 +1238,15 @@
     </div>
   </div>
 </div>
+<div id="post" role="dialog" aria-modal="true" aria-labelledby="postTitle" hidden>
+  <div class="card">
+    <h2 id="postTitle">Post</h2>
+    <ul id="postList"></ul>
+    <div class="buttons">
+      <button type="button" id="postClose">Close</button>
+    </div>
+  </div>
+</div>
 <div id="lakes" role="dialog" aria-modal="true" aria-labelledby="lakesTitle" hidden>
   <div class="card">
     <h2 id="lakesTitle">Lakes</h2>
@@ -1197,6 +1299,7 @@
   </button>
   <div class="panel" id="menuList" role="menu" hidden>
     <button id="journalButton" type="button" role="menuitem">Journal</button>
+    <button id="postButton" type="button" role="menuitem">Post</button>
     <button id="lakesButton" type="button" role="menuitem">Lakes</button>
     <button id="cabinButton" type="button" role="menuitem">Go to the cabin</button>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>

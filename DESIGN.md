@@ -287,6 +287,12 @@ Each stage is a feature, built and verified before the next, every gate green at
    boulders and the cliff's lumps, the beach, the pebbles and the clumps frosted, a lace of frost at a clean lake's
    edge, and the glow brighter against the white. The boat's cover waits on the boat; the festivals are stage 12's._
 7. **The town:** the letters, the requests and the logbook's pages.
+   _A first slice is in (28 Oct 2026, `docs/post.md`): the town is Brightwater and its people are named
+   (Ida Penny the postmistress, Wendell Fisk the engineer, Marigold Bunn the baker, Pip and the Glow-Worms, Mayor
+   Hubert Quill, Old Ned, Flo Keel his rival, and the Mallards), the post is a page from the menu and a tap on the
+   cabin's table, and three letters ask for what the fish already serve: the Duck Pond cleaned, a fish of every
+   kind, and one over three and a half kilos; a request met is answered by a reply and never fails. The logbook,
+   the other letters and the contests are later slices._
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**
@@ -304,7 +310,8 @@ Each stage is a feature, built and verified before the next, every gate green at
 - Whether the game-side rope feels right on a fast reel, or the physics needs a rope.
 - The fishing's figures: the cast's reach, the sink's rate, the strike's window, the tension's limits.
 - How many lakes, and each one's fish.
-- The townsfolk's names and faces, and the story's words.
+- The townsfolk's faces, and the story's words beyond the first letters (the names are in `docs/post.md`,
+  28 Oct 2026).
 - The sound: where its assets come from, and what it may cost of the download.
 - What a drum of waste is worth in the cleaning (two fish's, an estimate), and how many the lakes after the first hold.
 - The words of the junk: each treasure's line and the bottle's note are placeholders until the story's words are decided.

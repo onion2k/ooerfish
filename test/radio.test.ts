@@ -23,6 +23,7 @@ function saveOf(
     day,
     time: 0.1,
     place: 'cabin',
+    requests: [],
   };
 }
 

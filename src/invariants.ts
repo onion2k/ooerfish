@@ -22,6 +22,8 @@ import { fightFor, gearFor } from './fight';
 import { FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON, WEATHER } from './lake';
 import { weatherOf } from './calendar';
 import { poseFish } from './swim';
+import { REQUESTS } from './town/requests';
+import { LAKES } from './lakes';
 
 /**
  * The junk treasures' rules. The ids kept are known, each once, and no more than the pond has; the treasures found on the
@@ -115,6 +117,24 @@ function journalRules(game: Game, out: string[]) {
         `${k.id}: ${curedOf[n]} fish are cured, but the journal says ${journal[k.id]?.caught ?? 0} caught of ${slots[n]} slots`,
       );
   });
+}
+
+/**
+ * The town's requests. Each id answered is one the town knows, kept once, and its request is met; and each request that
+ * is met is answered, so a load that meets one has marked it. Nothing here asks the page.
+ */
+function requestRules(game: Game, out: string[]) {
+  const { save } = game.progress;
+  const seen = new Set<string>();
+  for (const id of save.requests) {
+    const request = REQUESTS.find((r) => r.id === id);
+    if (!request) out.push(`request ${id} is not known`);
+    else if (seen.has(id)) out.push(`request ${id} is answered twice`);
+    else if (!request.met(save, LAKES)) out.push(`request ${id} is answered, but is not met`);
+    seen.add(id);
+  }
+  for (const r of REQUESTS)
+    if (!seen.has(r.id) && r.met(save, LAKES)) out.push(`request ${r.id} is met, but is not answered`);
 }
 
 /** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
@@ -294,6 +314,7 @@ export function checkInvariants(game: Game): string[] {
   lakesRules(game, out);
   journalRules(game, out);
   treasureRules(game, out);
+  requestRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

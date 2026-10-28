@@ -437,3 +437,39 @@ describe('the save per lake', () => {
     expect(checkInvariants(lever).join('\n')).toMatch(/the weather is hail/);
   });
 });
+
+describe('the requests', () => {
+  const bad = (game: ReturnType<typeof newGame>['game']) => checkInvariants(game).join('\n');
+  const pike = { pike: { caught: 1, best: 4, first: 1 } };
+
+  it('hold of a load that meets one and marks it, and of a fresh game', () => {
+    expect(checkInvariants(newGame().game)).toEqual([]);
+    const { game } = newGame(1, JSON.stringify({ cured: 2, journal: pike }));
+    expect(game.progress.save.requests).toEqual(['biggest']);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('report an id the town does not know', () => {
+    const { game } = newGame();
+    game.progress.save.requests.push('nope');
+    expect(bad(game)).toMatch(/request nope is not known/);
+  });
+
+  it('report an id twice', () => {
+    const { game } = newGame(1, JSON.stringify({ cured: 2, journal: pike }));
+    game.progress.save.requests.push('biggest');
+    expect(bad(game)).toMatch(/request biggest is answered twice/);
+  });
+
+  it('report an answered request that is not met', () => {
+    const { game } = newGame();
+    game.progress.save.requests.push('ducks');
+    expect(bad(game)).toMatch(/request ducks is answered, but is not met/);
+  });
+
+  it('report a request met and not marked', () => {
+    const { game } = newGame(1, JSON.stringify({ cured: 2, journal: pike }));
+    game.progress.save.requests.length = 0;
+    expect(bad(game)).toMatch(/request biggest is met, but is not answered/);
+  });
+});

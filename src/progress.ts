@@ -16,6 +16,7 @@ import { CLOCK, KINDS } from './lake';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import type { Journal } from './journal';
+import { REQUESTS } from './town/requests';
 
 /** What the player has done at one lake: it is kept for every lake known, and a journey from one to another resets none. */
 export interface LakeSave {
@@ -40,6 +41,8 @@ export interface Save {
   time: number;
   /** Where the player was: at the pond or in the cabin. The yawn between is never kept, so a load lands before it. */
   place: 'pond' | 'cabin';
+  /** The ids of the town's requests answered, in the order they were, each once; nothing ever takes one away. */
+  requests: string[];
 }
 
 /** A save as a test may hand one in: any of the fields, the flat shape from before there were lakes included, which reads as the home's. */
@@ -139,6 +142,23 @@ function readFound(raw: unknown, lake: Lake): string[] {
   return out;
 }
 
+/**
+ * The requests answered as anyone may have written them: a list, of which an id the town has no request for, a
+ * repeat of one already kept, and one the save does not earn (read after the lakes, so the request's own test is
+ * asked) is dropped, as a journal that counts more caught than cured is. Anything that is not a list is none.
+ */
+function readRequests(raw: unknown, save: Save, lakes: Record<string, Lake>): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const id of raw) {
+    if (typeof id === 'string' && !out.includes(id)) {
+      const request = REQUESTS.find((r) => r.id === id);
+      if (request && request.met(save, lakes)) out.push(id);
+    }
+  }
+  return out;
+}
+
 const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [] });
 
 /**
@@ -199,6 +219,7 @@ export class Progress {
       const home = this.homeId();
       this.save.lakes[home] = readEntry(said, lakes[home] ?? HOME, this.save.day);
     }
+    this.save.requests = readRequests(said.requests, this.save, lakes);
   }
 
   /** The home's id, or the first the registry has where the home is not in it (a test that plays some other lake alone). */
@@ -209,7 +230,7 @@ export class Progress {
   private fresh(): Save {
     const lakes: Record<string, LakeSave> = {};
     for (const id of Object.keys(this.lakes)) lakes[id] = freshEntry();
-    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond' };
+    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond', requests: [] };
   }
 
   /** What has been done at the lake with this id: the live entry the game writes, made fresh if the save has none. */

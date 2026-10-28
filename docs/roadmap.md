@@ -29,7 +29,7 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
 
 ## Part B: the town (stage 7, and the mail of stage 5)
 
-- [ ] **B1. The post and the requests.** `Save.requests` (open, done, by id), a `Request` list in
+- [x] **B1. The post and the requests** (`docs/post.md`, landed 28 Oct 2026). `Save.requests` (open, done, by id), a `Request` list in
       `src/town/requests.ts` (id, who, what is asked, the test of a catch that answers it, the letter's words), the
       mail on the cabin's table read in the morning (a page, as the journal is, stopping the clock), and a reply
       when a request is met. The first requests are those the fish already serve: the duck family (the pond

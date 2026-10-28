@@ -10,6 +10,7 @@ import { GIFT_GIVER } from './lake';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import { TheLake, theLake } from './lakes/page';
+import { requestNamed } from './town/requests';
 
 export interface PondElements {
   gauge: HTMLElement;
@@ -43,6 +44,13 @@ export interface PondState {
   hauledUntil: number;
   /** Until when the line about a treasure kept is said, in game time: it is the last one's, kept and not counted. */
   foundUntil: number;
+  /**
+   * The request last answered (its id), and the game time its line is said from and until. Its line waits for the
+   * cure's or the haul's to end, as the gift's waits for it.
+   */
+  answered: string | null;
+  answeredFrom: number;
+  answeredUntil: number;
   /**
    * The gift last given, and the game time its line is said from and until. A gift comes with its cure, so its line
    * waits for the cure's to end (`giftFrom` is that time) and the two never overlap.
@@ -90,6 +98,9 @@ export function pondWords(s: PondState, lake: Lake = HOME): PondWords {
     if (s.toastCured === s.toClean && clean)
       toast = { lead: `${TheLake(name)} is clean!`, bold: 'Every fish is cured.' };
     else toast = { lead: 'Cured!', bold: `${TheLake(noun)} clears a little.` };
+  } else if (s.answered !== null && s.t >= s.answeredFrom && s.t < s.answeredUntil) {
+    const from = requestNamed(s.answered)?.from;
+    if (from !== undefined) toast = { lead: 'Answered!', bold: `${from} will be pleased.` };
   } else if (s.gift && s.t >= s.giftFrom && s.t < s.giftUntil)
     toast = { lead: `A gift from ${GIFT_GIVER}: ${s.gift.name}.`, bold: s.gift.words };
   // a player who has cured a fish is not welcomed again, on this visit or the next
@@ -109,6 +120,9 @@ export class PondView {
   private toastHauled = 0;
   private hauledUntil = -Infinity;
   private foundUntil = -Infinity;
+  private answeredId: string | null = null;
+  private answeredFrom = -Infinity;
+  private answeredUntil = -Infinity;
   private gift: PondState['gift'] = null;
   private giftFrom = -Infinity;
   private giftUntil = -Infinity;
@@ -145,12 +159,27 @@ export class PondView {
   }
 
   /**
+   * A request was answered by the cure or haul just told: its line is said after theirs, and the gift's, which the
+   * game tells before it, is put back behind it, so the order is the cure, the answer and then the gift.
+   */
+  answered(id: string) {
+    const t = this.game().t;
+    this.answeredId = id;
+    this.answeredFrom = Math.max(t, this.toastUntil, this.hauledUntil);
+    this.answeredUntil = this.answeredFrom + this.heardFor;
+    if (this.gift && t < this.giftUntil) {
+      this.giftFrom = Math.max(this.giftFrom, this.answeredUntil);
+      this.giftUntil = this.giftFrom + this.heardFor;
+    }
+  }
+
+  /**
    * A gift was given with the cure just told: its line is said after the cure's own, which the game has told first,
    * for as long again, so the two never share the toast.
    */
   gifted(name: string, words: string) {
     this.gift = { name, words };
-    this.giftFrom = Math.max(this.game().t, this.toastUntil);
+    this.giftFrom = Math.max(this.game().t, this.toastUntil, this.answeredUntil);
     this.giftUntil = this.giftFrom + this.heardFor;
   }
 
@@ -171,6 +200,9 @@ export class PondView {
         toastHauled: this.toastHauled,
         hauledUntil: this.hauledUntil,
         foundUntil: this.foundUntil,
+        answered: this.answeredId,
+        answeredFrom: this.answeredFrom,
+        answeredUntil: this.answeredUntil,
         gift: this.gift,
         giftFrom: this.giftFrom,
         giftUntil: this.giftUntil,

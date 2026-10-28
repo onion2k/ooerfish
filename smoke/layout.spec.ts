@@ -49,6 +49,7 @@ const BREAKPOINTS = [
  *   startAgainCard the question before Start again, a modal: held inside the screen, and left out of the overlap rule.
  *   journalCard the journal's page, a modal of the same kind: held inside the screen and left out of the overlap rule, and
  *               its words must fit it without scrolling.
+ *   postCard    the post's page, a modal of the same kind, its letters free to scroll but able to.
  *   lakesCard   the lakes page, a modal of the same kind, its two rows and their buttons fitting it without scrolling.
  *   sleepCard   the sleep page, a modal of the same kind, its six choices fitting it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
@@ -82,7 +83,7 @@ const FIGHT_SAMPLES = 12;
 const FIGHT_GAP = 30;
 
 /** The modal pages' cards, which lie over the other overlays by design. */
-const MODALS = ['startAgainCard', 'journalCard', 'lakesCard', 'sleepCard'];
+const MODALS = ['startAgainCard', 'journalCard', 'postCard', 'lakesCard', 'sleepCard'];
 
 /** How near an overlay's edge may come to the bobber, the line's end or the fish, in CSS pixels: a finger-width of nothing is not asked, but the point must not sit on the edge. */
 const POINT_MARGIN = 6;
@@ -102,6 +103,8 @@ type Moment =
   | 'start again'
   | 'journal'
   | 'journal found'
+  | 'post'
+  | 'post answered'
   | 'lakes'
   | 'lakes cabin'
   | 'sleep'
@@ -120,6 +123,8 @@ const MOMENTS: Moment[] = [
   'start again',
   'journal',
   'journal found',
+  'post',
+  'post answered',
   'lakes',
   'lakes cabin',
   'sleep',
@@ -140,6 +145,8 @@ const AT_LEAST: Record<Moment, number> = {
   'start again': 1,
   journal: 1,
   'journal found': 1,
+  post: 1,
+  'post answered': 1,
   lakes: 1,
   'lakes cabin': 1,
   sleep: 1,
@@ -184,6 +191,12 @@ async function boxes(page: Page): Promise<Box[]> {
       if (page) {
         const r = page.getBoundingClientRect();
         out.push({ id: 'journalCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+      // and the post's page
+      const post = document.querySelector<HTMLElement>('#post:not([hidden]) .card');
+      if (post) {
+        const r = post.getBoundingClientRect();
+        out.push({ id: 'postCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
       // and the lakes page
       const lakes = document.querySelector<HTMLElement>('#lakes:not([hidden]) .card');
@@ -236,12 +249,23 @@ async function reach(page: Page, moment: Moment) {
                   found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
                 },
               }
-            : moment === 'drum card' || moment === 'bottle card'
-              ? { save: { cured: 12 } }
-              : // the sleep page on day 9, where every weather is within the round: its six rows, the most it ever holds
-                moment === 'sleep'
-                ? { save: { cured: 3, day: 9 } }
-                : { save: { cured: 3 } };
+            : // the post's answered letters: the ducks (a clean pond) and the rival (a big pike) answered, so two replies show
+              moment === 'post answered'
+              ? {
+                  save: {
+                    cured: 12,
+                    day: 2,
+                    drums: 2,
+                    journal: { pike: { caught: 1, best: 3.62, first: 2 } },
+                    requests: ['ducks', 'biggest'],
+                  },
+                }
+              : moment === 'drum card' || moment === 'bottle card'
+                ? { save: { cured: 12 } }
+                : // the sleep page on day 9, where every weather is within the round: its six rows, the most it ever holds
+                  moment === 'sleep'
+                  ? { save: { cured: 3, day: 9 } }
+                  : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
@@ -254,6 +278,10 @@ async function reach(page: Page, moment: Moment) {
     if (m === 'journal' || m === 'journal found') {
       await g.openJournal();
       return true;
+    }
+    if (m === 'post' || m === 'post answered') {
+      await g.openPost();
+      return g.pagesOpen();
     }
     if (m === 'lakes' || m === 'lakes cabin') {
       await g.openLakes();
@@ -394,6 +422,27 @@ for (const bp of BREAKPOINTS) {
             });
             if (fit.scroll > fit.shown + 1)
               failures.add(`${still}: the journal's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
+          }
+
+          // the post's letters may run past a short screen: the card may scroll but must be able to, and Close must have a size
+          if (moment === 'post' || moment === 'post answered') {
+            const fit = await page.evaluate(() => {
+              const card = document.querySelector<HTMLElement>('#post .card')!;
+              return {
+                scroll: card.scrollHeight,
+                shown: card.clientHeight,
+                overflow: getComputedStyle(card).overflowY,
+                close: document.getElementById('postClose')!.getBoundingClientRect().width,
+                letters: document.querySelectorAll('#postList li').length,
+                replies: document.querySelectorAll('#postList .reply').length,
+              };
+            });
+            if (fit.scroll > fit.shown + 1 && !['auto', 'scroll'].includes(fit.overflow))
+              failures.add(`${still}: the post's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`);
+            if (fit.close <= 0) failures.add(`${still}: the post's Close button has no size`);
+            if (fit.letters !== 3) failures.add(`${still}: the post lists ${fit.letters} letters, not three`);
+            if (fit.replies !== (moment === 'post' ? 0 : 2))
+              failures.add(`${still}: the post shows ${fit.replies} replies`);
           }
 
           // the lakes page's rows and buttons all fit its card, with nothing left to scroll to

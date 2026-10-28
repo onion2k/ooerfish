@@ -3,6 +3,7 @@
  * means. Pure, handed the inverse of the camera's view and projection, so it is tested without a page.
  */
 import type { Lake } from './lakes/lake';
+import { tableBox } from './cabinroom';
 
 /** The ray through the screen's point (`ndcX`, `ndcY`, from minus one to one, up positive): where it is on the near plane and on the far one. */
 export function rayThrough(
@@ -57,6 +58,39 @@ export function cabinHit(ndcX: number, ndcY: number, inverse: Float32Array, lake
     floor + spec.body.high + ridge,
   ];
   // the slab test along the segment from the near plane (0) to the far (1)
+  let enter = 0,
+    leave = 1;
+  for (let axis = 0; axis < 3; axis++) {
+    const d = b[axis] - a[axis];
+    if (d === 0) {
+      if (a[axis] < lo[axis] || a[axis] > hi[axis]) return false;
+      continue;
+    }
+    const k1 = (lo[axis] - a[axis]) / d,
+      k2 = (hi[axis] - a[axis]) / d;
+    enter = Math.max(enter, Math.min(k1, k2));
+    leave = Math.min(leave, Math.max(k1, k2));
+    if (enter > leave) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether the screen's point falls on the table in the cabin: the ray through it carried into the cabin's frame, against
+ * the table's box (its top and legs, which the post lies on). A lake with no cabin has no table.
+ */
+export function tableHit(ndcX: number, ndcY: number, inverse: Float32Array, lake: Lake): boolean {
+  if (!lake.cabin) return false;
+  const { at } = lake.cabin;
+  const { lo, hi } = tableBox(lake);
+  const { near, far } = rayThrough(inverse, ndcX, ndcY);
+  const toLocal = (p: [number, number, number]): [number, number, number] => {
+    const dx = p[0] - at.x,
+      dy = p[1] - at.y;
+    return [dx * at.inward[0] + dy * at.inward[1], dx * at.along[0] + dy * at.along[1], p[2]];
+  };
+  const a = toLocal(near),
+    b = toLocal(far);
   let enter = 0,
     leave = 1;
   for (let axis = 0; axis < 3; axis++) {

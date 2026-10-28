@@ -14,7 +14,7 @@ import { GameRenderer } from 'artshape-render/game/renderer';
 import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
 import { CalendarDraw } from './calendardraw';
-import { lampAt, roomGroups } from './cabinroom';
+import { lampAt, roomGroups, tableBox } from './cabinroom';
 import { MapDraw, mapHit } from './mapdraw';
 import { MoonDraw } from './moondraw';
 import { RainbowDraw } from './rainbowdraw';
@@ -36,6 +36,8 @@ import { Game, type GameEvents } from './game';
 import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
+import { postWords } from './town/post';
+import { REQUESTS } from './town/requests';
 import { YOU_ARE_HERE, lakesWords } from './lakes/page';
 import { sleepWords } from './sleep/page';
 import {
@@ -56,7 +58,7 @@ import {
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
-import { cabinHit, waterPoint } from './pick';
+import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
 import { moonOf, seasonOf } from './calendar';
 import { seasonGrass, seasonPalette, fogFor } from './season';
@@ -211,6 +213,10 @@ async function main() {
       void setView('cabin', true);
       // a new day, a new square of the calendar's year gone
       void showWater();
+    },
+    answered: (id) => {
+      log(`answered ${id}`);
+      pond.answered(id);
     },
     gifted: (name, words) => {
       log(`gifted ${name}`);
@@ -707,6 +713,13 @@ async function main() {
     const box = canvas.getBoundingClientRect();
     return mapHit(((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2, tapInverse, lake);
   };
+  /** Whether the tap at the page's point (`x`, `y`) falls on the table in the cabin, where the post lies. */
+  const tappedTable = (x: number, y: number): boolean => {
+    cam.update();
+    if (!invertInto(tapInverse, cam.viewProjection)) return false;
+    const box = canvas.getBoundingClientRect();
+    return tableHit(((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2, tapInverse, lake);
+  };
   /** Whether the player is at the pond, where the game runs and the rod is theirs. */
   const atPond = () => game.place === 'pond';
   /** Whether the tap at the page's point (`x`, `y`) falls on the cabin from the shore: the ray through it, to the cabin's box. */
@@ -721,7 +734,13 @@ async function main() {
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
    */
   const pagesOpen = () =>
-    journalOpen || lakesOpen || sleepOpen || !menuList.hidden || !startAgain.hidden || !byId('pairing').hidden;
+    journalOpen ||
+    postOpen ||
+    lakesOpen ||
+    sleepOpen ||
+    !menuList.hidden ||
+    !startAgain.hidden ||
+    !byId('pairing').hidden;
   /** What a page open still lets through: a hold ending is always heard, or a reel would stay held under it. */
   const LETTING_GO: ReadonlySet<string> = new Set(['up', 'cancel', 'release', 'blur', 'left-cast', 'gone']);
   /** Every way of playing comes in here, so one gate keeps them all out while a page is open. */
@@ -753,9 +772,10 @@ async function main() {
       },
       // a short tap on the water drops a pebble where it was tapped; a drag turns the camera, and drops nothing
       pebble: (x, y) => {
-        // in the cabin a tap on the map opens the lakes page, and a tap anywhere else on the wall does nothing
+        // in the cabin a tap on the map opens the lakes page, a tap on the table the post, and a tap anywhere else does nothing
         if (game.place === 'cabin' && viewName === 'cabin') {
           if (tappedMap(x, y)) void openLakes();
+          else if (tappedTable(x, y)) void openPost();
           return;
         }
         if (!atPond()) return;
@@ -983,6 +1003,53 @@ async function main() {
   journalPage.addEventListener('pointerdown', (e) => {
     if (e.target === journalPage) void closeJournal();
   });
+  // The post is the journal's kind of page, written from `postWords` each time it is opened: a letter each, who it is
+  // from over it and, once answered, the reply under it. It opens from the menu and from a tap on the cabin's table.
+  const postPage = byId('post');
+  const postList = byId('postList');
+  const postClose = byId<HTMLButtonElement>('postClose');
+  let postOpen = false;
+  const openPost = () => {
+    showMenu(false);
+    if (postOpen) return Promise.resolve();
+    const page = postWords(REQUESTS, game.progress.save);
+    byId('postTitle').textContent = page.title;
+    postList.replaceChildren(
+      ...page.letters.map((letter) => {
+        const item = document.createElement('li');
+        const heading = document.createElement('b');
+        const body = document.createElement('p');
+        heading.textContent = letter.heading;
+        body.textContent = letter.body;
+        item.append(heading, body);
+        if (letter.reply !== null) {
+          const reply = document.createElement('p');
+          reply.className = 'reply';
+          reply.textContent = letter.reply;
+          item.className = 'answered';
+          item.append(reply);
+        }
+        return item;
+      }),
+    );
+    postPage.hidden = false;
+    postOpen = true;
+    letGoOfReel();
+    postClose.focus();
+    return Promise.resolve();
+  };
+  const closePost = () => {
+    if (!postOpen) return Promise.resolve();
+    postPage.hidden = true;
+    postOpen = false;
+    menuButton.focus();
+    return Promise.resolve();
+  };
+  byId('postButton').addEventListener('click', () => void openPost());
+  postClose.addEventListener('click', () => void closePost());
+  postPage.addEventListener('pointerdown', (e) => {
+    if (e.target === postPage) void closePost();
+  });
   // The lakes page is the journal's kind of page, written from `lakesWords` each time it is opened: a row a lake with
   // where the player is, how much of its glow is left in words, and the button that goes there (Out to the lake, from
   // the cabin, for the lake the player is at). A choice closes the page and then travels, so the clock has started
@@ -1110,6 +1177,10 @@ async function main() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && journalOpen) {
       void closeJournal();
+      return;
+    }
+    if (e.key === 'Escape' && postOpen) {
+      void closePost();
       return;
     }
     if (e.key === 'Escape' && lakesOpen) {
@@ -1460,6 +1531,7 @@ async function main() {
     pair: (fixed) => openPairing(fixed),
     startAgain: () => openStartAgain(),
     openJournal: (open) => (open ? openJournal() : closeJournal()),
+    openPost: (open) => (open ? openPost() : closePost()),
     openLakes: (open) => (open ? openLakes() : closeLakes()),
     openSleep: (open) => (open ? openSleep() : closeSleep()),
     setSettings,
@@ -1490,6 +1562,14 @@ async function main() {
     }),
     showWeather: () => showWeather(),
     map: () => ({ pin: mapDraw?.pin() ?? '', handovers: mapHandovers }),
+    tableOnScreen: () => {
+      if (!lake.cabin) return null;
+      const { at } = lake.cabin;
+      const { lo, hi } = tableBox(lake);
+      const u = (lo[0] + hi[0]) / 2,
+        v = (lo[1] + hi[1]) / 2;
+      return toScreen(at.x + at.inward[0] * u + at.along[0] * v, at.y + at.inward[1] * u + at.along[1] * v, hi[2]);
+    },
     mapOnScreen: () => {
       if (!mapDraw) return null;
       const [x, y, z] = mapDraw.middle();

@@ -27,6 +27,7 @@ const FRESH = {
   day: 1,
   time: 0.25,
   place: 'pond',
+  requests: [],
 };
 
 const DIR = new URL('saves/', import.meta.url);
@@ -97,6 +98,8 @@ const KEPT: Record<string, Record<string, unknown>> = {
     time: 0.4,
     place: 'pond',
   },
+  // the town's requests: the ids answered, in order
+  '11-requests.json': { cured: 12, drums: 2, requests: ['ducks', 'biggest'] },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -126,7 +129,9 @@ describe('saves from every shape the game has written', () => {
         const game = new Game(new Progress(store));
         game.persist();
         const after = new Progress(memoryStore(store.json)).save;
-        expect(after).toEqual(before);
+        // the requests the save already meets are marked at the load, which the bare read does not do
+        expect(after).toEqual({ ...before, requests: game.progress.save.requests });
+        expect(after.requests.length).toBeGreaterThanOrEqual(before.requests.length);
       });
     });
   }
@@ -309,6 +314,42 @@ describe('saves from every shape the game has written', () => {
   });
 });
 
+describe('the requests answered', () => {
+  // a flat save that earns all three: the pond clean, every kind caught, a pike over the rival's weight
+  const EARNED =
+    '"cured": 12, "drums": 2, "journal": {"bream": {"caught": 4, "best": 0.9, "first": 1}, ' +
+    '"perch": {"caught": 5, "best": 2, "first": 1}, "pike": {"caught": 3, "best": 4.2, "first": 2}}';
+  const requestsOf = (json: string) => new Progress(memoryStore(json)).save.requests;
+  const earned = (requests: string) => requestsOf(`{${EARNED}, "requests": ${requests}}`);
+
+  it('is none by default, and an old save without the field has all open', () => {
+    expect(requestsOf('{"cured": 3}')).toEqual([]);
+    expect(requestsOf('{}')).toEqual([]);
+  });
+
+  it('keeps the known ids in order', () => {
+    expect(earned('["biggest", "ducks"]')).toEqual(['biggest', 'ducks']);
+  });
+
+  it('drops an id not known', () => {
+    expect(earned('["nope", "ducks", 4, null, "Ducks"]')).toEqual(['ducks']);
+  });
+
+  it('drops a repeat', () => {
+    expect(earned('["ducks", "rainbow", "ducks", "rainbow", "biggest"]')).toEqual(['ducks', 'rainbow', 'biggest']);
+  });
+
+  it('drops a request the save does not earn, so a save that lies is read as not written', () => {
+    expect(requestsOf('{"requests": ["biggest", "ducks", "rainbow"]}')).toEqual([]);
+    expect(requestsOf('{"cured": 12, "drums": 2, "requests": ["biggest", "ducks"]}')).toEqual(['ducks']);
+  });
+
+  it('refuses what is not a list', () => {
+    for (const bad of ['null', '4', '"ducks"', '{"ducks": 1}', 'true'])
+      expect(requestsOf(`{${EARNED}, "requests": ${bad}}`), bad).toEqual([]);
+  });
+});
+
 describe('a save read against the lake it is handed', () => {
   const small: Lake = {
     ...HOME,
@@ -348,7 +389,7 @@ describe('the save per lake', () => {
     expect(progress.entry(other.id), 'the other lake is untouched').toEqual(entry());
     progress.persist();
     const written = JSON.parse(store.json!) as Record<string, unknown>;
-    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'place', 'time']);
+    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'place', 'requests', 'time']);
     for (const old of ['cured', 'drums', 'journal', 'found']) expect(written, old).not.toHaveProperty(old);
   });
 

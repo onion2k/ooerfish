@@ -22,6 +22,7 @@ import { seasonOf } from '../src/calendar';
 import { GEAR, KINDS, MOON, WEATHER } from '../src/lake';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
+import { REQUESTS } from '../src/town/requests';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
 const DT = 1 / 60;
@@ -179,17 +180,26 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     // round, from a stream of its own drawn after the others so none of theirs moves
     const dayAtStart = 1 + Math.floor(seeded(seed * 29 + 7)() * 70);
     done[`start in ${seasonOf(dayAtStart)}`] = 1;
-    let store = memoryStore(
-      JSON.stringify({
-        lake: lake.id,
-        lakes: {
-          [lake.id]: { cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart },
-        },
-        time: timeAtStart,
-        place: placeAtStart,
-        day: dayAtStart,
-      }),
-    );
+    const startSave = {
+      lake: lake.id,
+      lakes: {
+        [lake.id]: { cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart },
+      },
+      time: timeAtStart,
+      place: placeAtStart,
+      day: dayAtStart,
+    };
+    // the town's requests a returning player has answered, from a stream of its own: two seeds in five start with a
+    // prefix of the list marked, and only those the start save meets, so the rule that an answered request is met holds
+    const requestsAtStart = (() => {
+      const pick = seeded(seed * 41 + 13);
+      if (pick() >= 0.4) return [];
+      const met = new Progress(memoryStore(JSON.stringify(startSave)), LAKES).save;
+      const prefix = REQUESTS.slice(0, Math.floor(pick() * (REQUESTS.length + 1)));
+      return prefix.filter((r) => r.met(met, LAKES)).map((r) => r.id);
+    })();
+    done['start requests'] = requestsAtStart.length;
+    let store = memoryStore(JSON.stringify({ ...startSave, requests: requestsAtStart }));
     let game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play

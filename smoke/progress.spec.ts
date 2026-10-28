@@ -1896,6 +1896,115 @@ test.describe('the lakes', () => {
 });
 
 /**
+ * The post (`docs/post.md`, part 3): the letters the town has written, read on a page from the menu or the cabin's
+ * table, answered when a request is met at a cure or a haul, and marked silently at a load.
+ */
+test.describe('the post', () => {
+  const requestsOf = async (page: Page) =>
+    (JSON.parse(await page.evaluate(() => window.game!.save())) as { requests: string[] }).requests;
+  const clockOf = (page: Page) =>
+    page.evaluate(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
+
+  test('the page lists three open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    await play(page, 60, 'a second before the post');
+    const before = await clockOf(page);
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Post' }).click();
+    await expect(page.locator('#post')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
+    await expect(page.locator('#postList li b')).toHaveText([
+      'From Ida Penny',
+      'From Pip and the Glow-Worms',
+      'From Flo Keel',
+    ]);
+    await play(page, 120, 'two seconds with the post open');
+    expect(await clockOf(page), 'game time holds').toEqual(before);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#post')).toBeHidden();
+    await play(page, 60, 'a second after');
+    expect((await clockOf(page)).t).toBeGreaterThan(before.t);
+    expect(problems).toEqual([]);
+  });
+
+  test('the last fish cured answers the ducks: told, toasted after the cure line, and read on the page', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 11, drums: 2 } });
+    await play(page, 30, 'a half second');
+    expect(await requestsOf(page)).toEqual([]);
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    expect(await page.evaluate(() => window.game!.stow())).toBe(true);
+    await play(page, 1, 'the last fish stowed');
+    const events = await page.evaluate(() => window.game!.events());
+    expect(events).toContain('cured 12/12');
+    expect(events).toContain('answered ducks');
+    expect(await requestsOf(page)).toEqual(['ducks']);
+    await expect(page.locator('#toast')).toHaveText('The Duck Pond is clean! Every fish is cured.');
+    await play(page, 130, 'the cure line said');
+    await expect(page.locator('#toast')).toHaveText('Answered! Ida Penny will be pleased.');
+    await play(page, 130, 'the answer said');
+    await expect(page.locator('#toast')).toBeHidden();
+
+    await page.evaluate(() => window.game!.openPost());
+    await expect(page.locator('#postList li b')).toHaveText([
+      'From Pip and the Glow-Worms',
+      'From Flo Keel',
+      'Answered: from Ida Penny',
+    ]);
+    const answered = page.locator('#postList li.answered');
+    await expect(answered).toHaveCount(1);
+    await expect(answered.locator('.reply')).toContainText('The Mallards are back');
+    expect(problems).toEqual([]);
+  });
+
+  test('a tap on the table in the cabin opens the post, and a tap on the map still opens the lakes', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2, day: 2, place: 'cabin' } });
+    await play(page, 30, 'a half second in the cabin');
+    expect(await page.evaluate(() => window.game!.view())).toBe('cabin');
+    const table = (await page.evaluate(() => window.game!.tableOnScreen()))!;
+    expect(table).not.toBeNull();
+    await page.mouse.click(table.x, table.y);
+    await expect(page.locator('#post')).toBeVisible();
+    await expect(page.locator('#lakes')).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#post')).toBeHidden();
+    const map = (await page.evaluate(() => window.game!.mapOnScreen()))!;
+    await page.mouse.click(map.x, map.y);
+    await expect(page.locator('#lakes')).toBeVisible();
+    await expect(page.locator('#post')).toBeHidden();
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a load that already meets the rainbow marks it silently: no event, no toast', async ({ page }) => {
+    const problems = watch(page);
+    const seen = { caught: 1, best: 0.5, first: 1 };
+    await start(page, { seed: 1, paused: true, save: { cured: 3, journal: { bream: seen, perch: seen, pike: seen } } });
+    await play(page, 60, 'a second after the load');
+    expect(await requestsOf(page)).toEqual(['rainbow']);
+    expect((await page.evaluate(() => window.game!.events())).filter((e) => e.startsWith('answered'))).toEqual([]);
+    await expect(page.locator('#toast')).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+
+  test('a save claiming a request it does not earn is read as not written, and the invariants hold', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { requests: ['biggest'] } });
+    expect(await requestsOf(page)).toEqual([]);
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
  * The moon (`docs/moon.md`, part 2): the sky's two discs follow the day's phase and the look's name. Drawn at night only,
  * handed over once for each change of the look or the phase, the same at both lakes. Seeded and paused.
  */

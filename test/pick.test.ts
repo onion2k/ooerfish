@@ -2,7 +2,8 @@
 import { Camera } from 'artshape-render/gpu/camera';
 import { invertInto } from 'artshape-render/geom/transform';
 import { describe, expect, it } from 'vitest';
-import { cabinHit, waterPoint } from '../src/pick';
+import { cabinHit, tableHit, waterPoint } from '../src/pick';
+import { tableBox } from '../src/cabinroom';
 import { HOME, LAKES } from '../src/lakes';
 
 function camera(position: [number, number, number], target: [number, number, number]) {
@@ -99,5 +100,46 @@ describe('a tap on the cabin', () => {
     const eye: [number, number, number] = [0, -40, 10];
     const seen = camera(eye, [0, 0, 3]);
     expect(cabinHit(0, 0, seen.inverse, LAKES.reservoir)).toBe(false);
+  });
+});
+
+describe('a tap on the cabin’s table', () => {
+  const cabin = HOME.cabin!;
+  const box = tableBox(HOME);
+  const world = (u: number, v: number, z: number): [number, number, number] => [
+    cabin.at.x + cabin.at.inward[0] * u + cabin.at.along[0] * v,
+    cabin.at.y + cabin.at.inward[1] * u + cabin.at.along[1] * v,
+    z,
+  ];
+  const top = world((box.lo[0] + box.hi[0]) / 2, (box.lo[1] + box.hi[1]) / 2, box.hi[2]);
+  // a camera inside the room, looking down on the table from across it
+  const eye = world(box.lo[0] - 1.2, (box.lo[1] + box.hi[1]) / 2, cabin.floor + 2.2);
+
+  it('meets the table’s top', () => {
+    const seen = camera(eye, top);
+    const [x, y] = ndc(seen.cam, ...top);
+    expect(tableHit(x, y, seen.inverse, HOME)).toBe(true);
+  });
+
+  it('misses the floor beside the table', () => {
+    const seen = camera(eye, top);
+    const beside = world(box.lo[0] - 0.9, box.hi[1] + 1.2, cabin.floor);
+    const [x, y] = ndc(seen.cam, ...beside);
+    expect(tableHit(x, y, seen.inverse, HOME)).toBe(false);
+  });
+
+  it('misses from outside the cabin, where the table is not in the way', () => {
+    const outside: [number, number, number] = [
+      cabin.at.x + cabin.at.inward[0] * 30,
+      cabin.at.y + cabin.at.inward[1] * 30,
+      cabin.floor + 12,
+    ];
+    const seen = camera(outside, [outside[0], outside[1] + 1, 0]);
+    expect(tableHit(0, 0, seen.inverse, HOME)).toBe(false);
+  });
+
+  it('is never a hit at a lake with no cabin', () => {
+    const seen = camera([0, -40, 10], [0, 0, 3]);
+    expect(tableHit(0, 0, seen.inverse, LAKES.reservoir)).toBe(false);
   });
 });

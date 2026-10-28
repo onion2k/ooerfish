@@ -1,0 +1,29 @@
+{
+  "lake": "duckpond",
+  "lakes": {
+    "duckpond": {
+      "cured": 12,
+      "drums": 2,
+      "journal": {
+        "bream": {
+          "caught": 4,
+          "best": 0.9,
+          "first": 1
+        },
+        "pike": {
+          "caught": 3,
+          "best": 4.2,
+          "first": 3
+        }
+      },
+      "found": []
+    }
+  },
+  "day": 5,
+  "time": 0.3,
+  "place": "pond",
+  "requests": [
+    "ducks",
+    "biggest"
+  ]
+}

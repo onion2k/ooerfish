@@ -18,10 +18,11 @@ import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
 import { NO_WIND } from './cast';
 import type { Lake } from './lakes/lake';
-import { HOME } from './lakes';
+import { HOME, LAKES } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import { recorded } from './journal';
 import { Progress } from './progress';
+import { REQUESTS } from './town/requests';
 import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Gear, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
@@ -52,6 +53,8 @@ export interface GameEvents {
   hauled?(hauled: number, drums: number): void;
   /** A junk treasure was kept for the shelf by a tap on its card: its id. */
   found?(id: string): void;
+  /** A request of the town was answered, in play and not at a load: its id. */
+  answered?(id: string): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number, temper: Temper): void;
   /** The day's end began, at midnight or by choice: the player yawns and the screen starts to fade. */
@@ -240,6 +243,28 @@ export class Game {
       KINDS.map((k) => journal[k.id]?.caught ?? 0),
       cured,
     );
+    // what the save already meets is marked without a word, since nothing happened to tell
+    this.answer(false);
+  }
+
+  /**
+   * Every request of the town that the save now meets and has not yet answered is answered, in the order of the list:
+   * kept at once, and told as `answered` when `told` (a thing that happened in play), never at a load, which marks
+   * in memory and silently, and writes nothing. Nothing is ever taken back, so a request once answered stays answered.
+   */
+  answer(told = true) {
+    const save = this.progress.save;
+    const added: string[] = [];
+    for (const r of REQUESTS)
+      if (!save.requests.includes(r.id) && r.met(save, LAKES)) {
+        save.requests.push(r.id);
+        added.push(r.id);
+      }
+    if (added.length === 0) return;
+    // a load marks in memory and writes nothing (loading alone never does); the next write carries it
+    if (!told) return;
+    this.persist();
+    for (const id of added) this.events.answered?.(id);
   }
 
   /** One frame of `dt` seconds. */
@@ -543,6 +568,7 @@ export class Game {
     const had = this.gear;
     this.gear = this.bite.gear = gearFor(this.progress.curedTotal());
     for (const g of GEAR) if (this.gear[g.id] && !had[g.id]) this.events.gifted?.(g.name, g.words);
+    this.answer(true);
     return true;
   }
 
@@ -566,6 +592,7 @@ export class Game {
     this.healElapsed = 0;
     this.persist();
     this.events.hauled?.(save.drums, this.lake.drums.count);
+    this.answer(true);
     return true;
   }
 

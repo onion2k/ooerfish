@@ -100,6 +100,19 @@ function cabinOf(lake: Lake): Cabin {
 }
 
 /**
+ * The table's box in the cabin's own frame (`across` into the room from the door wall, `along` the wall, then the
+ * height), from the floor to the top's face: what a tap on the table is tested against, and a test's, so the two agree.
+ */
+export function tableBox(lake: Lake): { lo: [number, number, number]; hi: [number, number, number] } {
+  const { room, floor } = cabinOf(lake);
+  const t = room.furniture.table;
+  return {
+    lo: [t.across - t.deep / 2, t.along - t.wide / 2, floor],
+    hi: [t.across + t.deep / 2, t.along + t.wide / 2, floor + t.high],
+  };
+}
+
+/**
  * The wall calendar's measures, worked out from `CABIN_ROOM.furniture.calendar` once: a square's cell, the sheet's
  * height, and where square `i` (row by row from the top left, as it is read) is in the world, on the sheet's face, which
  * is on the end wall.

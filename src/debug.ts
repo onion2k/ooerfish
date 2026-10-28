@@ -324,8 +324,8 @@ export interface GameApi {
    */
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
   /**
-   * Whether a page holds the clock: the menu's list, the journal, the Start again question or the pairing card is
-   * open. While one is, `step` moves nothing and no key, tap, button or phone gesture reaches the game.
+   * Whether a page holds the clock: the menu's list, the journal, the post, the lakes page, the sleep page, the Start
+   * again question or the pairing card is open. While one is, `step` moves nothing and no key, tap, button or phone gesture reaches the game.
    */
   pagesOpen(): boolean;
   /**
@@ -338,6 +338,11 @@ export interface GameApi {
    * it is open the page does not step the game, whether a frame of its own or a step the test asks for.
    */
   openJournal(open?: boolean): Promise<void>;
+  /**
+   * Opens the post's page as the menu's Post item and a tap on the cabin's table do, resolving once it is shown, or
+   * closes it again with `false`. It stops the game's step while open as every page does.
+   */
+  openPost(open?: boolean): Promise<void>;
   /**
    * Opens the lakes page as the menu's Lakes item, the map's tap and the morning's Somewhere else… do, resolving once it
    * is shown, or closes it again with `false`. It stops the game's step while open as every page does, and is not
@@ -358,6 +363,8 @@ export interface GameApi {
   map(): { pin: string; handovers: number };
   /** Where the map's paper is on the page, in CSS pixels, so a test can tap it; null at a lake with no cabin or behind the camera. */
   mapOnScreen(): { x: number; y: number } | null;
+  /** Where the middle of the cabin's table top is on the page, in CSS pixels, so a test can tap it; null at a lake with no cabin. */
+  tableOnScreen(): { x: number; y: number } | null;
 
   /** The camera looking at a point, from `azimuth` round and `polar` down, `radius` away, at once. */
   look(x: number, y: number, view?: { azimuth?: number; polar?: number; radius?: number }): void;
@@ -484,10 +491,12 @@ export interface DebugHost {
   pagesOpen(): boolean;
   startAgain(): Promise<void>;
   openJournal(open: boolean): Promise<void>;
+  openPost(open: boolean): Promise<void>;
   openLakes(open: boolean): Promise<void>;
   openSleep(open: boolean): Promise<void>;
   map(): { pin: string; handovers: number };
   mapOnScreen(): { x: number; y: number } | null;
+  tableOnScreen(): { x: number; y: number } | null;
   /** The caustics or the paint changed, resolving once the change is ready to draw. */
   setSettings(next: Partial<Settings>): Promise<void>;
   /** The lake made as dirty as that, the water drawn so. */
@@ -795,10 +804,12 @@ export function createApi(host: DebugHost): GameApi {
     pair: (fixed) => host.pair(fixed),
     startAgain: () => host.startAgain(),
     openJournal: (open = true) => host.openJournal(open),
+    openPost: (open = true) => host.openPost(open),
     openLakes: (open = true) => host.openLakes(open),
     openSleep: (open = true) => host.openSleep(open),
     map: () => host.map(),
     mapOnScreen: () => host.mapOnScreen(),
+    tableOnScreen: () => host.tableOnScreen(),
 
     look: (x, y, view = {}) => host.look(x, y, view),
     camera: () => host.camera(),
