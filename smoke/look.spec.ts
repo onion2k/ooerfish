@@ -923,6 +923,32 @@ test.describe('winter on a phone', () => {
   });
 });
 
+/**
+ * Winter's dressing (`docs/winter.md`, part 3): the clean pond on its first winter day, with the lace of frost at the
+ * water's edge, and the Reservoir's shore with its two boulders capped. The frost reads the save's cures, so the
+ * dirt lever of the scene only agrees with it.
+ */
+test('winter-frost-clean', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 12, drums: 2, day: 29 } });
+  await set(page, { ...STANDARD, dirt: 0 }, 600);
+  await hideOverlays(page);
+  expect(await page.evaluate(() => window.game!.season())).toMatchObject({ name: 'winter', frost: true });
+  await expect(page.locator('#view')).toHaveScreenshot('winter-frost-clean.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test('reservoir-winter', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { ...RESERVOIR_SAVE, day: 29 } });
+  expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+  await set(page, STANDARD, 600);
+  await hideOverlays(page);
+  expect((await page.evaluate(() => window.game!.season())).caps).toBe(2);
+  await expect(page.locator('#view')).toHaveScreenshot('reservoir-winter.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
 test('season-winter-lean', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 11, paused: true, rung: 'lean', save: { cured: 6, day: 29 } });

@@ -143,6 +143,10 @@ export interface SeasonReading {
   dressed: Season | null;
   statics: number;
   falling: number;
+  /** Whether the frost at a clean lake's edge is on the bank (winter, and every drum hauled and fish cured). */
+  frost: boolean;
+  /** The snow caps appended to the static set at the last dress: one a rock in winter, none in another season. */
+  caps: number;
   mist: boolean;
   /** How long the last dressing took, in milliseconds: the colours built and handed over, as the page measured it. */
   dressMs: number;
@@ -249,6 +253,8 @@ export interface GameApi {
   waterHandovers(): number;
   /** How many fish were cured when the fish were last handed to the renderer, which follows the school's at once when one is cured; -1 before the first. */
   drawnCured(): number;
+  /** The season's share of the fish's glow when they were last handed to the renderer (1 in summer, winter's brighter). */
+  drawnGlow(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
   /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
@@ -489,6 +495,7 @@ export interface DebugHost {
   drawnDirt(): number | null;
   waterHandovers(): number;
   drawnCured(): number;
+  drawnGlow(): number;
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
   /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
@@ -741,6 +748,7 @@ export function createApi(host: DebugHost): GameApi {
     drawnDirt: () => host.drawnDirt(),
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
+    drawnGlow: () => host.drawnGlow(),
     calendar: () => host.calendar(),
     radio: () => host.radio(),
     moon: () => {

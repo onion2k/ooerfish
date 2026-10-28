@@ -20,6 +20,7 @@ import { boulderMeshes, cliffLumpMeshes } from '../src/rocks';
 import { shoreField } from '../src/shorefield';
 import { PALETTE } from '../src/palette';
 import { seasonPalette } from '../src/season';
+import { rockCaps } from '../src/rocks';
 import { SCENERY_ROLES, ROLE_COLOUR, readKit, readManifest, type Kit } from '../src/scenery';
 import {
   Scene,
@@ -802,6 +803,41 @@ describe('a scene dressed for a season', () => {
     const p = seasonPalette('autumn');
     const albedos = autumn.map((g) => g.albedo);
     for (const k of ['grass', 'leaves', 'crown'] as const) expect(albedos).toContainEqual(p[k]);
+  });
+});
+
+describe('a scene dressed for winter', () => {
+  const scene = new Scene();
+  const winterPalette = seasonPalette('winter');
+  const summer = scene.static(kit);
+  const winter = scene.static(kit, winterPalette, 'winter');
+  const caps = rockCaps(HOME, cliffLumps(HOME));
+
+  it('is summer’s groups followed by one cap to each rock, at the rock’s own matrix, in the snow', () => {
+    expect(caps).toHaveLength(N_BOULDERS + N_LUMPS);
+    expect(winter).toHaveLength(summer.length + N_BOULDERS + N_LUMPS);
+    winter.slice(0, summer.length).forEach((g, i) => {
+      expect(g.mesh, `the mesh of group ${i} is summer's`).toBe(summer[i].mesh);
+      expect(g.matrices).toBe(summer[i].matrices);
+    });
+    winter.slice(summer.length).forEach((g, i) => {
+      expect(g.mesh).toBe(caps[i].mesh);
+      expect(g.matrices).toBe(caps[i].matrix);
+      expect(g.albedo).toBe(winterPalette.snow);
+    });
+  });
+
+  it('is the summer set to the bit when asked for summer or autumn, and autumn appends no cap', () => {
+    expect(hashGroups(scene.static(kit, seasonPalette('summer'), 'summer'))).toBe(hashGroups(summer));
+    expect(scene.static(kit, seasonPalette('autumn'), 'autumn')).toHaveLength(summer.length);
+    expect(scene.static(kit, seasonPalette('spring'), 'spring')).toHaveLength(summer.length);
+  });
+
+  it('draws the beach in the palette’s sand itself, so winter frosts it', () => {
+    const beach = BANDS - 1;
+    expect(summer[beach].albedo).toBe(PALETTE.sand);
+    expect(winter[beach].albedo).toBe(winterPalette.sand);
+    expect(winterPalette.sand).not.toEqual(PALETTE.sand);
   });
 });
 

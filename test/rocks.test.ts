@@ -2,7 +2,9 @@
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { describe, expect, it } from 'vitest';
 import { HOME } from '../src/lakes';
-import { boulderMeshes, cliffLumpMeshes, rockBudget } from '../src/rocks';
+import { RESERVOIR } from '../src/lakes/reservoir';
+import { SNOW } from '../src/lake';
+import { boulderMeshes, cliffLumpMeshes, rockBudget, rockCaps, snowCap } from '../src/rocks';
 import { cliffLumps } from '../src/scene';
 
 const BOULDER_DOMES = HOME.domes;
@@ -168,5 +170,62 @@ describe('the rocks', () => {
     // rings × segments quads' worth: the poles are fans of one triangle a segment, the rest two
     const triangles = ROCKS.segments * 2 + (ROCKS.rings - 2) * ROCKS.segments * 2;
     for (const { mesh } of [...boulders, ...cliff]) expect(mesh.indices.length / 3).toBe(triangles);
+  });
+});
+
+describe('the snow on the rocks', () => {
+  const caps = rockCaps(HOME, lumps);
+  const rocks = [...boulders, ...cliff];
+  /** How high each rock rises, as `rockCaps` measures it: a dome's `tall` less what is sunk, a lump's z half-width. */
+  const rises = [...BOULDER_DOMES.map((d) => d.tall + d.base), ...lumps.map((l) => l.rz)];
+  /** How near a point is to the nearest of a rock's vertices. */
+  const nearest = (p: Float32Array, x: number, y: number, z: number) => {
+    let best = Infinity;
+    for (let i = 0; i < p.length; i += 3) best = Math.min(best, Math.hypot(p[i] - x, p[i + 1] - y, p[i + 2] - z));
+    return best;
+  };
+
+  it('is a cap to each boulder and each lump, in their order, each at its rock’s own matrix', () => {
+    expect(caps).toHaveLength(BOULDER_DOMES.length + lumps.length);
+    caps.forEach((c, i) => expect(c.matrix).toBe(rocks[i].matrix));
+    expect(rockCaps(HOME, lumps), 'memoised').toBe(caps);
+  });
+
+  it('holds only upward-facing triangles above the height, lifted along their normal, and under half the rock', () => {
+    caps.forEach(({ mesh }, r) => {
+      const rock = rocks[r].mesh;
+      expect(mesh.indices.length, `rock ${r} has a cap`).toBeGreaterThan(0);
+      expect(mesh.indices.length, `rock ${r}'s cap is under half`).toBeLessThan(rock.indices.length / 2);
+      mesh.indices.forEach((v, i) => expect(v).toBe(i));
+      for (let t = 0; t < mesh.positions.length; t += 9) {
+        const nz = mesh.normals[t + 2];
+        expect(nz).toBeGreaterThan(SNOW.facing);
+        let cz = 0;
+        for (let k = 0; k < 3; k++) {
+          const o = t + k * 3;
+          const down = [0, 1, 2].map((a) => mesh.positions[o + a] - SNOW.lift * mesh.normals[o + a]);
+          expect(
+            nearest(rock.positions, down[0], down[1], down[2]),
+            `rock ${r}: a vertex is the rock's, lifted`,
+          ).toBeLessThan(1e-5);
+          cz += down[2] / 3;
+        }
+        expect(cz).toBeGreaterThan(SNOW.from * rises[r] - 1e-4);
+      }
+    });
+  });
+
+  it('is built the same every time, byte for byte, and carries no paint', () => {
+    rocks.forEach(({ mesh }, r) => {
+      const again = snowCap(mesh, rises[r]);
+      expect(Array.from(again.positions)).toEqual(Array.from(caps[r].mesh.positions));
+      expect(Array.from(again.normals)).toEqual(Array.from(caps[r].mesh.normals));
+      expect('paint' in again).toBe(false);
+    });
+  });
+
+  it('is two to the Reservoir, whose boulders are all it has', () => {
+    expect(rockCaps(RESERVOIR, cliffLumps(RESERVOIR))).toHaveLength(RESERVOIR.domes.length);
+    expect(RESERVOIR.domes).toHaveLength(2);
   });
 });

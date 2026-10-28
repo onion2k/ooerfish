@@ -283,6 +283,9 @@ Each stage is a feature, built and verified before the next, every gate green at
    hides the glow a catch's kind is told by; a sun-shower's rainbow; a wind that bends the cast's flight and its
    preview; the weather's nights on the sleep page and a sentence in the morning line. The festivals are not. The
    rest of the order of work is cut into slices in `docs/roadmap.md`._
+   _A fourth slice is in (28 Oct 2026, `docs/winter.md`): winter's dressing finished: snow lying on the
+   boulders and the cliff's lumps, the beach, the pebbles and the clumps frosted, a lace of frost at a clean lake's
+   edge, and the glow brighter against the white. The boat's cover waits on the boat; the festivals are stage 12's._
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**

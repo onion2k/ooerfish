@@ -1559,6 +1559,85 @@ test.describe('the seasons', () => {
 });
 
 /**
+ * Winter's dressing (`docs/winter.md`, part 3): snow caps on the rocks, the glow brighter against the white, and the
+ * frost at a clean lake's edge. The frost follows the cures (`pondClean`), not the water's shown dirt, so the dirt
+ * lever neither shows it nor hides it; the page hands it over with the water only when the season or the cures change.
+ */
+test.describe("winter's dressing", () => {
+  const read = (page: Page) => page.evaluate(() => window.game!.season());
+
+  test('a load on day 29 at cured 6 has thirty caps, no frost and the glow at 1.25', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 6, day: 29, place: 'pond' }, paused: true });
+    const r = await read(page);
+    expect(r.name).toBe('winter');
+    expect(r.caps, 'a cap for each boulder and cliff lump; the spec guessed ten').toBe(30);
+    expect(r.frost).toBe(false);
+    expect(await page.evaluate(() => window.game!.drawnGlow())).toBe(1.25);
+    await play(page, 60, 'a winter pond');
+    expect(problems).toEqual([]);
+  });
+
+  test('the dirt lever neither shows the frost nor hides it, and the page hands nothing over for it each frame', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 6, day: 29, place: 'pond' }, paused: true });
+    await page.evaluate(() => window.game!.dirt(0));
+    await play(page, 120, 'the lake made clear by the lever');
+    expect((await read(page)).frost, 'a clear lever is not a clean pond').toBe(false);
+    await page.evaluate(() => window.game!.dirt(0.5));
+    await play(page, 120, 'the lake made half dirty');
+    expect((await read(page)).frost).toBe(false);
+    expect(problems).toEqual([]);
+  });
+
+  test('a clean pond in winter shows the frost at once, and a changed lever leaves it, handed over once', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 12, drums: 2, day: 29, place: 'pond' }, paused: true });
+    expect((await read(page)).frost).toBe(true);
+    await play(page, 60, 'the clean pond');
+    const before = await page.evaluate(() => window.game!.waterHandovers());
+    await play(page, 120, 'the clean pond, stepped on');
+    expect(await page.evaluate(() => window.game!.waterHandovers()), 'nothing handed over for a still frost').toBe(
+      before,
+    );
+    await page.evaluate(() => window.game!.dirt(0.5));
+    await play(page, 120, 'the lever raised on a clean pond');
+    expect((await read(page)).frost, 'the cures, not the lever, say it is clean').toBe(true);
+    expect(problems).toEqual([]);
+  });
+
+  test('a load on day 1 has no caps, no frost and the glow at 1, clean or not', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { save: { cured: 12, drums: 2, day: 1, place: 'pond' }, paused: true });
+    const r = await read(page);
+    expect(r.name).toBe('summer');
+    expect(r.caps).toBe(0);
+    expect(r.frost).toBe(false);
+    expect(await page.evaluate(() => window.game!.drawnGlow())).toBe(1);
+    expect(problems).toEqual([]);
+  });
+
+  test('the Reservoir on day 29 has its two boulders capped', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, {
+      save: { lake: 'reservoir', day: 29, lakes: { reservoir: { cured: 2, drums: 0, journal: {}, found: [] } } },
+      paused: true,
+    });
+    expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+    const r = await read(page);
+    expect(r.name).toBe('winter');
+    expect(r.caps).toBe(2);
+    expect(r.frost).toBe(false);
+    await play(page, 60, "the Reservoir's winter");
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
  * The lakes (`docs/lakes.md`, part 6): travel is a reload under the fade, a load fades in, and the day's end away from
  * home wakes in the cabin at the Duck Pond. Seeded and paused, the fade stepped through the test API; the reload is
  * waited for with the page's own `load`.

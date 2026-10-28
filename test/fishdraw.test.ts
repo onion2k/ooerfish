@@ -7,7 +7,7 @@ import { FLOW_GLOW } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { describe, expect, it } from 'vitest';
 import { HOME } from '../src/lakes';
-import { FISH_CAPACITY, KINDS, SWIM } from '../src/lake';
+import { FISH_CAPACITY, KINDS, SEASON_DRESSING, SWIM } from '../src/lake';
 import { CURED_GLOW, FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
 import { fin, loft } from '../src/meshes';
 import { PALETTE } from '../src/palette';
@@ -227,5 +227,28 @@ describe('the fish, glowing or cured', () => {
     expect(b[0].materials).not.toBe(a[0].materials);
     expect(colourAt(b[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.cured).map(Math.fround));
     expect(colourAt(a[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.glow).map(Math.fround));
+  });
+});
+
+describe('the fish’s glow by the season', () => {
+  const flowGlow = (g: { patterns?: Float32Array }, i: number) => g.patterns![i * PATTERN_STRIDE + 3];
+
+  it('is winter’s share of summer’s on the body, the fins and a cured fish’s softer light', () => {
+    const cured = new Uint8Array(FISH_CAPACITY);
+    cured[2] = 1;
+    const draw = new FishDraw();
+    const summer = draw.groups(cured);
+    const winter = draw.groups(cured, undefined, SEASON_DRESSING.winter.glow);
+    expect(SEASON_DRESSING.winter.glow).toBe(1.25);
+    winter.forEach((g, p) => {
+      for (const i of [0, 2]) expect(flowGlow(g, i)).toBeCloseTo(flowGlow(summer[p], i) * 1.25, 5);
+    });
+  });
+
+  it('is summer’s when no season is given, and the colours do not move', () => {
+    const none = new Uint8Array(FISH_CAPACITY);
+    const a = new FishDraw().groups(none),
+      b = new FishDraw().groups(none, undefined, 1.25);
+    a.forEach((g, p) => expect(Array.from(g.materials!)).toEqual(Array.from(b[p].materials!)));
   });
 });

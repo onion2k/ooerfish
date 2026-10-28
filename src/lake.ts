@@ -400,7 +400,22 @@ export type Season = (typeof SEASONS)[number];
  * The palette keys a season may move, so a key that is not the palette's is a type error where `season.ts` checks it.
  * The ground under the grass (`grass`) is not among them: it is worked out from the blades, so it cannot disagree.
  */
-export type SeasonColour = 'bladeBase' | 'bladeTip' | 'leaves' | 'crown' | 'pine' | 'flowers' | 'cabinRoof' | 'deck';
+export type SeasonColour =
+  'bladeBase' | 'bladeTip' | 'leaves' | 'crown' | 'pine' | 'flowers' | 'cabinRoof' | 'deck' | 'sand' | 'stone';
+
+/**
+ * The snow that lies on the rocks in winter (`docs/winter.md`), first guesses to be tuned by the pictures: a face is
+ * snowed when its normal's z is over `facing`, and it lies above `from` of the rock's rise (so the foot stays bare),
+ * and the cap is lifted `lift` along each face's normal so it sits clear of the rock and does not fight it in depth.
+ */
+export const SNOW = { facing: 0.72, from: 0.5, lift: 0.05 } as const;
+
+/**
+ * The lace of frost at a clean lake's edge in winter (`docs/winter.md`, part 2), first guesses to be tuned by the
+ * pictures: a ring from `inner` to `outer` of the shore's distance, lifted `lift` above the bank, in `segments`
+ * round and `rings` across, glowing a little (`glow`) so it reads as frost and not as a pale bank.
+ */
+export const FROST = { inner: 1.0, outer: 1.07, lift: 0.03, segments: 96, rings: 2, glow: 0.5 } as const;
 
 /**
  * How each season dresses the lake (`docs/seasons.md`, part 2): the palette keys it moves and the colours it moves them
@@ -422,6 +437,8 @@ export interface SeasonDressing {
   /** What falls through the air, or null where nothing does (summer), and the mist that lies on the water, or null where none does. */
   falling: Falling | null;
   mist: Mist | null;
+  /** How brightly the fish glow, as a share of summer's: a material's figure and not a colour, so it is not a palette key. */
+  glow: number;
 }
 
 export { WATER_LEVEL } from './rules';
@@ -490,6 +507,7 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
     waves: 1,
     falling: null,
     mist: null,
+    glow: 1,
   },
   autumn: {
     palette: {
@@ -519,6 +537,7 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
       drift: [0.8, 0.3, 0],
     },
     mist: { at: ['dawn'], density: 0.03, height: 3, colour: [0.9, 0.78, 0.62], ambient: 0.6, steps: 16 },
+    glow: 1,
   },
   winter: {
     palette: {
@@ -528,6 +547,10 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
       bladeTip: [0.8, 0.87, 0.95],
       cabinRoof: [0.85, 0.88, 0.92],
       deck: [0.7, 0.72, 0.75],
+      // the beach frosted, the kit's pebbles (the `stone` role) a cold blue-grey, the clumps (`flowers`) a white-pink
+      sand: [0.78, 0.76, 0.68],
+      stone: [0.4, 0.45, 0.55],
+      flowers: [0.96, 0.86, 0.9],
     },
     grassHeight: 0.7,
     sky: { tint: [0.68, 0.82, 1], mix: 0.5 },
@@ -549,6 +572,8 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
       drift: [0.25, 0.1, 0],
     },
     mist: { at: ['dawn', 'night'], density: 0.03, height: 3, colour: [0.8, 0.88, 1], ambient: 0.6, steps: 16 },
+    // against the white the fish's glow is brought up a quarter, so it still reads
+    glow: 1.25,
   },
   spring: {
     palette: {
@@ -579,6 +604,7 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
       drift: [0.5, 0.2, 0],
     },
     mist: null,
+    glow: 1,
   },
 };
 

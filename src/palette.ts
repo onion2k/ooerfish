@@ -73,6 +73,10 @@ export const PALETTE = {
   pine: [0.02, 0.07, 0.045] as Colour,
   /** The flowers of the banks, a soft warm pink and not a saturated one, as a picture book paints them. */
   flowers: [0.88, 0.5, 0.5] as Colour,
+  /** The snow on the rocks in winter (`SNOW` in `lake.ts`): a cool white, a little blue. */
+  snow: [0.86, 0.9, 0.96] as Colour,
+  /** The frost at a clean lake's edge in winter (`FROST` in `lake.ts`): the snow's white with a little more blue. */
+  frost: [0.8, 0.91, 1] as Colour,
   /** The mushrooms, a warm pale tan. */
   mushroom: [0.72, 0.55, 0.36] as Colour,
 

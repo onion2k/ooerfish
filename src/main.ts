@@ -18,6 +18,7 @@ import { lampAt, roomGroups } from './cabinroom';
 import { MapDraw, mapHit } from './mapdraw';
 import { MoonDraw } from './moondraw';
 import { RainbowDraw } from './rainbowdraw';
+import { FrostDraw } from './frostdraw';
 import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
 import { fallingDue, fallingEmits, fallingKind, fallingOf, windDrift } from './falling';
@@ -63,7 +64,8 @@ import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
 import { RIPPLE_FLOATS, rippleData } from './ripples';
-import { Scene, sceneryFigures } from './scene';
+import { Scene, cliffLumps, sceneryFigures } from './scene';
+import { rockCaps } from './rocks';
 import { loadScenery } from './scenery';
 import { changed, readSettings, type Settings } from './settings';
 import { STYLES } from './water/styles';
@@ -272,6 +274,10 @@ async function main() {
   let phaseLit = moonOf(game.day);
   let statics = 0;
   let dressMs = 0;
+  /** The snow caps appended to the static set at the last dress (none outside winter). */
+  let caps = 0;
+  /** The frost at a clean lake's edge, scaled to nothing unless it is winter and the lake is clean: the dynamic set's last group. Made before the first dress, which sets it. */
+  const frost = new FrostDraw(lake);
   /**
    * The lake dressed for a season (`docs/seasons.md`, part 2): the static set built again with the season's palette
    * (the meshes are memoised and only the albedo differs) and the grass handed over with the season's blades, once, at
@@ -282,12 +288,15 @@ async function main() {
     dressing = season;
     const palette = seasonPalette(season);
     renderer.setStatic([
-      ...scene.static(scenery.kit, palette),
+      ...scene.static(scenery.kit, palette, season),
       ...fallGroups(lake),
       ...(lake.cabin ? cabinGroups(palette, lake) : []),
       ...(lake.cabin ? roomGroups(ROOM_COLOURS, lake, Object.values(LAKES)) : []),
       ...(lake.jetty ? jettyGroups(palette, lake) : []),
     ]);
+    caps = season === 'winter' ? rockCaps(lake, cliffLumps(lake)).length : 0;
+    // the frost follows the season at once, so a wake into winter on a clean lake hands it over with this dressing
+    frost.show(season, game.pondClean);
     field = { ...baseField, kinds: [seasonGrass(season)] };
     await setRung(rung);
     applyWeather();
@@ -424,6 +433,8 @@ async function main() {
   let prepareAsked = 0;
   /** How many fish were cured when the fish's groups were last handed over, since their colour and glow go over only with the groups. */
   let curedDrawn = -1;
+  /** The season's share of the fish's glow when their groups were last handed over; `dress` sets the season before it, in the same handover that a new day brings. */
+  let glowDrawn = 1;
   /** The drums of waste, drawn on the bed, and how many were hauled when their groups were last handed over. */
   const drumDraw = new DrumDraw(lake);
   let hauledDrawn = -1;
@@ -471,6 +482,8 @@ async function main() {
     moonDrawn.weather !== weatherDressed;
   /** Whether the sky's discs or the rainbow's arcs were written for another look, phase, season or weather than the page is at. */
   const skyStale = () => moonStale() || rainbowDrawn.time !== time.name || rainbowDrawn.weather !== weatherDressed;
+  /** Whether the frost was written for another season or state of the lake than the page is at. */
+  const frostStale = () => frost.shown() !== (seasonNow() === 'winter' && game.pondClean);
   /** The sky's two discs for the look and phase the page is at, and the key they were written for noted. */
   function moonGroups() {
     const phase = moonOf(game.day);
@@ -488,6 +501,11 @@ async function main() {
     rainbowDrawn.weather = weatherDressed;
     return rainbow.groups(time.name, weatherDressed);
   }
+  /** The frost's group, written for winter and a clean lake or scaled to nothing. */
+  function frostGroups() {
+    frost.show(seasonNow(), game.pondClean);
+    return frost.groups();
+  }
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
     const cured = game.fish.curedCount();
@@ -501,7 +519,8 @@ async function main() {
       foundDrawn !== found ||
       dayDrawn !== game.day ||
       lakeDrawn !== game.progress.save.lake ||
-      skyStale()
+      skyStale() ||
+      frostStale()
     ) {
       watered = dirt;
       curedDrawn = cured;
@@ -529,6 +548,8 @@ async function main() {
       if (lakeDrawn !== game.progress.save.lake) mapHandovers++;
       lakeDrawn = game.progress.save.lake;
       handovers++;
+      // after `dress` above, which has set the season for a wake into a new one
+      glowDrawn = SEASON_DRESSING[seasonNow()].glow;
       const water = style.groups(dirt, lake);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
@@ -540,7 +561,7 @@ async function main() {
       // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
       renderer.setDynamic([
         ...water,
-        ...fish.groups(game.fish.cured, game.fish.kind),
+        ...fish.groups(game.fish.cured, game.fish.kind, glowDrawn),
         ...casting.groups(),
         ...drumDraw.groups(game.drums),
         ...drumDraw.bank(game.drums),
@@ -555,6 +576,8 @@ async function main() {
         ...(mapDraw ? mapDraw.groups(lakeDrawn, ROOM_COLOURS.mapPin) : []),
         // the rainbow last of all, so the slots of everything ahead of it are as they were
         ...rainbowGroups(),
+        // and the frost after that, written for the season and the lake's state as they stand, so a change hands it over
+        ...frostGroups(),
       ]);
     }
     finish();
@@ -1455,6 +1478,7 @@ async function main() {
     drawnDirt: () => watered,
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
+    drawnGlow: () => glowDrawn,
     radio: () => night.radio(),
     calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
     moon: () => ({ handovers: moonDraw.handovers, shown: moonDraw.shown() }),
@@ -1475,6 +1499,8 @@ async function main() {
       dressed,
       statics,
       falling: fell,
+      frost: frost.shown(),
+      caps,
       mist: renderer.fog.density > 0 && renderer.economy.fog !== false,
       dressMs,
       bakeMs,

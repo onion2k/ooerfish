@@ -20,11 +20,11 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
       is the renderer's fog thick over the lake, hiding the glow a catch's kind is told by; the sun-shower is rain by
       day with a rainbow; wind bends the cast's flight and its preview. The fuzzer reaches every weather; the
       determinism hash takes it in; the sleep page lists the weather's nights.
-- [ ] **A2. The radio and the morning** (stage 5, slice 4; `docs/radio.md`, being built). The cabin's morning line becomes the radio: today's
+- [x] **A2. The radio and the morning** (stage 5, slice 4; `docs/radio.md`, landed 28 Oct 2026). The cabin's morning line becomes the radio: today's
       forecast, the moon, the season, and a line of gossip from a small pool keyed by what has happened (a lake
       cleaned, a drum hauled, a treasure found). Words a pure function in `src/radio.ts` with a unit test, as
       `nightWords` is. No sound yet: the radio is text until Part D. The mail waits on Part B.
-- [ ] **A3. Winter's dressing** (stage 6, tidy). Snow on the cabin roof and the boat's cover, frost on the reeds:
+- [x] **A3. Winter's dressing** (stage 6, tidy; `docs/winter.md`, landed 28 Oct 2026). Snow on the cabin roof and the boat's cover, frost on the reeds:
       static parts shown by the season, so the stage reads done. Small.
 
 ## Part B: the town (stage 7, and the mail of stage 5)

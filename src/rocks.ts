@@ -13,6 +13,7 @@
 import { painted, split, type PaintChoice } from 'artshape-render/mesh/paint';
 import { at, built, lump } from 'artshape-render/mesh/lowpoly';
 import type { Mesh } from 'artshape-render/mesh/types';
+import { SNOW } from './lake';
 import type { Lake, RockFigures } from './lakes/lake';
 import { place } from './matrix';
 import { seeded } from './random';
@@ -150,4 +151,60 @@ export function cliffLumpMeshes(of: readonly CliffLump[], lake: Lake): Rock[] {
   });
   lumps.set(lake, { key, rocks });
   return rocks;
+}
+
+/**
+ * The snow on a split rock: the faces that look up (a normal's z over `SNOW.facing`) and sit above `SNOW.from` of the
+ * rock's `rise` (by their middle, so the foot stays bare), each lifted `SNOW.lift` along its normal so the cap lies
+ * clear of the rock and does not fight it in depth. A mesh of its own with every vertex its own and no paint, so the
+ * snow has no ridges to stroke: it reads as a soft white cover and not as more stone. Pure, and the same every call.
+ */
+export function snowCap(rock: Mesh, rise: number): Mesh {
+  const p = rock.positions,
+    n = rock.normals;
+  const keep: number[] = [];
+  for (let t = 0; t < p.length; t += 9) {
+    if (n[t + 2] > SNOW.facing && (p[t + 2] + p[t + 5] + p[t + 8]) / 3 > SNOW.from * rise) keep.push(t);
+  }
+  const positions = new Float32Array(keep.length * 9),
+    normals = new Float32Array(keep.length * 9);
+  keep.forEach((t, k) => {
+    for (let v = 0; v < 9; v++) {
+      normals[k * 9 + v] = n[t + v];
+      positions[k * 9 + v] = p[t + v] + SNOW.lift * n[t + v];
+    }
+  });
+  const vertices = keep.length * 3;
+  return {
+    positions,
+    normals,
+    uvs: new Float32Array(vertices * 2),
+    indices: Uint32Array.from({ length: vertices }, (_, i) => i),
+  };
+}
+
+/** A rock's snow cap and the matrix it shares with the rock. */
+export interface Cap {
+  mesh: Mesh;
+  matrix: Float32Array;
+}
+
+const capped = new WeakMap<Lake, { boulders: Rock[]; lumps: Rock[]; caps: Cap[] }>();
+
+/**
+ * The snow cap of every rock of a lake, the boulders first and then the cliff's lumps (given, as `cliffLumpMeshes`
+ * has them), in the order of the rocks' groups, each at the rock's own matrix object. A dome rises by its height over
+ * the waterline, a lump by its z half-width. Built once, with the rocks, and again only if the rocks are not those.
+ */
+export function rockCaps(lake: Lake, of: readonly CliffLump[]): Cap[] {
+  const domes = boulderMeshes(lake);
+  const stones = cliffLumpMeshes(of, lake);
+  const kept = capped.get(lake);
+  if (kept && kept.boulders === domes && kept.lumps === stones) return kept.caps;
+  const caps = [
+    ...domes.map(({ mesh, matrix }, i) => ({ mesh: snowCap(mesh, lake.domes[i].tall + lake.domes[i].base), matrix })),
+    ...stones.map(({ mesh, matrix }, i) => ({ mesh: snowCap(mesh, of[i].rz), matrix })),
+  ];
+  capped.set(lake, { boulders: domes, lumps: stones, caps });
+  return caps;
 }

@@ -22,7 +22,8 @@ import { ball, box, sheet, splitBySlope } from './meshes';
 import type { Mesh } from 'artshape-render/mesh/types';
 import { PALETTE, mix, type Colour, type Palette } from './palette';
 import { damMesh } from './dam';
-import { boulderMeshes, cliffLumpMeshes } from './rocks';
+import { boulderMeshes, cliffLumpMeshes, rockCaps } from './rocks';
+import type { Season } from './lake';
 import { seeded } from './random';
 import { surface } from './water/surface';
 import { ROLE_COLOUR, type Kit, type KitModel, type SceneryRole } from './scenery';
@@ -98,7 +99,7 @@ interface Spot {
 const lerp = (range: readonly [number, number], k: number) => range[0] + (range[1] - range[0]) * k;
 
 /** Where a ring `k` of the way out from the middle is, at an angle, on a lake's own stretched shape. */
-function ringOn(lake: Lake): (k: number, angle: number) => [number, number] {
+export function ringOn(lake: Lake): (k: number, angle: number) => [number, number] {
   return (k, angle) => {
     const r = k * lake.shoreRadius(angle);
     return [Math.cos(angle) * r * lake.stretch, Math.sin(angle) * r];
@@ -168,7 +169,8 @@ export function bedCuts(
   const cuts: BedCut[] = [];
   for (let i = 0; i < bands; i++) {
     const t = Math.min(1, Math.max(0, (lake.bowlDepthAt((edges[i] + edges[i + 1]) / 2) - depth) / blend));
-    cuts.push({ from: edges[i], to: edges[i + 1], colour: mix(sand, slate, t) });
+    // the band that is all sand is the sand itself, not a mixed copy of it, so a season may recolour it by name
+    cuts.push({ from: edges[i], to: edges[i + 1], colour: t === 0 ? sand : mix(sand, slate, t) });
   }
   return cuts;
 }
@@ -492,16 +494,28 @@ export class Scene {
    * What does not move. With the kit, the banks wear it; without, the old stones and puffball trees. The colours are the
    * palette handed in, the season's (`seasonPalette`): only the albedo of a group differs between seasons, never a mesh.
    */
-  static(kit?: Kit, palette: Palette = PALETTE): GameGroup[] {
+  static(kit?: Kit, palette: Palette = PALETTE, season: Season = 'summer'): GameGroup[] {
     // the shapes (the sheets, the slope's cut, the rocks, the trees) depend on no colour, so they are built once for a
     // kit and a season only swaps the albedo of the groups that wear a palette colour: a rebuild at the wake is cheap
     const key = kit ?? NO_KIT;
     let base = this.built.get(key);
     if (!base) this.built.set(key, (base = this.build(kit)));
-    return base.map((g) => {
+    const groups = base.map((g) => {
       const named = PALETTE_KEYS.get(g.albedo as Colour);
       return named && palette[named] !== g.albedo ? { ...g, albedo: palette[named] } : { ...g };
     });
+    // winter's snow lies on every rock, a cap each after everything else so that no other group's slot moves; the caps
+    // are built with the rocks, once, and share their matrices
+    if (season !== 'winter') return groups;
+    return [
+      ...groups,
+      ...rockCaps(this.lake, cliffLumps(this.lake)).map(({ mesh, matrix }) => ({
+        mesh,
+        matrices: matrix,
+        albedo: palette.snow,
+        roughness: 0.8,
+      })),
+    ];
   }
 
   /** The static groups of a kit, in `PALETTE`'s colours, made once per kit by `static`. */

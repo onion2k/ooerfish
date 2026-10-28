@@ -82,16 +82,22 @@ export class FishDraw {
    * glowing green, or, where `cured` is 1, gold in its body and coral in its fins with a softer light; the renderer
    * reads both only when groups are handed over, so they are handed over again when a cure changes `cured`. An uncured
    * fish glows the colour of its kind (`kind` indexes `KINDS`, the glowing perch where none is given), a cured one is
-   * gold whatever it was.
+   * gold whatever it was. `glow` scales every light by the season's share (`SEASON_DRESSING`), so the fish read against
+   * winter's white; it is a handover's figure like the rest, so the page hands the groups over again when it changes.
    */
-  groups(cured: Uint8Array, kind: Uint8Array = new Uint8Array(FISH_CAPACITY).fill(KIND_INDEX.perch)): GameGroup[] {
+  groups(
+    cured: Uint8Array,
+    kind: Uint8Array = new Uint8Array(FISH_CAPACITY).fill(KIND_INDEX.perch),
+    season = 1,
+  ): GameGroup[] {
     return this.parts().map((mesh, p) => {
       const fin = p >= SEGS;
       const patterns = new Float32Array(FISH_CAPACITY * PATTERN_STRIDE);
       const materials = new Float32Array(FISH_CAPACITY * 4);
       for (let i = 0; i < FISH_CAPACITY; i++) {
         const gold = cured[i] === 1;
-        const glow = gold ? (fin ? CURED_GLOW.fin : CURED_GLOW.body) : fin ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow;
+        const glow =
+          season * (gold ? (fin ? CURED_GLOW.fin : CURED_GLOW.body) : fin ? FISH_BODY.glow * FIN_GLOW : FISH_BODY.glow);
         const glowing = PALETTE[KINDS[kind[i]].glow];
         const colour = gold ? (fin ? PALETTE.curedFin : PALETTE.cured) : glowing;
         packFlow(patterns, i * PATTERN_STRIDE, {

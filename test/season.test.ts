@@ -403,3 +403,17 @@ describe('the weather’s fog', () => {
         }
   });
 });
+
+describe('winter’s snow and glow', () => {
+  it('moves the sand, the stones the kit’s pebbles take and the flowers the clumps take, and no other key', () => {
+    const named = Object.keys(SEASON_DRESSING.winter.palette);
+    for (const k of ['sand', 'stone', 'flowers']) expect(named).toContain(k);
+    expect(seasonPalette('winter').sand).not.toEqual(PALETTE.sand);
+    expect(seasonPalette('winter').snow).toEqual(PALETTE.snow);
+  });
+
+  it('brightens the fish’s glow in winter and leaves it as it was elsewhere', () => {
+    expect(SEASON_DRESSING.winter.glow).toBe(1.25);
+    for (const s of SEASONS.filter((s) => s !== 'winter')) expect(SEASON_DRESSING[s].glow).toBe(1);
+  });
+});
