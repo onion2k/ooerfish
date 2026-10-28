@@ -9,5 +9,9 @@ export default defineConfig({
     // that plays the real game for a few seconds, on a busy machine and on a CI runner a third the speed of the
     // one they were written on. The tests here take a thirtieth of a second at most; a game's will not.
     testTimeout: 30_000,
+    // A hook that plays the game for its tests (the gear table's beforeAll plays twelve fights) is the same kind of
+    // work, and Vitest's ten seconds for a hook failed it on a machine at a load of sixteen, once, with the change
+    // it was guarding sound. It gets the test's allowance for the same reason.
+    hookTimeout: 30_000,
   },
 });
