@@ -251,6 +251,13 @@
     color: var(--dim);
     font-size: 13px;
   }
+  /* a kind's silly fact, under its words once it is caught */
+  #journalKinds small {
+    display: block;
+    color: var(--dim);
+    font-size: 12px;
+    margin-top: 2px;
+  }
   /* a kind caught reads in the ink, one not yet caught in the dim, so the difference is the words' and the tone's both */
   #journalKinds .caught span {
     color: var(--ink);
@@ -322,6 +329,9 @@
   }
   html[data-layout='sideways'] #journalKinds span {
     font-size: 12px;
+  }
+  html[data-layout='sideways'] #journalKinds small {
+    font-size: 11px;
   }
   html[data-layout='sideways'] #journal h3 {
     margin: 6px 0 0;

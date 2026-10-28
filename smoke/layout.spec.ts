@@ -440,7 +440,7 @@ for (const bp of BREAKPOINTS) {
             if (fit.scroll > fit.shown + 1 && !['auto', 'scroll'].includes(fit.overflow))
               failures.add(`${still}: the post's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`);
             if (fit.close <= 0) failures.add(`${still}: the post's Close button has no size`);
-            if (fit.letters !== 3) failures.add(`${still}: the post lists ${fit.letters} letters, not three`);
+            if (fit.letters !== 4) failures.add(`${still}: the post lists ${fit.letters} letters, not four`);
             if (fit.replies !== (moment === 'post' ? 0 : 2))
               failures.add(`${still}: the post shows ${fit.replies} replies`);
           }

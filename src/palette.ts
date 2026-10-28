@@ -114,6 +114,10 @@ export const PALETTE = {
   /** The sunny bream's glow, a warm yellow, and the pike's, a blue-green. */
   glowBream: [1, 0.85, 0.25] as Colour,
   glowPike: [0.2, 0.9, 0.8] as Colour,
+  /** The pink dawn fish's glow, a blush; the lamp eel's, the brightest, a pale green; the two-headed trout's, a cold blue. */
+  glowPink: [1, 0.55, 0.75] as Colour,
+  glowEel: [0.6, 1, 0.8] as Colour,
+  glowTrout: [0.8, 0.9, 1] as Colour,
   /** A drum of waste on the bed: a hazard yellow, the darker bands round it, and the black atom on its lid. */
   drum: [0.95, 0.6, 0.04] as Colour,
   drumBand: [0.5, 0.26, 0.02] as Colour,

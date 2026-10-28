@@ -1018,12 +1018,15 @@ test.describe('the journal and the drum', () => {
     await api(() => window.game!.openJournal());
     await expect(page.locator('#journal')).toBeVisible();
     const items = page.locator('#journalKinds li');
-    await expect(items).toHaveCount(3);
+    await expect(items).toHaveCount(6);
     await expect(items.nth(0)).toHaveText(
-      `sunny bream1 caught, best ${journal.bream!.best.toFixed(2)} kg, first on day 1`,
+      `sunny bream1 caught, best ${journal.bream!.best.toFixed(2)} kg, first on day 1${KINDS[0].fact}`,
     );
     await expect(items.nth(1)).toHaveText('glowing perchnot yet caught');
-    await expect(items.nth(2)).toHaveText(`pike1 caught, best ${journal.pike!.best.toFixed(2)} kg, first on day 1`);
+    await expect(items.nth(2)).toHaveText(
+      `pike1 caught, best ${journal.pike!.best.toFixed(2)} kg, first on day 1${KINDS[2].fact}`,
+    );
+    for (const i of [3, 4, 5]) await expect(items.nth(i)).toContainText('not yet caught');
     await expect(page.locator('#journalDrums')).toHaveText('drums of waste hauled: 0 of 2');
     expect(problems).toEqual([]);
   });
@@ -1918,6 +1921,7 @@ test.describe('the post', () => {
       'From Ida Penny',
       'From Pip and the Glow-Worms',
       'From Flo Keel',
+      'From Marigold Bunn',
     ]);
     await play(page, 120, 'two seconds with the post open');
     expect(await clockOf(page), 'game time holds').toEqual(before);
@@ -1952,6 +1956,7 @@ test.describe('the post', () => {
     await expect(page.locator('#postList li b')).toHaveText([
       'From Pip and the Glow-Worms',
       'From Flo Keel',
+      'From Marigold Bunn',
       'Answered: from Ida Penny',
     ]);
     const answered = page.locator('#postList li.answered');
@@ -1984,10 +1989,22 @@ test.describe('the post', () => {
 
   test('a load that already meets the rainbow marks it silently: no event, no toast', async ({ page }) => {
     const problems = watch(page);
+    // the rainbow wants a fish of each of the six kinds, the three of the Reservoir among them
     const seen = { caught: 1, best: 0.5, first: 1 };
-    await start(page, { seed: 1, paused: true, save: { cured: 3, journal: { bream: seen, perch: seen, pike: seen } } });
+    const journal = (ids: string[]) => Object.fromEntries(ids.map((id) => [id, seen]));
+    await start(page, {
+      seed: 1,
+      paused: true,
+      save: {
+        lakes: {
+          duckpond: { cured: 3, drums: 0, found: [], journal: journal(['bream', 'perch', 'pike']) },
+          reservoir: { cured: 3, drums: 0, found: [], journal: journal(['dawnfish', 'eel', 'trout']) },
+        },
+      },
+    });
     await play(page, 60, 'a second after the load');
-    expect(await requestsOf(page)).toEqual(['rainbow']);
+    // the dawn fish among them meets the baker's letter as well, on the same load
+    expect(await requestsOf(page)).toEqual(['rainbow', 'pink']);
     expect((await page.evaluate(() => window.game!.events())).filter((e) => e.startsWith('answered'))).toEqual([]);
     await expect(page.locator('#toast')).toBeHidden();
     expect(problems).toEqual([]);
@@ -2472,6 +2489,147 @@ test.describe('the radio', () => {
     expect(await page.evaluate(() => window.game!.place())).toBe('yawning');
     await expect(panel(page)).toBeHidden();
     expect((await page.evaluate(() => window.game!.radio())).shown).toBe(false);
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the new kinds', () => {
+  const RESERVOIR = { lake: 'reservoir', lakes: { reservoir: { cured: 0, drums: 0, journal: {}, found: [] } } };
+  const kindOf = (page: Page) =>
+    page.evaluate(() => {
+      const g = window.game!;
+      const i = g.fishing().fish;
+      return i >= 0 ? g.fish()[i].kind : -1;
+    });
+  const DAWNFISH = KINDS.findIndex((k) => k.id === 'dawnfish');
+  const TROUT = KINDS.findIndex((k) => k.id === 'trout');
+
+  test('the pink dawn fish bites at dawn, and no dawn fish is the bite by day', async ({ page }) => {
+    test.setTimeout(180_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: RESERVOIR });
+    const t0 = Date.now();
+    expect(await page.evaluate(() => window.game!.fishTo('bite', 'dawnfish')), 'a dawn fish bites').toBe(true);
+    console.log(`dawnfish bite took ${Date.now() - t0} ms`);
+    expect(await page.evaluate(() => window.game!.time())).toBe('dawn');
+    expect(await kindOf(page)).toBe(DAWNFISH);
+    await play(page, 1, 'a dawn fish biting');
+
+    // by day the same fishing never finds one: a cast thrown again and again, whatever bites, is never a dawn fish
+    await page.evaluate(() => window.game!.reelIn());
+    await page.evaluate(() => window.game!.time('day'));
+    const seen = await page.evaluate(() => {
+      const g = window.game!;
+      const kinds = new Set<number>();
+      for (let go = 0; go < 6; go++) {
+        g.clock(0.5);
+        g.cast(Math.PI / 2 + 0.15 + go * 0.05, 0.4 + go * 0.08);
+        for (let f = 0; f < 1200; f++) {
+          g.step(1);
+          const i = g.fishing().fish;
+          if (i >= 0 && g.fishing().phase !== 'none') kinds.add(g.fish()[i].kind);
+          if (g.fishing().phase === 'biting') break;
+        }
+        g.reelIn();
+      }
+      return { kinds: [...kinds] };
+    });
+    expect(seen.kinds, 'some fish came to the lure by day').not.toHaveLength(0);
+    expect(seen.kinds).not.toContain(DAWNFISH);
+    await play(page, 1, 'a day of casting');
+    expect(problems).toEqual([]);
+  });
+
+  test("the two-headed trout's other head bites after a missed first window, and a strike then hooks it", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: RESERVOIR });
+    const t0 = Date.now();
+    expect(await page.evaluate(() => window.game!.fishTo('bite', 'trout')), 'a trout bites').toBe(true);
+    console.log(`trout bite took ${Date.now() - t0} ms`);
+    expect(await kindOf(page)).toBe(TROUT);
+    expect((await page.evaluate(() => window.game!.fishing())).second).toBe(false);
+    await expect(page.locator('#castLine')).toHaveText('BITE! strike now');
+    // no strike: the first window runs out, the other head nibbles, then bites with a second
+    let sawNibble = false;
+    for (let f = 0; f < 900; f++) {
+      const s = await page.evaluate(() => {
+        window.game!.step(1);
+        const g = window.game!.fishing();
+        return { phase: g.phase, second: g.second };
+      });
+      if (s.phase === 'nibbling' && s.second) sawNibble = true;
+      if (s.phase === 'biting' && s.second) break;
+    }
+    const now = await page.evaluate(() => window.game!.fishing());
+    expect(now).toMatchObject({ phase: 'biting', second: true });
+    expect(sawNibble, 'the other head nibbled between the windows').toBe(true);
+    await expect(page.locator('#castLine')).toHaveText('the other head bites! strike now');
+    await page.evaluate(() => window.game!.strike());
+    expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('hooked');
+    await play(page, 30, 'the second head struck');
+    expect(problems).toEqual([]);
+  });
+
+  test("the eels light the Reservoir's night on the full rung only, and never by day or at the pond", async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: RESERVOIR });
+    await page.evaluate(() => window.game!.time('night'));
+    await play(page, 2, 'the Reservoir at night');
+    expect(await page.evaluate(() => window.game!.eels())).toEqual({ lit: true, count: 2 });
+    await page.evaluate(() => window.game!.time('day'));
+    await play(page, 2, 'the Reservoir by day');
+    expect((await page.evaluate(() => window.game!.eels())).count).toBe(0);
+    await page.evaluate(() => window.game!.time('night'));
+    await page.evaluate(() => window.game!.rung('lean'));
+    await play(page, 2, 'the Reservoir at night on lean');
+    expect((await page.evaluate(() => window.game!.eels())).count).toBe(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('the Duck Pond has no eel to light at night', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await page.evaluate(() => window.game!.time('night'));
+    await play(page, 2, 'the pond at night');
+    expect(await page.evaluate(() => window.game!.eels())).toEqual({ lit: false, count: 0 });
+    expect(problems).toEqual([]);
+  });
+
+  test("a trout landed is named on the card, and its fact shows in the journal's row once stowed", async ({ page }) => {
+    test.setTimeout(180_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: RESERVOIR });
+    const t0 = Date.now();
+    expect(await page.evaluate(() => window.game!.fishTo('landed', 'trout')), 'a trout landed').toBe(true);
+    console.log(`trout landed took ${Date.now() - t0} ms`);
+    await expect(page.locator('#catchName')).toContainText('two-headed trout');
+    expect(await page.evaluate(() => window.game!.stow())).toBe(true);
+    await play(page, 1, 'a trout stowed');
+    await page.evaluate(() => window.game!.openJournal());
+    const row = page.locator('#journalKinds li').nth(5);
+    await expect(page.locator('#journalKinds li')).toHaveCount(6);
+    await expect(row).toContainText('two-headed trout');
+    await expect(row.locator('small')).toHaveText('Two heads, one opinion. They both want the lure.');
+    expect(problems).toEqual([]);
+  });
+
+  test("a dawn fish stowed answers the baker's letter", async ({ page }) => {
+    test.setTimeout(180_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: RESERVOIR });
+    const t0 = Date.now();
+    expect(await page.evaluate(() => window.game!.fishTo('landed', 'dawnfish')), 'a dawn fish landed').toBe(true);
+    console.log(`dawnfish landed took ${Date.now() - t0} ms`);
+    expect(await page.evaluate(() => window.game!.stow())).toBe(true);
+    await play(page, 1, 'a dawn fish stowed');
+    expect(await page.evaluate(() => window.game!.events())).toContain('answered pink');
+    const saved = JSON.parse(await page.evaluate(() => window.game!.save())) as { requests: string[] };
+    expect(saved.requests).toContain('pink');
     expect(problems).toEqual([]);
   });
 });

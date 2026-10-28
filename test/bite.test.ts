@@ -5,7 +5,9 @@ import { Game } from '../src/game';
 import { Bite } from '../src/bite';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { FISHING, KIND_INDEX } from '../src/lake';
+import { CLOCK, FISHING, KIND_INDEX } from '../src/lake';
+import { RESERVOIR } from '../src/lakes/reservoir';
+import { LAKES } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, castAtDrum, cureAll, lieByDrum, lieByTreasure } from './helpers';
@@ -433,7 +435,7 @@ describe('a drum on the bed and the lure', () => {
     let t = game.t;
     for (let f = 0; f < seconds / DT; f++) {
       t += DT;
-      game.bite.step(t, DT, game.fish, game.lure, () => 0, game.drums);
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums);
       if (game.bite.phase !== 'none') return game.bite.drum;
     }
     return -1;
@@ -481,14 +483,14 @@ describe('a drum on the bed and the lure', () => {
   it('snags by a rate a second and draws no chance when no drum is near', () => {
     const game = beside();
     let draws = 0;
-    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1), game.drums);
+    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1), CLOCK.startsAt, game.drums);
     expect(draws, 'one draw while it lies by a drum').toBe(1);
     expect(game.bite.phase).toBe('none');
     const far = beside();
     far.drums.x[0] += DRUMS.reach + 1;
     far.drums.x[1] += DRUMS.reach + 1;
     draws = 0;
-    far.bite.step(far.t + DT, DT, far.fish, far.lure, () => (draws++, 1), far.drums);
+    far.bite.step(far.t + DT, DT, far.fish, far.lure, () => (draws++, 1), CLOCK.startsAt, far.drums);
     expect(draws, 'none when no drum is near').toBe(0);
   });
 
@@ -498,7 +500,7 @@ describe('a drum on the bed and the lure', () => {
     const bite = new Bite({ bitten: (heavy) => told.push(heavy === true) }, HOME);
     let t = game.t;
     for (let f = 0; f < 200 && bite.phase === 'none'; f++)
-      bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums);
+      bite.step((t += DT), DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums);
     expect(told).toEqual([true]);
     expect(bite.strike(t, game.fish, game.lure)).toBe('hooked');
     expect(bite.phase).toBe('hooked');
@@ -510,12 +512,12 @@ describe('a drum on the bed and the lure', () => {
     const t0 = slow.t;
     let late = t0;
     for (let f = 0; f < 120 && slow.bite.phase === 'biting'; f++)
-      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums);
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, CLOCK.startsAt, slow.drums);
     expect(slow.bite.phase).toBe('none');
     expect(slow.bite.drum).toBe(-1);
     expect(slow.bite.drumWary[0]).toBeGreaterThan(late);
     for (let f = 0; f < 60 * (FISHING.wary - 2); f++)
-      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums);
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, CLOCK.startsAt, slow.drums);
     expect(slow.bite.phase, 'wary of the lure, the drum is not snagged again at once').toBe('none');
   });
 
@@ -527,7 +529,7 @@ describe('a drum on the bed and the lure', () => {
     game.fish.depth[0] = game.lure.depth;
     let t = game.t;
     for (let f = 0; f < 10 && game.bite.phase === 'none'; f++)
-      game.bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums);
+      game.bite.step((t += DT), DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums);
     expect(game.bite.phase).toBe('coming');
     expect(game.bite.fish).toBe(0);
     expect(game.bite.drum).toBe(-1);
@@ -550,7 +552,7 @@ describe('a treasure on the bed and the lure', () => {
     let t = game.t;
     for (let f = 0; f < seconds / DT; f++) {
       t += DT;
-      game.bite.step(t, DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums, game.treasures);
       if (game.bite.phase !== 'none')
         return game.bite.treasure >= 0
           ? `treasure ${game.bite.treasure}`
@@ -567,7 +569,7 @@ describe('a treasure on the bed and the lure', () => {
     const bite = new Bite({ bitten: (heavy, quarry) => told.push([heavy, quarry]) }, HOME);
     let t = game.t;
     for (let f = 0; f < 200 && bite.phase === 'none'; f++)
-      bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+      bite.step((t += DT), DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums, game.treasures);
     expect(bite.treasure).toBe(3);
     expect(bite.phase).toBe('biting');
     expect(bite.fish, 'no fish is the bite’s').toBe(-1);
@@ -586,12 +588,12 @@ describe('a treasure on the bed and the lure', () => {
     expect(snagIn(slow)).toBe('treasure 1');
     let late = slow.t;
     for (let f = 0; f < 120 && slow.bite.phase === 'biting'; f++)
-      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums, slow.treasures);
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, CLOCK.startsAt, slow.drums, slow.treasures);
     expect(slow.bite.phase).toBe('none');
     expect(slow.bite.treasure).toBe(-1);
     expect(slow.bite.treasureWary[1]).toBeGreaterThan(late);
     for (let f = 0; f < 60 * (FISHING.wary - 2); f++)
-      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, slow.drums, slow.treasures);
+      slow.bite.step((late += DT), DT, slow.fish, slow.lure, () => 0, CLOCK.startsAt, slow.drums, slow.treasures);
     expect(slow.bite.phase, 'wary, it is not snagged again at once').toBe('none');
   });
 
@@ -633,13 +635,22 @@ describe('a treasure on the bed and the lure', () => {
   it('draws one chance a step while one is in reach and none when nothing is, drum or treasure', () => {
     const game = beside();
     let draws = 0;
-    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1), game.drums, game.treasures);
+    game.bite.step(
+      game.t + DT,
+      DT,
+      game.fish,
+      game.lure,
+      () => (draws++, 1),
+      CLOCK.startsAt,
+      game.drums,
+      game.treasures,
+    );
     expect(draws).toBe(1);
     const far = beside();
     far.treasures.x.fill(5000);
     far.drums.x.fill(5000);
     draws = 0;
-    far.bite.step(far.t + DT, DT, far.fish, far.lure, () => (draws++, 1), far.drums, far.treasures);
+    far.bite.step(far.t + DT, DT, far.fish, far.lure, () => (draws++, 1), CLOCK.startsAt, far.drums, far.treasures);
     expect(draws).toBe(0);
   });
 
@@ -651,7 +662,7 @@ describe('a treasure on the bed and the lure', () => {
     game.fish.depth[0] = game.lure.depth;
     let t = game.t;
     for (let f = 0; f < 10 && game.bite.phase === 'none'; f++)
-      game.bite.step((t += DT), DT, game.fish, game.lure, () => 0, game.drums, game.treasures);
+      game.bite.step((t += DT), DT, game.fish, game.lure, () => 0, CLOCK.startsAt, game.drums, game.treasures);
     expect(game.bite.phase).toBe('coming');
     expect(game.bite.fish).toBe(0);
     expect(game.bite.treasure).toBe(-1);
@@ -706,5 +717,206 @@ describe('the rain and the lure', () => {
     );
     expect(chosenIn(lifted.game, 60)).toBe(lifted.fish);
     expect(Math.abs(lifted.game.fish.depth[lifted.fish] - lifted.game.lure.depth)).toBeLessThanOrEqual(FISHING.band);
+  });
+});
+
+/** The Reservoir, its lure sunk and every fish moved out of reach, the clock at `time`; what the bite tells is kept. */
+function reservoir(time: number, seed = 1) {
+  const told: string[] = [];
+  const game = new Game(new Progress(memoryStore(null), LAKES), {
+    lake: RESERVOIR,
+    random: seeded(seed),
+    events: {
+      nibbled: () => told.push('nibbled'),
+      bitten: () => told.push('bitten'),
+      hooked: () => told.push('hooked'),
+      missed: () => told.push('missed'),
+    },
+  });
+  game.cast(NORTH, 0.5);
+  for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+  expect(game.lure.phase).toBe('sinking');
+  game.bite.stowed(game.fish);
+  for (let i = 0; i < game.fish.count; i++) game.fish.x[i] = game.fish.y[i] = 1e6;
+  game.fish.held = -1;
+  game.setTimeOfDay(time);
+  return { game, told };
+}
+
+const DAWN = CLOCK.startsAt;
+const DAY = 0.5;
+const slotIn = (game: Game, kind: keyof typeof KIND_INDEX) => game.fish.kind.indexOf(KIND_INDEX[kind]);
+
+/** The bite stepped by itself at a time of day, with a chance that always notices: which fish it chose, or -1. */
+function chosenAt(game: Game, time: number, seconds: number, random = () => 0): number {
+  let t = game.t;
+  for (let f = 0; f < seconds / DT; f++) {
+    t += DT;
+    game.bite.step(t, DT, game.fish, game.lure, random, time);
+    if (game.bite.phase !== 'none') return game.bite.fish;
+  }
+  return -1;
+}
+
+describe('the pink dawn fish and the bite', () => {
+  it('is never picked at day over sixty seconds, though a perch beside it is', () => {
+    const { game } = reservoir(DAY);
+    const dawn = slotIn(game, 'dawnfish'),
+      perch = slotIn(game, 'perch');
+    put(game, dawn, 1);
+    put(game, perch, 2);
+    expect(chosenAt(game, DAY, 60)).toBe(perch);
+    const alone = reservoir(DAY).game;
+    put(alone, slotIn(alone, 'dawnfish'), 1);
+    expect(chosenAt(alone, DAY, 60)).toBe(-1);
+  });
+
+  it('is picked at dawn, nearest of the two', () => {
+    const { game } = reservoir(DAWN);
+    put(game, slotIn(game, 'dawnfish'), 1);
+    put(game, slotIn(game, 'perch'), 2);
+    expect(chosenAt(game, DAWN, 60)).toBe(slotIn(game, 'dawnfish'));
+  });
+
+  it('draws no chance for it at day, as for a cured fish', () => {
+    const { game } = reservoir(DAY);
+    put(game, slotIn(game, 'dawnfish'), 1);
+    let draws = 0;
+    game.bite.step(game.t + DT, DT, game.fish, game.lure, () => (draws++, 1), DAY);
+    expect(draws).toBe(0);
+  });
+
+  it('leaves every other fish its own draws: asleep or cured, the bite is the same', () => {
+    const play = (cure: boolean) => {
+      const { game } = reservoir(DAY);
+      const dawn = slotIn(game, 'dawnfish'),
+        perch = slotIn(game, 'perch');
+      put(game, dawn, 1);
+      put(game, perch, 2);
+      if (cure) game.fish.cured[dawn] = 1;
+      const random = seeded(9);
+      const seen: string[] = [];
+      let t = game.t;
+      for (let f = 0; f < 40 / DT; f++) {
+        t += DT;
+        game.bite.step(t, DT, game.fish, game.lure, random, DAY);
+        seen.push(`${game.bite.phase}:${game.bite.fish}:${game.bite.timer.toFixed(4)}`);
+      }
+      return seen;
+    };
+    const asleep = play(false);
+    expect(asleep.some((s) => s.startsWith('nibbling'))).toBe(true);
+    expect(asleep).toEqual(play(true));
+  });
+
+  it('lets a dawn fish that is coming go, quietly, when the clock passes out of dawn', () => {
+    const { game, told } = reservoir(DAWN);
+    const dawn = slotIn(game, 'dawnfish');
+    put(game, dawn, 3);
+    let t = game.t;
+    for (let f = 0; f < 5 / DT && game.bite.phase !== 'coming'; f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, DAWN);
+    }
+    expect(game.bite.phase).toBe('coming');
+    t += DT;
+    game.bite.step(t, DT, game.fish, game.lure, () => 0, DAY);
+    expect(game.bite.phase).toBe('none');
+    expect(game.bite.fish).toBe(-1);
+    expect(game.fish.held).toBe(-1);
+    expect(told).not.toContain('missed');
+  });
+});
+
+describe('the two-headed trout and the second window', () => {
+  /** A trout at the lure and a perch, run with no strike until `done`; the lines the bite told and the seconds it took. */
+  function left(kind: 'trout' | 'perch', seconds: number) {
+    const { game, told } = reservoir(DAY);
+    const i = slotIn(game, kind);
+    put(game, i, 0.5);
+    const seconds2: boolean[] = [];
+    let t = game.t;
+    // until the fish lets go: it is wary a while and then comes back, which is another bite
+    for (let f = 0; f < seconds / DT && !told.includes('missed'); f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, DAY);
+      if (game.bite.phase === 'biting') seconds2.push(game.bite.second);
+    }
+    return { game, told, i, seconds2 };
+  }
+
+  it('bites twice when left unstruck, then lets go wary and marks one miss', () => {
+    const { game, told, i, seconds2 } = left('trout', 40);
+    expect(told.filter((x) => x === 'bitten')).toHaveLength(2);
+    expect(told.filter((x) => x === 'missed')).toHaveLength(1);
+    expect(game.bite.phase).toBe('none');
+    expect(game.bite.wary[i]).toBeGreaterThan(game.t);
+    expect(seconds2.includes(false) && seconds2.includes(true)).toBe(true);
+  });
+
+  it('nibbles once more between the heads, and the second flag reads true only for that second go', () => {
+    const { game, told } = reservoir(DAY);
+    const i = slotIn(game, 'trout');
+    put(game, i, 0.5);
+    const nibbles: boolean[] = [];
+    const bites: boolean[] = [];
+    let t = game.t,
+      last = 'none';
+    for (let f = 0; f < 40 / DT && !told.includes('missed'); f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, DAY);
+      if (game.bite.phase !== last) {
+        if (game.bite.phase === 'nibbling') nibbles.push(game.bite.second);
+        if (game.bite.phase === 'biting') bites.push(game.bite.second);
+        last = game.bite.phase;
+      }
+    }
+    // the first run of nibbling is the first head's; the return to it is the second's
+    expect(nibbles).toEqual([false, true]);
+    expect(bites).toEqual([false, true]);
+    expect(game.bite.second).toBe(false);
+  });
+
+  it('tells nibbled for the second head’s nibble too', () => {
+    const { told } = left('trout', 40);
+    const afterFirstBite = told.indexOf('bitten');
+    expect(told.slice(afterFirstBite + 1, told.lastIndexOf('bitten'))).toContain('nibbled');
+  });
+
+  it('is hooked by a strike in the second window, as by any', () => {
+    const { game, told } = reservoir(DAY);
+    put(game, slotIn(game, 'trout'), 0.5);
+    let t = game.t;
+    for (let f = 0; f < 40 / DT && !(game.bite.phase === 'biting' && game.bite.second); f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, DAY);
+    }
+    expect(game.bite.second).toBe(true);
+    expect(game.bite.strike(t, game.fish, game.lure)).toBe('hooked');
+    expect(told).toContain('hooked');
+    expect(told).not.toContain('missed');
+  });
+
+  it('spooks on a strike in the gap between heads, as any nibble does', () => {
+    const { game, told } = reservoir(DAY);
+    put(game, slotIn(game, 'trout'), 0.5);
+    let t = game.t;
+    // past the first window, into the gap
+    for (let f = 0; f < 40 / DT && !(game.bite.phase === 'nibbling' && game.bite.second); f++) {
+      t += DT;
+      game.bite.step(t, DT, game.fish, game.lure, () => 0, DAY);
+    }
+    expect(game.bite.second).toBe(true);
+    expect(game.bite.strike(t, game.fish, game.lure)).toBe('spooked');
+    expect(game.bite.second).toBe(false);
+    expect(told).toContain('missed');
+  });
+
+  it('gives a perch one window only', () => {
+    const { game, told, seconds2 } = left('perch', 40);
+    expect(told.filter((x) => x === 'bitten')).toHaveLength(1);
+    expect(told.filter((x) => x === 'missed')).toHaveLength(1);
+    expect(seconds2.every((s) => !s)).toBe(true);
+    expect(game.bite.second).toBe(false);
   });
 });

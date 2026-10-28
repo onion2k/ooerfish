@@ -52,6 +52,41 @@ describe("a fish's body, posed", () => {
     expect(span(long) / span(one)).toBeCloseTo(1.35, 1);
   });
 
+  it('spaces the joints a stretch times further and leaves the girth to the scale', () => {
+    const school = new School(HOME);
+    school.fill(1, seeded(3));
+    school.pace[0] = 0;
+    school.turn[0] = 0;
+    school.rise[0] = 0;
+    school.vigour[0] = 1;
+    school.phase[0] = 0;
+    const plain = joints(),
+      long = joints(),
+      same = joints();
+    poseFish(plain, SWIM, school, 0, () => 20, 1.1);
+    poseFish(same, SWIM, school, 0, () => 20, 1.1, 1);
+    poseFish(long, SWIM, school, 0, () => 20, 1.1, 1.7);
+    expect(Array.from(same), 'a stretch of one is no stretch').toEqual(Array.from(plain));
+    for (let k = 0; k < N - 1; k++) {
+      const gap = (j: Float64Array) =>
+        Math.hypot(j[k * 3] - j[k * 3 + 3], j[k * 3 + 1] - j[k * 3 + 4], j[k * 3 + 2] - j[k * 3 + 5]);
+      expect(gap(long) / gap(plain), `segment ${k}`).toBeCloseTo(1.7, 6);
+    }
+  });
+
+  it('keeps every joint of a stretched fish in the water, over a rising bed', () => {
+    const school = new School(HOME);
+    school.fill(1, seeded(4));
+    const out = joints();
+    for (const bed of [(x: number) => 3 + Math.abs(x) * 0.3, () => 0.9, () => 0.4]) {
+      poseFish(out, SWIM, school, 0, bed, 1.1, 1.7);
+      for (let k = 0; k < out.length; k += 3) {
+        expect(-out[k + 2], 'under the surface').toBeGreaterThan(0);
+        expect(-out[k + 2], 'over the bed').toBeLessThan(bed(out[k]) + 1e-9);
+      }
+    }
+  });
+
   it('is as long as FISH_BODY says, nose to tail', () => {
     expect(L).toBeCloseTo(1.7, 6);
   });

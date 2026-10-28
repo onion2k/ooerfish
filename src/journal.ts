@@ -30,6 +30,8 @@ export function recorded(entry: JournalEntry | undefined, weight: number, day: n
 export interface JournalKind {
   id: string;
   name: string;
+  /** A silly fact about the kind, shown under its row once one is caught. */
+  fact?: string;
 }
 
 export interface JournalRow {
@@ -38,6 +40,8 @@ export interface JournalRow {
   caught: boolean;
   /** What is said of it: the count, the best weight and the first day, or that none is caught yet. */
   words: string;
+  /** The kind's fact, once it is caught; null while it is not, or for a kind with none. */
+  fact: string | null;
 }
 
 /** A junk treasure as the page needs it: the key it is kept under, what it is called, and the note it holds if it holds one. */
@@ -84,14 +88,14 @@ export function journalWords(
   found: readonly string[] = [],
   lakeName: string | null = null,
 ): JournalPage {
-  const rows = kinds.map(({ id, name }): JournalRow => {
+  const rows = kinds.map(({ id, name, fact }): JournalRow => {
     const e = journal[id];
-    if (!e || e.caught < 1) return { name, caught: false, words: 'not yet caught' };
+    if (!e || e.caught < 1) return { name, caught: false, words: 'not yet caught', fact: null };
     // a best weight or a first day the save could not vouch for was read as nought, and is left out and not made up
     const parts = [`${e.caught} caught`];
     if (e.best > 0) parts.push(`best ${e.best.toFixed(2)} kg`);
     if (e.first > 0) parts.push(`first on day ${e.first}`);
-    return { name, caught: true, words: parts.join(', ') };
+    return { name, caught: true, words: parts.join(', '), fact: fact ?? null };
   });
   const has = new Set(found);
   const rows2 = treasures.map(({ id, name, note }): JournalTreasureRow => {

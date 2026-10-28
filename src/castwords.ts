@@ -15,13 +15,15 @@ export interface CastState {
   heard: string | null;
   /** Every fish in the pond is cured. */
   clean: boolean;
+  /** The bite is a two-headed fish's second window, or the nibble before it. */
+  second: boolean;
 }
 
 /** The line to show: the fight first, then what was heard, then what the lure is doing; empty for nothing to say. */
 export function castWords(s: CastState): string {
   if (s.bite === 'hooked') return 'a fish on! hold to lift the zone, keep the fish in it';
-  if (s.bite === 'biting') return 'BITE! strike now';
-  if (s.bite === 'nibbling') return 'nibble… wait for the dip';
+  if (s.bite === 'biting') return s.second ? 'the other head bites! strike now' : 'BITE! strike now';
+  if (s.bite === 'nibbling') return s.second ? 'the other head nibbles… wait for the dip' : 'nibble… wait for the dip';
   if (s.heard !== null) return s.heard;
   if (s.lure === 'sinking') return s.clean ? CLEAN_WORDS : 'waiting for a fish…';
   if (s.lure === 'lying') return 'on the bank: reel it in';

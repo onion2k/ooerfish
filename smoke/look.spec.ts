@@ -1028,6 +1028,74 @@ test.describe('the Reservoir', () => {
       expect(problems).toEqual([]);
     });
 
+  // the Reservoir's three new kinds under the clean water, looked down on together: the pink dawn fish, the long lamp eel
+  // and the two-headed trout, found as the trio nearest each other; at dawn, when the dawn fish is up, and at night,
+  // when the eels' glow is what shows them and the dawn fish lies on the bed
+  for (const time of ['dawn', 'night'] as const)
+    test(`reservoir-kinds-${time}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+      await set(page, { dirt: 0, time, view: 'overhead' }, 180);
+      await page.evaluate(() => {
+        const g = window.game!;
+        const fish = g.fish();
+        let best: [number, number, number] | null = null,
+          least = Infinity;
+        for (let a = 0; a < fish.length; a++)
+          for (let b = 0; b < fish.length; b++)
+            for (let c = 0; c < fish.length; c++) {
+              if (fish[a].kind !== 3 || fish[b].kind !== 4 || fish[c].kind !== 5) continue;
+              const far = Math.max(
+                Math.hypot(fish[a].x - fish[b].x, fish[a].y - fish[b].y),
+                Math.hypot(fish[a].x - fish[c].x, fish[a].y - fish[c].y),
+                Math.hypot(fish[b].x - fish[c].x, fish[b].y - fish[c].y),
+              );
+              if (far < least) {
+                least = far;
+                best = [a, b, c];
+              }
+            }
+        const [a, b, c] = best!;
+        g.look((fish[a].x + fish[b].x + fish[c].x) / 3, (fish[a].y + fish[b].y + fish[c].y) / 3, {
+          polar: 1,
+          radius: Math.min(36, Math.max(14, least * 1.5)),
+        });
+        g.step(0);
+      });
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`reservoir-kinds-${time}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+  // the bed lit round a lamp eel at night, the water half cleaned: two point lights, one at each eel, the view on the nearer
+  test('eel-light-night', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    await set(page, { dirt: 0.5, time: 'night', view: 'shore' }, 180);
+    expect(await page.evaluate(() => window.game!.eels())).toEqual({ lit: true, count: 2 });
+    // looked down on from near, since from the shore's lens an eel is a few pixels and its pool of light cannot be read
+    await page.evaluate(() => {
+      const g = window.game!;
+      const eel = g.fish().find((f) => f.kind === 4)!;
+      g.look(eel.x, eel.y, { polar: 0.9, radius: 14 });
+      g.step(0);
+    });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('eel-light-night.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // the two-headed trout landed, hanging from the rod with its card shown
+  test('fishing-landed-trout', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    await set(page, { dirt: 0.2, time: 'day', view: 'shore' }, 30);
+    expect(await page.evaluate(() => window.game!.fishTo('landed', 'trout'))).toBe(true);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('fishing-landed-trout.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   test('reservoir-fishing-bite', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });

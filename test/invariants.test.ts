@@ -4,6 +4,11 @@ import { depthRange } from '../src/fish';
 import { fightFor, gearFor } from '../src/fight';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
+import { Game } from '../src/game';
+import { KIND_INDEX } from '../src/lake';
+import { RESERVOIR } from '../src/lakes/reservoir';
+import { Progress, memoryStore } from '../src/progress';
+import { seeded } from '../src/random';
 import { newGame, settle } from './helpers';
 
 const DECK = HOME.jetty!.deck;
@@ -275,8 +280,8 @@ describe('the journal', () => {
     game.progress.entry(game.lake.id).journal.perch!.caught = 0.5;
     expect(bad(game)).toMatch(/the journal's perch has caught 0.5/);
     delete game.progress.entry(game.lake.id).journal.perch;
-    game.progress.entry(game.lake.id).journal.eel = { caught: 0, best: 0, first: 0 };
-    expect(bad(game)).toMatch(/the journal has a kind not known: eel/);
+    game.progress.entry(game.lake.id).journal.heron = { caught: 0, best: 0, first: 0 };
+    expect(bad(game)).toMatch(/the journal has a kind not known: heron/);
   });
 });
 
@@ -473,3 +478,34 @@ describe('the requests', () => {
     expect(bad(game)).toMatch(/request biggest is met, but is not answered/);
   });
 });
+
+describe('the kinds’ rules', () => {
+  const reservoir = () =>
+    new Game(new Progress(memoryStore(null), { [RESERVOIR.id]: RESERVOIR }), {
+      lake: RESERVOIR,
+      random: seeded(1),
+    });
+
+  it('reports a fish of a kind its lake does not list', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    game.fish.kind[0] = KIND_INDEX.eel;
+    expect(checkInvariants(game).join('\n')).toMatch(/fish 0 is a lamp eel, which the .* does not hold/);
+    const r = reservoir();
+    expect(checkInvariants(r)).toEqual([]);
+  });
+
+  it('reports a dawn fish asleep as the bite’s fish, but not one that is hooked', () => {
+    const game = reservoir();
+    const i = game.fish.kind.indexOf(KIND_INDEX.dawnfish);
+    game.setTimeOfDay(0.5);
+    game.lure.phase = 'sinking';
+    game.lure.at.set([game.fish.x[i], game.fish.y[i], -game.fish.depth[i]]);
+    game.bite.phase = 'coming';
+    game.bite.fish = game.fish.held = i;
+    expect(checkInvariants(game).join('\n')).toMatch(/fish \d+ is asleep, but it is the bite's \(coming\)/);
+    game.setTimeOfDay(CLOCK_DAWN);
+    expect(checkInvariants(game).join('\n')).not.toMatch(/is asleep/);
+  });
+});
+const CLOCK_DAWN = 0.25;

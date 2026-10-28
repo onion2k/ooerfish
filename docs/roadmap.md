@@ -36,7 +36,7 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
       cleaned), the rival's "biggest fish" and "fewest casts" (the journal has `best`), the children's rainbow (one
       of each kind). A request never fails: "by the festival" is a soft date.
       _Decision first:_ the townsfolk's names and the letters' voice.
-- [ ] **B2. More kinds of fish.** The pink dawn fish (bites only at dawn, the baker's), the eel (lights the water
+- [x] **B2. More kinds of fish** (`docs/kinds.md`, landed 28 Oct 2026). The pink dawn fish (bites only at dawn, the baker's), the eel (lights the water
       round it, at night, the postmistress's), the two-headed trout (two bites and two strike windows, a `Bite`
       change). Each a line in `KINDS` and a slot in a lake's `fishKinds` per the model feature. The journal's silly
       facts come with the kinds.

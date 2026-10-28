@@ -7,16 +7,24 @@ import { FLOW_GLOW } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import { describe, expect, it } from 'vitest';
 import { HOME } from '../src/lakes';
-import { FISH_CAPACITY, KINDS, SEASON_DRESSING, SWIM } from '../src/lake';
+import { FISH_CAPACITY, KIND_INDEX, KINDS, type Kind, SEASON_DRESSING, SWIM } from '../src/lake';
 import { CURED_GLOW, FISH_BODY, FISH_PARTS, FishDraw } from '../src/fishdraw';
 import { fin, loft } from '../src/meshes';
 import { PALETTE } from '../src/palette';
 import { bodyLength } from '../src/swim';
+import { RESERVOIR } from '../src/lakes/reservoir';
+import { LAKES } from '../src/lakes';
+import { Game } from '../src/game';
+import { memoryStore, Progress } from '../src/progress';
+import { seeded } from '../src/random';
 import { newGame, settle } from './helpers';
 
 const FISH_KINDS = HOME.fishKinds;
 
 const SEGS = SWIM.segments.length;
+/** Where the second head and the tail fin are among the parts: the head2 after the segments, the fins after it. */
+const HEAD2 = SEGS,
+  TAIL = SEGS + 1;
 /** The placement of fish `i` in part `p`'s group: its translation and its own x, the way its front faces. */
 function placed(draw: FishDraw, p: number, i: number) {
   const m = draw.matrices[p].subarray(i * 16, i * 16 + 16);
@@ -27,8 +35,8 @@ describe('the fish, drawn', () => {
   it('are a group of glowing meshes for each part, each sized once at the most a lake holds', () => {
     const draw = new FishDraw();
     const groups = draw.groups(new Uint8Array(FISH_CAPACITY));
-    expect(groups.length).toBe(FISH_PARTS.length);
-    expect(FISH_PARTS).toEqual(['head', 'body', 'body', 'stalk', 'tail', 'dorsal']);
+    expect(groups.length).toBe(FISH_PARTS.length - 1);
+    expect(FISH_PARTS).toEqual(['head', 'body', 'body', 'stalk', 'head2', 'tail', 'dorsal']);
     for (const g of groups) {
       expect(g.matrices.length).toBe(FISH_CAPACITY * 16);
       expect(g.count).toBe(0);
@@ -67,15 +75,15 @@ describe('the fish, drawn', () => {
           );
       }
       const stalk = placed(draw, SEGS - 1, i),
-        tail = placed(draw, SEGS, i);
+        tail = placed(draw, TAIL, i);
       for (let c = 0; c < 3; c++)
         expect(tail.at[c]).toBeCloseTo(stalk.at[c] - stalk.x[c] * SWIM.segments[SEGS - 1][0], 4);
       // the dorsal fin rides the first body segment
-      expect(Array.from(draw.matrices[SEGS + 1].subarray(i * 16, i * 16 + 16))).toEqual(
+      expect(Array.from(draw.matrices[TAIL + 1].subarray(i * 16, i * 16 + 16))).toEqual(
         Array.from(draw.matrices[1].subarray(i * 16, i * 16 + 16)),
       );
       // each placement is a turn stretched evenly by its kind's scale: the meshes are built at the shape's own size
-      expect(Math.hypot(...head.x)).toBeCloseTo(size, 5);
+      expect(Math.hypot(...head.x)).toBeCloseTo(size * ((KINDS[game.fish.kind[i]] as Kind).stretch ?? 1), 5);
       expect(Math.hypot(...head.z)).toBeCloseTo(size, 5);
       expect(head.z[2], 'its back up').toBeGreaterThan(0.8);
     }
@@ -93,7 +101,7 @@ describe('the fish, drawn', () => {
       const head = placed(draw, 0, 1);
       expect(head.at[2], 'its nose at the line’s end').toBeCloseTo(end[2], 1);
       expect(head.x[2] / KINDS[game.fish.kind[1]].scale, 'nose up').toBeGreaterThan(0.95);
-      tails.push(placed(draw, SEGS, 1).at[0]);
+      tails.push(placed(draw, TAIL, 1).at[0]);
     }
     expect(new Set(tails.map((x) => x.toFixed(4))).size, 'it flaps').toBeGreaterThan(1);
     expect(placed(draw, 0, 0).at[2]).toBeLessThan(0);
@@ -147,7 +155,7 @@ describe('the fish, glowing or cured', () => {
   it('draws every fish glowing green when none is cured, as before', () => {
     const groups = new FishDraw().groups(none);
     groups.forEach((g, p) => {
-      const glow = p >= SEGS ? FISH_BODY.glow * 0.7 : FISH_BODY.glow;
+      const glow = p >= TAIL - 1 ? FISH_BODY.glow * 0.7 : FISH_BODY.glow;
       expect(g.materials!.length).toBe(FISH_CAPACITY * 4);
       expect(g.patterns!.length).toBe(FISH_CAPACITY * PATTERN_STRIDE);
       for (let i = 0; i < FISH_CAPACITY; i++) {
@@ -162,7 +170,7 @@ describe('the fish, glowing or cured', () => {
     cured[1] = cured[3] = 1;
     const groups = new FishDraw().groups(cured);
     groups.forEach((g, p) => {
-      const fin = p >= SEGS;
+      const fin = p >= TAIL - 1;
       for (let i = 0; i < FISH_CAPACITY; i++) {
         if (i === 1 || i === 3) {
           expect(colourAt(g, i)).toEqual([...(fin ? PALETTE.curedFin : PALETTE.cured), 0.45].map(Math.fround));
@@ -183,7 +191,7 @@ describe('the fish, glowing or cured', () => {
     cured[0] = cured[1] = cured[2] = 1;
     const groups = new FishDraw().groups(cured, kind);
     groups.forEach((g, p) => {
-      const fin = p >= SEGS;
+      const fin = p >= TAIL - 1;
       for (let i = 0; i < FISH_CAPACITY; i++) {
         const glow = PALETTE[KINDS[kind[i]].glow];
         const want = cured[i] ? (fin ? PALETTE.curedFin : PALETTE.cured) : glow;
@@ -193,7 +201,7 @@ describe('the fish, glowing or cured', () => {
         );
       }
     });
-    expect(new Set(KINDS.map((k) => k.glow)).size, 'three different glows').toBe(3);
+    expect(new Set(KINDS.map((k) => k.glow)).size, 'six different glows').toBe(6);
   });
 
   it('stretches each fish’s placements by its kind’s scale, and a landed fish hung by it too', () => {
@@ -203,7 +211,10 @@ describe('the fish, glowing or cured', () => {
     draw.write(game.fish);
     for (let i = 0; i < game.fish.count; i++) {
       const m = draw.matrices[0].subarray(i * 16, i * 16 + 16);
-      expect(Math.hypot(m[0], m[1], m[2]), `fish ${i}`).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
+      expect(Math.hypot(m[0], m[1], m[2]), `fish ${i}`).toBeCloseTo(
+        KINDS[game.fish.kind[i]].scale * ((KINDS[game.fish.kind[i]] as Kind).stretch ?? 1),
+        5,
+      );
       expect(Math.hypot(m[4], m[5], m[6])).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
       expect(Math.hypot(m[8], m[9], m[10])).toBeCloseTo(KINDS[game.fish.kind[i]].scale, 5);
     }
@@ -227,6 +238,83 @@ describe('the fish, glowing or cured', () => {
     expect(b[0].materials).not.toBe(a[0].materials);
     expect(colourAt(b[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.cured).map(Math.fround));
     expect(colourAt(a[0], 0).slice(0, 3)).toEqual(Array.from(PALETTE.glow).map(Math.fround));
+  });
+});
+
+describe('the eel and the two-headed trout, drawn', () => {
+  const reservoir = () => {
+    const game = new Game(new Progress(memoryStore(null), LAKES), { lake: RESERVOIR, random: seeded(5) });
+    settle(game, 60);
+    const draw = new FishDraw();
+    draw.write(game.fish);
+    return { game, draw };
+  };
+  const slotOf = (kind: number) => RESERVOIR.fishKinds.indexOf(kind);
+
+  it('draws the eel longer along its spine and no wider than its scale', () => {
+    const { game, draw } = reservoir();
+    const eel = slotOf(KIND_INDEX.eel),
+      perch = slotOf(KIND_INDEX.perch);
+    const m = draw.matrices[0].subarray(eel * 16, eel * 16 + 16);
+    expect(Math.hypot(m[0], m[1], m[2])).toBeCloseTo(KINDS[KIND_INDEX.eel].scale * 1.7, 5);
+    expect(Math.hypot(m[4], m[5], m[6])).toBeCloseTo(KINDS[KIND_INDEX.eel].scale, 5);
+    const len = (i: number) => {
+      const a = draw.joints.subarray(i * 15, i * 15 + 3),
+        b = draw.joints.subarray(i * 15 + 12, i * 15 + 15);
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    };
+    expect(len(eel) / len(perch)).toBeGreaterThan(1.5);
+    expect(game.fish.kind[eel]).toBe(KIND_INDEX.eel);
+  });
+
+  it('gives the trout a second head beside the first, within a head’s width, and every other kind none', () => {
+    const { game, draw } = reservoir();
+    for (let i = 0; i < game.fish.count; i++) {
+      const second = draw.matrices[HEAD2].subarray(i * 16, i * 16 + 16);
+      if (game.fish.kind[i] !== KIND_INDEX.trout) {
+        expect(Array.from(second), `fish ${i}`).toEqual(new Array(16).fill(0));
+        continue;
+      }
+      const head = placed(draw, 0, i),
+        b = placed(draw, HEAD2, i);
+      expect(Math.hypot(...b.x), 'a head of the same size').toBeCloseTo(Math.hypot(...head.x), 5);
+      const apart = Math.hypot(b.at[0] - head.at[0], b.at[1] - head.at[1], b.at[2] - head.at[2]);
+      const width = SWIM.segments[0][1] * 2 * KINDS[KIND_INDEX.trout].scale;
+      expect(apart, 'not on top of it').toBeGreaterThan(0.05);
+      expect(apart, 'within a head’s width').toBeLessThan(width);
+      expect(Math.hypot(...b.z) - Math.hypot(...head.z), 'level with it').toBeCloseTo(0, 5);
+      expect(b.z[2], 'its back up').toBeGreaterThan(0.8);
+    }
+  });
+
+  it('hands over no second-head group where no fish has two heads, and the other parts still line up', () => {
+    const draw = new FishDraw();
+    const groups = draw.groups(new Uint8Array(FISH_CAPACITY), new Uint8Array(FISH_CAPACITY).fill(KIND_INDEX.perch));
+    expect(groups.length).toBe(FISH_PARTS.length - 1);
+    expect(draw.drawn.length).toBe(groups.length);
+    groups.forEach((g, p) => expect(g.matrices).toBe(draw.drawn[p]));
+    expect(draw.drawn).not.toContain(draw.matrices[HEAD2]);
+    const names = FISH_PARTS.filter((n) => n !== 'head2');
+    // the fins keep their dimmer glow at their shifted places
+    names.forEach((n, p) => {
+      const fin = n === 'tail' || n === 'dorsal';
+      expect(groups[p].patterns![3] < groups[0].patterns![3], names[p]).toBe(fin);
+    });
+  });
+
+  it('colours the second head as a head and the fins as fins', () => {
+    const kinds = new Uint8Array(FISH_CAPACITY);
+    kinds[3] = KIND_INDEX.trout;
+    const draw = new FishDraw();
+    const groups = draw.groups(new Uint8Array(FISH_CAPACITY), kinds);
+    expect(groups.length).toBe(FISH_PARTS.length);
+    expect(draw.drawn[HEAD2]).toBe(draw.matrices[HEAD2]);
+    const glow = (p: number) => groups[p].patterns![3];
+    expect(FISH_PARTS[HEAD2]).toBe('head2');
+    expect(FISH_PARTS.slice(TAIL)).toEqual(['tail', 'dorsal']);
+    expect(glow(HEAD2), 'a head glows as the head does').toBe(glow(0));
+    expect(glow(TAIL), 'a fin glows less').toBeLessThan(glow(0));
+    expect(Array.from(groups[HEAD2].materials!)).toEqual(Array.from(groups[0].materials!));
   });
 });
 

@@ -13,7 +13,7 @@
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
 import type { BedFinds } from './bedfinds';
-import { FISHING, FISH_CAPACITY } from './lake';
+import { CLOCK, FISHING, FISH_CAPACITY, KINDS, awake, type Kind } from './lake';
 import type { Lake } from './lakes/lake';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import type { Lure } from './lure';
@@ -52,6 +52,10 @@ export class Bite {
   /** Until when each drum keeps from the lure, having let go, and each treasure. */
   readonly drumWary: Float64Array;
   readonly treasureWary: Float64Array;
+  /** Windows the fish at the lure has still to give after this one: a kind that bites twice has one left at its first. */
+  bitesLeft = 0;
+  /** Whether the window now open, or the nibble before it, is a two-headed fish's second. */
+  second = false;
   /** How long until the next nibble or the bite, or how long the window has left. */
   timer = 0;
   /** How many nibbles are still to come before the bite. */
@@ -79,9 +83,20 @@ export class Bite {
   /**
    * On by `dt` to the time `t`. The `drums` and the `treasures` on the bed are snagged by a lure lying on it within reach,
    * the nearer of the two when both are, when no fish has taken the lure first; a draw of chance is made only while one
-   * is within reach of the lure, so the fish's draws are the same with them on the bed or without.
+   * is within reach of the lure, so the fish's draws are the same with them on the bed or without. A kind that keeps
+   * hours is passed over outside them, as a cured fish is and before any draw, so no other fish's chance moves; one
+   * already at the lure when its hours end lets go, untold, as one that never found its way does.
    */
-  step(t: number, dt: number, school: School, lure: Lure, random: Random, drums?: BedFinds, treasures?: BedFinds) {
+  step(
+    t: number,
+    dt: number,
+    school: School,
+    lure: Lure,
+    random: Random,
+    timeOfDay: number = CLOCK.startsAt,
+    drums?: BedFinds,
+    treasures?: BedFinds,
+  ) {
     // a fish on the line is the fight's, and one landed waits by the rod
     if (this.phase === 'hooked' || this.phase === 'landed') return;
     if (lure.phase !== 'sinking') {
@@ -96,6 +111,8 @@ export class Bite {
       for (let i = 0; i < school.count; i++) {
         // a cured fish never comes to the bait, and costs no draw of chance, so curing one moves no other fish's luck
         if (school.cured[i] || this.wary[i] > t) continue;
+        // a fish asleep on the bed is not drawn to the lure, and is passed over before its draw for the same reason
+        if (!awake(KINDS[school.kind[i]], timeOfDay)) continue;
         const d = Math.hypot(school.x[i] - bx, school.y[i] - by);
         if (d > FISHING.reach || Math.abs(school.depth[i] - lure.depth) > FISHING.band) continue;
         // each fish in reach notices it by a chance of its own, and the nearest that does comes
@@ -134,6 +151,11 @@ export class Bite {
       if (this.timer <= 1e-9) this.letGo(t, school, lure);
       return;
     }
+    // a fish whose hours have ended goes back to sleep, wherever it has got to
+    if (!awake(KINDS[school.kind[this.fish]], timeOfDay)) {
+      this.letGo(t, school, lure, true);
+      return;
+    }
     // coming, it swims to the lure; at it, it holds there, edging back in if it has drifted
     const gap = Math.hypot(school.x[this.fish] - bx, school.y[this.fish] - by);
     const speed = this.phase === 'coming' ? FISHING.comeSpeed : gap > FISHING.mouth * 0.6 ? FISHING.comeSpeed * 0.4 : 0;
@@ -164,12 +186,23 @@ export class Bite {
       }
       this.phase = 'biting';
       this.timer = windowFor(this.gear);
+      // the first window of a fish that bites more than once says how many windows it has still to give
+      if (!this.second) this.bitesLeft = (KINDS[school.kind[this.fish]] as Kind).bites ?? 1;
       this.events.bitten?.();
       return;
     }
-    // biting: the window runs down, and shut, the fish lets go
+    // biting: the window runs down, and shut, the fish lets go; one of two heads nibbles once more first, untold as a miss
     this.timer -= dt;
-    if (this.timer <= 1e-9) this.letGo(t, school, lure);
+    if (this.timer > 1e-9) return;
+    if (this.bitesLeft > 1) {
+      this.bitesLeft--;
+      this.second = true;
+      this.phase = 'nibbling';
+      this.nibblesLeft = 1;
+      this.timer = within(random, FISHING.nibbleGap);
+      return;
+    }
+    this.letGo(t, school, lure);
   }
 
   /** The player strikes at the time `t`. */
@@ -177,6 +210,8 @@ export class Bite {
     if (lure.phase !== 'sinking' || this.phase === 'hooked' || this.phase === 'landed') return 'none';
     if (this.phase === 'biting') {
       this.phase = 'hooked';
+      this.second = false;
+      this.bitesLeft = 0;
       this.events.hooked?.();
       return 'hooked';
     }
@@ -196,6 +231,8 @@ export class Bite {
 
   /** The fish at the lure, or on the line, lets go and swims off, wary of it for a while; told as missed unless `quiet`. */
   letGo(t: number, school: School, lure: Lure, quiet = false) {
+    this.second = false;
+    this.bitesLeft = 0;
     if (this.drum >= 0) {
       // a drum cannot swim off: it is wary of the lure for a while and then snags it again, if it lies there still
       this.drumWary[this.drum] = t + FISHING.wary;
@@ -230,6 +267,8 @@ export class Bite {
 
   /** The landed fish stowed, the landed drum hauled or the landed treasure kept: the bite is over, and the school has the fish back to steer. */
   stowed(school: School) {
+    this.second = false;
+    this.bitesLeft = 0;
     school.held = -1;
     this.fish = -1;
     this.drum = -1;

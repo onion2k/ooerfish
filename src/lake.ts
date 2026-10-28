@@ -135,10 +135,30 @@ export const GEAR = [
 export const GIFT_GIVER = 'the Sunny Atom';
 
 /**
- * The kinds of fish the pond holds, in the order a kind is numbered by (`School.kind` is an index into this). Each has
- * its name; the least and most it weighs, in kilograms; the band of the water's depth it keeps to, as shares of the
- * deepest it may swim at its spot (a fish draws its own `keeps` within it); a body scale, one for the glowing perch's
- * length; and the name of its glow in the palette, which `lake.ts` does not import. First guesses, tuned in play.
+ * A kind of fish. The optional keys are the odd ones out: `hours`, the stretch of the day (as shares of it, from and to)
+ * that the kind is about in, and asleep on the bed outside it; `stretch`, how much longer than the usual its joints are
+ * spaced along the spine, the girth being the scale; and `bites`, how many windows it gives a strike, one if unsaid.
+ */
+export interface Kind {
+  readonly id: string;
+  readonly name: string;
+  readonly weight: readonly [number, number];
+  readonly keeps: readonly [number, number];
+  readonly scale: number;
+  readonly glow: string;
+  /** The journal's silly fact, shown once the kind is caught. */
+  readonly fact: string;
+  readonly hours?: readonly [number, number];
+  readonly stretch?: number;
+  readonly bites?: number;
+}
+
+/**
+ * The kinds of fish, in the order a kind is numbered by (`School.kind` is an index into this). Each has its name; the
+ * least and most it weighs, in kilograms; the band of the water's depth it keeps to, as shares of the deepest it may
+ * swim at its spot (a fish draws its own `keeps` within it); a body scale, one for the glowing perch's length; the name
+ * of its glow in the palette, which `lake.ts` does not import; and a fact for the journal. The pond holds the first
+ * three, the Reservoir all six. First guesses, tuned in play.
  */
 export const KINDS = [
   {
@@ -148,6 +168,7 @@ export const KINDS = [
     keeps: [0.12, 0.3] as const,
     scale: 0.85,
     glow: 'glowBream',
+    fact: 'Sunny by name. Sunny by nature. Not very bright.',
   },
   {
     id: 'perch',
@@ -156,6 +177,7 @@ export const KINDS = [
     keeps: [0.3, 0.6] as const,
     scale: 1,
     glow: 'glow',
+    fact: 'The first to glow and the proudest of it.',
   },
   {
     id: 'pike',
@@ -164,11 +186,49 @@ export const KINDS = [
     keeps: [0.7, 0.9] as const,
     scale: 1.35,
     glow: 'glowPike',
+    fact: 'Has never once said sorry.',
   },
-] as const;
+  {
+    id: 'dawnfish',
+    name: 'pink dawn fish',
+    weight: [0.4, 1.6] as const,
+    keeps: [0.2, 0.45] as const,
+    scale: 0.95,
+    glow: 'glowPink',
+    // the dawn look's band of the day, a quarter of it centred on dawn, so the fish and the sky agree
+    hours: [0.125, 0.375] as const,
+    fact: 'Pink from blushing. It has never been seen by anyone who was not up early.',
+  },
+  {
+    id: 'eel',
+    name: 'lamp eel',
+    weight: [0.8, 3] as const,
+    keeps: [0.5, 0.8] as const,
+    scale: 1.1,
+    stretch: 1.7,
+    glow: 'glowEel',
+    fact: "Lights the postmistress's window at night. She has stopped paying for electricity.",
+  },
+  {
+    id: 'trout',
+    name: 'two-headed trout',
+    weight: [0.6, 2.2] as const,
+    keeps: [0.35, 0.65] as const,
+    scale: 1.1,
+    glow: 'glowTrout',
+    bites: 2,
+    fact: 'Two heads, one opinion. They both want the lure.',
+  },
+] as const satisfies readonly Kind[];
 
 /** The kinds as an index into `KINDS`, by name. */
-export const KIND_INDEX = { bream: 0, perch: 1, pike: 2 } as const;
+export const KIND_INDEX = { bream: 0, perch: 1, pike: 2, dawnfish: 3, eel: 4, trout: 5 } as const;
+
+/** Whether a kind is about at that time of day: always, unless it keeps hours and the time is outside them. */
+export function awake(kind: Kind, timeOfDay: number): boolean {
+  if (!kind.hours) return true;
+  return timeOfDay >= kind.hours[0] && timeOfDay <= kind.hours[1];
+}
 
 /**
  * A fish's body and its stroke, the chunky toy chosen from the mock sheet with the subtle stroke. The body, nose to
@@ -211,7 +271,14 @@ export const SWIM = {
   vigourEase: 3,
   flap: 1.2,
   flapAmp: 0.22,
+  secondHead: 0.35,
 } as const;
+
+/**
+ * The lamp eel's light (`docs/kinds.md`): at night each uncured eel is a point light at its place, lighting the bed round
+ * it for `radius` world units and nothing far. First guesses, to be seen by eye.
+ */
+export const EEL_LIGHT = { radius: 9, intensity: 40 } as const;
 
 /** The most fish a lake may ever hold, which fixes the pools. */
 export const FISH_CAPACITY = 32;

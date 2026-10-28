@@ -11,7 +11,7 @@
  * swims, and a lake with more fish than that is told so by `fill`. The school swims in the lake it is handed (the
  * home's unless told otherwise, until the page hands one over), and reads its shore, bed, boulders and jetty from it.
  */
-import { FISH_CAPACITY, KINDS, SWIM } from './lake';
+import { CLOCK, FISH_CAPACITY, KINDS, SWIM, awake } from './lake';
 import type { Lake } from './lakes/lake';
 import type { Random } from './random';
 
@@ -205,8 +205,9 @@ export class School {
   /**
    * Every fish on by `dt` seconds. A lift from nought to one raises the depth each eases toward by that share of the way
    * to the surface (the rain's, `docs/weather.md`); the draw each fish made at its place is untouched, so none is made.
+   * A kind with hours (`awake`) outside them keeps to the bed whatever the lift, by the time of day handed in.
    */
-  step(dt: number, random: Random, lift = 0) {
+  step(dt: number, random: Random, lift = 0, timeOfDay: number = CLOCK.startsAt) {
     const { lake } = this;
     const { jetty } = lake;
     for (let i = 0; i < this.count; i++) {
@@ -242,7 +243,10 @@ export class School {
       } else heading += Math.PI;
       this.heading[i] = Math.atan2(Math.sin(heading), Math.cos(heading));
       const [lo, hi] = depthRange(this.x[i], this.y[i], lake);
-      const want = Math.min(hi, Math.max(lo, hi * this.keeps[i] * (1 - lift)));
+      // a kind out of its hours sleeps on the bed, the lift of the rain ignored; the rest keep to their band
+      const want = awake(KINDS[this.kind[i]], timeOfDay)
+        ? Math.min(hi, Math.max(lo, hi * this.keeps[i] * (1 - lift)))
+        : hi;
       const depth = this.depth[i] + (want - this.depth[i]) * Math.min(1, SINK * dt);
       // the bed rises under a fish swimming in toward the shore, faster than it eases up: it is kept off it
       this.depth[i] = Math.min(hi, Math.max(lo, depth));

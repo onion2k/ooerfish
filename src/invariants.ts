@@ -19,7 +19,19 @@
  */
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
-import { FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON, WEATHER } from './lake';
+import {
+  FIGHT,
+  FISHING,
+  FISH_CAPACITY,
+  GEAR,
+  SPLASH_CAPACITY,
+  KINDS,
+  SWIM,
+  type Kind,
+  MOON,
+  WEATHER,
+  awake,
+} from './lake';
 import { weatherOf } from './calendar';
 import { poseFish } from './swim';
 import { REQUESTS } from './town/requests';
@@ -191,7 +203,12 @@ export function checkInvariants(game: Game): string[] {
       bent.push(`fish ${i}'s stroke is not a number`);
       continue;
     }
-    poseFish(spine, SWIM, fish, i, bedDepth, KINDS[fish.kind[i]].scale);
+    // a fish is of a kind its lake lists: the Reservoir's kinds never turn up in the pond
+    if (!game.lake.fishKinds.includes(fish.kind[i]))
+      bent.push(
+        `fish ${i} is a ${KINDS[fish.kind[i]]?.name ?? `kind ${fish.kind[i]}`}, which the ${game.lake.name} does not hold`,
+      );
+    poseFish(spine, SWIM, fish, i, bedDepth, KINDS[fish.kind[i]].scale, (KINDS[fish.kind[i]] as Kind).stretch ?? 1);
     for (let k = 0; k < spine.length; k += 3) {
       const jx = spine[k],
         jy = spine[k + 1],
@@ -433,6 +450,10 @@ function fishingRules(game: Game): string[] {
     if (fish.held !== bite.fish) out.push(`fish ${bite.fish} is ${bite.phase}, but the school holds fish ${fish.held}`);
     const i = bite.fish;
     if (fish.cured[i]) out.push(`fish ${i} is cured, but it is the bite's (${bite.phase})`);
+    // a kind with hours is not drawn to the lure outside them; a hooked or landed one is allowed, since the gate is the
+    // bite's and a fight that runs past the hour is played out
+    if (!awake(KINDS[fish.kind[i]], game.timeOfDay) && !(bite.phase === 'hooked' || bite.phase === 'landed'))
+      out.push(`fish ${i} is asleep, but it is the bite's (${bite.phase})`);
     const fromLure = Math.hypot(fish.x[i] - lure.at[0], fish.y[i] - lure.at[1]);
     if ((bite.phase === 'nibbling' || bite.phase === 'biting') && fromLure > FISHING.mouth + 0.5)
       out.push(`fish ${i} is ${bite.phase} ${fromLure.toFixed(2)} from the lure`);

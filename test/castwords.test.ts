@@ -7,6 +7,7 @@ const state = (over: Partial<CastState> = {}): CastState => ({
   lure: 'sinking',
   heard: null,
   clean: false,
+  second: false,
   ...over,
 });
 
@@ -31,5 +32,11 @@ describe('the cast line', () => {
     expect(castWords(state({ bite: 'biting' }))).toBe('BITE! strike now');
     expect(castWords(state({ bite: 'nibbling' }))).toBe('nibble… wait for the dip');
     expect(castWords(state({ bite: 'hooked' }))).toBe('a fish on! hold to lift the zone, keep the fish in it');
+  });
+
+  it('says the other head’s turn in the trout’s second window', () => {
+    expect(castWords(state({ bite: 'biting', second: true }))).toBe('the other head bites! strike now');
+    expect(castWords(state({ bite: 'nibbling', second: true }))).toBe('the other head nibbles… wait for the dip');
+    expect(castWords(state({ bite: 'biting' }))).toBe('BITE! strike now');
   });
 });

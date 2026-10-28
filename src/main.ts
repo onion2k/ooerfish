@@ -28,7 +28,8 @@ import { Gesture, type GestureEvent, type PointerGesture } from './gesture';
 import { CastDraw, LINE_COLOURS, type Aim } from './castdraw';
 import { DrumDraw } from './drumdraw';
 import { TreasureDraw } from './treasuredraw';
-import { FISH_PARTS, FishDraw } from './fishdraw';
+import { EelLights } from './eellight';
+import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { quantised } from './heal';
 import { castWords } from './castwords';
@@ -347,6 +348,8 @@ async function main() {
   lights.clear();
   renderer.setLights(lights);
   let lampLit = false;
+  // the lamp eels' lights follow the lamp's in the pool; written each frame they are lit, since an eel moves
+  const eelLights = new EelLights(lake, 1);
 
   // the foam rings the shore and the boulders from the lake's field, made once and before the first frame
   renderer.setShoreField(shoreField(undefined, lake));
@@ -696,6 +699,7 @@ async function main() {
             lure: game.lure.phase,
             heard: game.t < heard.until ? heard.text : null,
             clean: game.pondClean,
+            second: game.bite.second,
           });
     if (text === castText) return;
     castText = text;
@@ -965,6 +969,11 @@ async function main() {
         words.textContent = row.words;
         if (row.caught) item.className = 'caught';
         item.append(name, words);
+        if (row.fact) {
+          const fact = document.createElement('small');
+          fact.textContent = row.fact;
+          item.append(fact);
+        }
         return item;
       }),
     );
@@ -1342,11 +1351,16 @@ async function main() {
     const drawn = casting.write(game, aim);
     const hung = drawn.hung ? game.bite.fish : -1;
     const swimming = fish.write(game.fish, hung, casting.hang, game.t);
-    for (let p = 0; p < FISH_PARTS.length; p++) renderer.move(fishSlot + p, fish.matrices[p], swimming);
+    // at night at the pond the lamp eels are lights, on the full rung only, as the grass is; the renderer copies the
+    // live lights (a few floats each) on each handover, so a frame while they are lit pays that and one going dark pays it once
+    if (eelLights.write(game.fish, game.place === 'pond' && time.name === 'night' && rung === 'full', lights))
+      renderer.setLights(lights);
+    const parts = fish.drawn;
+    for (let p = 0; p < parts.length; p++) renderer.move(fishSlot + p, parts[p], swimming);
     rippling = rippleData(game.splashes, game.t, rippleLife, ripples);
     renderer.setRings(ripples, rippling);
     // the cast's groups after the fish's, each as many as are live
-    const c = fishSlot + FISH_PARTS.length;
+    const c = fishSlot + parts.length;
     // the rod, then the line in each of its colours (all of it in one), then the rest, in the order of `groups`
     let g = c;
     renderer.move(g++, casting.rod, drawn.rod);
@@ -1551,6 +1565,7 @@ async function main() {
     waterHandovers: () => handovers,
     drawnCured: () => curedDrawn,
     drawnGlow: () => glowDrawn,
+    eels: () => ({ lit: eelLights.lit, count: eelLights.count }),
     radio: () => night.radio(),
     calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
     moon: () => ({ handovers: moonDraw.handovers, shown: moonDraw.shown() }),

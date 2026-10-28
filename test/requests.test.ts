@@ -38,13 +38,13 @@ describe('the town', () => {
 });
 
 describe('the requests', () => {
-  it('are the three, in order, each id once, each from a person of the town', () => {
-    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest']);
+  it('are the four, in order, each id once, each from a person of the town', () => {
+    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink']);
     expect(new Set(REQUESTS.map((r) => r.id)).size).toBe(REQUESTS.length);
     expect(requestNamed('ducks')).toBe(REQUESTS[0]);
     expect(requestNamed('nope')).toBeUndefined();
-    expect(REQUESTS.map((r) => r.from)).toEqual(['Ida Penny', 'Pip and the Glow-Worms', 'Flo Keel']);
-    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival']);
+    expect(REQUESTS.map((r) => r.from)).toEqual(['Ida Penny', 'Pip and the Glow-Worms', 'Flo Keel', 'Marigold Bunn']);
+    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker']);
   });
 
   it('say the spec’s words, word for word', () => {
@@ -65,6 +65,15 @@ describe('the requests', () => {
     );
     expect(requestNamed('biggest')!.reply).toBe(
       'Three and a half! I have told Ned and he has gone quiet. The buns are at the bakery with your name on them. Flo.',
+    );
+  });
+
+  it('say the baker’s words, word for word', () => {
+    expect(requestNamed('pink')!.asks).toBe(
+      'Dear Early Riser, There is a fish in the Reservoir that glows pink, and it only comes up at dawn, which is when I am up anyway. Catch me one and I will pay in pies. Any morning will do. Marigold Bunn, the bakery.',
+    );
+    expect(requestNamed('pink')!.reply).toBe(
+      'A PINK one! I have put a pie in the window with your name on it, and another behind the counter in case. Marigold.',
     );
   });
 
@@ -143,5 +152,19 @@ describe('the predicates', () => {
     const before = JSON.stringify(save);
     for (const r of REQUESTS) expect(r.met(save, LAKES)).toBe(r.met(save, LAKES));
     expect(JSON.stringify(save)).toBe(before);
+  });
+});
+
+describe('the baker’s letter is met by a dawn fish caught', () => {
+  const other = Object.keys(LAKES).find((id) => id !== HOME.id)!;
+
+  it('in any lake’s journal, and not by another kind or a count of nought', () => {
+    expect(met('pink', saveOf({ [other]: entry({ journal: { dawnfish: caught() } }) }))).toBe(true);
+    expect(met('pink', saveOf({ [HOME.id]: entry({ journal: { dawnfish: caught() } }) }))).toBe(true);
+    expect(met('pink', saveOf({ [HOME.id]: entry({ journal: { pike: caught(), eel: caught() } }) }))).toBe(false);
+    expect(met('pink', saveOf({ [HOME.id]: entry({ journal: { dawnfish: { caught: 0, best: 0, first: 0 } } }) }))).toBe(
+      false,
+    );
+    expect(met('pink', saveOf({ [HOME.id]: entry() }))).toBe(false);
   });
 });

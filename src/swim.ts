@@ -40,7 +40,8 @@ export function bodyLength(shape: Pick<SwimShape, 'segments' | 'tail'>): number 
  * body is put at (`x`, `y`, `z`); the nose points along `heading`, tilted up by `pitch`; `curvature` bends it into
  * the arc of a turn (positive to its left), and the wave swings it by `amp` of its length at the tail at `phase`.
  * `scale` is the fish's size against the shape's: every segment is that much longer, so a pike's joints lie further
- * apart than a bream's, and `anchor` is in world units, already scaled.
+ * apart than a bream's, and `anchor` is in world units, already scaled. `stretch` spaces the joints further along the
+ * spine and leaves the rest (an eel is long and not fat), so the lengths below are `scale` times `stretch`.
  */
 export function pose(
   out: Float64Array,
@@ -55,16 +56,18 @@ export function pose(
   amp: number,
   anchor: number,
   scale = 1,
+  stretch = 1,
 ) {
   const segs = shape.segments;
+  const long = scale * stretch;
   const n = segs.length + 1;
-  const length = bodyLength(shape) * scale;
+  const length = bodyLength(shape) * long;
   // the chain laid out flat: how far back along the heading each joint is, and how far to the left
   along[0] = 0;
   side[0] = lateral(shape, 0, length, anchor, curvature, phase, amp);
   let d = 0;
   for (let k = 0; k < n - 1; k++) {
-    const len = segs[k][0] * scale;
+    const len = segs[k][0] * long;
     d += len;
     // the swing a joint wants, held short of a segment's own length so a wild pose still has a segment to lie along
     const want = lateral(shape, d, length, anchor, curvature, phase, amp) - side[k];
@@ -75,8 +78,8 @@ export function pose(
   // the anchor found along the chain, between the joints either side of it, so it can be put where the fish is
   let k = 0,
     from = 0;
-  while (k < n - 2 && from + segs[k][0] * scale < anchor) from += segs[k++][0] * scale;
-  const t = (anchor - from) / (segs[k][0] * scale);
+  while (k < n - 2 && from + segs[k][0] * long < anchor) from += segs[k++][0] * long;
+  const t = (anchor - from) / (segs[k][0] * long);
   const a0 = along[k] + (along[k + 1] - along[k]) * t,
     s0 = side[k] + (side[k + 1] - side[k]) * t;
   const ch = Math.cos(heading),
@@ -118,7 +121,8 @@ function lateral(
  * under it allows; it pitches no further than keeps its nose and tail in the water; and where the bed rises under its
  * body, behind it or to the side as it bends, the whole of it is drawn lifted clear, never out of the water. Every
  * joint over the water is drawn in it, below the surface and above the bed. `scale` is the fish's kind's size, the
- * shape's lengths and its fin's depth all that much more.
+ * shape's lengths and its fin's depth all that much more; `stretch` spaces the joints along the spine that much further
+ * again, the girth and the depth kept to `scale`.
  */
 export function poseFish(
   out: Float64Array,
@@ -127,9 +131,10 @@ export function poseFish(
   i: number,
   bed: (x: number, y: number) => number,
   scale = 1,
+  stretch = 1,
 ) {
-  const anchor = shape.segments[0][0] * scale;
-  const length = bodyLength(shape) * scale;
+  const anchor = shape.segments[0][0] * scale * stretch;
+  const length = bodyLength(shape) * scale * stretch;
   const x = school.x[i],
     y = school.y[i];
   const under = bed(x, y);
@@ -142,7 +147,7 @@ export function poseFish(
   const room = Math.max(0, Math.min(depth, under - depth) - CLEAR);
   const most = Math.min(shape.maxPitch, Math.asin(Math.min(1, room / (length - anchor))));
   const pitch = Math.max(-most, Math.min(most, -shape.pitch * school.rise[i]));
-  pose(out, shape, x, y, -depth, school.heading[i], pitch, curvature, school.phase[i], amp, anchor, scale);
+  pose(out, shape, x, y, -depth, school.heading[i], pitch, curvature, school.phase[i], amp, anchor, scale, stretch);
   // the most any joint is into the bed under it, and the least any is under the surface: lifted by the one, held to the other
   let into = 0,
     below = Infinity;

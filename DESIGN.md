@@ -257,6 +257,10 @@ Each stage is a feature, built and verified before the next, every gate green at
    shelves. None cleans the pond. The bottle holds a short note, kept in the journal, whose words are a placeholder. A
    hauled drum stands on the bank by the cabin. The other lakes' sets, their ducks and the found-and-painted lures are
    not._
+   _A third slice is in (28 Oct 2026, `docs/kinds.md`): three kinds of the design's own in the Reservoir,
+   the pink dawn fish that comes out only at dawn, the lamp eel that lights the water round it at night, and the
+   two-headed trout with two bites and two strike windows; a silly fact a kind in the journal; and the baker's letter
+   asking for a pink one. The pond keeps its three kinds by the user's choice._
 5. **The calendar:** the day, the cabin morning, the end of a day, sleeping through.
    _Two slices are in: the day's clock runs from dawn (720 s a day, an estimate) and the light steps through
    dawn, day, dusk and night; and the day ends (19 Oct 2026): at midnight, once no fish is on the line, the player

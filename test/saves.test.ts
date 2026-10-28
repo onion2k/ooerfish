@@ -211,7 +211,7 @@ describe('saves from every shape the game has written', () => {
 
     it('drops an entry for a kind the game does not know, and keeps the others', () => {
       expect(
-        journalOf('{"eel": {"caught": 1, "best": 1, "first": 1}, "bream": {"caught": 2, "best": 0.5, "first": 3}}'),
+        journalOf('{"heron": {"caught": 1, "best": 1, "first": 1}, "bream": {"caught": 2, "best": 0.5, "first": 3}}'),
       ).toEqual({
         bream: good,
       });
@@ -315,10 +315,11 @@ describe('saves from every shape the game has written', () => {
 });
 
 describe('the requests answered', () => {
-  // a flat save that earns all three: the pond clean, every kind caught, a pike over the rival's weight
+  // a flat save that earns all three: the pond clean, every one of the six kinds caught, a pike over the rival's weight
   const EARNED =
-    '"cured": 12, "drums": 2, "journal": {"bream": {"caught": 4, "best": 0.9, "first": 1}, ' +
-    '"perch": {"caught": 5, "best": 2, "first": 1}, "pike": {"caught": 3, "best": 4.2, "first": 2}}';
+    '"cured": 12, "drums": 2, "journal": {"bream": {"caught": 2, "best": 0.9, "first": 1}, ' +
+    '"perch": {"caught": 4, "best": 2, "first": 1}, "pike": {"caught": 3, "best": 4.2, "first": 2}, ' +
+    '"dawnfish": {"caught": 1, "best": 1, "first": 3}, "eel": {"caught": 1, "best": 1, "first": 3}, "trout": {"caught": 1, "best": 1, "first": 3}}';
   const requestsOf = (json: string) => new Progress(memoryStore(json)).save.requests;
   const earned = (requests: string) => requestsOf(`{${EARNED}, "requests": ${requests}}`);
 

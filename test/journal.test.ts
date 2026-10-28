@@ -29,6 +29,19 @@ describe('an entry on a catch', () => {
 });
 
 describe('the journal page’s words', () => {
+  it('shows a kind’s fact once it is caught, and null while it is not', () => {
+    const page = journalWords({ pike: { caught: 1, best: 2, first: 1 } }, KINDS, 0, DRUMS.count);
+    const pike = KINDS.find((k) => k.id === 'pike')!;
+    expect(page.rows.find((r) => r.name === 'pike')!.fact).toBe(pike.fact);
+    expect(page.rows.find((r) => r.name === 'sunny bream')!.fact).toBeNull();
+  });
+
+  it('has no fact for a kind that has none, caught or not', () => {
+    const bare = [{ id: 'plain', name: 'plain' }];
+    expect(journalWords({}, bare, 0, 0).rows[0].fact).toBeNull();
+    expect(journalWords({ plain: { caught: 1, best: 1, first: 1 } }, bare, 0, 0).rows[0].fact).toBeNull();
+  });
+
   it('names every kind, caught or not, in order, and says none is caught yet of a new journal', () => {
     const page = journalWords({}, KINDS, 0, DRUMS.count);
     expect(page.rows.map((r) => r.name)).toEqual(KINDS.map((k) => k.name));
@@ -38,7 +51,12 @@ describe('the journal page’s words', () => {
   it('gives the count, the best weight to the gram’s hundredth and the first day of a kind caught', () => {
     const page = journalWords({ pike: { caught: 3, best: 3.6, first: 2 } }, KINDS, 0, 2);
     const pike = page.rows.find((r) => r.name === 'pike')!;
-    expect(pike).toEqual({ name: 'pike', caught: true, words: '3 caught, best 3.60 kg, first on day 2' });
+    expect(pike).toEqual({
+      name: 'pike',
+      caught: true,
+      words: '3 caught, best 3.60 kg, first on day 2',
+      fact: KINDS.find((k) => k.id === 'pike')!.fact,
+    });
     expect(page.rows.find((r) => r.name === 'sunny bream')!.words).toBe('not yet caught');
   });
 
@@ -51,7 +69,7 @@ describe('the journal page’s words', () => {
   });
 
   it('ignores an entry for a kind it was not handed', () => {
-    const page = journalWords({ eel: { caught: 1, best: 1, first: 1 } }, KINDS, 0, 2);
+    const page = journalWords({ heron: { caught: 1, best: 1, first: 1 } }, KINDS, 0, 2);
     expect(page.rows.every((r) => !r.caught)).toBe(true);
   });
 

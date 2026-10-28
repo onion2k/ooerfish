@@ -26,7 +26,7 @@ import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
 import { moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from './calendar';
-import { KINDS, type Season, type Weather } from './lake';
+import { CLOCK, KINDS, type Season, type Weather } from './lake';
 import { LAKES } from './lakes';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
@@ -79,7 +79,20 @@ export interface LureState {
 }
 
 /** What `fishTo` fishes for: a drum on the bed, a junk treasure by its id, or a kind of fish by its id. */
-export type Quarry = 'drum' | 'bream' | 'perch' | 'pike' | 'lure' | 'plush' | 'lunchbox' | 'badge' | 'bottle' | 'duck';
+export type Quarry =
+  | 'drum'
+  | 'bream'
+  | 'perch'
+  | 'pike'
+  | 'dawnfish'
+  | 'eel'
+  | 'trout'
+  | 'lure'
+  | 'plush'
+  | 'lunchbox'
+  | 'badge'
+  | 'bottle'
+  | 'duck';
 
 /** A drum of waste: where it lies on the bed, and whether it has been hauled up for good. */
 export interface DrumState {
@@ -112,6 +125,8 @@ export interface FishingState {
   drum: number;
   /** The junk treasure snagged, hooked or landed, or minus one. */
   treasure: number;
+  /** A two-headed fish's second window, or the nibble before it. */
+  second: boolean;
   tension: number;
   out: number;
   pulling: boolean;
@@ -255,6 +270,8 @@ export interface GameApi {
   drawnCured(): number;
   /** The season's share of the fish's glow when they were last handed to the renderer (1 in summer, winter's brighter). */
   drawnGlow(): number;
+  /** The lamp eels' lights as last handed to the renderer: whether any is lit, and how many (night, at the pond, on the full rung). */
+  eels(): { lit: boolean; count: number };
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
   /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
@@ -505,6 +522,7 @@ export interface DebugHost {
   waterHandovers(): number;
   drawnCured(): number;
   drawnGlow(): number;
+  eels(): { lit: boolean; count: number };
   /** The wall calendar's marks as last handed to the renderer: the squares gone, today's square (-1 before the first), and how many times they have been handed over since boot, which is once a day's change. */
   calendar(): { gone: number; today: number; handovers: number };
   /** What the cabin's radio says, as the page last wrote it: the forecast and the gossip, and whether the panel is shown (it is with the morning line, in the cabin). */
@@ -639,6 +657,7 @@ export function createApi(host: DebugHost): GameApi {
       fish: game.bite.fish,
       drum: game.bite.drum,
       treasure: game.bite.treasure,
+      second: game.bite.second,
       tension: game.line.tension,
       out: game.line.out,
       pulling: game.line.pulling,
@@ -657,6 +676,8 @@ export function createApi(host: DebugHost): GameApi {
         host.simulate(1 / 60);
         host.draw(1 / 60);
       };
+      // the pink dawn fish is about only at dawn, so the clock is put there first, or it would never come to the lure
+      if (quarry === 'dawnfish') game.setTimeOfDay(CLOCK.startsAt);
       const want = quarry === undefined || quarry === 'drum' ? -1 : KINDS.findIndex((k) => k.id === quarry);
       const treasure = game.lake.treasures.list.findIndex((t) => t.id === quarry);
       // a drum or a treasure is hauled, not played: the reel is held and the fight pictured a few seconds in
@@ -758,6 +779,7 @@ export function createApi(host: DebugHost): GameApi {
     waterHandovers: () => host.waterHandovers(),
     drawnCured: () => host.drawnCured(),
     drawnGlow: () => host.drawnGlow(),
+    eels: () => host.eels(),
     calendar: () => host.calendar(),
     radio: () => host.radio(),
     moon: () => {

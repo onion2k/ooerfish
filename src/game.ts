@@ -294,12 +294,12 @@ export class Game {
       this.sinceSaved = 0;
       this.persist();
     }
-    this.fish.step(dt, this.random, this.lift);
+    this.fish.step(dt, this.random, this.lift, this.timeOfDay);
     this.rain(dt);
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
     if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
-    this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.drums, this.treasures);
+    this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.timeOfDay, this.drums, this.treasures);
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);

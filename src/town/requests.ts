@@ -8,7 +8,7 @@ import { KINDS } from '../lake';
 import type { Lake } from '../lakes/lake';
 import { HOME } from '../lakes';
 import type { Save } from '../progress';
-import type { Role } from './town';
+import { TOWN, type Role } from './town';
 
 export interface Request {
   id: string;
@@ -64,6 +64,15 @@ export const REQUESTS: readonly Request[] = [
       Object.values(save.lakes).some((entry) =>
         Object.values(entry.journal).some((e) => e !== undefined && e.best >= REQUEST_RULES.biggest.kg),
       ),
+  },
+  {
+    id: 'pink',
+    from: TOWN.people.baker.name,
+    role: 'baker',
+    asks: 'Dear Early Riser, There is a fish in the Reservoir that glows pink, and it only comes up at dawn, which is when I am up anyway. Catch me one and I will pay in pies. Any morning will do. Marigold Bunn, the bakery.',
+    reply:
+      'A PINK one! I have put a pie in the window with your name on it, and another behind the counter in case. Marigold.',
+    met: (save) => Object.values(save.lakes).some((entry) => (entry.journal.dawnfish?.caught ?? 0) >= 1),
   },
 ];
 

@@ -199,12 +199,12 @@ describe('the Reservoir’s dam', () => {
 });
 
 describe('the Reservoir’s fish', () => {
-  it('are sixteen, five bream, seven perch and four pike', () => {
+  it('are sixteen: three bream, four perch, three pike, two dawn fish, two eels and two trout', () => {
     expect(R.fishCount).toBe(16);
     expect(R.fishKinds).toHaveLength(16);
     const of = (k: number) => R.fishKinds.filter((f) => f === k).length;
-    expect(KINDS.map((k) => k.id).slice(0, 3)).toEqual(['bream', 'perch', 'pike']);
-    expect([of(0), of(1), of(2)]).toEqual([5, 7, 4]);
+    expect(KINDS.map((k) => k.id)).toEqual(['bream', 'perch', 'pike', 'dawnfish', 'eel', 'trout']);
+    expect(KINDS.map((_, k) => of(k))).toEqual([3, 4, 3, 2, 2, 2]);
   });
 
   it('are placed in water by a game, all inside', () => {

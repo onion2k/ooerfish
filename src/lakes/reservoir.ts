@@ -375,8 +375,8 @@ export const RESERVOIR: Lake = {
   shadowBox: SHADOW_BOX,
 
   fishCount: FISH_COUNT,
-  /** Five bream, seven perch and four pike, mixed so the first fish cured are not all of one kind. */
-  fishKinds: [1, 0, 2, 1, 0, 1, 2, 0, 1, 1, 2, 0, 1, 0, 2, 1],
+  /** Three bream, four perch, three pike, two dawn fish, two eels and two trout, mixed so the first cured are not all of one kind. */
+  fishKinds: [1, 0, 2, 3, 1, 4, 0, 1, 5, 2, 0, 1, 3, 4, 2, 5],
   extent: [64, 48],
   fishShore: 4,
   fishShallowest: 0.4,

@@ -4,7 +4,8 @@ import { School, depthRange } from '../src/fish';
 import { seeded } from '../src/random';
 import { checkInvariants } from '../src/invariants';
 import { HOME } from '../src/lakes';
-import { CLOCK, FISH_CAPACITY, KINDS } from '../src/lake';
+import { CLOCK, FISH_CAPACITY, KINDS, KIND_INDEX, awake } from '../src/lake';
+import { RESERVOIR } from '../src/lakes/reservoir';
 import { DT, newGame, settle } from './helpers';
 
 const BOULDERS = HOME.boulders;
@@ -414,5 +415,57 @@ describe("the rain's lift", () => {
     expect(Array.from(b.x)).toEqual(Array.from(a.x));
     expect(Array.from(b.y)).toEqual(Array.from(a.y));
     expect(Array.from(b.depth)).toEqual(Array.from(a.depth));
+  });
+});
+
+describe('the new kinds in the school', () => {
+  const dawn = KINDS[KIND_INDEX.dawnfish];
+
+  it('are three more kinds after the pike, each with a fact, and the pond holds none of them', () => {
+    expect(KINDS.map((k) => k.id)).toEqual(['bream', 'perch', 'pike', 'dawnfish', 'eel', 'trout']);
+    expect(KIND_INDEX).toEqual({ bream: 0, perch: 1, pike: 2, dawnfish: 3, eel: 4, trout: 5 });
+    for (const k of KINDS) expect(k.fact.length, k.id).toBeGreaterThan(0);
+    expect(HOME.fishKinds.every((k) => k <= KIND_INDEX.pike)).toBe(true);
+  });
+
+  it('are awake by their hours, a kind without any always, and at the band’s edges', () => {
+    const [from, to] = dawn.hours;
+    expect([from, to]).toEqual([0.125, 0.375]);
+    expect(awake(dawn, from)).toBe(true);
+    expect(awake(dawn, CLOCK.startsAt)).toBe(true);
+    expect(awake(dawn, to)).toBe(true);
+    expect(awake(dawn, from - 0.001)).toBe(false);
+    expect(awake(dawn, to + 0.001)).toBe(false);
+    expect(awake(dawn, 0.5)).toBe(false);
+    for (const t of [0, 0.25, 0.5, 0.99]) expect(awake(KINDS[KIND_INDEX.eel], t)).toBe(true);
+  });
+
+  it('leave the pond’s school exactly as it was: the time of day moves no fish', () => {
+    const run = (t?: number) => {
+      const school = new School(HOME),
+        random = seeded(5);
+      school.fill(FISH_COUNT, random);
+      for (let i = 0; i < 600; i++) school.step(DT, random, 0.3, t);
+      return [Array.from(school.x), Array.from(school.y), Array.from(school.depth)];
+    };
+    expect(run(0.5)).toEqual(run());
+    expect(run(0.9)).toEqual(run());
+  });
+
+  it('send a dawn fish to the bed outside its hours, lift or none, and let it rise in them', () => {
+    const slot = RESERVOIR.fishKinds.indexOf(KIND_INDEX.dawnfish);
+    const depthAt = (t: number, lift: number) => {
+      const school = new School(RESERVOIR),
+        random = seeded(2);
+      school.fill(RESERVOIR.fishCount, random);
+      for (let i = 0; i < 1500; i++) school.step(DT, random, lift, t);
+      const [, hi] = depthRange(school.x[slot], school.y[slot], RESERVOIR);
+      return { depth: school.depth[slot], hi };
+    };
+    const day = depthAt(0.5, 0.4);
+    expect(day.depth / day.hi).toBeGreaterThan(0.9);
+    const early = depthAt(CLOCK.startsAt, 0);
+    expect(early.depth / early.hi).toBeLessThan(dawn.keeps[1] + 0.1);
+    expect(early.depth).toBeLessThan(day.depth * 0.7);
   });
 });
