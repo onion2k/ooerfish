@@ -6,7 +6,7 @@
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
-import { moonOf, seasonOf } from './calendar';
+import { moonOf, seasonOf, weatherOf } from './calendar';
 import { MOON } from './lake';
 import { theLake } from './lakes/page';
 import type { Place } from './night';
@@ -67,6 +67,22 @@ function moonLine(day: number): string {
   return '';
 }
 
+/** The day's weather in a sentence, and nothing on a sunny day. */
+export function weatherLine(day: number): string {
+  switch (weatherOf(day)) {
+    case 'rain':
+      return ' Rain today.';
+    case 'fog':
+      return ' Foggy today.';
+    case 'shower':
+      return ' A sun-shower today.';
+    case 'wind':
+      return ' Windy today.';
+    case 'sunny':
+      return '';
+  }
+}
+
 /**
  * The words for where the player is on this day, with a fish on the line or landed or not (which holds the bed and the
  * way into the cabin off), and the name of the clock's look (`dawn`, `day`, `dusk` or `night`), which the cabin's line
@@ -83,7 +99,10 @@ export function nightWords(
 ): NightWords {
   return {
     yawn: place === 'yawning' ? YAWN_WORDS : null,
-    morning: place === 'cabin' ? `Day ${day}. ${hourOf(day, timeName)} at the cabin.${moonLine(day)}` : null,
+    morning:
+      place === 'cabin'
+        ? `Day ${day}. ${hourOf(day, timeName)} at the cabin.${moonLine(day)}${weatherLine(day)}`
+        : null,
     out: place === 'cabin' ? `Out to ${theLake(lakeName)}` : null,
     bed: place === 'pond' || place === 'cabin' ? !fighting : false,
     cabin: place === 'pond' && !fighting,

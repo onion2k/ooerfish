@@ -17,6 +17,7 @@
  */
 import { careful } from '../src/angler';
 import { Game } from '../src/game';
+import { WEATHER } from '../src/lake';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -125,7 +126,17 @@ export function hashGame(game: Game): string {
   }
   const { lure } = game;
   eat(['ready', 'flying', 'sinking', 'lying', 'hooked'].indexOf(lure.phase));
-  for (const n of [lure.angle, lure.power, lure.castAt, lure.depth, lure.sunk, ...lure.at, ...lure.bobber]) eat(n);
+  for (const n of [
+    lure.angle,
+    lure.power,
+    lure.castAt,
+    lure.depth,
+    lure.sunk,
+    ...lure.at,
+    ...lure.bobber,
+    ...lure.wind,
+  ])
+    eat(n);
   // the bite and the fight, every number of each, so a fish's coming, nibbling and fighting are held to the seed
   const { bite, line } = game;
   eat(['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'].indexOf(bite.phase));
@@ -155,6 +166,9 @@ export function hashGame(game: Game): string {
   eat(game.day);
   eat(['pond', 'yawning', 'cabin'].indexOf(game.place));
   eat(game.fade());
+  // the sky, which the day decides unless the lever has set it
+  eat(WEATHER.kinds.indexOf(game.weather));
+  eat(game.lift);
   // and what the save says of both, so a save written differently on two runs shows even where the game does not
   eat(game.progress.save.time);
   eat(['pond', 'cabin'].indexOf(game.progress.save.place));

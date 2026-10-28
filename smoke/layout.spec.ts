@@ -49,7 +49,7 @@ const BREAKPOINTS = [
  *   journalCard the journal's page, a modal of the same kind: held inside the screen and left out of the overlap rule, and
  *               its words must fit it without scrolling.
  *   lakesCard   the lakes page, a modal of the same kind, its two rows and their buttons fitting it without scrolling.
- *   sleepCard   the sleep page, a modal of the same kind, its two choices fitting it without scrolling.
+ *   sleepCard   the sleep page, a modal of the same kind, its six choices fitting it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
  */
@@ -236,7 +236,10 @@ async function reach(page: Page, moment: Moment) {
               }
             : moment === 'drum card' || moment === 'bottle card'
               ? { save: { cured: 12 } }
-              : { save: { cured: 3 } };
+              : // the sleep page on day 9, where every weather is within the round: its six rows, the most it ever holds
+                moment === 'sleep'
+                ? { save: { cured: 3, day: 9 } }
+                : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
@@ -408,7 +411,7 @@ for (const bp of BREAKPOINTS) {
               failures.add(`${still}: the lakes page has ${fit.buttons} buttons, not ${wanted}`);
           }
 
-          // the sleep page's two choices all fit its card, with nothing left to scroll to
+          // the sleep page's choices, the two moons and up to four weathers, all fit its card, with nothing left to scroll to
           if (moment === 'sleep') {
             const fit = await page.evaluate(() => {
               const card = document.querySelector<HTMLElement>('#sleep .card')!;
@@ -420,7 +423,7 @@ for (const bp of BREAKPOINTS) {
             });
             if (fit.scroll > fit.shown + 1)
               failures.add(`${still}: the sleep page's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
-            if (fit.buttons !== 2) failures.add(`${still}: the sleep page has ${fit.buttons} choices, not 2`);
+            if (fit.buttons !== 6) failures.add(`${still}: the sleep page has ${fit.buttons} choices, not 6`);
           }
 
           // the keyboard hint names keys a phone does not have

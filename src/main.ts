@@ -17,9 +17,10 @@ import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups } from './cabinroom';
 import { MapDraw, mapHit } from './mapdraw';
 import { MoonDraw } from './moondraw';
+import { RainbowDraw } from './rainbowdraw';
 import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
-import { fallingDue, fallingEmits } from './falling';
+import { fallingDue, fallingEmits, fallingKind, fallingOf, windDrift } from './falling';
 import { BREEZE, GRASS_OPTIONS, bankField } from './grass';
 import { splashBurst } from './bursts';
 import { Gesture, type GestureEvent, type PointerGesture } from './gesture';
@@ -45,9 +46,11 @@ import {
   type Season,
   SEASON_DRESSING,
   WATER_LEVEL,
+  WEATHER,
   SWIM,
   framingFor,
   type ViewName,
+  type Weather,
 } from './lake';
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
 import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
@@ -55,7 +58,7 @@ import { NightView } from './nightview';
 import { cabinHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
 import { moonOf, seasonOf } from './calendar';
-import { mistFor, seasonGrass, seasonPalette } from './season';
+import { seasonGrass, seasonPalette, fogFor } from './season';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
 import { seeded } from './random';
@@ -259,6 +262,9 @@ async function main() {
   let fallers: Emit[] = [];
   let fallEvery = 1;
   let fell = 0;
+  /** The weather the page is dressed for (the game's, from the moment `showWeather` has run), and what falls in it: the rain's, the season's or nothing. */
+  let weatherDressed: Weather = game.weather;
+  let fallingNow: 'rain' | 'season' | null = null;
   /** The season last dressed (null before the first), how many static sets were handed over, and what the last cost. */
   let dressed: Season | null = null;
   let dressing: Season | null = null;
@@ -284,16 +290,25 @@ async function main() {
     ]);
     field = { ...baseField, kinds: [seasonGrass(season)] };
     await setRung(rung);
-    // the wind is the season's, written here and nowhere else, so the lean rung's still air is the economy's and not ours
-    renderer.wind = { ...BREEZE, strength: SEASON_DRESSING[season].breeze };
-    // the falling things of the season, made once here, and the particles' wind that carries them (still in summer)
-    const falling = SEASON_DRESSING[season].falling;
-    fallers = fallingEmits(season, { radius: lake.radius, level: WATER_LEVEL });
-    fallEvery = falling?.every ?? 1;
-    renderer.setWind(falling?.drift ?? [0, 0, 0]);
+    applyWeather();
     dressed = season;
     statics++;
     dressMs = performance.now() - began;
+  }
+  /**
+   * The wind, the falling things and the particles' wind for the season being dressed in the weather the page is
+   * dressed for, made once a change of either and never in a frame: the grass's strength is the season's breeze, gusting
+   * in the wind weather (written here and nowhere else, so the lean rung's still air is the economy's and not ours); the
+   * rain's drops (or snow) fall in place of the season's in rain and a shower, and fall on the lean rung too, as flakes do.
+   */
+  function applyWeather() {
+    const season = dressing ?? seasonOf(game.day);
+    const gust = weatherDressed === 'wind' ? WEATHER.wind.gust : 1;
+    renderer.wind = { ...BREEZE, strength: SEASON_DRESSING[season].breeze * gust };
+    fallers = fallingEmits(season, { radius: lake.radius, level: WATER_LEVEL }, weatherDressed);
+    fallEvery = fallingOf(season, weatherDressed)?.every ?? 1;
+    fallingNow = fallingKind(season, weatherDressed);
+    renderer.setWind(windDrift(season, weatherDressed));
   }
   await dress(seasonOf(game.day));
   // the breeze is slow: the renderer's clock runs at the water's pace (`lake.waterPace`), so the gusts roll by slowly, and the
@@ -397,7 +412,7 @@ async function main() {
   /** Whether a drag turns the camera: in look mode at the pond, and never in the room, where the bed's pillow is the one place to look from, nor while the screen fades. */
   const orbitOn = () => orbits(mode) && viewName !== 'cabin' && game.place === 'pond';
   /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
-  let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day)));
+  let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day), weatherDressed));
   let viewName: ViewName = 'shore';
   /** Whether the screen was taller than wide when the camera was last put at a view. */
   let tall = false;
@@ -425,7 +440,15 @@ async function main() {
    * tint is in the shadow's sky colour) can change them; `showLight` hands them over again when one has, never a frame.
    */
   const moonDraw = new MoonDraw();
-  const moonDrawn: { time: string; phase: number; season: Season | null } = { time: '', phase: -1, season: null };
+  const moonDrawn: { time: string; phase: number; season: Season | null; weather: Weather | null } = {
+    time: '',
+    phase: -1,
+    season: null,
+    weather: null,
+  };
+  /** The sun-shower's seven arcs, and the look and weather they were last handed over for (none before the first). */
+  const rainbow = new RainbowDraw();
+  const rainbowDrawn: { time: string; weather: Weather | null } = { time: '', weather: null };
   /** The map's pin, on the lake the save names, and the lake it was last handed over for (none before the first), and how many handovers that has been. */
   const mapDraw = lake.cabin ? new MapDraw(lake, Object.values(LAKES)) : null;
   let lakeDrawn = '';
@@ -436,22 +459,34 @@ async function main() {
   }
   /** The water's finish and the rocks' paint, at the contamination, the time and the settings as they stand: uniforms, so written on any change and nothing recompiles. */
   function finish() {
-    const water = style.clear(waterShown(), settings.caustics === 'on', time, seasonNow());
+    const water = style.clear(waterShown(), settings.caustics === 'on', time, seasonNow(), weatherDressed);
     rippleLife = water.ringLife ?? 0;
     renderer.look = { ...renderer.look, clear: water, paint: paintFor(settings.paint) };
   }
   /** Whether the sky's discs were written for another look, phase or season than the page is at. */
   const moonStale = () =>
-    moonDrawn.time !== time.name || moonDrawn.phase !== moonOf(game.day) || moonDrawn.season !== seasonNow();
+    moonDrawn.time !== time.name ||
+    moonDrawn.phase !== moonOf(game.day) ||
+    moonDrawn.season !== seasonNow() ||
+    moonDrawn.weather !== weatherDressed;
+  /** Whether the sky's discs or the rainbow's arcs were written for another look, phase, season or weather than the page is at. */
+  const skyStale = () => moonStale() || rainbowDrawn.time !== time.name || rainbowDrawn.weather !== weatherDressed;
   /** The sky's two discs for the look and phase the page is at, and the key they were written for noted. */
   function moonGroups() {
     const phase = moonOf(game.day);
     moonDrawn.time = time.name;
     moonDrawn.phase = phase;
     moonDrawn.season = seasonNow();
-    const night = timesFor(seasonNow(), phase).find((t) => t.name === 'night')!;
+    moonDrawn.weather = weatherDressed;
+    const night = timesFor(seasonNow(), phase, weatherDressed).find((t) => t.name === 'night')!;
     // the sky low where the moon stands is mostly the horizon's colour, which the shadow must match to be unseen
     return moonDraw.groups(time.name, phase, { sky: mix(night.zenith, night.horizon, 0.85) });
+  }
+  /** The rainbow's arcs for the look and weather the page is at, and the key they were written for noted. */
+  function rainbowGroups() {
+    rainbowDrawn.time = time.name;
+    rainbowDrawn.weather = weatherDressed;
+    return rainbow.groups(time.name, weatherDressed);
   }
   /** The water made as clear as the game says it is: its groups and the fish's handed over again when the contamination or the number of cured fish has changed, once a change and never once a frame. */
   async function showWater() {
@@ -466,7 +501,7 @@ async function main() {
       foundDrawn !== found ||
       dayDrawn !== game.day ||
       lakeDrawn !== game.progress.save.lake ||
-      moonStale()
+      skyStale()
     ) {
       watered = dirt;
       curedDrawn = cured;
@@ -480,7 +515,7 @@ async function main() {
       // a new phase re-lights the night, whose values moved; the cube is the full moon's, so nothing is baked for it
       if (next === dressing && phase !== phaseLit) {
         phaseLit = phase;
-        void showLight(timesFor(next, phase).find((t) => t.name === time.name) ?? time);
+        void showLight(timesFor(next, phase, weatherDressed).find((t) => t.name === time.name) ?? time);
       }
       if (next !== dressing) phaseLit = phase;
       if (next !== dressing)
@@ -488,7 +523,7 @@ async function main() {
           const began = performance.now();
           bakeLooks(ctx, next);
           bakeMs = performance.now() - began;
-          return showLight(timesFor(next, moonOf(game.day)).find((t) => t.name === time.name) ?? time);
+          return showLight(timesFor(next, moonOf(game.day), weatherDressed).find((t) => t.name === time.name) ?? time);
         });
       dayDrawn = game.day;
       if (lakeDrawn !== game.progress.save.lake) mapHandovers++;
@@ -497,7 +532,11 @@ async function main() {
       const water = style.groups(dirt, lake);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
-      casting.surface = surfaceOf(style.wavesIn?.(seasonNow()) ?? style.waves, MM_PER_UNIT, lake.waterPace);
+      casting.surface = surfaceOf(
+        style.wavesIn?.(seasonNow(), weatherDressed) ?? style.waves,
+        MM_PER_UNIT,
+        lake.waterPace,
+      );
       // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
       renderer.setDynamic([
         ...water,
@@ -514,6 +553,8 @@ async function main() {
           : []),
         // and the map's pin, on the lake the save names (which a journey changes before the page is loaded afresh)
         ...(mapDraw ? mapDraw.groups(lakeDrawn, ROOM_COLOURS.mapPin) : []),
+        // the rainbow last of all, so the slots of everything ahead of it are as they were
+        ...rainbowGroups(),
       ]);
     }
     finish();
@@ -547,7 +588,7 @@ async function main() {
   }
   /** The light of the time of that name, which the game's clock is put at; one not known is refused. */
   async function setTime(name: string) {
-    const to = timesFor(seasonNow(), moonOf(game.day)).find((t) => t.name === name);
+    const to = timesFor(seasonNow(), moonOf(game.day), weatherDressed).find((t) => t.name === name);
     if (!to) return;
     game.setTimeOfDay(to.at);
     await showLight(to);
@@ -559,12 +600,23 @@ async function main() {
   async function showLight(to: TimeOfDay) {
     time = to;
     const lit = light(renderer, ctx, to, settings.paint, seasonNow());
-    renderer.fog = mistFor(seasonNow(), to.name, MM_PER_UNIT);
+    renderer.fog = fogFor(seasonNow(), to.name, MM_PER_UNIT, weatherDressed, game.place);
     finish();
     await lit;
     // the sky's discs follow the look's name, the phase and the season: handed over with the dynamic set, once a change
-    if (moonStale()) return showWater();
+    if (skyStale()) return showWater();
     await renderer.prepare();
+  }
+  /**
+   * The page dressed for the game's weather as it stands (`docs/weather.md`, part 3), at the lever's move and the wake's
+   * new day: the wind, the falling ring and the particles' wind written, the page lit again with its sky and fog, and the
+   * dynamic set handed over for the rainbow and the bobber's waves. Nothing is done if the weather is the one dressed.
+   */
+  async function showWeather() {
+    if (weatherDressed === game.weather && rainbowDrawn.weather === weatherDressed) return;
+    weatherDressed = game.weather;
+    applyWeather();
+    await showLight(timesFor(seasonNow(), moonOf(game.day), weatherDressed).find((t) => t.name === time.name) ?? time);
   }
   /** The camera put at the view of that name, even when it is the view already, so it is the way back from being turned away; one not known is refused. */
   async function setView(name: string, byMode = false) {
@@ -1157,7 +1209,7 @@ async function main() {
       cabin: byId<HTMLButtonElement>('cabinButton'),
     },
     () => game,
-    () => nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day))).name,
+    () => nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day), weatherDressed)).name,
   );
   const hud = byId('hud');
   /** Whether the Cast button and its hint are hidden, which they are away from the pond. */
@@ -1223,6 +1275,8 @@ async function main() {
     const inCabin = game.place === 'cabin';
     if (inCabin !== lampLit) {
       lampLit = inCabin;
+      // the room shows no weather, so the lake's fog is the season's mist alone while the player is in it
+      renderer.fog = fogFor(seasonNow(), time.name, MM_PER_UNIT, weatherDressed, game.place);
       if (inCabin && lamp) lights.set(0, lamp);
       else lights.clear();
       renderer.setLights(lights);
@@ -1288,8 +1342,10 @@ async function main() {
     gestures.sync();
     // the day's clock has run on: when it has come to the next look, the page is lit as that, once, so a frame in
     // play compares a name and nothing more; the environments are all baked, so this is a uniform write
-    const want = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day)));
+    const want = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day), weatherDressed));
     if (want !== time) void showLight(want);
+    // the day's weather, which a wake changes and the lever may: dressed once, the frame it differs
+    if (weatherDressed !== game.weather) void showWeather();
     // the water healing: handed over when the drawn value has moved a whole step, so a frame where it has not moved
     // costs a comparison and nothing else
     if (watered !== waterShown() || dayDrawn !== game.day || lakeDrawn !== game.progress.save.lake) void showWater();
@@ -1400,6 +1456,13 @@ async function main() {
     drawnCured: () => curedDrawn,
     calendar: () => ({ ...(calendarDraw?.shown() ?? { gone: 0, today: -1 }), handovers: calendarHandovers }),
     moon: () => ({ handovers: moonDraw.handovers, shown: moonDraw.shown() }),
+    weather: () => ({
+      handovers: rainbow.handovers,
+      fog: renderer.economy.fog !== false ? renderer.fog.density : 0,
+      falling: fallingNow,
+      shown: rainbow.shown(),
+    }),
+    showWeather: () => showWeather(),
     map: () => ({ pin: mapDraw?.pin() ?? '', handovers: mapHandovers }),
     mapOnScreen: () => {
       if (!mapDraw) return null;

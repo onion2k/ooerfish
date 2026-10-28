@@ -1,7 +1,17 @@
 /** The wall calendar's arithmetic: a day of play to the squares gone and today's. */
 import { describe, expect, it } from 'vitest';
-import { calendarMarks, moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from '../src/calendar';
-import { CALENDAR, MOON, SEASONS } from '../src/lake';
+import {
+  calendarMarks,
+  moonLight,
+  moonName,
+  moonOf,
+  nextFull,
+  nextNew,
+  nextWeather,
+  seasonOf,
+  weatherOf,
+} from '../src/calendar';
+import { CALENDAR, MOON, SEASONS, WEATHER } from '../src/lake';
 
 describe('the calendar’s marks', () => {
   it('has four seasons of fourteen squares', () => {
@@ -114,5 +124,79 @@ describe('the moon', () => {
       expect(moonOf(d + nextFull(d))).toBe(MOON.full);
       expect(moonOf(d + nextNew(d))).toBe(MOON.new);
     }
+  });
+});
+
+describe('the weather of a day', () => {
+  it('has odds for every season that sum to one, over the five kinds', () => {
+    expect(WEATHER.kinds).toEqual(['sunny', 'rain', 'fog', 'shower', 'wind']);
+    for (const season of SEASONS) {
+      const row = WEATHER.odds[season];
+      expect(row).toHaveLength(WEATHER.kinds.length);
+      expect(row.reduce<number>((a, b) => a + b, 0)).toBeCloseTo(1, 12);
+    }
+  });
+
+  it('is pure: the same day gives the same weather, one of the five', () => {
+    for (let day = 1; day <= 120; day++) {
+      expect(weatherOf(day)).toBe(weatherOf(day));
+      expect(WEATHER.kinds).toContain(weatherOf(day));
+    }
+  });
+
+  it('is sunny on the first day, and a bad day reads as the first', () => {
+    expect(weatherOf(1)).toBe(WEATHER.firstDay);
+    expect(weatherOf(1)).toBe('sunny');
+    for (const bad of [0, -3, 2.5, NaN, Infinity]) expect(weatherOf(bad)).toBe('sunny');
+  });
+
+  it('gives each season’s shares within 0.05 of its odds over 5600 days', () => {
+    for (const season of SEASONS) {
+      const counts = new Array(WEATHER.kinds.length).fill(0);
+      let days = 0;
+      for (let day = 1; day <= 5600; day++) {
+        if (seasonOf(day) !== season) continue;
+        counts[WEATHER.kinds.indexOf(weatherOf(day))]++;
+        days++;
+      }
+      WEATHER.kinds.forEach((kind, i) => {
+        expect(Math.abs(counts[i] / days - WEATHER.odds[season][i]), `${season} ${kind}`).toBeLessThan(0.05);
+      });
+    }
+  });
+
+  it('never gives a shower in winter', () => {
+    for (let day = 1; day <= 560; day++) if (seasonOf(day) === 'winter') expect(weatherOf(day)).not.toBe('shower');
+  });
+
+  it('changes from one day to the next about as often as independent draws would, not in runs', () => {
+    // Independent draws at these odds change on about six days in ten; one LCG step of the day gave runs of a
+    // fortnight (days 1 to 14 sunny, 17 to 25 fog) and changed on fewer than two in ten, which this bound catches.
+    let changes = 0;
+    for (let day = 2; day <= 560; day++) if (weatherOf(day) !== weatherOf(day - 1)) changes++;
+    expect(changes).toBeGreaterThan(559 * 0.45);
+  });
+});
+
+describe('the nights to the next weather', () => {
+  it('is never zero, and lands on a day of that weather, the first one', () => {
+    for (let day = 1; day <= 200; day++) {
+      for (const kind of WEATHER.kinds) {
+        const n = nextWeather(day, kind);
+        if (n === null) {
+          for (let k = 1; k <= MOON.days; k++) expect(weatherOf(day + k)).not.toBe(kind);
+          continue;
+        }
+        expect(n).toBeGreaterThanOrEqual(1);
+        expect(n).toBeLessThanOrEqual(MOON.days);
+        expect(weatherOf(day + n)).toBe(kind);
+        for (let k = 1; k < n; k++) expect(weatherOf(day + k)).not.toBe(kind);
+      }
+    }
+  });
+
+  it('is null for a weather that does not come within the round', () => {
+    const none = Array.from({ length: 560 }, (_, i) => i + 1).find((d) => nextWeather(d, 'shower') === null);
+    expect(none).toBeDefined();
   });
 });

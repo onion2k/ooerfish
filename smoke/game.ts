@@ -7,6 +7,7 @@
 import { expect, type Page } from '@playwright/test';
 import type { GameApi } from '../src/debug';
 import type { SaveSaid } from '../src/progress';
+import type { Weather } from '../src/lake';
 
 declare global {
   interface Window {
@@ -102,6 +103,8 @@ export interface Scene {
   mode?: 'look' | 'cast';
   /** The player first put in the cabin the way the game does it: the clock carried past midnight, and the yawn stepped through to the waking. */
   cabin?: boolean;
+  /** The day's weather put by the lever before the rest, sunny unless said, so no picture depends on the day it is taken on. */
+  weather?: Weather;
 }
 
 /**
@@ -123,6 +126,7 @@ export async function set(page: Page, scene: Scene, frames = 120) {
         g.clock(0.9995);
         g.step(150);
       }
+      await g.weather(s.weather ?? 'sunny');
       await g.dirt(s.dirt);
       await g.time(s.time);
       await g.view(s.view);

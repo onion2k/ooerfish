@@ -3,7 +3,7 @@
  * until it is reeled in; or in a hooked fish's mouth, where the game puts it. Its flight is the cast's sums (`cast.ts`), so where it is in the air is a time since the
  * cast and nothing kept; on the water it sinks by the step until the line or the bed stops it.
  */
-import { flightAt, landingTime } from './cast';
+import { NO_WIND, flightAt, landingTime } from './cast';
 import { CAST } from './lake';
 import type { Lake } from './lakes/lake';
 
@@ -15,6 +15,8 @@ export class Lure {
   angle = 0;
   power = 0;
   castAt = 0;
+  /** The wind's push it was thrown in, kept so a sky that changes in the air changes nothing; written into at a cast, never made. */
+  readonly wind: [number, number] = [0, 0];
   /** How long its flight lasts. */
   flies = 0;
   /** Where it is now, and where its bobber floats once it has landed on the water. */
@@ -28,15 +30,17 @@ export class Lure {
   constructor(private readonly lake: Lake) {}
 
   /** Thrown, from the rod's tip, at the time `t`. */
-  cast(angle: number, power: number, t: number) {
+  cast(angle: number, power: number, t: number, wind: readonly [number, number] = NO_WIND) {
     this.phase = 'flying';
     this.angle = angle;
     this.power = Math.min(1, Math.max(0, power));
     this.castAt = t;
-    this.flies = landingTime(angle, this.power, this.lake);
+    this.wind[0] = wind[0];
+    this.wind[1] = wind[1];
+    this.flies = landingTime(angle, this.power, this.lake, this.wind);
     this.depth = 0;
     this.sunk = 0;
-    flightAt(angle, this.power, 0, this.at, this.lake);
+    flightAt(angle, this.power, 0, this.at, this.lake, this.wind);
   }
 
   /** Brought back to the rod, ready to cast again. */
@@ -50,7 +54,7 @@ export class Lure {
   step(t: number, dt: number): [number, number] | null {
     if (this.phase === 'flying') {
       const since = t - this.castAt;
-      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at, this.lake);
+      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at, this.lake, this.wind);
       if (since < this.flies) return null;
       if (this.lake.inside(this.at[0], this.at[1])) {
         this.phase = 'sinking';

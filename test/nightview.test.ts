@@ -1,7 +1,8 @@
 /** The night on the screen: the fade, the yawn's words, the morning line, and the Down to the pond and Go to bed buttons. */
 import { describe, expect, it } from 'vitest';
-import { NIGHT } from '../src/lake';
-import { NightView, nightWords } from '../src/nightview';
+import { weatherOf, moonOf } from '../src/calendar';
+import { MOON, NIGHT, type Weather } from '../src/lake';
+import { NightView, nightWords, weatherLine } from '../src/nightview';
 import { DT, newGame } from './helpers';
 
 describe('what the night says', () => {
@@ -31,7 +32,7 @@ describe('what the night says', () => {
       cabin: false,
     });
     expect(nightWords('cabin', 13, false, 'Duck Pond', 'dawn').morning).toBe(
-      'Day 13. Morning at the cabin. New moon tonight.',
+      'Day 13. Morning at the cabin. New moon tonight. Rain today.',
     );
     expect(nightWords('cabin', 57, false, 'Duck Pond', 'dawn').morning).toBe(
       'Day 57. Morning at the cabin. Full moon tonight.',
@@ -39,11 +40,15 @@ describe('what the night says', () => {
   });
 
   it('names the season in the morning from autumn on, and says nothing of summer', () => {
-    expect(nightWords('cabin', 15, false, 'Duck Pond', 'dawn').morning).toBe('Day 15. An autumn morning at the cabin.');
+    expect(nightWords('cabin', 15, false, 'Duck Pond', 'dawn').morning).toBe(
+      'Day 15. An autumn morning at the cabin. Foggy today.',
+    );
     expect(nightWords('cabin', 29, false, 'Duck Pond', 'dawn').morning).toBe(
       'Day 29. A winter morning at the cabin. New moon tonight.',
     );
-    expect(nightWords('cabin', 43, false, 'Duck Pond', 'dawn').morning).toBe('Day 43. A spring morning at the cabin.');
+    expect(nightWords('cabin', 43, false, 'Duck Pond', 'dawn').morning).toBe(
+      'Day 43. A spring morning at the cabin. A sun-shower today.',
+    );
   });
 
   it('refuses the bed and the cabin with a fish on the line or landed', () => {
@@ -67,9 +72,9 @@ describe('what the night says', () => {
 
   it('keeps the season word with the hour, from autumn on', () => {
     const line = (name: string, day: number) => nightWords('cabin', day, false, 'Duck Pond', name).morning;
-    expect(line('day', 15)).toBe('Day 15. An autumn afternoon at the cabin.');
+    expect(line('day', 15)).toBe('Day 15. An autumn afternoon at the cabin. Foggy today.');
     expect(line('dusk', 29)).toBe('Day 29. A winter evening at the cabin. New moon tonight.');
-    expect(line('night', 43)).toBe('Day 43. A spring night at the cabin.');
+    expect(line('night', 43)).toBe('Day 43. A spring night at the cabin. A sun-shower today.');
     expect(line('day', 2)).toBe('Day 2. Afternoon at the cabin.');
   });
 });
@@ -241,12 +246,44 @@ describe('the moon in the morning line', () => {
 
   it('says the full moon and the new moon after the morning line, and nothing on other days', () => {
     expect(morning(1)).toBe('Day 1. Morning at the cabin. Full moon tonight.');
-    expect(morning(9)).toBe('Day 9. Morning at the cabin. Full moon tonight.');
-    expect(morning(5)).toBe('Day 5. Morning at the cabin. New moon tonight.');
+    expect(morning(9)).toBe('Day 9. Morning at the cabin. Full moon tonight. A sun-shower today.');
+    expect(morning(5)).toBe('Day 5. Morning at the cabin. New moon tonight. A sun-shower today.');
     for (const d of [2, 3, 4, 6, 7, 8]) expect(morning(d)).not.toMatch(/moon/);
   });
 
   it('leaves the yawn’s words alone', () => {
     expect(nightWords('yawning', 5, false, 'Duck Pond', 'dawn').yawn).toBe('Yawn… time for bed');
+  });
+});
+
+describe('the weather in the morning line', () => {
+  const morning = (day: number) => nightWords('cabin', day, false, 'Duck Pond', 'dawn').morning;
+
+  /** The first day on or after `from` that has this weather, so a test names the sky and not a day that may be retuned. */
+  const dayOf = (kind: Weather, from = 2) => {
+    let d = from;
+    while (weatherOf(d) !== kind) d++;
+    return d;
+  };
+
+  it('says each kind of weather in its own sentence', () => {
+    expect(weatherLine(dayOf('rain'))).toBe(' Rain today.');
+    expect(weatherLine(dayOf('fog'))).toBe(' Foggy today.');
+    expect(weatherLine(dayOf('shower'))).toBe(' A sun-shower today.');
+    expect(weatherLine(dayOf('wind'))).toBe(' Windy today.');
+  });
+
+  it('adds nothing on a sunny day', () => {
+    expect(weatherLine(1)).toBe('');
+    expect(morning(2)).toBe('Day 2. Morning at the cabin.');
+  });
+
+  it('follows the moon’s sentence, or the hour without it', () => {
+    // Day 15 is a rainy day between the moons; day 61 a rainy new moon.
+    expect(weatherOf(11)).toBe('rain');
+    expect(morning(11)).toBe('Day 11. Morning at the cabin. Rain today.');
+    expect(weatherOf(61)).toBe('rain');
+    expect(moonOf(61)).toBe(MOON.new);
+    expect(morning(61)).toBe('Day 61. Morning at the cabin. New moon tonight. Rain today.');
   });
 });

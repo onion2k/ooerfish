@@ -13,7 +13,10 @@ import { Bite, type Strike } from './bite';
 import { BedFinds, places } from './bedfinds';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE, MOON } from './lake';
+import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE, MOON, WEATHER, type Weather } from './lake';
+import { weatherOf } from './calendar';
+import { rainSpot } from './rain';
+import { NO_WIND } from './cast';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
@@ -153,6 +156,15 @@ export class Game {
   healElapsed = 0;
   /** How many times the lever has set the contamination, which the invariants read to tell a rise by the lever from one by any other road. */
   levers = 0;
+  /** The weather the lever set, or null for the day's own; cleared by a wake, since the day moved. */
+  private weatherLever: Weather | null = null;
+  /** The day's own weather and the day it was worked out for, since the page reads it every frame and `weatherOf` makes a generator. */
+  private dayWeather: Weather = WEATHER.firstDay;
+  private dayWeatherFor = 1;
+  /** Seconds of stepped time since the last raindrop's ring, and how many have come, which is the hash of the next one's place. */
+  private rainClock = 0;
+  rainRings = 0;
+  private readonly rainSpotAt: [number, number] = [0, 0];
   /** Where the day is, from midnight (0) through noon (0.5), up to but not reaching midnight again: one is nought. */
   timeOfDay: number = CLOCK.startsAt;
   /** Which day of play it is, from one: the save's, and up by one on each waking. */
@@ -257,7 +269,8 @@ export class Game {
       this.sinceSaved = 0;
       this.persist();
     }
-    this.fish.step(dt, this.random);
+    this.fish.step(dt, this.random, this.lift);
+    this.rain(dt);
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
     if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
@@ -265,6 +278,26 @@ export class Game {
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
+  }
+
+  /**
+   * The rain's rings (`docs/weather.md`, part 3): in rain and in a shower, a small splash every `WEATHER.rain.ringEvery`
+   * seconds of stepped time, at a point from a hash of the drop's number (`rainSpot`, never `this.random`). They go into
+   * the pool directly and are not told as splashes: a raindrop throws no droplets and startles no fish, which `drop`'s
+   * `splashed` event and the bite's hearing of it would make it do twice a second. Out of the rain the clock is held at nought.
+   */
+  private rain(dt: number) {
+    const w = this.weather;
+    if (w !== 'rain' && w !== 'shower') {
+      this.rainClock = 0;
+      return;
+    }
+    this.rainClock += dt;
+    while (this.rainClock >= WEATHER.rain.ringEvery) {
+      this.rainClock -= WEATHER.rain.ringEvery;
+      rainSpot(this.rainRings++, this.lake, this.rainSpotAt);
+      this.splashes.add(this.rainSpotAt[0], this.rainSpotAt[1], this.t, WEATHER.rain.ring);
+    }
   }
 
   /** True with a fish hooked or landed, which the day's end waits for. */
@@ -387,6 +420,8 @@ export class Game {
     this.nights = 1;
     this.day = Math.min(this.day + nights, Number.MAX_SAFE_INTEGER);
     this.progress.save.day = this.day;
+    // the lever was for the day that has gone
+    this.weatherLever = null;
     this.timeOfDay = CLOCK.startsAt;
     // the night has passed, so a heal still running is over
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
@@ -645,6 +680,37 @@ export class Game {
     this.levers++;
   }
 
+  /** The sky today: the lever's if it was set, else the day's own (`weatherOf`). */
+  get weather(): Weather {
+    if (this.weatherLever) return this.weatherLever;
+    if (this.dayWeatherFor !== this.day) {
+      this.dayWeather = weatherOf(this.day);
+      this.dayWeatherFor = this.day;
+    }
+    return this.dayWeather;
+  }
+
+  /** How far the rain draws the fish up: `FISHING.rainLift` in rain and in a shower, else nothing. */
+  get lift(): number {
+    return this.weather === 'rain' || this.weather === 'shower' ? FISHING.rainLift : 0;
+  }
+
+  /** The wind's push on a cast as a vector: the shared one in the wind weather, else the shared nothing; nothing is made. */
+  get wind(): readonly [number, number] {
+    return this.weather === 'wind' ? WEATHER.wind.vector : NO_WIND;
+  }
+
+  /**
+   * Forces the weather, a lever for the tests and the pictures as the contamination's is, counted with it; null gives
+   * the day's back. A name that is none of the kinds is refused, returns false and changes nothing.
+   */
+  setWeather(name: string | null): boolean {
+    if (name !== null && !(WEATHER.kinds as readonly string[]).includes(name)) return false;
+    this.weatherLever = name as Weather | null;
+    this.levers++;
+    return true;
+  }
+
   /** Where the day is, round the clock (one is midnight again, nought); what is not a finite number is refused, and changes nothing. */
   setTimeOfDay(v: number) {
     if (!Number.isFinite(v)) return;
@@ -690,7 +756,7 @@ export class Game {
     // a fish on the line, or landed and waiting to be stowed, is seen to first
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return false;
     this.reelIn();
-    this.lure.cast(angle, power, this.t);
+    this.lure.cast(angle, power, this.t, this.wind);
     return true;
   }
 

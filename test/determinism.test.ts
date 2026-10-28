@@ -52,6 +52,14 @@ describe('the same seed gives the same game', () => {
     expect(night.days, 'the day went up').toBeGreaterThan(1);
   });
 
+  it('hashes the weather itself, so a game in fog differs from one in sun though fog lifts and blows nothing', () => {
+    const one = newGame(5).game;
+    const two = newGame(5).game;
+    expect(hashGame(one)).toBe(hashGame(two));
+    one.setWeather('fog');
+    expect(hashGame(one)).not.toBe(hashGame(two));
+  });
+
   it('hashes the save, so one written differently shows where the game does not', () => {
     const one = newGame(5).game;
     const two = newGame(5).game;

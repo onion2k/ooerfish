@@ -212,5 +212,19 @@ export const ROOM_COLOURS = {
   moonNew: [0.08, 0.1, 0.22] as Colour,
 };
 
+/**
+ * The sun-shower's rainbow (`docs/weather.md`, part 6), red outermost to violet: soft and picture-book, unlit in the
+ * sky. A list apart from `PALETTE`, whose every key is a colour and is walked as one.
+ */
+export const RAINBOW_COLOURS: readonly Colour[] = [
+  [0.9, 0.38, 0.38],
+  [0.95, 0.6, 0.3],
+  [0.97, 0.85, 0.4],
+  [0.5, 0.8, 0.45],
+  [0.4, 0.65, 0.9],
+  [0.45, 0.45, 0.8],
+  [0.65, 0.45, 0.78],
+];
+
 /** The moon's disc, a warm pale (`docs/moon.md`), unlit in the sky; at the file's end, apart from the room's colours. */
 export const MOON_COLOUR: Colour = [0.95, 0.93, 0.8];

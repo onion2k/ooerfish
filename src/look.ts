@@ -13,7 +13,7 @@ import type { GameRenderer } from 'artshape-render/game/renderer';
 import type { Gpu } from 'artshape-render/gpu/context';
 import { bakeEnvironment, type EnvImage, type Environment } from 'artshape-render/render/env';
 import { moonLight } from './calendar';
-import { MOON, SEASON_DRESSING, type Season } from './lake';
+import { MOON, SEASON_DRESSING, WEATHER, skyOf, type Season, type Weather } from './lake';
 import { PALETTE, mix, type Colour } from './palette';
 
 /**
@@ -97,6 +97,11 @@ export interface TimeOfDay {
   exposure: number;
   /** How much see-through water glitters: the renderer's glitter is the sun's hue at its full, the moon's too. */
   glitter: number;
+  /**
+   * In a wet weather, the same look as the sky has it with no weather (the moon's phase and the season kept): the
+   * environment cube is baked from this, once for all weathers, so it is the same whichever sky the page first asked for.
+   */
+  dry?: TimeOfDay;
 }
 
 export const TIMES: readonly TimeOfDay[] = [
@@ -150,47 +155,80 @@ export const TIMES: readonly TimeOfDay[] = [
   },
 ];
 
-/** The lists made, by season and then by phase: looked up each frame, so no key is built to find one. */
-const made = new Map<Season, (readonly TimeOfDay[] | undefined)[]>();
+/** The lists made, by season, then phase, then weather's index in `WEATHER.kinds`: looked up each frame, so no key is built to find one. */
+const made = new Map<Season, ((readonly TimeOfDay[] | undefined)[] | undefined)[]>();
+
+/** The brightness of a colour, for a grey that covers it to be as bright: the mean of its channels. */
+const level = (c: Colour) => (c[0] + c[1] + c[2]) / 3;
+
+/** A colour scaled by `k`. */
+const dimmed = (c: Colour, k: number): Colour => [c[0] * k, c[1] * k, c[2] * k];
+
+/** A colour greyed toward a weather's tint by `k`, the tint taken at the brightness of the colour it covers, so a grey night is no brighter than a night. */
+function greyed(c: Colour, tint: Colour, k: number): Colour {
+  const scale = level(c) / (level(tint) || 1);
+  return mix(c, [tint[0] * scale, tint[1] * scale, tint[2] * scale], k);
+}
 
 /**
- * The four times of a season at a phase of the moon: `TIMES` with each look's zenith, horizon and sun colour mixed
- * toward the season's tint and its fill scaled, then the night's ambient, moonlight, zenith, horizon and glitter
- * scaled by `moonLight(phase)` (the tint mixes first, then the phase scales). Exposure is not scaled, since the fish's
+ * The four times of a season at a phase of the moon and in a weather: `TIMES` with each look's zenith, horizon and sun
+ * colour mixed toward the season's tint and its fill scaled, then the night's ambient, moonlight, zenith, horizon and
+ * glitter scaled by `moonLight(phase)` (the tint mixes first, then the phase scales), then, in rain, fog and a shower
+ * (`skyOf`), the zenith and horizon greyed and the fill scaled by the weather's. Exposure is not scaled, since the fish's
  * glow is added before it and must read brighter against a darker night; the sky and ground light follow the ambient
  * through `lookFor`. Dawn, day and dusk are the same at every phase, and the full moon (the default) in summer is
- * `TIMES` itself. Memoised by season and phase: the same pair is the same list of the same objects.
+ * `TIMES` itself; sunny and wind change nothing, so they are the very list the sunny sky has. Memoised: the same
+ * triple is the same list of the same objects.
  */
-export function timesFor(season: Season, phase: number = MOON.full): readonly TimeOfDay[] {
+export function timesFor(season: Season, phase: number = MOON.full, weather: Weather = 'sunny'): readonly TimeOfDay[] {
+  const wet = skyOf(weather);
+  const index = wet ? WEATHER.kinds.indexOf(weather) : 0;
   let phases = made.get(season);
   if (!phases) made.set(season, (phases = []));
-  let list = phases[phase];
+  let byWeather = phases[phase];
+  if (!byWeather) phases[phase] = byWeather = [];
+  let list = byWeather[index];
   if (!list) {
-    const { sky, ambient } = SEASON_DRESSING[season];
-    const k = moonLight(phase);
-    list =
-      sky.mix === 0 && ambient === 1 && k === 1
-        ? TIMES
-        : TIMES.map((t) => {
-            const seasonal = {
-              ...t,
-              zenith: mix(t.zenith, sky.tint, sky.mix),
-              horizon: mix(t.horizon, sky.tint, sky.mix),
-              sunColour: mix(t.sunColour, sky.tint, sky.mix * 0.5),
-              ambient: t.ambient * ambient,
-            };
-            if (t.name !== 'night' || k === 1) return seasonal;
-            const dim = (c: Colour): Colour => mix([0, 0, 0], c, k);
-            return {
-              ...seasonal,
-              zenith: dim(seasonal.zenith),
-              horizon: dim(seasonal.horizon),
-              sunColour: dim(seasonal.sunColour),
-              ambient: seasonal.ambient * k,
-              glitter: seasonal.glitter * k,
-            };
-          });
-    phases[phase] = list;
+    if (wet) {
+      const { sky, ambient } = wet;
+      list = timesFor(season, phase).map((t) => ({
+        ...t,
+        dry: t,
+        zenith: greyed(t.zenith, sky.tint, sky.mix),
+        horizon: greyed(t.horizon, sky.tint, sky.mix),
+        // the sun behind the cloud is greyer and weaker, so the banks and the rocks read as under a sky and not a sun
+        sunColour: dimmed(greyed(t.sunColour, sky.tint, sky.mix), wet.sun),
+        ambient: t.ambient * ambient,
+        // a night's exposure is kept, since the fish's glow is added before it and must read against the dark
+        exposure: t.name === 'night' ? t.exposure : t.exposure * wet.exposure,
+      }));
+    } else {
+      const { sky, ambient } = SEASON_DRESSING[season];
+      const k = moonLight(phase);
+      list =
+        sky.mix === 0 && ambient === 1 && k === 1
+          ? TIMES
+          : TIMES.map((t) => {
+              const seasonal = {
+                ...t,
+                zenith: mix(t.zenith, sky.tint, sky.mix),
+                horizon: mix(t.horizon, sky.tint, sky.mix),
+                sunColour: mix(t.sunColour, sky.tint, sky.mix * 0.5),
+                ambient: t.ambient * ambient,
+              };
+              if (t.name !== 'night' || k === 1) return seasonal;
+              const dim = (c: Colour): Colour => mix([0, 0, 0], c, k);
+              return {
+                ...seasonal,
+                zenith: dim(seasonal.zenith),
+                horizon: dim(seasonal.horizon),
+                sunColour: dim(seasonal.sunColour),
+                ambient: seasonal.ambient * k,
+                glitter: seasonal.glitter * k,
+              };
+            });
+    }
+    byWeather[index] = list;
   }
   return list;
 }
@@ -279,7 +317,7 @@ function environment(ctx: Gpu, time: TimeOfDay, season: Season): Environment {
   const key = `${season}:${time.name}`;
   let env = baked.get(key);
   if (!env) {
-    env = bakeEnvironment(ctx, 'daylight', { size: 128, mips: 6, image: skyImage(time) });
+    env = bakeEnvironment(ctx, 'daylight', { size: 128, mips: 6, image: skyImage(time.dry ?? time) });
     baked.set(key, env);
   }
   return env;

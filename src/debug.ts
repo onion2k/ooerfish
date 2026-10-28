@@ -26,7 +26,7 @@ import type { Rung } from './rung';
 import { checkInvariants } from './invariants';
 import type { Journal } from './journal';
 import { moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from './calendar';
-import { KINDS, type Season } from './lake';
+import { KINDS, type Season, type Weather } from './lake';
 import { LAKES } from './lakes';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
@@ -267,6 +267,24 @@ export interface GameApi {
     shown: boolean;
   };
   /**
+   * The weather today (`docs/weather.md`): with no argument its `name`, the `lift` of the fish, the `wind`'s push, how many
+   * times the rainbow has been `handovers`, the `fog`'s density as drawn now (nothing on the lean rung) and what
+   * `falling` ('rain' where the rain's drops or snow fall, 'season' where the season's do, null where nothing does) and
+   * whether the rainbow is `shown` on the sky;
+   * with a name it sets the lever, a name not known refused (resolving false), and resolves true once the page has
+   * dressed it and it is ready to draw. `null` gives the day's own back.
+   */
+  weather(): {
+    name: Weather;
+    lift: number;
+    wind: number;
+    handovers: number;
+    fog: number;
+    falling: 'rain' | 'season' | null;
+    shown: boolean;
+  };
+  weather(name: string | null): Promise<boolean>;
+  /**
    * The season the day is in, and what the page has dressed of it: `name` is the day's, `dressed` the season last
    * handed to the renderer (null before the dressing exists), `statics` how many times the static set was handed over for
    * a season, `falling` the falling things emitted, and `mist` whether the fog is on, and `dressMs` how long the last
@@ -473,6 +491,10 @@ export interface DebugHost {
   calendar(): { gone: number; today: number; handovers: number };
   /** The sky's discs: how many times they were handed over, and whether they are drawn now. */
   moon(): { handovers: number; shown: boolean };
+  /** The weather as the page has dressed it: the rainbow's handovers, the fog's density drawn, and what falls. */
+  weather(): { handovers: number; fog: number; falling: 'rain' | 'season' | null; shown: boolean };
+  /** The page dressed for the game's weather as it stands (the lever just moved), resolving once it is ready to draw. */
+  showWeather(): Promise<void>;
   /** What the page has dressed of the season, which the API joins to the day's name. */
   season(): Omit<SeasonReading, 'name'>;
   /** The clock put at the time of that name, and the page lit as it, a name not known refused; and the look the page is lit with. */
@@ -634,7 +656,7 @@ export function createApi(host: DebugHost): GameApi {
             if (near < 0 || dist(i) < dist(near)) near = i;
           }
           if (near < 0) return false;
-          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], game.lake);
+          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], game.lake, game.wind);
           if (!game.cast(angle, power)) return false;
           for (let f = 0; f < 2400 && game.bite.phase !== 'biting'; f++) {
             frame();
@@ -649,13 +671,13 @@ export function createApi(host: DebugHost): GameApi {
         // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
         const i = game.drums.found.indexOf(0);
         if (i < 0) return false;
-        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake);
+        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake, game.wind);
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (treasure >= 0) {
         // the lure thrown to the treasure, if it is still on the bed, and left to lie there, where it is snagged
         if (game.treasures.found[treasure]) return false;
-        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure], game.lake);
+        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure], game.lake, game.wind);
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (want >= 0) {
@@ -704,7 +726,7 @@ export function createApi(host: DebugHost): GameApi {
     preview() {
       const to = host.aiming();
       if (!to) return null;
-      const f = flight(to.angle, to.power, game.lake);
+      const f = flight(to.angle, to.power, game.lake, game.wind);
       return { x: f.landing[0], y: f.landing[1], z: f.landing[2], onWater: f.onWater };
     },
     drop: (x, y) => game.drop(x, y),
@@ -727,6 +749,16 @@ export function createApi(host: DebugHost): GameApi {
         ...host.moon(),
       };
     },
+    weather: ((name?: string | null) => {
+      if (name !== undefined)
+        return game.setWeather(name) ? host.showWeather().then(() => true) : Promise.resolve(false);
+      return {
+        name: game.weather,
+        lift: game.lift,
+        wind: Math.hypot(game.wind[0], game.wind[1]),
+        ...host.weather(),
+      };
+    }) as GameApi['weather'],
     season: () => ({ name: seasonOf(game.day), ...host.season() }),
     // time is stopped away from the pond, and the cabin's view is the one place to look from there: both let go unanswered
     time: ((name?: string) =>

@@ -677,3 +677,34 @@ describe('a treasure on the bed and the lure', () => {
     expect(game.bite.treasure).toBe(-1);
   });
 });
+
+describe('the rain and the lure', () => {
+  /** A lone fish held still at `d` from the bobber, settled for a minute at the school's lift, then the lure sunk to `lureDepth`. */
+  function settledFish(lift: number, lureDepth: number) {
+    const game = sunk();
+    const bream = slotOf(game, 'pike');
+    game.fish.keeps[bream] = 0.9;
+    game.fish.speed[bream] = 0;
+    put(game, bream, 2);
+    for (let f = 0; f < 3600; f++) game.fish.step(DT, () => 0.5, lift);
+    // the school's step wandered nothing (the fish is still), but a held-off bite state is clean
+    game.bite.stowed(game.fish);
+    game.lure.depth = lureDepth;
+    return { game, fish: bream };
+  }
+
+  it('brings a deep fish to a shallow lure in rain that it never came to in sun', () => {
+    const rain = settledFish(FISHING.rainLift, 0);
+    const lureDepth = rain.game.fish.depth[rain.fish];
+    // the lure sits at the depth the fish rose to, and the same fish unlifted lies well below the band
+    const lifted = settledFish(FISHING.rainLift, lureDepth);
+    const sun = settledFish(0, lureDepth);
+    expect(sun.game.fish.depth[sun.fish] - lureDepth, 'sun leaves it out of the band').toBeGreaterThan(FISHING.band);
+    expect(chosenIn(sun.game, 60)).toBe(-1);
+    expect(Math.abs(lifted.game.fish.depth[lifted.fish] - lureDepth), 'rain puts it in the band').toBeLessThanOrEqual(
+      FISHING.band,
+    );
+    expect(chosenIn(lifted.game, 60)).toBe(lifted.fish);
+    expect(Math.abs(lifted.game.fish.depth[lifted.fish] - lifted.game.lure.depth)).toBeLessThanOrEqual(FISHING.band);
+  });
+});

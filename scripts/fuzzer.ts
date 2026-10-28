@@ -19,7 +19,7 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { GEAR, KINDS, MOON } from '../src/lake';
+import { GEAR, KINDS, MOON, WEATHER } from '../src/lake';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
@@ -248,6 +248,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     // as it was before there were treasures: the same seeds still fish the same water, and a treasure aimed at only
     // changes where the lure lies
     const aiming = seeded(seed * 23 + 9);
+    // the weather's lever is set from a stream of its own too, so the monkey's chance is drawn as it was before it
+    const weathering = seeded(seed * 29 + 13);
     /**
      * A cast aimed at a drum or a treasure still on the bed (a spot of either, if every one is found) and left to sink and
      * lie there: nine times in ten at the drums, if any is left on the bed, and the rest at the treasures.
@@ -502,11 +504,23 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       }
       did('into the cabin');
     };
+    /**
+     * The weather's lever put to any of the five, or let go to the day's own: a player cannot, the pictures do, and the
+     * rules must hold through it, at the pond and in the cabin alike. It stands outside the weighted list, picked by a
+     * stream of its own at a weight of a half like the walk in, so the seeds that were played before it still play the same.
+     */
+    const setWeather = () => {
+      const u = Math.floor(weathering() * (WEATHER.kinds.length + 1));
+      game.setWeather(u < WEATHER.kinds.length ? WEATHER.kinds[u] : null);
+      did('weather lever');
+    };
     const walker = seeded(seed * 37 + 11);
+    const pickWeather = seeded(seed * 41 + 17);
     const total = actions.reduce((n, [w]) => n + w, 0);
     const act = () => {
       let pick = random() * total;
       if (walker() < 0.5 / (total + 0.5)) return walkIn();
+      if (pickWeather() < 0.5 / (total + 0.5)) return setWeather();
       for (const [w, go] of actions) {
         if ((pick -= w) < 0) return go();
       }

@@ -259,7 +259,7 @@ export class CastDraw {
     }
 
     if (aim) {
-      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path, this.lake);
+      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path, this.lake, game.wind);
       for (let k = 0; k < PREVIEW_DOTS; k++)
         place(this.dots, k, this.path[k * 3], this.path[k * 3 + 1], this.path[k * 3 + 2]);
       out.dots = PREVIEW_DOTS;

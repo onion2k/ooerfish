@@ -38,6 +38,8 @@ export const FISHING = {
   nibbleRing: 0.3,
   biteRing: 0.6,
   wary: 8,
+  // how far up the rain draws the fish, a share of the way to the surface: an estimate, to be tuned in play
+  rainLift: 0.5,
 } as const;
 
 /**
@@ -256,6 +258,133 @@ export const MOON = {
     'waxing gibbous',
   ],
 } as const;
+
+/** The five skies a day can have (`docs/weather.md`). */
+export type Weather = (typeof WEATHER.kinds)[number];
+
+/** A pair of numbers that cannot be written to, for the figures that are shared and read every frame. */
+function frozenPair(a: number, b: number): readonly [number, number] {
+  return Object.freeze([a, b]) as unknown as readonly [number, number];
+}
+
+/**
+ * The weather (`docs/weather.md`): one of five skies, a pure function of the day as the season and the moon are. `odds`
+ * are each season's chance of each kind, in the order of `kinds`, and each row sums to one; day one is always
+ * `firstDay`, so the game as drawn before the weather is the first morning's. The later parts' figures (the rain's
+ * lift, the fog, the wind, the rainbow) join this beside the odds.
+ */
+/**
+ * The rain's drops (`docs/weather.md`, part 3): small blue-grey discs that fall fast and straight, and live only as long
+ * as the fall from the emitters takes, so the pool holds many fewer of them than of a season's slow leaves. First
+ * guesses, to be seen in the pictures; the sizes are held under `PARTICLE_POOL` by `test/falling.test.ts`.
+ */
+const RAIN_DROPS: Falling = {
+  colour: [0.72, 0.82, 0.98],
+  fade: [0.55, 0.68, 0.9],
+  size: 0.13,
+  growth: 0,
+  life: 1.7,
+  lifeSpread: 0.2,
+  gravity: 0.85,
+  count: 4,
+  every: 6,
+  drift: [0, 0, 0],
+};
+
+export const WEATHER = {
+  kinds: ['sunny', 'rain', 'fog', 'shower', 'wind'],
+  firstDay: 'sunny',
+  odds: {
+    summer: [0.55, 0.15, 0.05, 0.15, 0.1],
+    autumn: [0.35, 0.25, 0.2, 0.05, 0.15],
+    winter: [0.4, 0.15, 0.25, 0, 0.2],
+    spring: [0.4, 0.25, 0.1, 0.15, 0.1],
+  },
+  wind: {
+    // the grass's own breeze direction (`BREEZE` in `grass.ts`, which a test holds this to), normalised
+    direction: [1 / Math.hypot(1, 0.3), 0.3 / Math.hypot(1, 0.3)] as readonly [number, number],
+    // a constant push on a cast in world units a second each second, so a full cast, in the air 0.809 s at the Duck
+    // Pond, lands about 4 units off its line: 8 / 0.809 squared is 12.2, taken as 12; an estimate, tuned on the picture
+    push: 12,
+    // the push as a vector, made once and frozen, since a cast and the page read it every frame
+    vector: frozenPair(12 / Math.hypot(1, 0.3), (12 * 0.3) / Math.hypot(1, 0.3)),
+    // the page's side (part 3), all estimates: the grass wind's strength is the season's times `gust`, the particles are
+    // carried along the push at `drift` world units a second, and the swells' amplitudes are scaled by `waves`
+    gust: 2.5,
+    drift: 3,
+    waves: 1.6,
+  },
+  /**
+   * The sky of each wet weather (part 3): a tint mixed into each look's zenith and horizon (at the brightness of the
+   * look it covers, so a grey night is no brighter than a night) by `mix`, the fill light scaled by `ambient`, and the
+   * water's sparkles by `sparkle`. Wind and sunny change nothing. Estimates.
+   */
+  rain: {
+    sky: { tint: [0.52, 0.53, 0.55] as Colour, mix: 0.55 },
+    sun: 0.35,
+    exposure: 0.78,
+    ambient: 0.7,
+    sparkle: 0.45,
+    falling: RAIN_DROPS,
+    // in winter rain is the season's snow, at this cadence in place of the season's: 2 every 40 frames is a little
+    // heavier than winter's own (2 every 48) and still leaves the pool its room with the falls' mist
+    snow: { count: 2, every: 40 },
+    // a raindrop's ring on the water: its size beside a pebble's one, and the seconds of stepped time between them. With
+    // `CLEAR.ringLife` 3.5 about six are live, half the twelve slots, so half stay the player's
+    ring: 0.7,
+    ringEvery: 0.6,
+  },
+  shower: {
+    sky: { tint: [0.52, 0.53, 0.55] as Colour, mix: 0.2 },
+    sun: 0.85,
+    exposure: 0.95,
+    ambient: 0.92,
+    sparkle: 0.8,
+    // the rain's drops at half the cadence: a sun-shower is light
+    falling: { ...RAIN_DROPS, every: 12 },
+  },
+  /**
+   * Fog over the whole lake (part 2), as the renderer's volumetric fog is asked for it, by every look: thick enough at
+   * the water, and tall enough, to haze the far bank and the fish's glow under the surface; `nightColour` is the
+   * colour it scatters at night, when it has little light to scatter. Estimates, to be seen in the pictures.
+   */
+  fog: {
+    sky: { tint: [0.66, 0.67, 0.68] as Colour, mix: 0.6 },
+    sun: 0.7,
+    exposure: 0.95,
+    ambient: 0.85,
+    sparkle: 0.5,
+    density: 0.008,
+    height: 24,
+    reach: 120,
+    steps: 16,
+    colour: [0.72, 0.77, 0.83] as Colour,
+    nightColour: [0.04, 0.05, 0.08] as Colour,
+    light: 0.9,
+    anisotropy: 0,
+  },
+  /**
+   * The sun-shower's rainbow (part 6): seven arcs in a plane facing the lake, centred on the sky `distance` out along
+   * `direction` (18 degrees west of north, a little under the horizon, so the arch tops out at about six degrees
+   * where the Shore view's frame ends at four and a half: its legs and the crown's edge are what is seen, an estimate to
+   * be moved by the pictures), the red one `radius` out from the centre (ten degrees of sky, a diameter of twenty) and
+   * each band `band` wide inwards. Seen in a shower at the looks named in `at`.
+   */
+  rainbow: {
+    direction: [-0.25, 0.97, 0] as const,
+    distance: 22,
+    radius: 17,
+    band: 1.2,
+    at: ['dawn', 'day', 'dusk'] as const,
+  },
+} as const;
+
+/** What a weather does to the sky and the water, or null for the two that do nothing (`sunny` and `wind`). */
+export function skyOf(
+  weather: Weather,
+): { sky: { tint: Colour; mix: number }; sun: number; exposure: number; ambient: number; sparkle: number } | null {
+  return weather === 'rain' || weather === 'fog' || weather === 'shower' ? WEATHER[weather] : null;
+}
 
 /**
  * The year's seasons in order, a row of the calendar each. The year starts in summer, chosen by the user, so the lake as

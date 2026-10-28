@@ -1259,7 +1259,9 @@ test.describe('the time is saved and the menu stops the clock', () => {
     await start(page, { save: { cured: 2, day: 5, place: 'cabin' }, paused: true });
     expect(await api(page, () => window.game!.place())).toBe('cabin');
     expect(await api(page, () => window.game!.view())).toBe('cabin');
-    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin. New moon tonight.');
+    await expect(page.locator('#morning')).toHaveText(
+      'Day 5. Morning at the cabin. New moon tonight. A sun-shower today.',
+    );
     await expect(page.locator('#downButton')).toBeVisible();
     const before = await clock(page);
     await play(page, 120, 'two seconds in the cabin');
@@ -1413,7 +1415,7 @@ test.describe('the seasons', () => {
   test('a load on day 15 in the cabin says an autumn morning, and is autumn', async ({ page }) => {
     const problems = watch(page);
     await start(page, { save: { cured: 2, day: 15, place: 'cabin' }, paused: true });
-    await expect(page.locator('#morning')).toHaveText('Day 15. An autumn morning at the cabin.');
+    await expect(page.locator('#morning')).toHaveText('Day 15. An autumn morning at the cabin. Foggy today.');
     expect((await page.evaluate(() => window.game!.season())).name).toBe('autumn');
     expect(problems).toEqual([]);
   });
@@ -1537,6 +1539,8 @@ test.describe('the seasons', () => {
     test(`the mist at ${name} is ${expected ? 'on' : 'off'}`, async ({ page }) => {
       const problems = watch(page);
       await start(page, { save: { cured: 2, day, place: 'pond' }, paused: true, ...(rung ? { rung } : {}) });
+      // the season's mist is read in sunny weather: day 15 is a foggy one, and the weather's fog is its own stage
+      await page.evaluate(() => window.game!.weather('sunny'));
       await page.evaluate((t) => window.game!.time(t), time);
       expect((await page.evaluate(() => window.game!.season())).mist).toBe(expected);
       expect(problems).toEqual([]);
@@ -1877,6 +1881,7 @@ test.describe('the moon', () => {
     expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
     await expect(page.locator('#sleepList button')).toHaveText([
       'Till the new moon (4 nights)',
+      'Till the next sun-shower (4 nights)',
       'Till the full moon (8 nights)',
     ]);
     const before = await page.evaluate(() => window.game!.state().t);
@@ -1903,7 +1908,9 @@ test.describe('the moon', () => {
         phase: window.game!.moon().name,
       })),
     ).toEqual({ place: 'cabin', day: 5, lake: 'duckpond', phase: 'new' });
-    await expect(page.locator('#morning')).toHaveText('Day 5. Morning at the cabin. New moon tonight.');
+    await expect(page.locator('#morning')).toHaveText(
+      'Day 5. Morning at the cabin. New moon tonight. A sun-shower today.',
+    );
     expect(problems).toEqual([]);
   });
 
@@ -2034,6 +2041,159 @@ test.describe('the cabin by day', () => {
     await page.locator('#menuButton').click();
     expect(await page.evaluate(() => window.game!.enter())).toBe(false);
     expect((await where(page)).place).toBe('pond');
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The weather (`docs/weather.md`, part 5): the day's own sky read on a load, the rain's lift of the fish, the fog and
+ * the rainbow by the rung and the look, the wind bending a cast, the sleep page's weather rows, the cabin's windows
+ * that show none, and the lever refusing a name it does not know. Day 13 is a rainy one (a summer day, the new moon);
+ * day 1 is sunny by the rule. Seeded and paused, read through the test API.
+ */
+test.describe('the weather', () => {
+  const RAINY = 13;
+  const depths = (page: Page) =>
+    page.evaluate(() => {
+      const f = window.game!.fish();
+      return f.reduce((sum, x) => sum + x.depth, 0) / f.length;
+    });
+
+  test('a load on a rainy day reads rain, the fish rise over a few seconds, and a shallow cast finds a bite', async ({
+    browser,
+  }) => {
+    const rainPage = await browser.newPage();
+    const sunPage = await browser.newPage();
+    const problems = [...watch(rainPage), ...watch(sunPage)];
+    await start(rainPage, { seed: 3, paused: true, save: { cured: 2, day: RAINY, place: 'pond' } });
+    await start(sunPage, { seed: 3, paused: true, save: { cured: 2, day: RAINY, place: 'pond' } });
+    expect(await sunPage.evaluate(() => window.game!.weather('sunny'))).toBe(true);
+    const read = await rainPage.evaluate(() => window.game!.weather());
+    expect(read).toMatchObject({ name: 'rain', lift: 0.5, falling: 'rain' });
+    expect((await sunPage.evaluate(() => window.game!.weather())).lift).toBe(0);
+    await play(rainPage, 300, 'five seconds of rain');
+    await play(sunPage, 300, 'five seconds of sun');
+    const wet = await depths(rainPage);
+    const dry = await depths(sunPage);
+    console.log(`mean fish depth after 300 frames: rain ${wet.toFixed(3)}, sunny ${dry.toFixed(3)}`);
+    expect(wet, 'the fish are shallower in the rain').toBeLessThan(dry);
+    // the lure sinks only to the shallows, where the risen fish are, and one comes to it
+    expect(await rainPage.evaluate(() => window.game!.fishTo('bite'))).toBe(true);
+    expect((await rainPage.evaluate(() => window.game!.fishing())).phase).toBe('biting');
+    expect(await rainPage.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+    await rainPage.close();
+    await sunPage.close();
+  });
+
+  test('the fog is the weather’s on the full rung and nothing on the lean one', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    expect(await page.evaluate(() => window.game!.weather('fog'))).toBe(true);
+    const fog = (await page.evaluate(() => window.game!.weather())).fog;
+    expect(fog).toBeGreaterThan(0);
+    await page.evaluate(() => window.game!.rung('lean'));
+    expect((await page.evaluate(() => window.game!.weather())).fog).toBe(0);
+    await page.evaluate(() => window.game!.rung('full'));
+    expect((await page.evaluate(() => window.game!.weather())).fog, 'and back to full').toBe(fog);
+    await play(page, 60, 'a second of fog');
+    expect(problems).toEqual([]);
+  });
+
+  test('the rainbow is drawn in a shower by day and not at night, nor in rain', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    const shown = () => page.evaluate(() => window.game!.weather().shown);
+    await page.evaluate(() => window.game!.weather('shower'));
+    await page.evaluate(() => window.game!.time('day'));
+    expect(await shown(), 'a shower by day').toBe(true);
+    await page.evaluate(() => window.game!.time('night'));
+    expect(await shown(), 'a shower at night').toBe(false);
+    await page.evaluate(() => window.game!.time('day'));
+    await page.evaluate(() => window.game!.weather('rain'));
+    expect(await shown(), 'rain by day').toBe(false);
+    expect(problems).toEqual([]);
+  });
+
+  test('a cast into the wind lands east of the same cast in the calm, by three to five units', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    const landing = () =>
+      page.evaluate(() => {
+        const g = window.game!;
+        g.cast(Math.PI / 2, 1);
+        for (let f = 0; f < 240 && g.lure().phase === 'flying'; f++) g.step(1);
+        const at = g.lure();
+        g.reelIn();
+        g.step(30);
+        return { x: at.x, y: at.y, phase: at.phase };
+      });
+    await page.evaluate(() => window.game!.weather('sunny'));
+    const calm = await landing();
+    await page.evaluate(() => window.game!.weather('wind'));
+    const windy = await landing();
+    console.log(`landing x: calm ${calm.x.toFixed(2)}, wind ${windy.x.toFixed(2)}`);
+    expect(windy.x - calm.x).toBeGreaterThan(3);
+    expect(windy.x - calm.x).toBeLessThan(5);
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('the sleep page lists a weather row and the clock holds; a choice wakes on that day with the morning line', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    // day 9: wind is a night off, rain two, the new moon four, fog five, the full moon eight and a shower eight
+    await start(page, { seed: 3, paused: true, save: { cured: 2, day: 9 } });
+    await play(page, 60, 'a second before the page');
+    await page.locator('#menuButton').click();
+    await page.getByRole('menuitem', { name: 'Sleep through…' }).click();
+    await expect(page.locator('#sleepList button')).toHaveText([
+      'Till the next wind (1 night)',
+      'Till the next rain (2 nights)',
+      'Till the new moon (4 nights)',
+      'Till the next fog (5 nights)',
+      'Till the full moon (8 nights)',
+      'Till the next sun-shower (8 nights)',
+    ]);
+    const before = await page.evaluate(() => window.game!.state().t);
+    await play(page, 120, 'two seconds with the page open');
+    expect(await page.evaluate(() => window.game!.state().t), 'the clock is stopped').toBe(before);
+    await page.getByRole('button', { name: 'Till the next rain (2 nights)' }).click();
+    await page.evaluate(() => window.game!.step(45 + 160));
+    expect(await page.evaluate(() => ({ day: window.game!.day(), place: window.game!.place() }))).toEqual({
+      day: 11,
+      place: 'cabin',
+    });
+    expect((await page.evaluate(() => window.game!.weather())).name).toBe('rain');
+    await expect(page.locator('#morning')).toHaveText('Day 11. Morning at the cabin. Rain today.');
+    expect(problems).toEqual([]);
+  });
+
+  test('the cabin shows no weather: the fog is the season’s there, the lake’s again at the pond', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true, save: { cured: 2 } });
+    await page.evaluate(() => window.game!.weather('fog'));
+    await page.evaluate(() => window.game!.step(30));
+    const fog = () => page.evaluate(() => window.game!.weather().fog);
+    expect(await fog(), 'at the pond').toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.game!.enter())).toBe(true);
+    await page.evaluate(() => window.game!.step(30));
+    expect(await page.evaluate(() => window.game!.place())).toBe('cabin');
+    expect(await fog(), 'in the cabin, summer’s mist is none').toBe(0);
+    expect(await page.evaluate(() => window.game!.out())).toBe(true);
+    await page.evaluate(() => window.game!.step(30));
+    expect(await fog(), 'and at the pond again').toBeGreaterThan(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('a name the weather does not know is refused and changes nothing', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    const before = await page.evaluate(() => window.game!.weather());
+    expect(await page.evaluate(() => window.game!.weather('hail'))).toBe(false);
+    expect(await page.evaluate(() => window.game!.weather())).toEqual(before);
+    await play(page, 30, 'a half second after');
     expect(problems).toEqual([]);
   });
 });

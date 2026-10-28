@@ -274,6 +274,11 @@ Each stage is a feature, built and verified before the next, every gate green at
    moon, the night darker at the new moon with the glow reading best, a disc with its phase in the night sky, the full
    and new moons marked on the calendar, and "Sleep through…" to the next marked night. The weather and the festivals
    are not._
+   _A third slice is in (28 Oct 2026, `docs/weather.md`): five weathers from the day, pure as the moon is,
+   with the odds by season and day 1 sunny; rain's drops and rings that bring the fish up; fog over the lake that
+   hides the glow a catch's kind is told by; a sun-shower's rainbow; a wind that bends the cast's flight and its
+   preview; the weather's nights on the sleep page and a sentence in the morning line. The festivals are not. The
+   rest of the order of work is cut into slices in `docs/roadmap.md`._
 7. **The town:** the letters, the requests and the logbook's pages.
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**

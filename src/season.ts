@@ -7,7 +7,7 @@
 import { grassGround } from 'artshape-render/game/grass';
 import type { GrassKind } from 'artshape-render/game/grass';
 import { noFog, type Fog } from 'artshape-render/game/fog';
-import { SEASON_DRESSING, WATER_LEVEL, type Season, type SeasonColour } from './lake';
+import { SEASON_DRESSING, WATER_LEVEL, WEATHER, type Season, type SeasonColour, type Weather } from './lake';
 import { LUSH } from './grass';
 import { PALETTE, type Palette } from './palette';
 
@@ -51,4 +51,33 @@ export function mistFor(season: Season, time: string, mmPerUnit: number): Fog {
   if (!mist || !(mist.at as readonly string[]).includes(time)) return none;
   const { density, height, colour, ambient, steps } = mist;
   return { ...none, density, base: WATER_LEVEL, height, colour: [...colour], ambient, steps };
+}
+
+/**
+ * The fog at a look in a weather (`docs/weather.md`, part 2): in fog, a layer over the whole lake at every look and in
+ * every season, taller and thicker than the mist with a reach that hazes the far bank, scattering a darker colour at
+ * night; in any other weather the season's mist as `mistFor` has it, to the bit. The lean rung's fog is off whatever this says.
+ */
+export function weatherFog(season: Season, time: string, mmPerUnit: number, weather: Weather): Fog {
+  if (weather !== 'fog') return mistFor(season, time, mmPerUnit);
+  const f = WEATHER.fog;
+  return {
+    ...noFog(mmPerUnit),
+    density: f.density,
+    base: WATER_LEVEL,
+    height: f.height,
+    colour: [...(time === 'night' ? f.nightColour : f.colour)],
+    ambient: f.light,
+    anisotropy: f.anisotropy,
+    reach: f.reach,
+    steps: f.steps,
+  };
+}
+
+/**
+ * The fog the page draws for a look, weather and place: the weather's at the lake, and the season's mist alone in the
+ * cabin, whose window shows no weather (`docs/weather.md`), so the room's pictures hold on a foggy day.
+ */
+export function fogFor(season: Season, time: string, mmPerUnit: number, weather: Weather, place: string): Fog {
+  return place === 'cabin' ? mistFor(season, time, mmPerUnit) : weatherFog(season, time, mmPerUnit, weather);
 }

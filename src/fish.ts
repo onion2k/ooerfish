@@ -202,8 +202,11 @@ export class School {
     }
   }
 
-  /** Every fish on by `dt` seconds. */
-  step(dt: number, random: Random) {
+  /**
+   * Every fish on by `dt` seconds. A lift from nought to one raises the depth each eases toward by that share of the way
+   * to the surface (the rain's, `docs/weather.md`); the draw each fish made at its place is untouched, so none is made.
+   */
+  step(dt: number, random: Random, lift = 0) {
     const { lake } = this;
     const { jetty } = lake;
     for (let i = 0; i < this.count; i++) {
@@ -239,7 +242,7 @@ export class School {
       } else heading += Math.PI;
       this.heading[i] = Math.atan2(Math.sin(heading), Math.cos(heading));
       const [lo, hi] = depthRange(this.x[i], this.y[i], lake);
-      const want = Math.min(hi, Math.max(lo, hi * this.keeps[i]));
+      const want = Math.min(hi, Math.max(lo, hi * this.keeps[i] * (1 - lift)));
       const depth = this.depth[i] + (want - this.depth[i]) * Math.min(1, SINK * dt);
       // the bed rises under a fish swimming in toward the shore, faster than it eases up: it is kept off it
       this.depth[i] = Math.min(hi, Math.max(lo, depth));

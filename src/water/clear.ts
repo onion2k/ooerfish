@@ -16,7 +16,7 @@
 import { FLOW_CLEAR, packFlow } from 'artshape-render/game/flow';
 import { PATTERN_STRIDE } from 'artshape-render/game/renderer';
 import type { GerstnerWave } from 'artshape-render/game/waves';
-import { SEASON_DRESSING, type Season } from '../lake';
+import { SEASON_DRESSING, WEATHER, skyOf, type Season, type Weather } from '../lake';
 import { PALETTE, mix } from '../palette';
 import type { WaterStyle } from './styles';
 import { AT_ORIGIN, surface } from './surface';
@@ -123,17 +123,19 @@ export const CLEAR_WAVES: readonly GerstnerWave[] = [
 ];
 
 /**
- * The swells of a season: summer's are `CLEAR_WAVES` itself, and the others scale their amplitudes by the season's share,
- * the steepness kept so the four still add up to under one. Memoised, since the bobber and the look must be handed the
- * very same list.
+ * The swells of a season in a weather: summer's are `CLEAR_WAVES` itself, and the others scale their amplitudes by the
+ * season's share, the steepness kept so the four still add up to under one; wind roughens them by `WEATHER.wind.waves`
+ * on top. Memoised by both, since the bobber and the look must be handed the very same list.
  */
-const wavesMade = new Map<Season, readonly GerstnerWave[]>();
-export function wavesFor(season: Season): readonly GerstnerWave[] {
-  let waves = wavesMade.get(season);
+const wavesMade = new Map<string, readonly GerstnerWave[]>();
+export function wavesFor(season: Season, weather: Weather = 'sunny'): readonly GerstnerWave[] {
+  const rough = weather === 'wind';
+  const key = rough ? `${season}:wind` : season;
+  let waves = wavesMade.get(key);
   if (!waves) {
-    const scale = SEASON_DRESSING[season].waves;
+    const scale = SEASON_DRESSING[season].waves * (rough ? WEATHER.wind.waves : 1);
     waves = scale === 1 ? CLEAR_WAVES : CLEAR_WAVES.map((w) => ({ ...w, amplitude: w.amplitude * scale }));
-    wavesMade.set(season, waves);
+    wavesMade.set(key, waves);
   }
   return waves;
 }
@@ -164,7 +166,7 @@ export const clear: WaterStyle = {
       },
     ];
   },
-  clear(contamination, caustics, time, season = 'summer') {
+  clear(contamination, caustics, time, season = 'summer', weather = 'sunny') {
     const k = held(contamination);
     const dress = SEASON_DRESSING[season].water;
     return {
@@ -179,14 +181,19 @@ export const clear: WaterStyle = {
       // the sparkles stand in for the glitter, by the time of day as it did
       glitter: 0,
       caustics: caustics ? CLEAR.caustics * (1 - (1 - CLEAR.sickCaustics) * k) : 0,
-      waves: wavesFor(season),
+      waves: wavesFor(season, weather),
       near: mix(dress.near ?? PALETTE.clearNear, PALETTE.sickNear, k),
       nearDistance: CLEAR.nearDistance,
       crest: dress.crest ?? PALETTE.crest,
       crestAmount: CLEAR.crestAmount,
       sparkles: CLEAR.sparkles,
       sparkleCut: CLEAR.sparkleCut,
-      sparkleBright: CLEAR.sparkleBright * time.glitter * dress.sparkle * (1 - (1 - CLEAR.sickSparkles) * k),
+      sparkleBright:
+        CLEAR.sparkleBright *
+        time.glitter *
+        dress.sparkle *
+        (skyOf(weather)?.sparkle ?? 1) *
+        (1 - (1 - CLEAR.sickSparkles) * k),
       sparkleSize: CLEAR.sparkleSize,
       sparkleDrift: [
         Math.cos(CLEAR_WAVES[0].direction) * CLEAR.sparkleDrift,

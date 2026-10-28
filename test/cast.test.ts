@@ -4,7 +4,7 @@ import { aimAt, flight, flightAt, pathPoints, rodTip } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { HOME } from '../src/lakes';
-import { CAST } from '../src/lake';
+import { CAST, WEATHER } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, settle } from './helpers';
@@ -185,5 +185,67 @@ describe('aimAt', () => {
   it('is the same twice, and full power for a point past the reach', () => {
     expect(aimAt(3, 4)).toEqual(aimAt(3, 4));
     expect(aimAt(0, 500).power).toBeGreaterThan(0.999);
+  });
+});
+
+describe('the wind on a cast', () => {
+  const PUSH: readonly [number, number] = [
+    WEATHER.wind.push * WEATHER.wind.direction[0],
+    WEATHER.wind.push * WEATHER.wind.direction[1],
+  ];
+  const ANGLES = [0, 0.4, 1, NORTH, 2, 3, 4.5, 6];
+  const POWERS = [0.1, 0.35, 0.6, 0.85, 1];
+
+  it('is unchanged to the bit with no wind, over a grid of angles and powers', () => {
+    const a = new Float64Array(3),
+      b = new Float64Array(3);
+    for (const angle of ANGLES)
+      for (const power of POWERS) {
+        for (const t of [0, 0.2, 0.5, 0.8]) {
+          flightAt(angle, power, t, a);
+          flightAt(angle, power, t, b, HOME, [0, 0]);
+          expect(Array.from(b)).toEqual(Array.from(a));
+        }
+        expect(flight(angle, power, HOME, [0, 0])).toEqual(flight(angle, power));
+      }
+  });
+
+  it('lands downwind of the same cast without it, a few units off at full power', () => {
+    const calm = flight(NORTH, 1, HOME),
+      blown = flight(NORTH, 1, HOME, PUSH);
+    const along =
+      (blown.landing[0] - calm.landing[0]) * WEATHER.wind.direction[0] +
+      (blown.landing[1] - calm.landing[1]) * WEATHER.wind.direction[1];
+    expect(along).toBeGreaterThan(3);
+    expect(along).toBeLessThan(5);
+  });
+
+  it('has a preview whose last point is the landing', () => {
+    const out = new Float64Array(24 * 3);
+    for (const angle of ANGLES)
+      for (const power of [0.3, 0.7, 1]) {
+        pathPoints(angle, power, 24, out, HOME, PUSH);
+        const f = flight(angle, power, HOME, PUSH);
+        expect(out[69]).toBeCloseTo(f.landing[0], 9);
+        expect(out[70]).toBeCloseTo(f.landing[1], 9);
+        expect(out[71]).toBeCloseTo(f.landing[2], 9);
+      }
+  });
+
+  it('is aimed at within 0.05 of the point, and as it was with no wind', () => {
+    for (const [x, y] of [
+      [0, -10],
+      [4, 0],
+      [-6, 10],
+      [0, 8],
+      [8, 6],
+      [-9, 2],
+    ] as const) {
+      const { angle, power } = aimAt(x, y, HOME, PUSH);
+      const f = flight(angle, power, HOME, PUSH);
+      expect(f.onWater, `${x},${y}`).toBe(true);
+      expect(Math.hypot(f.landing[0] - x, f.landing[1] - y), `${x},${y}`).toBeLessThan(0.05);
+      expect(aimAt(x, y, HOME, [0, 0])).toEqual(aimAt(x, y));
+    }
   });
 });

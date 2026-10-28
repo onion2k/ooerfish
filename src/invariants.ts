@@ -19,7 +19,8 @@
  */
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
-import { FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON } from './lake';
+import { FIGHT, FISHING, FISH_CAPACITY, GEAR, SPLASH_CAPACITY, KINDS, SWIM, MOON, WEATHER } from './lake';
+import { weatherOf } from './calendar';
 import { poseFish } from './swim';
 
 /**
@@ -205,6 +206,11 @@ export function checkInvariants(game: Game): string[] {
     out.push(`the lure is ${String(lure.phase)}`);
   else if (![...lure.at, lure.depth, lure.angle, lure.power].every(Number.isFinite))
     out.push('the lure is not a number');
+  else if (!(
+    Math.hypot(lure.wind[0], lure.wind[1]) < 1e-9 ||
+    Math.abs(Math.hypot(lure.wind[0], lure.wind[1]) - WEATHER.wind.push) < 1e-9
+  ))
+    out.push(`the lure's wind is ${lure.wind[0].toFixed(2)},${lure.wind[1].toFixed(2)}, neither none nor the push`);
   else if (
     lure.phase === 'flying' &&
     lure.at[2] < (inside(lure.at[0], lure.at[1]) ? 0 : lake.ground(lure.at[0], lure.at[1])) - 1e-3
@@ -237,6 +243,10 @@ export function checkInvariants(game: Game): string[] {
     out.push(`the water is cleaner than the lake: ${game.waterDirt} against ${game.contamination}`);
   if (was && was.levers === game.levers && game.waterDirt > was.waterDirt)
     out.push(`the water's dirt rose from ${was.waterDirt} to ${game.waterDirt}, and no lever was set`);
+  // the weather is one of the kinds, and the day's own unless the lever set it
+  if (!(WEATHER.kinds as readonly string[]).includes(game.weather)) out.push(`the weather is ${game.weather}`);
+  else if (game.levers === 0 && game.weather !== weatherOf(game.day))
+    out.push(`the weather is ${game.weather}, but day ${game.day} is ${weatherOf(game.day)}, and no lever was set`);
   out.push(...nightRules(game, was));
   const now = was ?? {
     contamination: 0,

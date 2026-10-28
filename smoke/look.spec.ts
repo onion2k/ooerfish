@@ -1089,7 +1089,102 @@ test('desk-morning-full-moon', async ({ page }) => {
   const problems = watch(page);
   await start(page, { seed: 11, paused: true, save: { cured: 4, day: 9, place: 'cabin' } });
   await page.evaluate(() => window.game!.step(160));
-  await expect(page.locator('#morning')).toHaveText('Day 9. Morning at the cabin. Full moon tonight.');
+  await expect(page.locator('#morning')).toHaveText(
+    'Day 9. Morning at the cabin. Full moon tonight. A sun-shower today.',
+  );
   await expect(page).toHaveScreenshot('desk-morning-full-moon.png', TOLERANCE);
   expect(problems).toEqual([]);
+});
+
+/**
+ * The weather (`docs/weather.md`, part 5): rain falling and ringing by day and night, fog over the far bank by day and
+ * at dusk, a sun-shower's rainbow, the bent preview of a cast into the wind, snow in winter, rain at the Reservoir, the
+ * sleep page with its weather rows, and rain on a phone. Each is `set` with the weather by the lever, so the day the
+ * save is on decides nothing; every other picture is put sunny by `set` and does not move.
+ */
+test.describe('the weather', () => {
+  for (const [name, scene] of [
+    ['rain-day', { ...STANDARD, weather: 'rain' }],
+    ['rain-night', { ...STANDARD, time: 'night', weather: 'rain' }],
+    ['fog-day', { ...STANDARD, weather: 'fog' }],
+    ['fog-dusk', { ...STANDARD, time: 'dusk', weather: 'fog' }],
+    ['shower-day', { ...STANDARD, weather: 'shower' }],
+  ] as const)
+    test(`weather-${name}`, async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await set(page, scene, 180);
+      await hideOverlays(page);
+      await expect(page.locator('#view')).toHaveScreenshot(`weather-${name}.png`, TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+  // the aim held mid-drag into the wind: the preview's dots bend away downwind instead of running straight
+  test('cast-wind-preview', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...CAST_SHOT.scene, weather: 'wind' }, CAST_SHOT.settle);
+    await page.evaluate((c) => {
+      const g = window.game!;
+      g.aim({ angle: Math.PI / 2, power: 1 });
+      g.step(1);
+      return c;
+    }, CAST_SHOT);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('cast-wind-preview.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // snow: winter's rain, heavier than winter's own flakes, from a save on the first winter day
+  test('weather-snow-winter', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6, day: 29 } });
+    await set(page, { ...STANDARD, weather: 'rain' }, 600);
+    await hideOverlays(page);
+    expect((await page.evaluate(() => window.game!.season())).name).toBe('winter');
+    await expect(page.locator('#view')).toHaveScreenshot('weather-snow-winter.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('weather-reservoir-rain', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    await set(page, { ...STANDARD, weather: 'rain' }, 180);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('weather-reservoir-rain.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  // the sleep page on day 9, where every weather is within the round, with the moons among them
+  test('desk-sleep-weather', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 4, day: 9 } });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openSleep());
+    await expect(page.getByRole('button', { name: /Till the next rain/ })).toBeVisible();
+    await expect(page).toHaveScreenshot('desk-sleep-weather.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the weather on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-sleep-weather', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 4, day: 9 } });
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
+    await page.evaluate(() => window.game!.openSleep());
+    await expect(page.getByRole('button', { name: /Till the next rain/ })).toBeVisible();
+    await expect(page).toHaveScreenshot('phone-sleep-weather.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('phone-weather-rain', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, view: 'phone', weather: 'rain' }, 180);
+    await expect(page).toHaveScreenshot('phone-weather-rain.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
 });

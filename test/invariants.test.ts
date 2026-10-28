@@ -421,4 +421,19 @@ describe('the save per lake', () => {
     game.progress.entry('elsewhere').cured = 0;
     expect(problems(game)).toBe('');
   });
+
+  it('holds the weather to the day’s, unless the lever set it, and to the five kinds', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    // forced past the lever, as a broken rule would: the day is sunny and the weather says rain
+    (game as unknown as { weatherLever: string | null }).weatherLever = 'rain';
+    expect(checkInvariants(game).join('\n')).toMatch(/the weather is rain, but day 1 is sunny/);
+    // the same weather by the lever is the tests' own, and allowed
+    const lever = newGame().game;
+    expect(lever.setWeather('rain')).toBe(true);
+    expect(checkInvariants(lever)).toEqual([]);
+    // and a weather that is none of the kinds is caught either way
+    (lever as unknown as { weatherLever: string | null }).weatherLever = 'hail';
+    expect(checkInvariants(lever).join('\n')).toMatch(/the weather is hail/);
+  });
 });

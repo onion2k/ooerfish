@@ -4,7 +4,7 @@
  * gone. A day that is not a safe whole number of one or more reads as day one, as the save reads it, so the squares are
  * always a whole count and today is always one of them.
  */
-import { CALENDAR, MOON, SEASONS, type Season } from './lake';
+import { CALENDAR, MOON, SEASONS, WEATHER, type Season, type Weather } from './lake';
 
 /** How many squares are gone (the first ones, so squares 0 to `gone - 1`) and which one is today. */
 export interface CalendarMarks {
@@ -53,4 +53,43 @@ export function nextFull(day: number): number {
 /** Nights until the next new moon, one to eight. */
 export function nextNew(day: number): number {
   return nightsTo(day, MOON.new);
+}
+
+/**
+ * The weather on a day: the first day's is `WEATHER.firstDay`, and any other is one draw from a hash of the day (never
+ * the game's chance, so the same save has the same forecast every time) set against the cumulative odds of its season.
+ * A bad day reads as day one, as the season and the moon do.
+ */
+export function weatherOf(day: number): Weather {
+  const d = Number.isSafeInteger(day) && day >= 1 ? day : 1;
+  if (d === 1) return WEATHER.firstDay;
+  const odds = WEATHER.odds[seasonOf(d)];
+  const draw = dayHash(d);
+  let sum = 0;
+  for (let i = 0; i < odds.length; i++) {
+    sum += odds[i];
+    if (draw < sum) return WEATHER.kinds[i];
+  }
+  // the odds sum to one and a draw is below it, so this is only the rounding of the last sum
+  return WEATHER.kinds[odds.length - 1];
+}
+
+/**
+ * A number in [0, 1) from a day, each day's unrelated to its neighbours': the integer mix murmur3 finishes with. One
+ * step of `seeded(day)` is not that: its first draw climbs in a straight line with the seed, so the weather came in
+ * runs of a fortnight.
+ */
+function dayHash(day: number): number {
+  let h = day >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return h / 4294967296;
+}
+
+/** Nights from this day to the next day of that weather, one to `MOON.days` (the sleep's cap), or null if none comes within them; never zero. */
+export function nextWeather(day: number, kind: Weather): number | null {
+  const d = Number.isSafeInteger(day) && day >= 1 ? day : 1;
+  for (let n = 1; n <= MOON.days; n++) if (weatherOf(d + n) === kind) return n;
+  return null;
 }

@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { grassGround } from 'artshape-render/game/grass';
 import { noFog } from 'artshape-render/game/fog';
 import { LUSH, bankField } from '../src/grass';
-import { MOON, SEASONS, SEASON_DRESSING, WATER_LEVEL, type Season } from '../src/lake';
+import { MOON, SEASONS, SEASON_DRESSING, WATER_LEVEL, WEATHER, type Season } from '../src/lake';
 import { moonLight } from '../src/calendar';
 import { PALETTE } from '../src/palette';
 import { cabinGroups, jettyGroups } from '../src/cabin';
-import { mistFor, seasonGrass, seasonPalette } from '../src/season';
+import { fogFor, mistFor, seasonGrass, seasonPalette, weatherFog } from '../src/season';
 import { GRAVITY_MM, heightAt } from 'artshape-render/game/waves';
 import { BREEZE } from '../src/grass';
 import { TIMES, lookFor, nearestTime, timeNamed, timesFor } from '../src/look';
@@ -269,5 +269,137 @@ describe('the night by the moon', () => {
     const dark = lookFor(night('summer', MOON.new));
     dark.skyLight.forEach((v, i) => expect(v).toBeCloseTo(full.skyLight[i] * moonLight(MOON.new), 9));
     dark.groundLight.forEach((v, i) => expect(v).toBeCloseTo(full.groundLight[i] * moonLight(MOON.new), 9));
+  });
+});
+
+describe('the weather’s sky', () => {
+  const day = (list: readonly { name: string }[]) => list.find((t) => t.name === 'day') as (typeof TIMES)[number];
+  // how far from grey: the share of the brightest channel the dullest is short of
+  const spread = (c: readonly number[]) => (Math.max(...c) - Math.min(...c)) / Math.max(...c);
+  const mean = (c: readonly number[]) => (c[0] + c[1] + c[2]) / 3;
+
+  it('is the sunny sky’s very objects for sunny and for wind, and is the default', () => {
+    for (const s of SEASONS) {
+      expect(timesFor(s, 0, 'sunny')).toBe(timesFor(s));
+      expect(timesFor(s, 0, 'wind')).toBe(timesFor(s));
+    }
+    expect(timesFor('summer', 0, 'sunny')).toBe(TIMES);
+  });
+
+  it('greys the zenith and the horizon and lowers the fill in rain and fog, and lightly in a shower', () => {
+    for (const w of ['rain', 'fog', 'shower'] as const) {
+      const wet = day(timesFor('summer', 0, w));
+      const dry = day(TIMES);
+      expect(spread(wet.zenith), `${w} zenith`).toBeLessThan(spread(dry.zenith));
+      expect(spread(wet.horizon), `${w} horizon`).toBeLessThan(spread(dry.horizon));
+      expect(wet.ambient, w).toBeLessThan(dry.ambient);
+    }
+    const at = (w: 'rain' | 'shower') => spread(day(timesFor('summer', 0, w)).zenith);
+    expect(at('shower'), 'the shower is the lighter mix').toBeGreaterThan(at('rain'));
+  });
+
+  it('never brightens a night, keeps the night’s exposure and dims no look’s beyond it, and keeps the times themselves', () => {
+    for (const s of SEASONS)
+      for (const w of ['rain', 'fog', 'shower'] as const) {
+        const wet = timesFor(s, 0, w);
+        const dry = timesFor(s, 0);
+        wet.forEach((t, i) => {
+          expect(t.name).toBe(dry[i].name);
+          expect(t.at).toBe(dry[i].at);
+          if (t.name === 'night') expect(t.exposure).toBe(dry[i].exposure);
+          else expect(t.exposure).toBeLessThanOrEqual(dry[i].exposure);
+          expect(mean(t.zenith), `${s} ${w} ${t.name}`).toBeLessThanOrEqual(mean(dry[i].zenith) + 1e-9);
+        });
+      }
+  });
+
+  it('names the sky with no weather under each wet look, which the environment is baked from, and none under a dry one', () => {
+    for (const s of SEASONS)
+      for (const phase of [0, 4]) {
+        const dry = timesFor(s, phase);
+        for (const w of ['rain', 'fog', 'shower'] as const)
+          timesFor(s, phase, w).forEach((t, i) => expect(t.dry, `${s} ${phase} ${w} ${t.name}`).toBe(dry[i]));
+        for (const w of ['sunny', 'wind'] as const)
+          for (const t of timesFor(s, phase, w)) expect(t.dry).toBeUndefined();
+      }
+  });
+
+  it('is memoised by season, phase and weather', () => {
+    expect(timesFor('autumn', 3, 'rain')).toBe(timesFor('autumn', 3, 'rain'));
+    expect(timesFor('autumn', 3, 'rain')).not.toBe(timesFor('autumn', 3, 'fog'));
+    expect(timesFor('autumn', 3, 'rain')).not.toBe(timesFor('autumn', 4, 'rain'));
+  });
+
+  it('dims the water’s sparkle by the weather, and sunny is unchanged to the bit', () => {
+    const d = timeNamed('day');
+    const sunny = clear.clear(0, true, d, 'summer').sparkleBright!;
+    expect(clear.clear(0, true, d, 'summer', 'sunny').sparkleBright).toBe(sunny);
+    expect(clear.clear(0, true, d, 'summer', 'wind').sparkleBright).toBe(sunny);
+    for (const w of ['rain', 'fog', 'shower'] as const)
+      expect(clear.clear(0, true, d, 'summer', w).sparkleBright!, w).toBeLessThan(sunny);
+  });
+});
+
+describe('the weather’s waves', () => {
+  it('are the season’s own in every weather but wind, whose swells are bigger by WEATHER.wind.waves, memoised', () => {
+    for (const s of SEASONS) {
+      expect(wavesFor(s, 'sunny')).toBe(wavesFor(s));
+      expect(wavesFor(s, 'rain')).toBe(wavesFor(s));
+      const rough = wavesFor(s, 'wind');
+      expect(rough).toBe(wavesFor(s, 'wind'));
+      expect(rough).not.toBe(wavesFor(s));
+      rough.forEach((w, i) => {
+        expect(w.amplitude).toBeCloseTo(wavesFor(s)[i].amplitude * WEATHER.wind.waves, 12);
+        expect(w.steepness, 'the steepness is kept').toBe(wavesFor(s)[i].steepness);
+      });
+      expect(
+        rough.reduce((a, w) => a + w.steepness, 0),
+        'the four still add to under one',
+      ).toBeLessThan(1);
+    }
+  });
+
+  it('are what the water and the bobber are both handed in wind', () => {
+    expect(clear.clear(0, true, timeNamed('day'), 'spring', 'wind').waves).toBe(wavesFor('spring', 'wind'));
+    expect(clear.wavesIn!('spring', 'wind')).toBe(wavesFor('spring', 'wind'));
+  });
+});
+
+describe('the weather’s fog', () => {
+  const MM = 100;
+  const looks = TIMES.map((t) => t.name);
+
+  it('lies over the lake at every look in every season, from the water up and with a reach that hazes the far bank', () => {
+    for (const s of SEASONS)
+      for (const t of looks) {
+        const fog = weatherFog(s, t, MM, 'fog');
+        expect(fog.density, `${s} ${t}`).toBe(WEATHER.fog.density);
+        expect(fog.base).toBe(WATER_LEVEL);
+        expect(fog.height).toBe(WEATHER.fog.height);
+        expect(fog.reach).toBe(WEATHER.fog.reach);
+        expect(fog.steps).toBe(WEATHER.fog.steps);
+        expect(fog.height, 'taller than the mist').toBeGreaterThan(SEASON_DRESSING.autumn.mist!.height);
+      }
+  });
+
+  it('is a darker colour at night than in the day', () => {
+    const lum = (c: readonly number[]) => c[0] + c[1] + c[2];
+    for (const s of SEASONS)
+      expect(lum(weatherFog(s, 'night', MM, 'fog').colour)).toBeLessThan(lum(weatherFog(s, 'day', MM, 'fog').colour));
+  });
+
+  it('is the mist’s answer to the bit in every other weather', () => {
+    for (const w of ['sunny', 'rain', 'shower', 'wind'] as const)
+      for (const s of SEASONS)
+        for (const t of looks) expect(weatherFog(s, t, MM, w), `${w} ${s} ${t}`).toEqual(mistFor(s, t, MM));
+  });
+
+  it('stays out of the cabin: the room has the season’s mist and never the weather’s, and the pond has the weather’s', () => {
+    for (const w of ['sunny', 'rain', 'fog', 'shower', 'wind'] as const)
+      for (const s of SEASONS)
+        for (const t of looks) {
+          expect(fogFor(s, t, MM, w, 'cabin'), `${w} ${s} ${t}`).toEqual(mistFor(s, t, MM));
+          expect(fogFor(s, t, MM, w, 'pond')).toEqual(weatherFog(s, t, MM, w));
+        }
   });
 });

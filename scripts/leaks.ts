@@ -74,7 +74,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'journal kinds': Object.keys(game.progress.entry(game.lake.id).journal).length,
     'drums hauled': game.progress.entry(game.lake.id).drums,
     'treasures found': game.progress.entry(game.lake.id).found.length,
-    'particle window': particleWindow(seasonOf(game.day), game.lake),
+    'particle window': particleWindow(seasonOf(game.day), game.lake, game.weather),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };
 }

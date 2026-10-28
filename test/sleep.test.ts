@@ -5,7 +5,7 @@ import { checkInvariants } from '../src/invariants';
 import { LAKES } from '../src/lakes';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { MOON } from '../src/lake';
-import { moonOf, nextFull, nextNew, seasonOf } from '../src/calendar';
+import { moonOf, nextFull, nextNew, nextWeather, seasonOf } from '../src/calendar';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { sleepWords } from '../src/sleep/page';
@@ -23,35 +23,94 @@ function onDay(day: number, woke: number[] = []) {
   return { game, store };
 }
 
+/** The moon's rows alone, since the weather's join them on most days. */
+const moons = (day: number, fighting = false) => sleepWords(day, fighting).filter((r) => /moon/.test(r.label));
+
 describe('the sleep page’s words', () => {
   it('lists the marked nights ahead in order of distance, with the nights in the label', () => {
-    expect(sleepWords(1, false)).toEqual([
+    expect(moons(1)).toEqual([
       { nights: 4, label: 'Till the new moon (4 nights)', enabled: true },
       { nights: 8, label: 'Till the full moon (8 nights)', enabled: true },
     ]);
-    expect(sleepWords(7, false)).toEqual([
+    expect(moons(7)).toEqual([
       { nights: 2, label: 'Till the full moon (2 nights)', enabled: true },
       { nights: 6, label: 'Till the new moon (6 nights)', enabled: true },
     ]);
   });
 
   it('says one night in the singular', () => {
-    expect(sleepWords(8, false)[0]).toEqual({ nights: 1, label: 'Till the full moon (1 night)', enabled: true });
-    expect(sleepWords(4, false)[0].label).toBe('Till the new moon (1 night)');
+    expect(moons(8)[0]).toEqual({ nights: 1, label: 'Till the full moon (1 night)', enabled: true });
+    expect(moons(4)[0].label).toBe('Till the new moon (1 night)');
   });
 
   it('is in order of distance on every day, and each choice is a whole number up to a round', () => {
     for (let day = 1; day <= 120; day++) {
       const rows = sleepWords(day, false);
-      expect(rows.length).toBe(2);
-      expect(rows[0].nights).toBeLessThan(rows[1].nights);
+      expect(moons(day).length).toBe(2);
+      expect(moons(day)[0].nights).toBeLessThan(moons(day)[1].nights);
+      for (let i = 1; i < rows.length; i++) expect(rows[i].nights).toBeGreaterThanOrEqual(rows[i - 1].nights);
       for (const r of rows) expect(r.nights >= 1 && r.nights <= MOON.days && Number.isInteger(r.nights)).toBe(true);
     }
   });
 
   it('is held off mid-fight', () => {
     expect(sleepWords(1, true).every((r) => !r.enabled)).toBe(true);
-    expect(sleepWords(1, true).length).toBe(2);
+    expect(moons(1, true).length).toBe(2);
+  });
+});
+
+describe('the weather on the sleep page', () => {
+  const LABELS = { rain: 'rain', fog: 'fog', shower: 'sun-shower', wind: 'wind' } as const;
+  const weatherRows = (day: number) => sleepWords(day, false).filter((r) => !/moon/.test(r.label));
+
+  it('lists each kind within eight nights with its nights in the label, in the right place', () => {
+    for (let day = 1; day <= 120; day++) {
+      const rows = sleepWords(day, false);
+      for (const kind of ['rain', 'fog', 'shower', 'wind'] as const) {
+        const n = nextWeather(day, kind);
+        const label = `Till the next ${LABELS[kind]} (${n} ${n === 1 ? 'night' : 'nights'})`;
+        const at = rows.filter((r) => r.label === label);
+        expect(at.length).toBe(n === null ? 0 : 1);
+        if (n !== null) expect(at[0]).toEqual({ nights: n, label, enabled: true });
+      }
+    }
+  });
+
+  it('has no row for a kind that is not within eight nights, and never one for sunny', () => {
+    let missing = 0;
+    for (let day = 1; day <= 120; day++) {
+      const labels = sleepWords(day, false).map((r) => r.label);
+      expect(labels.some((l) => /sunny/.test(l))).toBe(false);
+      for (const kind of ['rain', 'fog', 'shower', 'wind'] as const)
+        if (nextWeather(day, kind) === null) {
+          missing++;
+          expect(labels.some((l) => l.includes(`next ${LABELS[kind]} `))).toBe(false);
+        }
+    }
+    expect(missing).toBeGreaterThan(0);
+  });
+
+  it('keeps the order of distance, a tie going to the moon and then to the kinds in their order', () => {
+    const kinds = ['rain', 'fog', 'shower', 'wind'];
+    const rank = (label: string) =>
+      /moon/.test(label) ? -1 : kinds.findIndex((k) => label.includes(`next ${LABELS[k as keyof typeof LABELS]} `));
+    let ties = 0;
+    for (let day = 1; day <= 120; day++) {
+      const rows = sleepWords(day, false);
+      for (let i = 1; i < rows.length; i++) {
+        expect(rows[i].nights).toBeGreaterThanOrEqual(rows[i - 1].nights);
+        if (rows[i].nights === rows[i - 1].nights) {
+          ties++;
+          expect(rank(rows[i].label)).toBeGreaterThan(rank(rows[i - 1].label));
+        }
+      }
+    }
+    expect(ties).toBeGreaterThan(0);
+  });
+
+  it('is held off mid-fight as the moons are', () => {
+    expect(weatherRows(8).length).toBeGreaterThan(0);
+    expect(sleepWords(8, true).every((r) => !r.enabled)).toBe(true);
   });
 });
 

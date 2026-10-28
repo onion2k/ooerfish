@@ -4,6 +4,7 @@ import { careful } from '../src/angler';
 import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
+import { WEATHER } from '../src/lake';
 import { DT, newGame, settle } from './helpers';
 
 const NORTH = Math.PI / 2;
@@ -273,5 +274,20 @@ describe('the catch, drawn', () => {
     draw2.write(idle, null);
     const off = Math.hypot(draw2.lines[0][4], draw2.lines[0][5], draw2.lines[0][6]);
     expect(on).toBeGreaterThan(off * 1.6);
+  });
+});
+
+describe('the preview in a wind', () => {
+  it('is the bent flight: its last dot is where the cast lands in the wind, and downwind of where it lands in none', () => {
+    const { game } = newGame();
+    const draw = new CastDraw();
+    draw.write(game, { angle: NORTH, power: 0.6 });
+    const calm = carried(draw.dots, PREVIEW_DOTS - 1, 0, 0, 0);
+    game.setWeather('wind');
+    draw.write(game, { angle: NORTH, power: 0.6 });
+    const bent = carried(draw.dots, PREVIEW_DOTS - 1, 0, 0, 0);
+    const landing = flight(NORTH, 0.6, game.lake, WEATHER.wind.vector).landing;
+    for (let k = 0; k < 3; k++) expect(bent[k]).toBeCloseTo(landing[k], 4);
+    expect(bent[0] - calm[0], 'downwind').toBeGreaterThan(1);
   });
 });

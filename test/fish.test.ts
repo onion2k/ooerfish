@@ -1,6 +1,6 @@
 /** The fish of the lab's lake: where they swim, that they stay in the water, and the lake's two levers. */
 import { describe, expect, it } from 'vitest';
-import { School } from '../src/fish';
+import { School, depthRange } from '../src/fish';
 import { seeded } from '../src/random';
 import { checkInvariants } from '../src/invariants';
 import { HOME } from '../src/lakes';
@@ -369,5 +369,50 @@ describe('the kinds in the school', () => {
     expect(Array.from(school.kind.slice(0, FISH_COUNT))).toEqual(kinds);
     school.fill(FISH_COUNT, seeded(5));
     expect(Array.from(school.kind.slice(0, FISH_COUNT))).toEqual(kinds);
+  });
+});
+
+describe("the rain's lift", () => {
+  /** A school of one fish held still at a point in the middle, so its depth is all that changes. */
+  function lone(keeps: number) {
+    const school = new School(HOME);
+    school.fill(1, () => 0.5);
+    school.x[0] = 0;
+    school.y[0] = 0;
+    school.speed[0] = 0;
+    school.keeps[0] = keeps;
+    return school;
+  }
+
+  it('eases a fish toward half its depth at a lift of a half, and no shallower than the lake allows', () => {
+    const [lo, hi] = depthRange(0, 0, HOME);
+    const sunny = lone(0.8),
+      rain = lone(0.8);
+    for (let f = 0; f < 3600; f++) {
+      sunny.step(DT, () => 0.5);
+      rain.step(DT, () => 0.5, 0.5);
+    }
+    expect(sunny.depth[0]).toBeCloseTo(Math.max(lo, hi * 0.8), 3);
+    expect(rain.depth[0]).toBeCloseTo(Math.max(lo, hi * 0.8 * 0.5), 3);
+    const shallow = lone(0.05);
+    for (let f = 0; f < 3600; f++) shallow.step(DT, () => 0.5, 0.5);
+    expect(shallow.depth[0], 'never above the shallowest').toBeGreaterThanOrEqual(lo - 1e-9);
+    expect(shallow.depth[0]).toBeCloseTo(lo, 3);
+  });
+
+  it('is the same to the bit at a lift of nought as without the argument, for 600 steps', () => {
+    const a = new School(HOME),
+      b = new School(HOME);
+    a.fill(HOME.fishCount, seeded(3));
+    b.fill(HOME.fishCount, seeded(3));
+    const ra = seeded(9),
+      rb = seeded(9);
+    for (let f = 0; f < 600; f++) {
+      a.step(DT, ra);
+      b.step(DT, rb, 0);
+    }
+    expect(Array.from(b.x)).toEqual(Array.from(a.x));
+    expect(Array.from(b.y)).toEqual(Array.from(a.y));
+    expect(Array.from(b.depth)).toEqual(Array.from(a.depth));
   });
 });

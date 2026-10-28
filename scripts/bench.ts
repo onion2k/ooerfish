@@ -61,6 +61,8 @@ interface Scenario {
 /** A game from a seed, settled. */
 export function settled(seed: number): Game {
   const game = new Game(new Progress(memoryStore(), { [HOME.id]: HOME }), { lake: HOME, random: seeded(seed) });
+  // the gate times the lake, not the weather, and its baseline was taken in the sun
+  game.setWeather('sunny');
   for (let f = 0; f < 180; f++) game.step(DT);
   return game;
 }
