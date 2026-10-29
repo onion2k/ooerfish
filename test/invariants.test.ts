@@ -302,7 +302,7 @@ describe('the treasures on the bed', () => {
     game.progress.entry(game.lake.id).found = ['lure', 'lure'];
     expect(bad(game)).toMatch(/the save has the treasure lure twice/);
     game.progress.entry(game.lake.id).found = [...TREASURES.list.map((t) => t.id), 'duck'];
-    expect(bad(game)).toMatch(/the save has 7 treasures found, of 6 in the lake/);
+    expect(bad(game)).toMatch(/the save has 10 treasures found, of 9 in the lake/);
   });
 
   it('holds the treasures found on the bed to the save’s ids', () => {
@@ -339,7 +339,7 @@ describe('the treasures on the bed', () => {
     none.bite.treasure = 0;
     expect(bad(none)).toMatch(/no treasure is at the lure, but the bite has treasure 0/);
     none.bite.treasure = 9;
-    expect(bad(none)).toMatch(/the bite has treasure 9, of 6/);
+    expect(bad(none)).toMatch(/the bite has treasure 9, of 9/);
   });
 
   it('holds each treasure under the water on the bed, and clear of the drums', () => {

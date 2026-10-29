@@ -912,6 +912,37 @@ describe('a treasure on the bed', () => {
     expect(checkInvariants(game)).toEqual([]);
   });
 
+  it('asks the town’s requests on a keep, so the logbook’s letter is answered at the sixth page and told', () => {
+    // the other five pages found over the two lakes, and the last one, page 3, snagged in the pond
+    const answered: string[] = [];
+    const store = memoryStore(
+      JSON.stringify({
+        lake: 'duckpond',
+        lakes: {
+          duckpond: { cured: FISH_COUNT, drums: 0, journal: {}, found: ['page1', 'page2'] },
+          reservoir: { cured: 0, drums: 0, journal: {}, found: ['page4', 'page5', 'page6'] },
+        },
+      }),
+    );
+    // the registry handed in, as the page hands it, so the Reservoir's entry is read and not dropped as unknown
+    const game = new Game(new Progress(store, LAKES), {
+      random: seeded(1),
+      events: { answered: (id) => answered.push(id) },
+    });
+    const i = TREASURES.list.findIndex((t) => t.id === 'page3');
+    castAtTreasure(game, i);
+    for (let f = 0; f < 60 * 120 && game.bite.phase !== 'biting'; f++) game.step(DT);
+    expect(game.bite.treasure).toBe(i);
+    expect(game.strike()).toBe('hooked');
+    land(game);
+    expect(game.progress.save.requests).not.toContain('logbook');
+    expect(game.keep()).toBe(true);
+    expect(game.progress.save.requests).toContain('logbook');
+    expect(answered).toEqual(['logbook']);
+    expect((JSON.parse(store.json!) as { requests: string[] }).requests).toContain('logbook');
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
   it('is refused a keep with nothing landed, a fish landed, a drum landed, and twice', () => {
     expect(newGame().game.keep()).toBe(false);
     const { game: fish } = newGame();
@@ -974,10 +1005,10 @@ describe('a treasure on the bed', () => {
 
   it('loads found by ids, the unknown dropped, and the contamination from the cures and drums alone', () => {
     const { game } = newGame(1, JSON.stringify({ cured: 3, drums: 1, found: ['duck', 'lure'] }));
-    expect(Array.from(game.treasures.found)).toEqual([1, 0, 0, 0, 0, 1]);
+    expect(Array.from(game.treasures.found)).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0]);
     expect(game.contamination).toBeCloseTo(contaminationAfter(3, 1), 12);
     expect(checkInvariants(game)).toEqual([]);
-    expect(Array.from(newGame(1, '{"found": ["nope"]}').game.treasures.found)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(Array.from(newGame(1, '{"found": ["nope"]}').game.treasures.found)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
   it('holds the day open while a treasure is on the line, as a fish does, and yawns once it is kept', () => {

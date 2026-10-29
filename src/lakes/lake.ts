@@ -194,10 +194,12 @@ export interface TreasureSpec {
   weight: number;
   /** How big its model is, at a scale of one: the radius it fits in and how tall it stands, in world units. */
   size: { radius: number; high: number };
-  /** Where it stands in the cabin: on the lower or the upper shelf, `along` the shore from the room's middle. */
-  shelf: { on: 'lower' | 'upper'; along: number };
-  /** What a message in it says, if it holds one. */
+  /** Where it stands in the cabin: on the lower or the upper shelf, `along` the shore from the room's middle; null for a page, which is kept in the book and not on a shelf. */
+  shelf: { on: 'lower' | 'upper'; along: number } | null;
+  /** What a message in it says, if it holds one; a logbook page's words are its note. */
   note?: string;
+  /** The number, from one, of the plant's logbook page this is, if it is one: the book lists the pages in this order. */
+  page?: number;
 }
 
 /** The content half of the drums of waste: what is placed on the bed (`BedSpec`), and what a drum is. */

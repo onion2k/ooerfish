@@ -21,6 +21,11 @@ export interface BedSpec {
     /** The least distance between two things of the set. */
     apart: number;
   };
+  /**
+   * A set grown after it was first drawn: the things from index `from` on keep only `apart` from the others (and from
+   * the other set's), so the added ones fit where the first are crowded, and none of the first moves.
+   */
+  later?: { from: number; apart: number };
 }
 
 /** The lake as a set on the bed needs it, handed in: where is the water, how deep is the bed, and where they are cast from. */
@@ -32,6 +37,11 @@ export interface BedWorld {
 
 /** How many tries a thing is given to find a place before the content is held to be wrong. */
 const TRIES = 400;
+
+/** How far thing `k` of a set keeps from the others: the set's `apart`, or the lesser of a later-grown thing. */
+export function apartOf(spec: BedSpec, k: number): number {
+  return spec.later && k >= spec.later.from ? spec.later.apart : spec.where.apart;
+}
 
 /**
  * The places of a set, in order: each drawn from the seed's stream a bearing and a distance from `from`, kept if it
@@ -45,9 +55,10 @@ export function places(
   avoid: readonly (readonly [number, number])[] = [],
 ): [number, number][] {
   const random = seeded(spec.seed);
-  const { distance, bearing, depth, margin, apart } = spec.where;
+  const { distance, bearing, depth, margin } = spec.where;
   const places: [number, number][] = [];
   for (let k = 0; k < spec.count; k++) {
+    const apart = apartOf(spec, k);
     let found = false;
     for (let tries = 0; tries < TRIES && !found; tries++) {
       const a = Math.PI / 2 + (random() * 2 - 1) * bearing;

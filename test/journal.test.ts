@@ -7,6 +7,9 @@ import { KINDS } from '../src/lake';
 
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
+// the shelved treasures, which are the ones the "Found in" rows list: a page is in the book and not among them
+const SHELVED = TREASURES.list.filter((t) => t.page === undefined);
+const asHanded = TREASURES.list.map(({ id, name, note, page }) => ({ id, name, note, page }));
 
 describe('an entry on a catch', () => {
   it('starts at one, with the weight as the best and the day as the first', () => {
@@ -78,11 +81,11 @@ describe('the journal page’s words', () => {
     expect(journalWords({}, KINDS, 0, 2).drums).toBe('drums of waste hauled: 0 of 2');
   });
 
-  const words = (found: string[]) => journalWords({}, KINDS, 0, DRUMS.count, TREASURES.list, found);
+  const words = (found: string[]) => journalWords({}, KINDS, 0, DRUMS.count, asHanded, found);
 
   it('lists each treasure, found or not, in order, an unfound one only as not yet found', () => {
     const page = words(['badge']);
-    expect(page.treasures).toHaveLength(TREASURES.count);
+    expect(page.treasures).toHaveLength(SHELVED.length);
     expect(page.treasures.map((t) => t.found)).toEqual([false, false, false, true, false, false]);
     expect(page.treasures[3].name).toBe(TREASURES.list[3].name);
     for (const i of [0, 1, 2, 4, 5]) expect(page.treasures[i].name).toBe('not yet found');
@@ -93,14 +96,31 @@ describe('the journal page’s words', () => {
     expect(none.treasures[4].note, 'not before it is found').toBeUndefined();
     const some = words(['bottle', 'duck', 'lure']);
     expect(some.treasures[4].name).toBe('message bottle');
-    expect(some.treasures[4].note).toBe(TREASURES.list[4].note);
+    expect(some.treasures[4].note).toBe(SHELVED[4].note);
     expect(some.treasures[4].note).toContain('the fish are glowing again');
     for (const i of [0, 1, 2, 3, 5]) expect(some.treasures[i].note).toBeUndefined();
   });
 
-  it('says how many are found of those there are', () => {
+  it('says how many are found of those there are on shelves', () => {
     expect(words([]).found).toBe('found: 0 of 6');
     expect(words(['lure', 'duck']).found).toBe('found: 2 of 6');
+  });
+
+  it('skips a treasure with a page, found or not, since a page is in the book', () => {
+    const page = words(['page1', 'lure']);
+    expect(page.treasures).toHaveLength(6);
+    expect(page.treasures.filter((t) => t.found)).toHaveLength(1);
+    expect(page.found).toBe('found: 1 of 6');
+  });
+
+  it('carries the logbook it was handed, and an empty book otherwise', () => {
+    expect(journalWords({}, KINDS, 0, 2).logbook).toEqual({
+      title: 'The logbook',
+      rows: [],
+      found: 'pages found: 0 of 0',
+    });
+    const book = { title: 'The logbook', rows: [{ page: 1, found: true, words: 'x' }], found: 'pages found: 1 of 6' };
+    expect(journalWords({}, KINDS, 0, 2, [], [], null, book).logbook).toBe(book);
   });
 
   it('ignores an id it was not handed a treasure for, and keeps the drums’ line as it was', () => {

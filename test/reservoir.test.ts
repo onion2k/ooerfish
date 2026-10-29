@@ -237,9 +237,18 @@ describe('the Reservoir’s drums', () => {
     for (const [x, y] of spots) expect(Math.hypot(x - R.from[0], y - R.from[1])).toBeLessThan(R.castReach);
   });
 
-  it('are the only things on the bed: no treasures', () => {
-    expect(R.treasures.count).toBe(0);
-    expect(R.treasures.list).toHaveLength(0);
+  it('hold three treasures, the logbook’s pages 4 to 6, on the bed clear of the drums by `apart`', () => {
+    expect(R.treasures.count).toBe(3);
+    expect(R.treasures.list.map((t) => t.page)).toEqual([4, 5, 6]);
+    const drums = places(R.drums, R);
+    const spots = places(R.treasures, R, drums);
+    expect(spots).toHaveLength(3);
+    for (const [x, y] of spots) {
+      expect(R.bedDepth(x, y)).toBeGreaterThanOrEqual(R.treasures.where.depth[0]);
+      expect(R.bedDepth(x, y)).toBeLessThanOrEqual(R.treasures.where.depth[1]);
+      expect(Math.hypot(x - R.from[0], y - R.from[1])).toBeLessThan(R.castReach);
+      for (const [dx, dy] of drums) expect(Math.hypot(x - dx, y - dy)).toBeGreaterThanOrEqual(R.treasures.where.apart);
+    }
   });
 });
 

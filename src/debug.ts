@@ -28,6 +28,7 @@ import type { Journal } from './journal';
 import { moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from './calendar';
 import { CLOCK, KINDS, type Season, type Weather } from './lake';
 import { LAKES } from './lakes';
+import { logbookWords, type LogbookWords } from './town/logbook';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
@@ -92,7 +93,13 @@ export type Quarry =
   | 'lunchbox'
   | 'badge'
   | 'bottle'
-  | 'duck';
+  | 'duck'
+  | 'page1'
+  | 'page2'
+  | 'page3'
+  | 'page4'
+  | 'page5'
+  | 'page6';
 
 /** A drum of waste: where it lies on the bed, and whether it has been hauled up for good. */
 export interface DrumState {
@@ -113,8 +120,8 @@ export interface TreasureState {
   /** How deep the bed is under it. */
   bed: number;
   found: boolean;
-  /** Where it stands on its shelf once found: x, y and z in the world. */
-  shelf: [number, number, number];
+  /** Where it stands on its shelf once found: x, y and z in the world; null for a logbook page, which is kept in the book. */
+  shelf: [number, number, number] | null;
 }
 
 /** A fish, where it is. */
@@ -216,6 +223,8 @@ export interface GameApi {
   reel(on: boolean): void;
   /** The save's journal: for each kind caught, by its id, how many, the best weight and the day of the first; and the ids of the treasures found. */
   journal(): { kinds: Journal; found: string[] };
+  /** The journal's logbook section as the page shows it: the six pages in order over every lake, their words once found, and the count. */
+  logbook(): LogbookWords;
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
   stow(): boolean;
   /** The landed drum of waste hauled up onto the bank, as a tap on its card does; false with none landed. */
@@ -620,7 +629,7 @@ export function createApi(host: DebugHost): GameApi {
         y: treasures.y[i],
         bed: game.lake.bedDepth(treasures.x[i], treasures.y[i]),
         found: treasures.found[i] === 1,
-        shelf: shelfSpot(i, game.lake).slice(0, 3) as [number, number, number],
+        shelf: t.shelf ? (shelfSpot(i, game.lake).slice(0, 3) as [number, number, number]) : null,
       }));
     },
     splashes() {
@@ -651,6 +660,7 @@ export function createApi(host: DebugHost): GameApi {
       kinds: JSON.parse(JSON.stringify(game.progress.entry(game.lake.id).journal)) as Journal,
       found: [...game.progress.entry(game.lake.id).found],
     }),
+    logbook: () => logbookWords(LAKES, game.progress.save),
     gear: () => ({ ...game.gear }),
     fishing: () => ({
       phase: game.bite.phase,

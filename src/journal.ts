@@ -6,6 +6,7 @@
  */
 
 import { theLake } from './lakes/page';
+import type { LogbookWords } from './town/logbook';
 
 /**
  * What is kept of one kind: how many are caught, the best weight in kilograms, and the day of the first (from one).
@@ -49,6 +50,8 @@ export interface JournalTreasure {
   id: string;
   name: string;
   note?: string;
+  /** Its page number if it is a page of the logbook, which is listed in the book and not among the found. */
+  page?: number;
 }
 
 export interface JournalTreasureRow {
@@ -71,12 +74,15 @@ export interface JournalPage {
   treasures: JournalTreasureRow[];
   /** How many of them are found, in words. */
   found: string;
+  /** The logbook's section: the plant's pages in order over every lake, handed in and not read here. */
+  logbook: LogbookWords;
 }
 
 /**
  * The words of the journal page: each kind, caught or not, the drums of waste hauled out of those on the bed, and each
  * junk treasure found (by `found`, a list of ids) by name, with the bottle's note under it, or as not yet found. An id of
- * a treasure not handed in is ignored. `lakeName` is the lake the book is of, or null at the home, whose page keeps
+ * a treasure not handed in is ignored, and a treasure with a page is left out of the found rows and their count, since
+ * it is in the book. `logbook` is that section's words, made over every lake by the caller; with none handed in it is an empty book. `lakeName` is the lake the book is of, or null at the home, whose page keeps
  * the plain heading it has always had.
  */
 export function journalWords(
@@ -87,6 +93,7 @@ export function journalWords(
   treasures: readonly JournalTreasure[] = [],
   found: readonly string[] = [],
   lakeName: string | null = null,
+  logbook: LogbookWords = { title: 'The logbook', rows: [], found: 'pages found: 0 of 0' },
 ): JournalPage {
   const rows = kinds.map(({ id, name, fact }): JournalRow => {
     const e = journal[id];
@@ -98,10 +105,12 @@ export function journalWords(
     return { name, caught: true, words: parts.join(', '), fact: fact ?? null };
   });
   const has = new Set(found);
-  const rows2 = treasures.map(({ id, name, note }): JournalTreasureRow => {
-    if (!has.has(id)) return { name: 'not yet found', found: false };
-    return note ? { name, found: true, note } : { name, found: true };
-  });
+  const rows2 = treasures
+    .filter((t) => t.page === undefined)
+    .map(({ id, name, note }): JournalTreasureRow => {
+      if (!has.has(id)) return { name: 'not yet found', found: false };
+      return note ? { name, found: true, note } : { name, found: true };
+    });
   const n = rows2.filter((r) => r.found).length;
   return {
     title: lakeName ? `Journal: ${lakeName}` : 'Journal',
@@ -109,6 +118,7 @@ export function journalWords(
     rows,
     drums: `drums of waste hauled: ${hauled} of ${drums}`,
     treasures: rows2,
-    found: `found: ${n} of ${treasures.length}`,
+    found: `found: ${n} of ${rows2.length}`,
+    logbook,
   };
 }

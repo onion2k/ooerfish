@@ -589,9 +589,13 @@ exports[`the Duck Pond, held to what the module answered before it was an object
     },
     "TREASURES": {
       "bedScale": 1.8,
-      "count": 6,
+      "count": 9,
       "dip": 1.4,
       "fill": 0.21000000000000002,
+      "later": {
+        "apart": 3,
+        "from": 6,
+      },
       "list": [
         {
           "id": "lure",
@@ -677,6 +681,45 @@ exports[`the Duck Pond, held to what the module answered before it was an object
             "radius": 0.41,
           },
           "weight": 0.2,
+        },
+        {
+          "id": "page1",
+          "line": "Water-stained, but it reads.",
+          "name": "logbook page",
+          "note": "Cooling pond, 0600. Readings normal. Somebody has left a deckchair by the outflow. Removed it. W.F.",
+          "page": 1,
+          "shelf": null,
+          "size": {
+            "high": 0.13,
+            "radius": 0.5,
+          },
+          "weight": 0.02,
+        },
+        {
+          "id": "page2",
+          "line": "Water-stained, but it reads.",
+          "name": "logbook page",
+          "note": "The deckchair is back, with a flask. Readings normal. Asked around. Nobody in the plant owns a deckchair. W.F.",
+          "page": 2,
+          "shelf": null,
+          "size": {
+            "high": 0.13,
+            "radius": 0.5,
+          },
+          "weight": 0.02,
+        },
+        {
+          "id": "page3",
+          "line": "Water-stained, but it reads.",
+          "name": "logbook page",
+          "note": "Valve 3 found open a quarter turn this morning. Closed it. Not my department, but I closed it. W.F.",
+          "page": 3,
+          "shelf": null,
+          "size": {
+            "high": 0.13,
+            "radius": 0.5,
+          },
+          "weight": 0.02,
         },
       ],
       "rate": 0.6,

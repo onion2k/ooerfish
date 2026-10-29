@@ -284,8 +284,9 @@ describe('the gossip’s variety and reach', () => {
     for (const k of keys) if (k !== 'found') expect(GOSSIP[k].length, k).toBeGreaterThanOrEqual(2);
   });
 
-  it('has a line for each treasure and one for any other', () => {
-    expect(GOSSIP.found.length).toBe(POND.treasures.list.length + 1);
+  it('has a line for each treasure that is not a page and one for any other', () => {
+    // a logbook page is a treasure too, but it is told by the generic line, since its words are in the book
+    expect(GOSSIP.found.length).toBe(POND.treasures.list.filter((t) => t.page === undefined).length + 1);
   });
 
   it('can say every line in the pool, to some save on some day', () => {

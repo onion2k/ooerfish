@@ -236,6 +236,8 @@ async function reach(page: Page, moment: Moment) {
                 day: 2,
                 drums: 1,
                 journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
+                // some pages of the logbook found, so that its section has words to fit
+                found: ['page1', 'page2'],
               },
             }
           : moment === 'journal found'
@@ -246,7 +248,7 @@ async function reach(page: Page, moment: Moment) {
                   day: 2,
                   drums: 1,
                   journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
-                  found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'],
+                  found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck', 'page1', 'page2', 'page3'],
                 },
               }
             : // the post's answered letters: the ducks (a clean pond) and the rival (a big pike) answered, so two replies show
@@ -396,8 +398,9 @@ for (const bp of BREAKPOINTS) {
             }
           }
 
-          // with all found, the page is longer than a short screen: its card may scroll, and must say it can, inside the screen
-          if (moment === 'journal found') {
+          // with the logbook's six rows and the pond's six finds the page is longer than a screen, even at a desk's height
+          // (it was once short enough to fit whole): its card may scroll, and must say it can, inside the screen
+          if (moment === 'journal' || moment === 'journal found') {
             const fit = await page.evaluate(() => {
               const card = document.querySelector<HTMLElement>('#journal .card')!;
               return {
@@ -412,16 +415,6 @@ for (const bp of BREAKPOINTS) {
                 `${still}: the journal's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`,
               );
             if (fit.close <= 0) failures.add(`${still}: the journal's Close button has no size`);
-          }
-
-          // the journal's words all fit its card, with nothing left to scroll to
-          if (moment === 'journal') {
-            const fit = await page.evaluate(() => {
-              const card = document.querySelector<HTMLElement>('#journal .card')!;
-              return { scroll: card.scrollHeight, shown: card.clientHeight };
-            });
-            if (fit.scroll > fit.shown + 1)
-              failures.add(`${still}: the journal's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
           }
 
           // the post's letters may run past a short screen: the card may scroll but must be able to, and Close must have a size
@@ -440,7 +433,7 @@ for (const bp of BREAKPOINTS) {
             if (fit.scroll > fit.shown + 1 && !['auto', 'scroll'].includes(fit.overflow))
               failures.add(`${still}: the post's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`);
             if (fit.close <= 0) failures.add(`${still}: the post's Close button has no size`);
-            if (fit.letters !== 4) failures.add(`${still}: the post lists ${fit.letters} letters, not four`);
+            if (fit.letters !== 5) failures.add(`${still}: the post lists ${fit.letters} letters, not five`);
             if (fit.replies !== (moment === 'post' ? 0 : 2))
               failures.add(`${still}: the post shows ${fit.replies} replies`);
           }

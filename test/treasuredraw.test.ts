@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { BedFinds, places } from '../src/bedfinds';
 import { TreasureDraw, bedSpot, shelfSpot, treasureParts } from '../src/treasuredraw';
 import { HOME } from '../src/lakes';
+import { PALETTE } from '../src/palette';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 
 const ANGLER = HOME.angler;
@@ -44,7 +45,7 @@ describe('each treasure’s model', () => {
       ).toBe(true);
   });
 
-  it('is under sixty triangles all together, and the six under a ceiling of their own', () => {
+  it('is under sixty triangles all together, and the whole list under a ceiling of its own', () => {
     let all = 0;
     for (let i = 0; i < TREASURES.count; i++) {
       const n = treasureParts(i, HOME).reduce((sum, p) => sum + triangles(p.mesh), 0);
@@ -52,7 +53,7 @@ describe('each treasure’s model', () => {
       expect(n, TREASURES.list[i].id).toBeLessThan(60);
       all += n;
     }
-    expect(all).toBeLessThan(260);
+    expect(all).toBeLessThan(450);
   });
 
   it('stands on the ground it is placed at and is the size the content says', () => {
@@ -89,7 +90,7 @@ describe('the treasures drawn', () => {
       expect(live(g)).toBe(1);
       expect(g.matrices.length).toBe(16);
     }
-    t.load([0, 1, 2, 3, 4, 5]);
+    t.load([0, 1, 2, 3, 4, 5, 6, 7, 8]);
     const all = draw.groups(t);
     expect(all).toHaveLength(parts);
     all.forEach((g, i) => expect(g.mesh, 'the meshes are made once').toBe(none[i].mesh));
@@ -129,6 +130,37 @@ describe('the treasures drawn', () => {
   });
 });
 
+describe('a logbook page', () => {
+  const first = TREASURES.list.findIndex((t) => t.page !== undefined);
+
+  it('is a thin sheet with ruled lines on it, the pale of paper and the dark of ink', () => {
+    const parts = treasureParts(first, HOME);
+    expect(parts.length).toBeGreaterThanOrEqual(2);
+    expect(parts[0].colour).toBe(PALETTE.page);
+    expect(parts[parts.length - 1].colour).toBe(PALETTE.pageInk);
+    expect(TREASURES.list[first].size.high, 'thin').toBeLessThan(0.2);
+  });
+
+  it('is drawn at no size, and not on a shelf, once it is found', () => {
+    const t = treasures();
+    const draw = new TreasureDraw(HOME);
+    const offsets: number[] = [];
+    let n = 0;
+    for (let i = 0; i < TREASURES.count; i++) {
+      offsets.push(n);
+      n += treasureParts(i, HOME).length;
+    }
+    t.find(first);
+    const g = draw.groups(t);
+    for (let k = 0; k < treasureParts(first, HOME).length; k++)
+      expect(Math.hypot(g[offsets[first] + k].matrices[0], g[offsets[first] + k].matrices[1])).toBe(0);
+  });
+
+  it('has no place on a shelf, and says so', () => {
+    expect(() => shelfSpot(first, HOME)).toThrow(/no shelf/);
+  });
+});
+
 describe('where a treasure stands on the shelf', () => {
   it('is in the room, on the lake wall, standing on the shelf’s top and at its own place along it', () => {
     // the room's lake wall, `across` from the middle
@@ -136,6 +168,7 @@ describe('where a treasure stands on the shelf', () => {
     const [ix, iy] = CABIN_AT.inward;
     const [ax, ay] = CABIN_AT.along;
     TREASURES.list.forEach((t, i) => {
+      if (!t.shelf) return;
       const [x, y, z] = shelfSpot(i, HOME);
       const dx = x - CABIN_AT.x,
         dy = y - CABIN_AT.y;

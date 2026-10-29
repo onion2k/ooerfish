@@ -272,6 +272,10 @@ describe('saves from every shape the game has written', () => {
       expect(foundOf('["nope", "badge", 4, null, "Badge"]')).toEqual(['badge']);
     });
 
+    it('drops a logbook page named under the wrong lake, the Reservoir’s page4 in the pond’s list', () => {
+      expect(foundOf('["page4", "page1"]')).toEqual(['page1']);
+    });
+
     it('drops repeats, keeping the first of each', () => {
       expect(foundOf('["duck", "lure", "duck", "lure", "plush"]')).toEqual(['duck', 'lure', 'plush']);
     });

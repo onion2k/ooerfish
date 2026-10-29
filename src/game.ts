@@ -612,6 +612,8 @@ export class Game {
     if (!found.includes(id)) found.push(id);
     this.persist();
     this.events.found?.(id);
+    // a find can meet a request too (the logbook's last page), so the town is asked as it is after a stow or a haul
+    this.answer(true);
     return true;
   }
 

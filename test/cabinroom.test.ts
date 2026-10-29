@@ -288,13 +288,18 @@ describe('the cabin’s two shelves', () => {
     }
   });
 
+  // a logbook page goes in the book, not on a shelf
+  const shelved = TREASURES.list.filter(
+    (t): t is typeof t & { shelf: NonNullable<typeof t.shelf> } => t.shelf !== null,
+  );
+
   it('gives each treasure a place on a shelf: on its top, inside its length, clear of the books and the jar and of each other', () => {
     const books = fur.books.reduce((n, [thick]) => n + thick, 0);
     const bookFrom = fur.shelf.along + fur.shelf.wide / 2 - 0.08 - books;
     const bookTo = fur.shelf.along + fur.shelf.wide / 2 - 0.08;
     const jarFrom = fur.shelf.along - fur.shelf.wide / 2 + 0.25 - fur.jar.radius;
     const jarTo = fur.shelf.along - fur.shelf.wide / 2 + 0.25 + fur.jar.radius;
-    for (const t of TREASURES.list) {
+    for (const t of shelved) {
       const sh = shelves[t.shelf.on];
       const r = t.size.radius * TREASURES.shelfScale;
       expect(t.shelf.along - r, `${t.id} inside the shelf's start`).toBeGreaterThanOrEqual(
@@ -308,8 +313,8 @@ describe('the cabin’s two shelves', () => {
         expect(clear(jarFrom, jarTo), `${t.id} clear of the jar`).toBe(true);
       }
     }
-    for (const a of TREASURES.list)
-      for (const b of TREASURES.list) {
+    for (const a of shelved)
+      for (const b of shelved) {
         if (a === b || a.shelf.on !== b.shelf.on) continue;
         expect(Math.abs(a.shelf.along - b.shelf.along), `${a.id} and ${b.id}`).toBeGreaterThanOrEqual(
           (a.size.radius + b.size.radius) * TREASURES.shelfScale,
@@ -317,9 +322,9 @@ describe('the cabin’s two shelves', () => {
       }
   });
 
-  it('holds all six, split between the shelves, and the room still under its triangle ceiling', () => {
-    expect(TREASURES.list.filter((t) => t.shelf.on === 'lower').length).toBeGreaterThan(0);
-    expect(TREASURES.list.filter((t) => t.shelf.on === 'upper').length).toBeGreaterThan(0);
+  it('holds all the shelved, split between the shelves, and the room still under its triangle ceiling', () => {
+    expect(shelved.filter((t) => t.shelf.on === 'lower').length).toBeGreaterThan(0);
+    expect(shelved.filter((t) => t.shelf.on === 'upper').length).toBeGreaterThan(0);
     const names = Object.values(FURNITURE).flatMap((p) => [...p]);
     const tris = names.reduce((n, name) => n + part(groups, name).mesh.indices.length / 3, 0);
     expect(tris).toBeLessThan(1500);

@@ -38,13 +38,19 @@ describe('the town', () => {
 });
 
 describe('the requests', () => {
-  it('are the four, in order, each id once, each from a person of the town', () => {
-    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink']);
+  it('are the five, in order, each id once, each from a person of the town', () => {
+    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook']);
     expect(new Set(REQUESTS.map((r) => r.id)).size).toBe(REQUESTS.length);
     expect(requestNamed('ducks')).toBe(REQUESTS[0]);
     expect(requestNamed('nope')).toBeUndefined();
-    expect(REQUESTS.map((r) => r.from)).toEqual(['Ida Penny', 'Pip and the Glow-Worms', 'Flo Keel', 'Marigold Bunn']);
-    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker']);
+    expect(REQUESTS.map((r) => r.from)).toEqual([
+      'Ida Penny',
+      'Pip and the Glow-Worms',
+      'Flo Keel',
+      'Marigold Bunn',
+      'Wendell Fisk',
+    ]);
+    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker', 'engineer']);
   });
 
   it('say the spec’s words, word for word', () => {
@@ -74,6 +80,15 @@ describe('the requests', () => {
     );
     expect(requestNamed('pink')!.reply).toBe(
       'A PINK one! I have put a pie in the window with your name on it, and another behind the counter in case. Marigold.',
+    );
+  });
+
+  it('say the engineer’s words, word for word', () => {
+    expect(requestNamed('logbook')!.asks).toBe(
+      "Dear Angler, This is awkward. When the plant shut, the cooling pond's logbook went into the water, a page at a time, in a wind I should have seen coming. It was not my department, but it was my handwriting. If you fish any of them up I would like them back, in order if it can be managed. There are six. Wendell Fisk, formerly of the plant.",
+    );
+    expect(requestNamed('logbook')!.reply).toBe(
+      'All six, and in order. I have read them through once and put them in a drawer. Thank you. It was not my department, but it was my fault, a little. Wendell.',
     );
   });
 
@@ -166,5 +181,23 @@ describe('the baker’s letter is met by a dawn fish caught', () => {
       false,
     );
     expect(met('pink', saveOf({ [HOME.id]: entry() }))).toBe(false);
+  });
+});
+
+describe('the engineer’s letter is met by all six pages over the lakes', () => {
+  const other = Object.keys(LAKES).find((id) => id !== HOME.id)!;
+  const ids = (n: number[]) => n.map((i) => `page${i}`);
+
+  it('with three at each lake, and not with five', () => {
+    const all = saveOf({ [HOME.id]: entry({ found: ids([1, 2, 3]) }), [other]: entry({ found: ids([4, 5, 6]) }) });
+    expect(met('logbook', all)).toBe(true);
+    const five = saveOf({ [HOME.id]: entry({ found: ids([1, 2, 3]) }), [other]: entry({ found: ids([4, 5]) }) });
+    expect(met('logbook', five)).toBe(false);
+  });
+
+  it('is not met by an old save with no pages, or with no entry for the other lake', () => {
+    expect(met('logbook', saveOf({ [HOME.id]: entry({ found: ['lure', 'duck'] }) }))).toBe(false);
+    expect(met('logbook', saveOf({}))).toBe(false);
+    expect(met('logbook', saveOf({ [HOME.id]: entry({ found: ids([1, 2, 3]) }) }))).toBe(false);
   });
 });

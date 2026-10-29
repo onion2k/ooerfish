@@ -154,7 +154,7 @@ describe('cardWords', () => {
       expect(words.weight).toBe(`${t.weight.toFixed(2)} kg`);
       expect(words.line).toBe(`a ${t.name}, ${t.weight.toFixed(2)} kg`);
       expect(words.about, `${t.id}'s line about it`).toBe(t.line);
-      if (t.id === 'bottle') expect(words.note).toBe(t.note);
+      if (t.id === 'bottle' || t.page !== undefined) expect(words.note, `${t.id}'s words`).toBe(t.note);
       else expect(words.note, `${t.id} holds no note`).toBeUndefined();
     });
     expect(cardWords({ treasure: 2 }, 'calm', 0.6).line).toBe('a Sunny Atom lunchbox, 0.60 kg');

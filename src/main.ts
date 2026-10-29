@@ -37,6 +37,7 @@ import { Game, type GameEvents } from './game';
 import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
+import { logbookWords } from './town/logbook';
 import { postWords } from './town/post';
 import { REQUESTS } from './town/requests';
 import { YOU_ARE_HERE, lakesWords } from './lakes/page';
@@ -945,6 +946,8 @@ async function main() {
   const journalDrums = byId('journalDrums');
   const journalFound = byId('journalFound');
   const journalFoundCount = byId('journalFoundCount');
+  const journalLogbook = byId('journalLogbook');
+  const journalLogbookCount = byId('journalLogbookCount');
   const journalClose = byId<HTMLButtonElement>('journalClose');
   let journalOpen = false;
   const openJournal = () => {
@@ -957,6 +960,7 @@ async function main() {
       lake.treasures.list,
       game.progress.entry(lake.id).found,
       lake === HOME ? null : lake.name,
+      logbookWords(LAKES, game.progress.save),
     );
     byId('journalTitle').textContent = page.title;
     byId('journalFoundTitle').textContent = page.foundTitle;
@@ -991,6 +995,20 @@ async function main() {
           note.textContent = row.note;
           item.append(note);
         }
+        return item;
+      }),
+    );
+    byId('journalLogbookTitle').textContent = page.logbook.title;
+    journalLogbookCount.textContent = page.logbook.found;
+    journalLogbook.replaceChildren(
+      ...page.logbook.rows.map((row) => {
+        const item = document.createElement('li');
+        const name = document.createElement('b');
+        const words = document.createElement('span');
+        name.textContent = `Page ${row.page}`;
+        words.textContent = row.words;
+        if (row.found) item.className = 'caught';
+        item.append(name, words);
         return item;
       }),
     );

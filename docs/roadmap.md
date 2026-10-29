@@ -40,8 +40,10 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
       round it, at night, the postmistress's), the two-headed trout (two bites and two strike windows, a `Bite`
       change). Each a line in `KINDS` and a slot in a lake's `fishKinds` per the model feature. The journal's silly
       facts come with the kinds.
-- [ ] **B3. The logbook's pages.** A third `BedFinds` of pages across the lakes, snagged as a treasure is, read in
-      order in the journal's new section; the engineer's request counts them. The last page's line is stage 14's.
+- [x] **B3. The logbook's pages** (`docs/logbook.md`, landed 29 Oct 2026). Six pages across the pond and the
+      Reservoir, each a treasure with a page number (not a third `BedFinds`: a page does nothing a treasure does not),
+      read in order in the journal's new section; the engineer's letter is met by all six. The last page's line, the
+      hidden thing of stage 14, is written in with them.
 - [ ] **B4. Photo mode.** A page that stops the clock, frames the view, and keeps a photograph: the camera, the
       time and the weather, drawn again when looked at (the renderer's `postClock` holds a still's grain), not
       pixels, so the save stays small. Answers the postmistress's request and fills the journal. Counted in

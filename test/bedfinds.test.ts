@@ -1,7 +1,7 @@
 /** The things on the bed (the drums of waste, now): where they lie, from a seed of their own, and which are found. */
 import { describe, expect, it } from 'vitest';
-import { BedFinds, places as bedPlaces, type BedSpec } from '../src/bedfinds';
-import { HOME } from '../src/lakes';
+import { BedFinds, apartOf, places as bedPlaces, type BedSpec } from '../src/bedfinds';
+import { HOME, LAKES } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 
 const ANGLER = HOME.angler;
@@ -131,21 +131,56 @@ describe('where the treasures lie', () => {
   const drumsAt = () => bedPlaces(DRUMS, world);
   const treasures = () => bedPlaces(TREASURES, world, drumsAt());
 
-  it('has six, each with an id, a name, a card line, a weight and a place on the shelves', () => {
-    expect(TREASURES.count).toBe(6);
+  it('has nine, each with an id, a name, a card line, a weight and a place on the shelves, or a page in the book', () => {
+    expect(TREASURES.count).toBe(9);
     expect(TREASURES.list).toHaveLength(TREASURES.count);
     expect(new Set(TREASURES.list.map((t) => t.id)).size, 'ids are their own').toBe(TREASURES.count);
     for (const t of TREASURES.list) {
       expect(t.name.length, t.id).toBeGreaterThan(0);
       expect(t.line.length, t.id).toBeGreaterThan(0);
       expect(t.weight, t.id).toBeGreaterThan(0);
-      expect(['lower', 'upper'], t.id).toContain(t.shelf.on);
+      if (t.page === undefined) expect(['lower', 'upper'], t.id).toContain(t.shelf!.on);
+      else expect(t.shelf, `${t.id} goes in the book`).toBeNull();
     }
     expect(
-      TREASURES.list.filter((t) => t.note).map((t) => t.id),
-      'only the bottle holds a note',
+      TREASURES.list.filter((t) => t.note && t.page === undefined).map((t) => t.id),
+      'only the bottle holds a note, of those that are not pages',
     ).toEqual(['bottle']);
-    expect(TREASURES.list.map((t) => t.id)).toEqual(['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck']);
+    expect(TREASURES.list.map((t) => t.id)).toEqual([
+      'lure',
+      'plush',
+      'lunchbox',
+      'badge',
+      'bottle',
+      'duck',
+      'page1',
+      'page2',
+      'page3',
+    ]);
+  });
+
+  it('keeps the first six where they lay before the pages were added, to the bit', () => {
+    expect(treasures().slice(0, 6)).toEqual([
+      [1.0155175972905994, -21.17981092621132],
+      [-3.1322292264954603, -23.22612805865996],
+      [12.116188679435346, -17.677783141932743],
+      [-12.599888090011774, -19.429213924150744],
+      [5.157190760698131, -22.15282999400084],
+      [-7.1331729866111875, -23.08036117168227],
+    ]);
+  });
+
+  it('numbers the logbook pages 1 to 6 once each over the lakes, each with its words and none on a shelf', () => {
+    const pages = Object.values(LAKES)
+      .flatMap((l) => l.treasures.list)
+      .filter((t) => t.page !== undefined);
+    expect(pages.map((t) => t.page).sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    for (const t of pages) {
+      expect(t.id, 'named by its number').toBe(`page${t.page}`);
+      expect(t.note?.length, `${t.id} has its words`).toBeGreaterThan(20);
+      expect(t.shelf, `${t.id} goes in the book`).toBeNull();
+    }
+    expect(HOME.treasures.list.filter((t) => t.page !== undefined).map((t) => t.page)).toEqual([1, 2, 3]);
   });
 
   it('gives as many places as there are treasures, each on the bed under the water, clear of the shore and the boulders', () => {
@@ -164,13 +199,13 @@ describe('where the treasures lie', () => {
 
   it('keeps each clear of every drum by `apart`, and of each other', () => {
     const p = treasures();
-    for (const [x, y] of p) {
+    p.forEach(([x, y], i) => {
       for (const [dx, dy] of drumsAt())
-        expect(Math.hypot(x - dx, y - dy)).toBeGreaterThanOrEqual(TREASURES.where.apart);
-    }
+        expect(Math.hypot(x - dx, y - dy)).toBeGreaterThanOrEqual(apartOf(TREASURES, i));
+    });
     for (let i = 0; i < p.length; i++)
       for (let j = i + 1; j < p.length; j++)
-        expect(Math.hypot(p[i][0] - p[j][0], p[i][1] - p[j][1])).toBeGreaterThanOrEqual(TREASURES.where.apart);
+        expect(Math.hypot(p[i][0] - p[j][0], p[i][1] - p[j][1])).toBeGreaterThanOrEqual(apartOf(TREASURES, j));
   });
 
   it('is the same every time, from a seed of its own, never the game’s chance', () => {
@@ -207,8 +242,8 @@ describe('the treasures as a set on the bed', () => {
 
   it('loads by the ids it is given and drops the ones it has no thing for', () => {
     const t = set();
-    t.load([0, 5, 6, -1]);
-    expect(Array.from(t.found)).toEqual([1, 0, 0, 0, 0, 1]);
+    t.load([0, 5, 9, -1]);
+    expect(Array.from(t.found)).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0]);
     expect(t.foundCount()).toBe(2);
   });
 });

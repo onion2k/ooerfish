@@ -297,6 +297,9 @@ Each stage is a feature, built and verified before the next, every gate green at
    cabin's table, and three letters ask for what the fish already serve: the Duck Pond cleaned, a fish of every
    kind, and one over three and a half kilos; a request met is answered by a reply and never fails. The logbook,
    the other letters and the contests are later slices._
+   _A second slice is in (29 Oct 2026, `docs/logbook.md`): the cooling pond's logbook, six pages on the
+   beds of the pond and the Reservoir, each fished up as a junk treasure is and read in order in the journal, and
+   Wendell Fisk's letter asking for them, answered at the sixth. The last page says what stage 14 promised._
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**

@@ -8,6 +8,7 @@ import { KINDS } from '../lake';
 import type { Lake } from '../lakes/lake';
 import { HOME } from '../lakes';
 import type { Save } from '../progress';
+import { logbookPages, pagesFound } from './logbook';
 import { TOWN, type Role } from './town';
 
 export interface Request {
@@ -73,6 +74,19 @@ export const REQUESTS: readonly Request[] = [
     reply:
       'A PINK one! I have put a pie in the window with your name on it, and another behind the counter in case. Marigold.',
     met: (save) => Object.values(save.lakes).some((entry) => (entry.journal.dawnfish?.caught ?? 0) >= 1),
+  },
+  {
+    id: 'logbook',
+    from: TOWN.people.engineer.name,
+    role: 'engineer',
+    asks: "Dear Angler, This is awkward. When the plant shut, the cooling pond's logbook went into the water, a page at a time, in a wind I should have seen coming. It was not my department, but it was my handwriting. If you fish any of them up I would like them back, in order if it can be managed. There are six. Wendell Fisk, formerly of the plant.",
+    reply:
+      'All six, and in order. I have read them through once and put them in a drawer. Thank you. It was not my department, but it was my fault, a little. Wendell.',
+    // every page over the lakes, found at either: the book is the whole plant's, as the journal reads it
+    met: (save, lakes) => {
+      const found = pagesFound(save, lakes);
+      return logbookPages(lakes).every((p) => found.has(p.id));
+    },
   },
 ];
 

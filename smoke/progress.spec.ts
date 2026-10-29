@@ -1150,6 +1150,10 @@ test.describe('the treasures on the bed', () => {
       false,
       false,
       false,
+      // the three logbook pages follow the six junk treasures
+      false,
+      false,
+      false,
     ]);
     expect(await api(() => window.game!.fishing().phase)).toBe('none');
 
@@ -1186,7 +1190,7 @@ test.describe('the treasures on the bed', () => {
     const found = ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck'];
     await start(page, { seed: 1, paused: true, save: { cured: 12, found } });
     const api = <T>(f: () => T) => page.evaluate(f);
-    expect((await api(() => window.game!.treasures())).every((t) => t.found)).toBe(true);
+    expect((await api(() => window.game!.treasures())).every((t) => t.found || t.shelf === null)).toBe(true);
     expect(await api(() => window.game!.sleep())).toBe(true);
     await play(page, 200, 'the yawn and the waking');
     expect(await api(() => window.game!.place())).toBe('cabin');
@@ -1194,7 +1198,9 @@ test.describe('the treasures on the bed', () => {
     // every treasure's place on the shelves is on the screen from the pillow
     const spots = await api(() => {
       const g = window.game!;
-      return g.treasures().map((t) => ({ id: t.id, at: g.project(t.shelf[0], t.shelf[1], t.shelf[2]) }));
+      return g
+        .treasures()
+        .flatMap((t) => (t.shelf ? [{ id: t.id, at: g.project(t.shelf[0], t.shelf[1], t.shelf[2]) }] : []));
     });
     const size = page.viewportSize()!;
     for (const s of spots) {
@@ -1223,10 +1229,118 @@ test.describe('the treasures on the bed', () => {
       false,
       false,
       true,
+      false,
+      false,
+      false,
     ]);
     expect(flat(await api(() => window.game!.save()))).toMatchObject({ found: ['duck'], day: 2 });
     expect(problems).toEqual([]);
   });
+});
+
+/**
+ * The plant's logbook (`docs/logbook.md`): six pages lying on the beds of the two lakes, kept as treasures are, read in
+ * the journal over both lakes, and the engineer's letter answered when all six are found. Seeded and paused.
+ */
+test.describe('the logbook', () => {
+  const PAGE2 =
+    'The deckchair is back, with a flask. Readings normal. Asked around. Nobody in the plant owns a deckchair. W.F.';
+  const PAGE4 = 'Readings up. A little. Put a sign on valve 3. Somebody has drawn a fish on the sign. W.F.';
+
+  test('a page at the pond is landed, read on the card, kept, and listed in the journal', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 12 } });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    expect(await api(() => window.game!.logbook())).toMatchObject({ found: 'pages found: 0 of 6' });
+
+    expect(await api(() => window.game!.fishTo('landed', 'page2'))).toBe(true);
+    await expect(page.locator('#catchName')).toHaveText('logbook page');
+    await expect(page.locator('#catchNote')).toBeVisible();
+    await expect(page.locator('#catchNote')).toHaveText(PAGE2);
+    await page.locator('#catch').click();
+    await play(page, 1, 'the page kept');
+    await expect(page.locator('#toast')).toHaveText("Found! It's for the shelf.");
+    expect(flat(await api(() => window.game!.save()))).toMatchObject({ cured: 12, found: ['page2'] });
+    const book = await api(() => window.game!.logbook());
+    expect(book.found).toBe('pages found: 1 of 6');
+    expect(book.rows.map((r) => r.found)).toEqual([false, true, false, false, false, false]);
+    expect(book.rows[1].words).toBe(PAGE2);
+
+    await api(() => window.game!.openJournal());
+    const rows = page.locator('#journalLogbook li');
+    await expect(rows).toHaveCount(6);
+    await expect(rows.nth(1)).toContainText('Page 2');
+    await expect(rows.nth(1)).toContainText(PAGE2);
+    await expect(rows.nth(0)).toContainText('not yet found');
+    await expect(page.locator('#journalLogbookCount')).toHaveText('pages found: 1 of 6');
+    // a page is in the book and not among the pond's finds
+    await expect(page.locator('#journalFound li')).toHaveCount(6);
+    await expect(page.locator('#journalFound li').filter({ hasText: 'logbook page' })).toHaveCount(0);
+    await expect(page.locator('#journalFound li').filter({ hasText: 'Page 2' })).toHaveCount(0);
+    expect(await api(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a page at the Reservoir is kept, and the book reads two of six over both lakes', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, {
+      seed: 1,
+      paused: true,
+      save: {
+        lake: 'reservoir',
+        lakes: {
+          duckpond: { cured: 12, drums: 0, journal: {}, found: ['page2'] },
+          reservoir: { cured: 16, drums: 0, journal: {}, found: [] },
+        },
+      },
+    });
+    const api = <T>(f: () => T) => page.evaluate(f);
+    expect(await api(() => window.game!.lake().id)).toBe('reservoir');
+    expect((await api(() => window.game!.logbook())).found).toBe('pages found: 1 of 6');
+    expect(await api(() => window.game!.fishTo('landed', 'page4'))).toBe(true);
+    await expect(page.locator('#catchNote')).toHaveText(PAGE4);
+    await page.locator('#catch').click();
+    await play(page, 1, 'the page kept');
+    const book = await api(() => window.game!.logbook());
+    expect(book.found).toBe('pages found: 2 of 6');
+    expect(book.rows.map((r) => r.found)).toEqual([false, true, false, true, false, false]);
+    await api(() => window.game!.openJournal());
+    await expect(page.locator('#journalLogbook li').nth(3)).toContainText(PAGE4);
+    await expect(page.locator('#journalLogbook li').nth(1)).toContainText(PAGE2);
+    expect(await api(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  // each in a page of its own: a save handed to a page already played in is not the one it loads
+  for (const sixth of [false, true]) {
+    test(`the engineer’s letter ${sixth ? 'is answered at the sixth page' : 'stays open with five pages found'}`, async ({
+      page,
+    }) => {
+      const problems = watch(page);
+      const reservoir = {
+        cured: 16,
+        drums: 0,
+        journal: {},
+        found: sixth ? ['page4', 'page5', 'page6'] : ['page4', 'page5'],
+      };
+      const duckpond = { cured: 12, drums: 0, journal: {}, found: ['page1', 'page2', 'page3'] };
+      await start(page, { seed: 1, paused: true, save: { lakes: { duckpond, reservoir } } });
+      await play(page, 60, 'a second after the load');
+      const requests = (JSON.parse(await page.evaluate(() => window.game!.save())) as { requests: string[] }).requests;
+      expect(requests.includes('logbook')).toBe(sixth);
+      await page.evaluate(() => window.game!.openPost());
+      if (sixth) {
+        await expect(page.locator('#postList li.answered b')).toContainText('Wendell Fisk');
+        await expect(page.locator('#postList li.answered .reply')).toContainText('All six, and in order');
+      } else {
+        await expect(page.locator('#postList li:not(.answered) b').last()).toHaveText('From Wendell Fisk');
+      }
+      expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+      expect(problems).toEqual([]);
+    });
+  }
 });
 
 /**
@@ -1908,7 +2022,7 @@ test.describe('the post', () => {
   const clockOf = (page: Page) =>
     page.evaluate(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
 
-  test('the page lists three open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
+  test('the page lists five open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 1, paused: true });
     await play(page, 60, 'a second before the post');
@@ -1922,6 +2036,7 @@ test.describe('the post', () => {
       'From Pip and the Glow-Worms',
       'From Flo Keel',
       'From Marigold Bunn',
+      'From Wendell Fisk',
     ]);
     await play(page, 120, 'two seconds with the post open');
     expect(await clockOf(page), 'game time holds').toEqual(before);
@@ -1957,6 +2072,7 @@ test.describe('the post', () => {
       'From Pip and the Glow-Worms',
       'From Flo Keel',
       'From Marigold Bunn',
+      'From Wendell Fisk',
       'Answered: from Ida Penny',
     ]);
     const answered = page.locator('#postList li.answered');

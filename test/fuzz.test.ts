@@ -71,8 +71,11 @@ describe('the fuzzer', () => {
   it('reaches every kind, a drum hauled, and a pond cleaned by cures and hauls: across seeds 1 to 24', () => {
     const done: Record<string, number> = {},
       happened: Record<string, number> = {};
+    // eight thousand frames a seed, not four: with the logbook's pages on the pond's bed (nine things to lie by, not
+    // six) more of the monkey's casts are left on the bed and fewer reach a fish, and four thousand caught no perch over
+    // the twenty-four; eight catch each kind three times or more, measured on 29 Oct 2026
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000, 'duckpond');
+      const r = fuzz(seed, 8000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
       for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;

@@ -226,6 +226,23 @@ test.describe('what it looks like', () => {
       expect(problems).toEqual([]);
     });
 
+  // a page of the plant's logbook lying on the bed under the clean water, by day, looked down on from near enough to read
+  // the sheet it is (`docs/logbook.md`)
+  test('logbook-bed', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await set(page, { ...STANDARD, dirt: 0, time: 'day' }, 180);
+    await page.evaluate(() => {
+      const g = window.game!;
+      const sheet = g.treasures().find((t) => t.id === 'page1')!;
+      g.look(sheet.x, sheet.y, { polar: 0.15, radius: 3.5 });
+      g.step(0);
+    });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('logbook-bed.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   // the two drums hauled up, standing on the bank beside the cabin, seen from across the water
   test('drums-by-cabin', async ({ page }) => {
     const problems = watch(page);
@@ -813,6 +830,43 @@ test.describe('the journal', () => {
       await page.evaluate(() => window.game!.openJournal());
       await expect(page.locator('#journalClose')).toBeFocused();
       await expect(page).toHaveScreenshot('phone-journal.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});
+
+/** Pages of the logbook found over both lakes: 1 and 2 at the pond, 4 and 6 at the Reservoir, on the second day. */
+const LOGBOOK_SAVE = {
+  ...JOURNAL_SAVE,
+  lakes: {
+    duckpond: { cured: 5, drums: 1, journal: JOURNAL_SAVE.journal, found: ['page1', 'page2'] },
+    reservoir: { cured: 2, drums: 0, journal: {}, found: ['page4', 'page6'] },
+  },
+};
+
+test.describe('the journal with the logbook half found', () => {
+  test('the page at a desk’s width', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: LOGBOOK_SAVE });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openJournal());
+    await expect(page.locator('#journalClose')).toBeFocused();
+    await expect(page.locator('#journalLogbookCount')).toHaveText('pages found: 4 of 6');
+    await expect(page).toHaveScreenshot('desk-journal-logbook.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('the page at a phone’s width', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: LOGBOOK_SAVE });
+      await set(page, { ...STANDARD, view: 'phone' }, 30);
+      await page.evaluate(() => window.game!.openJournal());
+      await expect(page.locator('#journalClose')).toBeFocused();
+      await expect(page.locator('#journalLogbookCount')).toHaveText('pages found: 4 of 6');
+      await expect(page).toHaveScreenshot('phone-journal-logbook.png', TOLERANCE);
       expect(problems).toEqual([]);
     });
   });

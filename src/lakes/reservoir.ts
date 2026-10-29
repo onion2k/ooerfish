@@ -11,7 +11,7 @@
  */
 import { DRUM_RULES, WATER_LEVEL } from '../rules';
 import { DUCK_POND } from './duckpond';
-import type { Dam, DamSpec, Lake, View, ViewName } from './lake';
+import type { Dam, DamSpec, Lake, TreasureSpec, View, ViewName } from './lake';
 
 /** The shore's mean distance from the middle: about one and six tenths of the pond's thirty. */
 const SHORE_RADIUS = 48;
@@ -287,14 +287,48 @@ const DRUMS = {
   bank: [] as readonly { across: number; along: number }[],
 } as const;
 
-/** No treasures yet: the other lakes' sets are a later slice. */
+/**
+ * The Reservoir's treasures are the last three pages of the plant's logbook (`docs/logbook.md`), on the bed within the
+ * angler's cast and clear of the drums. A lake with no cabin has no shelf, and a page goes in the book in any case.
+ */
 const TREASURES = {
-  count: 0,
-  seed: 0,
-  where: { distance: [8, 21] as const, bearing: 0.9, depth: [2, 3.6] as const, margin: 2, apart: 4 },
+  count: 3,
+  seed: 7331,
+  where: { distance: [10, 30] as const, bearing: 0.7, depth: [2, 3.6] as const, margin: 2, apart: 4 },
   bedScale: 1.8,
   shelfScale: 0.28,
-  list: [],
+  list: [
+    {
+      id: 'page4',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 4,
+      note: 'Readings up. A little. Put a sign on valve 3. Somebody has drawn a fish on the sign. W.F.',
+    },
+    {
+      id: 'page5',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 5,
+      note: 'The outflow is warm and the fish like it. There are a great many fish. Some of them are glowing. Reported it. W.F.',
+    },
+    {
+      id: 'page6',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 6,
+      note: 'Found him. Night shift, valve 3, a rod and a bucket, since March. He said the warm water brought the big ones up and he had only opened it a bit. Closed the valve. Kept the bucket. I should have looked sooner. W.F.',
+    },
+  ] as readonly TreasureSpec[],
 } as const;
 
 /** The south shore at the middle, where the angler stands behind. */

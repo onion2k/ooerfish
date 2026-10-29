@@ -17,6 +17,7 @@
  * Checked by the fuzzer after everything it does, by the test API on asking,
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
+import { apartOf } from './bedfinds';
 import type { Game } from './game';
 import { fightFor, gearFor } from './fight';
 import {
@@ -66,8 +67,8 @@ function treasureRules(game: Game, out: string[]) {
       out.push(`treasure ${i} is not on the bed under the water, at ${x}, ${y}`);
     for (let d = 0; d < drums.count; d++) {
       const gap = Math.hypot(x - drums.x[d], y - drums.y[d]);
-      if (gap < spec.where.apart)
-        out.push(`treasure ${i} lies ${gap.toFixed(2)} from drum ${d}, under the ${spec.where.apart} apart`);
+      if (gap < apartOf(spec, i))
+        out.push(`treasure ${i} lies ${gap.toFixed(2)} from drum ${d}, under the ${apartOf(spec, i)} apart`);
     }
   });
 }

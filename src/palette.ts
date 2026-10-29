@@ -132,6 +132,9 @@ export const PALETTE = {
   lunchboxHandle: [0.55, 0.55, 0.6] as Colour,
   badge: [0.98, 0.85, 0.2] as Colour,
   badgeFace: [0.9, 0.18, 0.12] as Colour,
+  /** A logbook page: water-stained paper, and the ink of its ruled lines. */
+  page: [0.9, 0.84, 0.62] as Colour,
+  pageInk: [0.08, 0.06, 0.1] as Colour,
   bottle: [0.8, 0.98, 0.9] as Colour,
   bottleCork: [0.62, 0.42, 0.22] as Colour,
   duck: [1, 0.9, 0.12] as Colour,

@@ -39,7 +39,19 @@ const paint = (mesh: Mesh) => painted(split(mesh), { set: PAINT_SET, choice: 'ga
  * The same every time, and each under sixty triangles together.
  */
 export function treasureParts(i: number, lake: Lake): TreasurePart[] {
-  switch (lake.treasures.list[i].id) {
+  const spec = lake.treasures.list[i];
+  if (spec.page !== undefined) {
+    // a logbook page lying flat: a sheet of stained paper, thick enough to stand clear of the bed's slope, and three broad ruled lines of ink laid just over it
+    const sheet = built((b) => block(b, at(0, 0, 0), -0.3, 0.3, -0.4, 0.4, 0, 0.1));
+    const rules = built((b) => {
+      for (const y of [-0.22, 0, 0.22]) block(b, at(0, 0, 0), -0.22, 0.22, y - 0.05, y + 0.05, 0.1, 0.13);
+    });
+    return [
+      { mesh: paint(sheet), colour: PALETTE.page, roughness: 0.9 },
+      { mesh: rules, colour: PALETTE.pageInk, roughness: 0.9 },
+    ];
+  }
+  switch (spec.id) {
     case 'lure': {
       // a spinner lying on its side: a rusted spindle with a bright blade at its head and a hook's bar
       const body = built((b) => rod(b, [-0.3, 0, 0.1 * REST], [0.3, 0, 0.1 * REST], 0.1, 6, true));
@@ -128,6 +140,7 @@ export function shelfSpot(i: number, lake: Lake): [number, number, number, numbe
   if (!lake.cabin) throw new Error(`${lake.name} has no cabin, so no shelf`);
   const { spec: CABIN, at: CABIN_AT, room: CABIN_ROOM, floor: CABIN_FLOOR } = lake.cabin;
   const t = lake.treasures.list[i];
+  if (!t.shelf) throw new Error(`${t.id} has no shelf, since it goes in the book`);
   const sh = t.shelf.on === 'lower' ? CABIN_ROOM.furniture.shelf : CABIN_ROOM.furniture.shelfUpper;
   const wall = CABIN.body.across / 2 - CABIN_ROOM.inset;
   const [x, y] = placeAt(CABIN_AT)([wall - sh.deep / 2, t.shelf.along, 0]);
@@ -156,8 +169,8 @@ export class TreasureDraw {
     const out: GameGroup[] = [];
     let g = 0;
     this.parts.forEach((parts, i) => {
-      // a find in a lake with no cabin has no shelf to stand on, and is drawn on the bed at no size at all
-      const shelved = treasures.found[i] && lake.cabin !== null;
+      // a find in a lake with no cabin, or a page, has no shelf to stand on, and is drawn on the bed at no size at all
+      const shelved = treasures.found[i] && lake.cabin !== null && lake.treasures.list[i].shelf !== null;
       const [x, y, z, yaw] = shelved ? shelfSpot(i, lake) : bedSpot(treasures, i, lake);
       const scale = shelved ? lake.treasures.shelfScale : treasures.found[i] ? 0 : lake.treasures.bedScale;
       for (const p of parts) {

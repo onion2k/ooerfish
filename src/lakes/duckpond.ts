@@ -674,9 +674,11 @@ const DRUMS = {
  * guesses, the lines and the note a placeholder.
  */
 const TREASURES = {
-  count: 6,
+  count: 9,
   seed: 6211,
   where: { distance: [8, 21] as const, bearing: 0.9, depth: [2, 3.6] as const, margin: 2, apart: 4 },
+  // the three pages of the logbook were drawn after the six, in a band the six had crowded, so they keep less apart
+  later: { from: 6, apart: 3 },
   bedScale: 1.8,
   shelfScale: 0.28,
   list: [
@@ -728,6 +730,36 @@ const TREASURES = {
       weight: 0.2,
       size: { radius: 0.41, high: 0.56 },
       shelf: { on: 'upper', along: -2.38 },
+    },
+    {
+      id: 'page1',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 1,
+      note: 'Cooling pond, 0600. Readings normal. Somebody has left a deckchair by the outflow. Removed it. W.F.',
+    },
+    {
+      id: 'page2',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 2,
+      note: 'The deckchair is back, with a flask. Readings normal. Asked around. Nobody in the plant owns a deckchair. W.F.',
+    },
+    {
+      id: 'page3',
+      name: 'logbook page',
+      line: 'Water-stained, but it reads.',
+      weight: 0.02,
+      size: { radius: 0.5, high: 0.13 },
+      shelf: null,
+      page: 3,
+      note: 'Valve 3 found open a quarter turn this morning. Closed it. Not my department, but I closed it. W.F.',
     },
   ] as readonly TreasureSpec[],
 } as const;
