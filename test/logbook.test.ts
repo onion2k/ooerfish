@@ -13,6 +13,7 @@ const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   place: 'pond',
   requests: [],
   photos: [],
+  tally: { rain: 0, run: 0, best: 0 },
 });
 const other = Object.keys(LAKES).find((id) => id !== HOME.id)!;
 

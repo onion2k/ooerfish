@@ -29,6 +29,7 @@ const FRESH = {
   place: 'pond',
   requests: [],
   photos: [],
+  tally: { rain: 0, run: 0, best: 0 },
 };
 
 const DIR = new URL('saves/', import.meta.url);
@@ -126,6 +127,8 @@ const KEPT: Record<string, Record<string, unknown>> = {
       },
     ],
   },
+  // the contests' tally: fish stowed in rain, the run of casts that landed, and the longest run
+  '13-tally.json': { cured: 12, drums: 2, tally: { rain: 1, run: 2, best: 2 } },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -420,7 +423,16 @@ describe('the save per lake', () => {
     expect(progress.entry(other.id), 'the other lake is untouched').toEqual(entry());
     progress.persist();
     const written = JSON.parse(store.json!) as Record<string, unknown>;
-    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'photos', 'place', 'requests', 'time']);
+    expect(Object.keys(written).sort()).toEqual([
+      'day',
+      'lake',
+      'lakes',
+      'photos',
+      'place',
+      'requests',
+      'tally',
+      'time',
+    ]);
     for (const old of ['cured', 'drums', 'journal', 'found']) expect(written, old).not.toHaveProperty(old);
   });
 
@@ -567,5 +579,33 @@ describe('the album', () => {
 
   it('keeps each kind of a photograph once', () => {
     expect(albumOf([{ ...GOOD, kinds: ['bream', 'bream'] }])[0].kinds).toEqual(['bream']);
+  });
+});
+
+describe('the tally', () => {
+  const tallyOf = (tally: unknown) => new Progress(memoryStore(JSON.stringify({ tally }))).save.tally;
+
+  it('is nought by default, and an old save without the field has none', () => {
+    expect(tallyOf(undefined)).toEqual({ rain: 0, run: 0, best: 0 });
+    expect(new Progress(memoryStore('{"cured": 3}')).save.tally).toEqual({ rain: 0, run: 0, best: 0 });
+    expect(new Progress(memoryStore(null)).save.tally).toEqual({ rain: 0, run: 0, best: 0 });
+  });
+
+  it('keeps good figures', () => {
+    expect(tallyOf({ rain: 4, run: 2, best: 5 })).toEqual({ rain: 4, run: 2, best: 5 });
+  });
+
+  it('takes anything but a non-negative whole number as nought, each on its own', () => {
+    for (const bad of [-1, 1.5, '3', null, Number.NaN, Infinity, 2 ** 60, {}, [1]])
+      expect(tallyOf({ rain: bad, run: 1, best: 2 }), JSON.stringify(bad)).toEqual({ rain: 0, run: 1, best: 2 });
+  });
+
+  it('is none when it is not an object', () => {
+    for (const bad of [null, 4, 'x', [1, 2, 3]]) expect(tallyOf(bad)).toEqual({ rain: 0, run: 0, best: 0 });
+  });
+
+  it('holds the run to the best', () => {
+    expect(tallyOf({ rain: 0, run: 5, best: 3 })).toEqual({ rain: 0, run: 3, best: 3 });
+    expect(tallyOf({ rain: 0, run: 2 })).toEqual({ rain: 0, run: 0, best: 0 });
   });
 });

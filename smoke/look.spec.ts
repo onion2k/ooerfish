@@ -987,6 +987,30 @@ test.describe('the post', () => {
     expect(problems).toEqual([]);
   });
 
+  test('the page with the contests and the logbook part way through, their lines under the letters', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    const seen = { caught: 1, best: 0.6, first: 1 };
+    await start(page, {
+      seed: 11,
+      paused: true,
+      save: {
+        cured: 3,
+        day: 2,
+        tally: { rain: 1, run: 1, best: 2 },
+        lakes: {
+          duckpond: { cured: 3, drums: 0, found: ['page1', 'page2'], journal: { bream: seen, perch: seen } },
+        },
+      },
+    });
+    await set(page, STANDARD, 30);
+    await page.evaluate(() => window.game!.openPost());
+    await expect(page.locator('#postClose')).toBeFocused();
+    await expect(page).toHaveScreenshot('desk-post-progress.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   test.describe('on a phone', () => {
     test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
 

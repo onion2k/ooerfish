@@ -1,9 +1,10 @@
 /** The town's requests: the letters as the spec has them, and when each is met, as pure sums over a save. */
 import { describe, expect, it } from 'vitest';
-import { KINDS } from '../src/lake';
+import { CONTESTS, KINDS } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
 import type { LakeSave, Save } from '../src/progress';
 import { REQUESTS, REQUEST_RULES, requestNamed } from '../src/town/requests';
+import { logbookPages } from '../src/town/logbook';
 import { TOWN } from '../src/town/town';
 
 const entry = (over: Partial<LakeSave> = {}): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [], ...over });
@@ -15,6 +16,7 @@ const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   place: 'pond',
   requests: [],
   photos: [],
+  tally: { rain: 0, run: 0, best: 0 },
 });
 const met = (id: string, save: Save) => requestNamed(id)!.met(save, LAKES);
 const caught = (best = 1) => ({ caught: 1, best, first: 1 });
@@ -39,8 +41,17 @@ describe('the town', () => {
 });
 
 describe('the requests', () => {
-  it('are the six, in order, each id once, each from a person of the town', () => {
-    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook', 'window']);
+  it('are the eight, in order, each id once, each from a person of the town', () => {
+    expect(REQUESTS.map((r) => r.id)).toEqual([
+      'ducks',
+      'rainbow',
+      'biggest',
+      'pink',
+      'logbook',
+      'window',
+      'rain',
+      'casts',
+    ]);
     expect(new Set(REQUESTS.map((r) => r.id)).size).toBe(REQUESTS.length);
     expect(requestNamed('ducks')).toBe(REQUESTS[0]);
     expect(requestNamed('nope')).toBeUndefined();
@@ -51,8 +62,19 @@ describe('the requests', () => {
       'Marigold Bunn',
       'Wendell Fisk',
       'Ida Penny',
+      'Flo Keel',
+      'Flo Keel',
     ]);
-    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker', 'engineer', 'postmistress']);
+    expect(REQUESTS.map((r) => r.role)).toEqual([
+      'ducks',
+      'club',
+      'rival',
+      'baker',
+      'engineer',
+      'postmistress',
+      'rival',
+      'rival',
+    ]);
   });
 
   it('say the spec’s words, word for word', () => {
@@ -237,5 +259,70 @@ describe('the postmistress’s second letter, the window', () => {
     expect(met('window', withPhotos(lit(['pike'], true)))).toBe(false);
     expect(met('window', withPhotos(lit([], true)))).toBe(false);
     expect(met('window', withPhotos())).toBe(false);
+  });
+});
+
+describe('the rival’s contests, rain and casts', () => {
+  const tallied = (rain: number, run: number, best: number): Save => ({
+    ...saveOf({ [HOME.id]: entry() }),
+    tally: { rain, run, best },
+  });
+
+  it('say the spec’s words, word for word', () => {
+    expect(requestNamed('rain')!.asks).toBe(
+      'Dear Rival, Ned says fish do not bite in the rain. Ned says a lot of things. Land three while it is raining and I will stand you a hot chocolate. A sun-shower does not count. Flo Keel.',
+    );
+    expect(requestNamed('rain')!.reply).toBe(
+      'Three in the rain. Ned has gone to check his barometer. The hot chocolate is at the bakery, tell Marigold I sent you. Flo.',
+    );
+    expect(requestNamed('casts')!.asks).toBe(
+      'Dear Rival, New game. Three fish on three casts, not one wasted. A cast that comes back empty starts you again. I did it once, in 1998, and nobody saw. Flo Keel.',
+    );
+    expect(requestNamed('casts')!.reply).toBe('Three on three. I saw it this time, from the dam. Fair is fair. Flo.');
+  });
+
+  it('are met at three and not at two', () => {
+    expect(met('rain', tallied(2, 0, 0))).toBe(false);
+    expect(met('rain', tallied(3, 0, 0))).toBe(true);
+    expect(met('casts', tallied(0, 2, 2))).toBe(false);
+    expect(met('casts', tallied(0, 0, 3))).toBe(true);
+    expect(CONTESTS.rain).toBe(3);
+    expect(CONTESTS.run).toBe(3);
+  });
+
+  it('count the rain so far', () => {
+    const p = requestNamed('rain')!.progress!;
+    expect(p(tallied(0, 0, 0), LAKES)).toBe('In the rain so far: 0 of 3.');
+    expect(p(tallied(2, 0, 0), LAKES)).toBe('In the rain so far: 2 of 3.');
+  });
+
+  it('count the best run, and the run only while it is above nought', () => {
+    const p = requestNamed('casts')!.progress!;
+    expect(p(tallied(0, 0, 2), LAKES)).toBe('Best run: 2 of 3.');
+    expect(p(tallied(0, 1, 2), LAKES)).toBe('Best run: 2 of 3. This run: 1.');
+  });
+});
+
+describe('the counters on the logbook and the rainbow', () => {
+  it('count the kinds caught over the lakes’ journals', () => {
+    const p = requestNamed('rainbow')!.progress!;
+    expect(p(saveOf({ [HOME.id]: entry() }), LAKES)).toBe(`Kinds caught: 0 of ${KINDS.length}.`);
+    const two = saveOf({
+      [HOME.id]: entry({ journal: { [KINDS[0].id]: caught() } }),
+      other: entry({ journal: { [KINDS[0].id]: caught(), [KINDS[1].id]: caught() } }),
+    });
+    expect(p(two, LAKES)).toBe(`Kinds caught: 2 of ${KINDS.length}.`);
+  });
+
+  it('count the pages found', () => {
+    const p = requestNamed('logbook')!.progress!;
+    const total = logbookPages(LAKES).length;
+    expect(p(saveOf({ [HOME.id]: entry() }), LAKES)).toBe(`Pages found: 0 of ${total}.`);
+    const first = logbookPages(LAKES)[0].id;
+    expect(p(saveOf({ [HOME.id]: entry({ found: [first] }) }), LAKES)).toBe(`Pages found: 1 of ${total}.`);
+  });
+
+  it('are the only letters with a counter', () => {
+    for (const id of ['ducks', 'biggest', 'pink', 'window']) expect(requestNamed(id)!.progress).toBeUndefined();
   });
 });

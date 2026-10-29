@@ -1096,7 +1096,7 @@ async function main() {
   const openPost = () => {
     showMenu(false);
     if (postOpen) return Promise.resolve();
-    const page = postWords(REQUESTS, game.progress.save);
+    const page = postWords(REQUESTS, game.progress.save, LAKES);
     byId('postTitle').textContent = page.title;
     postList.replaceChildren(
       ...page.letters.map((letter) => {
@@ -1106,6 +1106,12 @@ async function main() {
         heading.textContent = letter.heading;
         body.textContent = letter.body;
         item.append(heading, body);
+        if (letter.progress !== null) {
+          const progress = document.createElement('small');
+          progress.className = 'progress';
+          progress.textContent = letter.progress;
+          item.append(progress);
+        }
         if (letter.reply !== null) {
           const reply = document.createElement('p');
           reply.className = 'reply';

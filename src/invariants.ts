@@ -151,6 +151,15 @@ function requestRules(game: Game, out: string[]) {
     if (!seen.has(r.id) && r.met(save, LAKES)) out.push(`request ${r.id} is met, but is not answered`);
 }
 
+/** The contests' tally (`docs/contests.md`): each figure a non-negative whole number, and a run no longer than the best. */
+function tallyRules(game: Game, out: string[]) {
+  const { tally } = game.progress.save;
+  for (const key of ['rain', 'run', 'best'] as const)
+    if (!Number.isSafeInteger(tally[key]) || tally[key] < 0)
+      out.push(`the tally's ${key} is ${tally[key]}, not a whole number from nought`);
+  if (tally.run > tally.best) out.push(`the tally's run, ${tally.run}, is longer than its best, ${tally.best}`);
+}
+
 /**
  * The album (`docs/photo.md`): no longer than it may be, and every photograph one the game could have taken: at a lake it
  * has, on a day from the first to today, at a time of the day, in a weather it has, from a view of finite numbers, of
@@ -380,6 +389,7 @@ export function checkInvariants(game: Game): string[] {
   treasureRules(game, out);
   requestRules(game, out);
   photoRules(game, out);
+  tallyRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

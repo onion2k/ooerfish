@@ -2209,7 +2209,7 @@ test.describe('the post', () => {
   const clockOf = (page: Page) =>
     page.evaluate(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
 
-  test('the page lists six open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
+  test('the page lists eight open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 1, paused: true });
     await play(page, 60, 'a second before the post');
@@ -2225,6 +2225,8 @@ test.describe('the post', () => {
       'From Marigold Bunn',
       'From Wendell Fisk',
       'From Ida Penny',
+      'From Flo Keel',
+      'From Flo Keel',
     ]);
     await play(page, 120, 'two seconds with the post open');
     expect(await clockOf(page), 'game time holds').toEqual(before);
@@ -2262,6 +2264,8 @@ test.describe('the post', () => {
       'From Marigold Bunn',
       'From Wendell Fisk',
       'From Ida Penny',
+      'From Flo Keel',
+      'From Flo Keel',
       'Answered: from Ida Penny',
     ]);
     const answered = page.locator('#postList li.answered');
@@ -2322,6 +2326,102 @@ test.describe('the post', () => {
     await start(page, { seed: 1, paused: true, save: { requests: ['biggest'] } });
     expect(await requestsOf(page)).toEqual([]);
     expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The rival's contests (`docs/contests.md`, part 3): a fish stowed in rain and a run of fish with no cast wasted are
+ * counted in the save's tally, the two letters from Flo Keel answer at three, and the open letters say how far on they are.
+ */
+test.describe('the contests', () => {
+  const requestsOf = async (page: Page) =>
+    (JSON.parse(await page.evaluate(() => window.game!.save())) as { requests: string[] }).requests;
+
+  test('the third fish stowed in rain answers the rain letter: counted, toasted and read on the page', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, {
+      seed: 1,
+      paused: true,
+      save: { cured: 3, tally: { rain: 2, run: 0, best: 0 } },
+    });
+    expect(await page.evaluate(() => window.game!.weather('rain'))).toBe(true);
+    expect(await page.evaluate(() => window.game!.fishTo('landed', 'bream'))).toBe(true);
+    await page.locator('#catch').click();
+    await play(page, 1, 'the bream stowed');
+    expect(await page.evaluate(() => window.game!.tally())).toMatchObject({ rain: 3 });
+    expect(await requestsOf(page)).toContain('rain');
+    expect(await requestsOf(page)).not.toContain('casts');
+    const events = await page.evaluate(() => window.game!.events());
+    expect(events).toContain('answered rain');
+    await expect(page.locator('#toast')).toHaveText('Cured! The pond clears a little.');
+    await play(page, 130, 'the cure line said');
+    await expect(page.locator('#toast')).toHaveText(/^Answered! /);
+
+    await page.evaluate(() => window.game!.openPost());
+    const answered = page.locator('#postList li.answered');
+    await expect(answered).toHaveCount(1);
+    await expect(answered.locator('.reply')).toContainText('Three in the rain');
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('the third fish of a run answers the casts letter', async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, {
+      seed: 1,
+      paused: true,
+      save: { cured: 3, tally: { rain: 0, run: 2, best: 2 } },
+    });
+    // no kind asked for: the first cast bites, so none is wasted and the run of two goes on to three
+    expect(await page.evaluate(() => window.game!.fishTo('landed'))).toBe(true);
+    await page.locator('#catch').click();
+    await play(page, 1, 'the fish stowed');
+    expect(await page.evaluate(() => window.game!.tally())).toMatchObject({ run: 3, best: 3, rain: 0 });
+    expect(await requestsOf(page)).toContain('casts');
+    expect(await requestsOf(page)).not.toContain('rain');
+    await play(page, 130, 'the cure line said');
+    await expect(page.locator('#toast')).toHaveText(/^Answered! /);
+    await page.evaluate(() => window.game!.openPost());
+    await expect(page.locator('#postList li.answered .reply')).toContainText('Three on three');
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('the open letters say how far on they are', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, {
+      seed: 1,
+      paused: true,
+      save: {
+        cured: 3,
+        tally: { rain: 1, run: 1, best: 2 },
+        lakes: {
+          duckpond: {
+            cured: 3,
+            drums: 0,
+            found: ['page1', 'page2'],
+            journal: {
+              bream: { caught: 1, best: 0.5, first: 1 },
+              perch: { caught: 1, best: 0.8, first: 1 },
+            },
+          },
+        },
+      },
+    });
+    await play(page, 30, 'a half second');
+    await page.evaluate(() => window.game!.openPost());
+    const lines = await page.locator('#postList li:not(.answered) small.progress').allTextContents();
+    expect(lines).toEqual([
+      'Kinds caught: 2 of 6.',
+      'Pages found: 2 of 6.',
+      'In the rain so far: 1 of 3.',
+      'Best run: 2 of 3. This run: 1.',
+    ]);
     expect(problems).toEqual([]);
   });
 });

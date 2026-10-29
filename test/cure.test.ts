@@ -62,8 +62,10 @@ describe('the cure', () => {
         day: 1,
         time: expect.any(Number) as unknown,
         place: 'pond',
-        requests: [],
+        // three fish on three casts is the rival's second contest, answered at the third
+        requests: k >= 3 ? ['casts'] : [],
         photos: [],
+        tally: expect.any(Object) as unknown,
       });
     }
     expect(game.bucket).toBe(3);

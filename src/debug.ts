@@ -226,6 +226,8 @@ export interface GameApi {
   journal(): { kinds: Journal; found: string[] };
   /** The album as saved, a copy: each photograph's lake, day, time, weather, view, kinds in frame and whether it was lit. */
   photos(): Photo[];
+  /** The contests' tally as saved, a copy: the fish stowed in rain, the run of casts landed with none wasted, and the longest run. */
+  tally(): { rain: number; run: number; best: number };
   /** The photograph at this place in the album thrown away, as Discard does; false, and nothing changed, for a place with none. */
   discard(index: number): boolean;
   /** The journal's logbook section as the page shows it: the six pages in order over every lake, their words once found, and the count. */
@@ -694,6 +696,7 @@ export function createApi(host: DebugHost): GameApi {
       found: [...game.progress.entry(game.lake.id).found],
     }),
     photos: () => JSON.parse(JSON.stringify(game.progress.save.photos)) as Photo[],
+    tally: () => ({ ...game.progress.save.tally }),
     discard: (index) => game.discard(index),
     logbook: () => logbookWords(LAKES, game.progress.save),
     gear: () => ({ ...game.gear }),

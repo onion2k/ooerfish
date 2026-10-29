@@ -585,3 +585,27 @@ describe('the still', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/the still remembers the clock at 1/);
   });
 });
+
+describe('the tally', () => {
+  it('holds of a fresh tally and of a run in progress', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    Object.assign(game.progress.save.tally, { rain: 2, run: 2, best: 2 });
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a figure that is not a non-negative whole number', () => {
+    for (const key of ['rain', 'run', 'best'] as const)
+      for (const bad of [-1, 1.5, Number.NaN, Infinity]) {
+        const { game } = newGame();
+        game.progress.save.tally[key] = bad;
+        expect(checkInvariants(game).join('\n'), `${key} ${bad}`).toMatch(new RegExp(`the tally's ${key} is`));
+      }
+  });
+
+  it('reports a run longer than the best', () => {
+    const { game } = newGame();
+    Object.assign(game.progress.save.tally, { run: 3, best: 2 });
+    expect(checkInvariants(game).join('\n')).toMatch(/the tally's run, 3, is longer than its best, 2/);
+  });
+});

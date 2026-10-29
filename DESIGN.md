@@ -303,6 +303,9 @@ Each stage is a feature, built and verified before the next, every gate green at
    _A third slice is in (29 Oct 2026, `docs/photo.md`): the camera, a page that frames the lake and keeps a
    photograph as figures (the camera, the time, the weather, the kinds in frame), an album of twelve in the journal, a
    photograph looked at drawn again with the grain held, and the postmistress's letter for the lit eel._
+   _A fourth slice is in (29 Oct 2026, `docs/contests.md`): Flo Keel's two contests, three fish in the rain
+   and three fish on three casts, counted by a tally the save keeps, and the post's open letters say how far along
+   each is._
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**

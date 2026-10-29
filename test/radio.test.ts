@@ -25,6 +25,7 @@ function saveOf(
     place: 'cabin',
     requests: [],
     photos: [],
+    tally: { rain: 0, run: 0, best: 0 },
   };
 }
 

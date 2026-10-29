@@ -91,6 +91,10 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     yawned: count('yawned'),
     hauled: count('hauled'),
     found: count('found'),
+    // a request answered in play, counted by its id, so the contests' two are seen to be answered
+    answered: (id: string) => {
+      done[`answered ${id}`] = (done[`answered ${id}`] ?? 0) + 1;
+    },
     // a waking is counted by how it came: a bed chosen (the action sets `bed`), or midnight
     woke: () => {
       happened.woke++;
@@ -227,7 +231,18 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       }));
     })();
     done['start photos'] = photosAtStart.length;
-    let store = memoryStore(JSON.stringify({ ...startSave, requests: requestsAtStart, photos: photosAtStart }));
+    // the contests' tally a returning player holds, from a stream of its own: two seeds in five start part way through
+    // both, one stow short of three or two, so the letters are met in play and not only by a long run of luck
+    const tallyAtStart = (() => {
+      const pick = seeded(seed * 53 + 7);
+      if (pick() >= 0.4) return { rain: 0, run: 0, best: 0 };
+      const best = 1 + Math.floor(pick() * 2);
+      return { rain: 1 + Math.floor(pick() * 2), run: Math.floor(pick() * (best + 1)), best };
+    })();
+    done['start tally'] = tallyAtStart.rain + tallyAtStart.best;
+    let store = memoryStore(
+      JSON.stringify({ ...startSave, requests: requestsAtStart, photos: photosAtStart, tally: tallyAtStart }),
+    );
     let game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
@@ -309,8 +324,13 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     const land = (): boolean => {
       const i = game.bite.fish;
       const kind = i >= 0 ? KINDS[game.fish.kind[i]].id : '';
+      const rained = game.progress.save.tally.rain;
       if (game.stow()) {
         done[`caught ${kind}`] = (done[`caught ${kind}`] ?? 0) + 1;
+        // the contests' counts (`docs/contests.md`): a fish stowed in rain, and the longest run of casts that each landed one
+        const { tally } = game.progress.save;
+        if (tally.rain > rained) done['stowed in rain'] = (done['stowed in rain'] ?? 0) + 1;
+        done['best run'] = Math.max(done['best run'] ?? 0, tally.best);
         return true;
       }
       if (game.haul()) {

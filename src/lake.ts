@@ -773,3 +773,9 @@ export const PHONE = {
  * whenever it is drawn. All three are the user's or first guesses.
  */
 export const PHOTOS = { most: 12, reach: 60, grain: 7 } as const;
+
+/**
+ * The contests (`docs/contests.md`): how many fish stowed in the rain the old fisherman asks for, and how long a run of
+ * casts that each landed a fish, with none wasted between. Both are first guesses.
+ */
+export const CONTESTS = { rain: 3, run: 3 } as const;

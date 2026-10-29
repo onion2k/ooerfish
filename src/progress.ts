@@ -46,6 +46,12 @@ export interface Save {
   requests: string[];
   /** The album, oldest first and never more than `PHOTOS.most`: each a record of figures, redrawn when it is looked at. */
   photos: Photo[];
+  /**
+   * What the contests count (`docs/contests.md`), over every lake: `rain` is the fish stowed while it rained (not in a
+   * shower), `run` the fish in a row landed and stowed with no cast wasted since, and `best` the longest such run, which
+   * `run` never passes.
+   */
+  tally: { rain: number; run: number; best: number };
 }
 
 /** A save as a test may hand one in: any of the fields, the flat shape from before there were lakes included, which reads as the home's. */
@@ -163,6 +169,17 @@ function readRequests(raw: unknown, save: Save, lakes: Record<string, Lake>): st
 }
 
 /**
+ * The tally as anyone may have written it: each figure a non-negative whole number or else nought, and the run held to
+ * the best, since a run is never longer than the longest one. Anything that is not an object is all noughts.
+ */
+function readTally(raw: unknown): Save['tally'] {
+  const e = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const figure = (n: unknown) => (whole(n) && n >= 0 ? n : 0);
+  const best = figure(e.best);
+  return { rain: figure(e.rain), run: Math.min(figure(e.run), best), best };
+}
+
+/**
  * The album as anyone may have written it: a list, of which an entry is kept only when its lake is one the game has,
  * its day a whole number from one up to today's, its time a finite number in [0, 1), its weather one the game has, its
  * view six finite numbers, its kinds a list of kind ids and its `lit` a boolean. A repeated kind is kept once. Held to
@@ -269,6 +286,7 @@ export class Progress {
     }
     this.save.requests = readRequests(said.requests, this.save, lakes);
     this.save.photos = readPhotos(said.photos, this.save, lakes);
+    this.save.tally = readTally(said.tally);
   }
 
   /** The home's id, or the first the registry has where the home is not in it (a test that plays some other lake alone). */
@@ -279,7 +297,16 @@ export class Progress {
   private fresh(): Save {
     const lakes: Record<string, LakeSave> = {};
     for (const id of Object.keys(this.lakes)) lakes[id] = freshEntry();
-    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond', requests: [], photos: [] };
+    return {
+      lake: this.homeId(),
+      lakes,
+      day: 1,
+      time: CLOCK.startsAt,
+      place: 'pond',
+      requests: [],
+      photos: [],
+      tally: { rain: 0, run: 0, best: 0 },
+    };
   }
 
   /** What has been done at the lake with this id: the live entry the game writes, made fresh if the save has none. */

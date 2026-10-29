@@ -4,7 +4,7 @@
  * once answered it stays answered. The predicates are pure sums over the save and the lakes, so a load can ask them as
  * well as a stow; the letters are words beside the code, as the radio's gossip is.
  */
-import { KINDS } from '../lake';
+import { CONTESTS, KINDS } from '../lake';
 import type { Lake } from '../lakes/lake';
 import { HOME } from '../lakes';
 import type { Save } from '../progress';
@@ -23,6 +23,11 @@ export interface Request {
   reply: string;
   /** Whether the save meets it, over the lakes the save is read against. */
   met(save: Save, lakes: Record<string, Lake>): boolean;
+  /**
+   * A line said under the letter while it is open, how far along it is; none for a letter that has no counter. Pure,
+   * like `met`, and never shown once the letter is answered.
+   */
+  progress?: (save: Save, lakes: Record<string, Lake>) => string | null;
 }
 
 /** The figures the requests ask for: content, and an estimate. A pike runs 1.5 to 5 kg, so 3.5 is a big one and not the biggest. */
@@ -53,6 +58,10 @@ export const REQUESTS: readonly Request[] = [
       'WE DREW THEM ALL. The rainbow is on the wall by the coats and Miss says it is the best one yet. Thank you from Pip and everybody.',
     met: (save) =>
       KINDS.every((k) => Object.values(save.lakes).some((entry) => (entry.journal[k.id]?.caught ?? 0) >= 1)),
+    progress: (save) => {
+      const n = KINDS.filter((k) => Object.values(save.lakes).some((entry) => (entry.journal[k.id]?.caught ?? 0) >= 1));
+      return `Kinds caught: ${n.length} of ${KINDS.length}.`;
+    },
   },
   {
     id: 'biggest',
@@ -87,6 +96,11 @@ export const REQUESTS: readonly Request[] = [
       const found = pagesFound(save, lakes);
       return logbookPages(lakes).every((p) => found.has(p.id));
     },
+    progress: (save, lakes) => {
+      const found = pagesFound(save, lakes);
+      const pages = logbookPages(lakes);
+      return `Pages found: ${pages.filter((p) => found.has(p.id)).length} of ${pages.length}.`;
+    },
   },
   {
     id: 'window',
@@ -98,6 +112,28 @@ export const REQUESTS: readonly Request[] = [
       'Over the counter it goes, and everyone who comes in asks. I have told them it is an eel and they do not believe me. Thank you. Ida.',
     // the eel lights the water only at night, so a photograph of it counts only when the look was night
     met: (save) => save.photos.some((p) => p.lit && p.kinds.includes('eel')),
+  },
+  {
+    id: 'rain',
+    from: 'Flo Keel',
+    role: 'rival',
+    asks: 'Dear Rival, Ned says fish do not bite in the rain. Ned says a lot of things. Land three while it is raining and I will stand you a hot chocolate. A sun-shower does not count. Flo Keel.',
+    reply:
+      'Three in the rain. Ned has gone to check his barometer. The hot chocolate is at the bakery, tell Marigold I sent you. Flo.',
+    // a count the save keeps (`docs/contests.md`), so it holds at a load as at a stow
+    met: (save) => save.tally.rain >= CONTESTS.rain,
+    progress: (save) => `In the rain so far: ${save.tally.rain} of ${CONTESTS.rain}.`,
+  },
+  {
+    id: 'casts',
+    from: 'Flo Keel',
+    role: 'rival',
+    asks: 'Dear Rival, New game. Three fish on three casts, not one wasted. A cast that comes back empty starts you again. I did it once, in 1998, and nobody saw. Flo Keel.',
+    reply: 'Three on three. I saw it this time, from the dam. Fair is fair. Flo.',
+    // the best run, not the present one, so a run that falls afterwards leaves it met
+    met: (save) => save.tally.best >= CONTESTS.run,
+    progress: (save) =>
+      `Best run: ${save.tally.best} of ${CONTESTS.run}.` + (save.tally.run > 0 ? ` This run: ${save.tally.run}.` : ''),
   },
 ];
 

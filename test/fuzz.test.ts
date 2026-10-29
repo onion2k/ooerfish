@@ -101,6 +101,21 @@ describe('the fuzzer', () => {
     expect(done['pond cleaned by a haul'], 'ponds whose last cleaning was a haul').toBeGreaterThan(0);
   });
 
+  it('reaches the contests: a fish stowed in rain somewhere, a run of two somewhere, and some seeds starting part way through', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 8000, 'duckpond');
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) {
+        // the longest run is a maximum over the seeds, not a count
+        done[k] = k === 'best run' ? Math.max(done[k] ?? 0, n) : (done[k] ?? 0) + n;
+      }
+    }
+    expect(done['stowed in rain'], 'a fish stowed in rain').toBeGreaterThan(0);
+    expect(done['best run'], 'a best run of two').toBeGreaterThanOrEqual(2);
+    expect(done['start tally'], 'seeds that start with a tally').toBeGreaterThan(0);
+  });
+
   it('reaches the treasures: a lure aimed at them, one snagged and kept, some seeds starting with some found, and one snagged in a clean pond', () => {
     const done: Record<string, number> = {},
       happened: Record<string, number> = {};

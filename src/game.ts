@@ -161,6 +161,12 @@ export class Game {
   temper: Temper = 'steady';
   /** The gifts the cure count has earned, in force from the next fight (and the bite's next window); a load has its own, untold. */
   gear: Gear;
+  /**
+   * Whether the last cast ended with a fish stowed, true at the start so the first cast wastes nothing (`docs/contests.md`).
+   * A cast sets it false and `stow` true; the next cast finding it false knows that cast was wasted (a lure reeled in
+   * empty, a slip, a drum or treasure instead, the bank, a yawn) and ends the run before counting its own.
+   */
+  private castStowed = true;
   private bearing = 0;
   private hookedAt = 0;
   private readonly events: GameEvents;
@@ -588,6 +594,12 @@ export class Game {
     this.healFrom = this.waterDirt;
     this.healTo = this.contamination;
     this.healElapsed = 0;
+    // the contests: this cast landed its fish, and a stow in the rain (not a shower) counts for the rain's
+    this.castStowed = true;
+    const tally = this.progress.save.tally;
+    tally.run = Math.min(tally.run + 1, Number.MAX_SAFE_INTEGER);
+    tally.best = Math.max(tally.best, tally.run);
+    if (this.weather === 'rain') tally.rain = Math.min(tally.rain + 1, Number.MAX_SAFE_INTEGER);
     this.persist();
     this.events.cured?.(save.cured, this.lake.toClean);
     // a gift is given on the cure that earns it, from the next fight, and told that once
@@ -874,6 +886,9 @@ export class Game {
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return false;
     this.reelIn();
     this.lure.cast(angle, power, this.t, this.wind);
+    // the cast before this one ended with no fish stowed, so the run of casts that each landed one is broken
+    if (!this.castStowed) this.progress.save.tally.run = 0;
+    this.castStowed = false;
     return true;
   }
 

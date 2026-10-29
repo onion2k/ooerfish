@@ -48,7 +48,9 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
       time and the weather, drawn again when looked at (the renderer's `postClock` holds a still's grain), not
       pixels, so the save stays small. Answers the postmistress's request and fills the journal. Counted in
       `leaks.ts`. _Decision first:_ figures re-drawn (recommended) or an image kept.
-- [ ] **B5. The rival's contests** (fewest casts, a fish in the rain): a request with a counter.
+- [x] **B5. The rival's contests** (`docs/contests.md`, landed 29 Oct 2026): three fish in the rain and three
+      fish on three casts, each a letter from Flo Keel met by a tally the save keeps, and the open letters say how far
+      they have got.
 
 ## Part C: the boat (stage 8)
 
