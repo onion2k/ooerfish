@@ -220,6 +220,8 @@ export interface GameApi {
   lure(): LureState;
   /** The line as a rope: a copy of each of its points (x, y, z), rod's tip first, and where the line ends. */
   rope(): { points: number[][]; lineEnd: number[] };
+  /** The physics' bodies: the bobber's place, whether the game carries it and whether the world has put it to sleep. */
+  bodies(): { bobber: { x: number; y: number; held: boolean; asleep: boolean } };
   /** The player strikes, as a tap does: says whether it hooked a fish biting, spooked one nibbling, twitched the lure, or did nothing. */
   strike(): string;
   /** The reel held or let go, as holding the screen, the Reel button or space does. */
@@ -807,6 +809,10 @@ export function createApi(host: DebugHost): GameApi {
       const copy: number[][] = [];
       for (let i = 0; i < points.length; i += 3) copy.push([points[i], points[i + 1], points[i + 2]]);
       return { points: copy, lineEnd: Array.from(game.lineEnd) };
+    },
+    bodies() {
+      const { bodies } = game;
+      return { bobber: { x: bodies.x, y: bodies.y, held: bodies.held, asleep: bodies.asleep } };
     },
     lure() {
       const { lure } = game;

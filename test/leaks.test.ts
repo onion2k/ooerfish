@@ -24,6 +24,7 @@ describe('what must stay bounded', () => {
     for (const key of [
       'fish',
       'splashes',
+      'physics bodies',
       'save bytes',
       'journal kinds',
       'drums hauled',

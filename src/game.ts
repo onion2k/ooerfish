@@ -33,6 +33,7 @@ import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
 import { NO_WIND, bentTip, rodTip } from './cast';
 import { Rope } from './rope';
+import { Bodies, newWorld } from './physics';
 import type { Lake } from './lakes/lake';
 import { HOME, LAKES } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
@@ -146,6 +147,8 @@ export class Game {
   readonly treasures: BedFinds;
   readonly splashes = new Splashes();
   readonly lure: Lure;
+  /** The bodies the physics steps: the bobber, carried by the game while the lure is not on the water (`docs/boat.md`, C1). */
+  readonly bodies: Bodies;
   readonly bite: Bite;
   readonly line = new Line();
   /** The fishing line as a rope from the rod's tip to the line's end, stepped with the game (`docs/boat.md`, C0). */
@@ -244,6 +247,7 @@ export class Game {
     this.drums = new BedFinds(found.drums);
     this.treasures = new BedFinds(found.treasures);
     this.lure = new Lure(lake);
+    this.bodies = new Bodies(newWorld(lake), lake);
     this.day = progress.save.day;
     // the clock is held in the cabin wherever it stood, so a cabin save keeps its time
     this.place = progress.save.place;
@@ -350,12 +354,34 @@ export class Game {
     this.rain(dt);
     // a lure landing on the water splashes, smaller than a pebble
     const landed = this.lure.step(this.t, dt);
-    if (landed) this.drop(landed[0], landed[1], LURE_SPLASH);
+    if (landed) {
+      this.drop(landed[0], landed[1], LURE_SPLASH);
+      this.bodies.drop(landed[0], landed[1]);
+    }
     this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.timeOfDay, this.drums, this.treasures);
+    this.stepBodies(dt);
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
     this.stepRope(dt);
+  }
+
+  /**
+   * The world of bodies on by `dt`, and the bobber read back from its body while the lure sinks, so that what the
+   * physics does to it (nothing yet on a flat water; from the belts and the wind, something) is what the line and the
+   * water see. A body's arrays are 32-bit, so the lure's place is written back only when the body has genuinely moved
+   * from it: one that has not is the lure's own place rounded, and writing that would round the lure for nothing.
+   */
+  private stepBodies(dt: number) {
+    const { bodies, lure } = this;
+    bodies.step(dt);
+    if (lure.phase !== 'sinking') return;
+    if (bodies.x !== Math.fround(lure.bobber[0]) || bodies.y !== Math.fround(lure.bobber[1])) {
+      lure.bobber[0] = bodies.x;
+      lure.bobber[1] = bodies.y;
+    }
+    lure.at[0] = lure.bobber[0];
+    lure.at[1] = lure.bobber[1];
   }
 
   /**
@@ -600,6 +626,7 @@ export class Game {
       this.hookedAt = this.t;
       // the lure is in its mouth from the strike, not from the next step
       this.lure.phase = 'hooked';
+      this.bodies.take();
       this.lure.at[0] = this.fish.x[i];
       this.lure.at[1] = this.fish.y[i];
       this.lure.at[2] = -this.fish.depth[i];
@@ -620,6 +647,7 @@ export class Game {
     this.bearing = Math.atan2(y - ly, x - lx);
     this.hookedAt = this.t;
     this.lure.phase = 'hooked';
+    this.bodies.take();
     this.lure.at[0] = x;
     this.lure.at[1] = y;
     this.lure.at[2] = -Math.max(0, this.lake.bedDepth(x, y) - 0.3);
@@ -638,6 +666,7 @@ export class Game {
     this.bearing = Math.atan2(y - ly, x - lx);
     this.hookedAt = this.t;
     this.lure.phase = 'hooked';
+    this.bodies.take();
     this.lure.at[0] = x;
     this.lure.at[1] = y;
     this.lure.at[2] = -Math.max(0, this.lake.bedDepth(x, y) - 0.3);
@@ -815,6 +844,7 @@ export class Game {
       // nothing is lost: the fish swims off, and the lure sinks on where it was
       this.bite.letGo(this.t, this.fish, this.lure, true);
       this.lure.freed(this.lure.at[0], this.lure.at[1], -this.lure.at[2]);
+      this.bodies.drop(this.lure.bobber[0], this.lure.bobber[1]);
       this.reeling = false;
       this.events.slipped?.();
     } else if (was === 'landed') {
@@ -967,6 +997,7 @@ export class Game {
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return false;
     this.reelIn();
     this.lure.cast(angle, power, this.t, this.wind);
+    this.bodies.take();
     // the cast before this one ended with no fish stowed, so the run of casts that each landed one is broken
     if (!this.castStowed) this.progress.save.tally.run = 0;
     this.castStowed = false;
@@ -978,6 +1009,7 @@ export class Game {
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return;
     if (this.bite.phase !== 'none') this.bite.letGo(this.t, this.fish, this.lure);
     this.lure.reelIn();
+    this.bodies.take();
   }
 
   /** The save written now. */

@@ -335,6 +335,24 @@ export function checkInvariants(game: Game): string[] {
     report(ropeWrong);
   }
 
+  // the bobber's body: a number, on the water, carried whenever the lure is not sinking, and where the lure's bobber is
+  // while it is (the body's arrays are 32-bit, so the two agree to a hair and no nearer)
+  {
+    const { bodies } = game;
+    const [bx, by] = [bodies.x, bodies.y];
+    if (![bx, by].every(Number.isFinite)) out.push(`the bobber's body is not a number: ${bx}, ${by}`);
+    else {
+      if (!inside(bx, by)) out.push(`the bobber's body is off the water at ${bx.toFixed(2)},${by.toFixed(2)}`);
+      if (lure.phase !== 'sinking') {
+        if (!bodies.held) out.push(`the bobber's body is free while the lure is ${lure.phase}`);
+      } else if (bodies.held) out.push(`the bobber's body is carried while the lure sinks`);
+      else if (Math.hypot(bx - lure.bobber[0], by - lure.bobber[1]) > 1e-4)
+        out.push(
+          `the bobber's body is ${Math.hypot(bx - lure.bobber[0], by - lure.bobber[1]).toFixed(4)} from the lure's bobber ${where}`,
+        );
+    }
+  }
+
   out.push(...fishingRules(game));
 
   if (!(game.contamination >= 0 && game.contamination <= 1)) out.push(`the contamination is ${game.contamination}`);

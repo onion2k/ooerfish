@@ -184,12 +184,29 @@ exactly; the physics is bundled today by nothing, so this is the first cost of i
 ### Parts
 
 - [ ] 0. `docs/boat.md` gains C1's section; the roadmap ticks C1; `DESIGN.md`'s note. Check: Prettier.
-- [ ] 1. `src/physics.ts`, `PHYSICS` in `lake.ts`, `test/physics.test.ts`. Check: the test.
-- [ ] 2. `Game` owns `Bodies`, steps the world, reads the bobber back; the invariants; the determinism hash;
+- [x] 1. `src/physics.ts`, `PHYSICS` in `lake.ts`, `test/physics.test.ts`. Check: the test.
+- [x] 2. `Game` owns `Bodies`, steps the world, reads the bobber back; the invariants; the determinism hash;
       `game.bodies()`; the leaks ceiling. Check: `test/game.test.ts` (dropped at a landing, taken at a reel-in and a
       hook), `test/invariants.test.ts`, `npm run determinism`.
 - [ ] 3. The pass: check, fuzz 1-24, perf before and after, the mutations (the body not read back; the rock a tile
       inside the shore; the body dropped while flying), the bench written through `/gate-moved`. Commit and push.
+
+### C1's notes (built 29 Oct 2026)
+
+- **As built:** `src/physics.ts` is the one door to the package: `worldFor(lake)` the memoised grid and a world on it
+  for the tests, `newWorld(lake)` a world of its own for each `Game` (a world holds bodies, so games cannot share one),
+  `Bodies` the slots. The grid's extent is found by bisection against `inShore` along 256 rays (the shore is stretched
+  in x, so `shoreRadius` alone put water outside the grid), plus the margin; the rock is every tile whose centre is
+  more than a tile's half-diagonal outside the waterline. The world's chance is a constant (it only tilts a spawned
+  body), so the game's is never spent. A body's x and y are written back to the lure only when they differ from the
+  lure's as 32-bit floats, so a bobber nothing moved is the lure's to the bit, and every picture and the pace hold.
+- **The cost:** the world is not stepped while every body is carried, so the idle game costs what it did; with the
+  bobber dropped and asleep the step is under the bench's tolerance (casting +1%, the fight +13%, both within), so no
+  bench baseline moved. The download grew by 22,591 bytes gzipped, 218,888 to 241,479: the whole of the package's
+  `world.ts` (discs, terrain, holes and all) comes with its first use, under the 400 kB budget and said here plainly.
+  Boot and frame hold alone (819 ms, 3.95 ms); in the full suite they read high, as they do after a long run.
+- **Not verified:** nothing moves the body yet, so the read-back is proved only by the body staying put; C3's belts
+  and wind are what will show it.
 
 ## Verification, both slices
 

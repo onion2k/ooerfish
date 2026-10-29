@@ -761,6 +761,22 @@ export const ROPE = {
 } as const;
 
 /**
+ * The physics (`docs/boat.md`, C1), its figures first guesses: the world's floor is the water's surface and its rock the
+ * shore, on a grid of `tile` units (a coarser grid cannot hold the bed, which the package refuses as terrain at any size,
+ * so the lure's depth stays the game's own sum); `margin` is how many world units of grid lie past the furthest shore, so
+ * a thing at the water's edge is never at the grid's; `capacity` is the most bodies a world holds (the bobber, the boat
+ * and room for what comes after); `radii` is each kind's radius, the boat's for the slice that rows it; and `bottom` is
+ * how far below the surface a body has fallen out of the world, which nothing on a flat floor should.
+ */
+export const PHYSICS = {
+  tile: 2,
+  margin: 6,
+  capacity: 8,
+  radii: { bobber: 0.38, boat: 1.6 },
+  bottom: -20,
+} as const;
+
+/**
  * Where the line ends, in the figures the game and the drawing share: how far the lure hangs from the tip when ready; a
  * landed fish shown off, how far below the tip it hangs, how far it sways and how fast; how far the bobber dips at a
  * bite and twitches at a nibble, and for how long; how far it shakes while the strike's window is open, and how fast;

@@ -29,7 +29,7 @@
 import { Game } from '../src/game';
 import { particleWindow } from '../src/falling';
 import { seasonOf } from '../src/calendar';
-import { FISH_CAPACITY, KINDS, PARTICLE_POOL, PHOTOS, SPLASH_CAPACITY } from '../src/lake';
+import { FISH_CAPACITY, KINDS, PARTICLE_POOL, PHOTOS, PHYSICS, SPLASH_CAPACITY } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
 import { REQUESTS } from '../src/town/requests';
 import { Progress, memoryStore } from '../src/progress';
@@ -46,6 +46,8 @@ const DT = 1 / 60;
 export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }>> = {
   fish: { ceiling: FISH_CAPACITY },
   splashes: { ceiling: SPLASH_CAPACITY },
+  // the bodies the physics world holds are the bobber's (and, from the boat's slice, the boat's), never more than it was made for
+  'physics bodies': { ceiling: PHYSICS.capacity },
   // twelve photographs at about 130 bytes each (`docs/photo.md`) are why the ceiling is 4000 and not 2000: the rest of the save is about 300
   'save bytes': { ceiling: 4_000 },
   // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those the lake has, the most of any lake the game has
@@ -76,6 +78,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'session peers': room ? collectionsKept(room.session) + (room.session.reading().paired ? 1 : 0) : 0,
     fish: game.fish.count,
     splashes: game.splashes.count,
+    'physics bodies': game.bodies.world.live,
     'save bytes': JSON.stringify(game.progress.save).length,
     'journal kinds': Object.keys(game.progress.entry(game.lake.id).journal).length,
     'drums hauled': game.progress.entry(game.lake.id).drums,

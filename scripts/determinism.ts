@@ -137,6 +137,10 @@ export function hashGame(game: Game): string {
     ...lure.wind,
   ])
     eat(n);
+  // the bobber's body, where it is and whether the game carries it
+  eat(game.bodies.x);
+  eat(game.bodies.y);
+  eat(game.bodies.held ? 1 : 0);
   // the rope the line is, every point of it
   for (const n of game.rope.points) eat(n);
   // the bite and the fight, every number of each, so a fish's coming, nibbling and fighting are held to the seed

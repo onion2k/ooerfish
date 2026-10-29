@@ -58,9 +58,9 @@ The largest change left, and the first use of artshape-physics. One `docs/boat.m
 in slices, each a commit. _Decision first:_ whether the line stays a tension number (recommended, until the boat's
 drift shows the line needs to bend) or becomes the design's rope of sixteen to thirty-two points.
 
-- [ ] **C0. The line as a rope** (`docs/boat.md`, decided 29 Oct 2026). The user's choice: the design's rope of
+- [x] **C0. The line as a rope** (`docs/boat.md`, landed 29 Oct 2026). The user's choice: the design's rope of
       twenty-four points, stepped in the game and drawn from the pools the line has; the fight's bar is untouched.
-- [ ] **C1. `src/physics.ts` and the bodies.** The lure and the bobber as bodies in a `World`, buoyancy added in
+- [x] **C1. `src/physics.ts` and the bodies** (landed 29 Oct 2026, the bobber's; the boat's kind waits on C2). The lure and the bobber as bodies in a `World`, buoyancy added in
       the game's step as golf's wind is, the cast's flight unchanged. Nothing visible moves: the look pictures hold
       or `/gate-moved` says why. The bench times it.
 - [ ] **C2. The boat from spot to spot.** `Game.board`, a boat at the jetty, moved between a lake's `spots`

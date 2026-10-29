@@ -1244,3 +1244,91 @@ describe('the line as a rope under tension', () => {
     expect(calm - taut, 'the slack is the tension’s to take').toBeGreaterThan(ROPE.slack * 0.4);
   });
 });
+
+describe('the bobber’s body', () => {
+  /** A cast that lands on the water, thrown and stepped until it is sinking. */
+  function sunk(seed = 1) {
+    const { game } = newGame(seed);
+    const north = Math.PI / 2;
+    game.cast(north, 0.6);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    return game;
+  }
+
+  it('is carried at the start, and while the lure is in the air', () => {
+    const { game } = newGame();
+    expect(game.bodies.held).toBe(true);
+    game.cast(Math.PI / 2, 0.6);
+    expect(game.bodies.held).toBe(true);
+  });
+
+  it('is dropped where a cast lands on the water, and sits where the lure’s bobber is', () => {
+    const game = sunk();
+    expect(game.bodies.held).toBe(false);
+    for (let f = 0; f < 120; f++) game.step(DT);
+    expect(Math.abs(game.bodies.x - game.lure.bobber[0])).toBeLessThan(1e-5);
+    expect(Math.abs(game.bodies.y - game.lure.bobber[1])).toBeLessThan(1e-5);
+    expect(game.bodies.asleep).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is taken by a reel-in, and dropped again by the next cast’s landing', () => {
+    const game = sunk();
+    game.reelIn();
+    expect(game.bodies.held).toBe(true);
+    game.cast(Math.PI / 2, 0.4);
+    expect(game.bodies.held).toBe(true);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.bodies.held).toBe(false);
+    expect(Math.abs(game.bodies.x - game.lure.bobber[0])).toBeLessThan(1e-5);
+  });
+
+  it('is taken by a cast thrown while the lure is out', () => {
+    const game = sunk();
+    game.cast(Math.PI / 2, 0.3);
+    expect(game.lure.phase).toBe('flying');
+    expect(game.bodies.held).toBe(true);
+  });
+
+  it('is left carried by a cast onto the bank', () => {
+    const { game } = newGame(2);
+    game.cast(0.3, 1);
+    settle(game, 60);
+    expect(game.lure.phase).toBe('lying');
+    expect(game.bodies.held).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is taken by a hooked fish', () => {
+    const { game } = hookedGame(1);
+    expect(game.lure.phase).toBe('hooked');
+    expect(game.bodies.held).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is dropped where the fish let go, when a fish slips', () => {
+    const { game } = hookedGame(2);
+    for (let f = 0; f < 60 / DT && game.bite.phase === 'hooked'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    expect(game.bodies.held).toBe(false);
+    expect(Math.abs(game.bodies.x - game.lure.bobber[0])).toBeLessThan(1e-5);
+    expect(Math.abs(game.bodies.y - game.lure.bobber[1])).toBeLessThan(1e-5);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reads back as the lure had it, to the bit, when nothing moves it', () => {
+    const game = sunk();
+    const x = game.lure.bobber[0],
+      y = game.lure.bobber[1];
+    for (let f = 0; f < 300; f++) game.step(DT);
+    expect(game.lure.bobber[0]).toBe(x);
+    expect(game.lure.bobber[1]).toBe(y);
+  });
+
+  it('has a world of its own for each game', () => {
+    const a = newGame(1).game,
+      b = newGame(1).game;
+    expect(a.bodies.world).not.toBe(b.bodies.world);
+  });
+});

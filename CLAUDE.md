@@ -543,8 +543,13 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   `visibilitychange` hidden and `pagehide` (`keep` in `main.ts`, off once Start again has wiped the save). A load
   into the cabin gets the pillow camera from the page after `ready`, since `woke` does not fire. `test/saves/` has a
   file for each shape. Chance comes from `random.ts`, handed in.
-- artshape-physics is a dependency with nothing using it: the lure and the
-  bobber will be its bodies, through a `src/physics.ts` of the game's own.
+- **The physics** (`docs/boat.md`, C1): `src/physics.ts` is the one door to artshape-physics, and nothing else in `src/`
+  imports it. Its floor is the water's surface (the package refuses the bed as terrain), its rock the shore on a grid of
+  `PHYSICS.tile`, a world a game (`newWorld(lake)`; `worldFor(lake)` the memoised grid for readers), and `Bodies` the
+  slots: the bobber's, carried (placed by the game) except while the lure sinks, when it is dropped on the water and
+  read back into `lure.bobber` only where it differs as a 32-bit float. The world is not stepped while every body is
+  carried. The lure's depth under the bobber stays the game's sum. `game.bodies()` reads it; the invariants hold the
+  body on the water, carried or at the bobber; `PHYSICS.capacity` is its ceiling in `scripts/leaks.ts`.
 
 ## Skills
 

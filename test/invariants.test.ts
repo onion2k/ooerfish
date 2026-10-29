@@ -52,6 +52,29 @@ describe('what must always hold', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/the zone is 0.28 wide, the gear's is 0.3/);
   });
 
+  it('reports the bobber’s body gone wrong: off the water, not a number, held or free against the lure, or off the bobber', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    game.bodies.put(1000, 0);
+    expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is off the water/);
+    game.bodies.put(NaN, 0);
+    expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is not a number/);
+    game.bodies.put(...game.lake.landAt);
+    expect(checkInvariants(game)).toEqual([]);
+    // free while the lure is not sinking
+    game.bodies.drop(0, 0);
+    expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is free while the lure is ready/);
+    game.bodies.take();
+    // and off the bobber while it sinks
+    game.cast(Math.PI / 2, 0.6);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(1 / 60);
+    expect(checkInvariants(game)).toEqual([]);
+    game.bodies.put(game.bodies.x + 0.5, game.bodies.y);
+    expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is 0\.5000 from the lure's bobber/);
+    game.bodies.take();
+    expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is carried while the lure sinks/);
+  });
+
   it('reports a time that is not a number, or before the start', () => {
     const { game } = newGame();
     game.t = NaN;
