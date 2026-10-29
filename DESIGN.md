@@ -307,6 +307,9 @@ Each stage is a feature, built and verified before the next, every gate green at
    and three fish on three casts, counted by a tally the save keeps, and the post's open letters say how far along
    each is._
 8. **The boat:** moving, anchoring, drifting, currents and snags.
+   _Being built in slices (29 Oct 2026, `docs/boat.md`): the line is a rope of twenty-four points worked in the game
+   (the user's choice over a tension number alone), and the physics' floor is the water's surface, since it refuses the
+   bed as terrain; the bobber is its first body, the boat the next._
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**
 11. **The lakes after the first,** and each one's big fish.

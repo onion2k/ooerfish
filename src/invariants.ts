@@ -33,6 +33,7 @@ import {
   PHOTOS,
   WEATHER,
   awake,
+  ROPE,
 } from './lake';
 import { weatherOf } from './calendar';
 import { poseFish } from './swim';
@@ -302,6 +303,37 @@ export function checkInvariants(game: Game): string[] {
       out.push(`the lure is under the bed, ${where}`);
   } else if (lure.phase === 'lying' && inside(lure.at[0], lure.at[1]))
     out.push(`the lure is lying on the water, ${where}`);
+
+  // the line's rope: every point a number, the ends where the line is pinned, and none under the ground or the bed
+  {
+    const { points } = game.rope;
+    const last = points.length - 3;
+    const ropeWrong: string[] = [];
+    for (let i = 0; i < points.length; i += 3) {
+      const x = points[i],
+        y = points[i + 1],
+        z = points[i + 2];
+      if (![x, y, z].every(Number.isFinite)) {
+        ropeWrong.push(`the rope's point ${i / 3} is not a number`);
+        break;
+      }
+      const floor = (inside(x, y) ? -bedDepth(x, y) : lake.ground(x, y)) + ROPE.aboveGround;
+      if (i > 0 && i < last && z < floor - 1e-6)
+        ropeWrong.push(
+          `the rope's point ${i / 3} is under the ground at ${x.toFixed(1)},${y.toFixed(1)}, ${z.toFixed(2)} against ${floor.toFixed(2)}`,
+        );
+    }
+    for (const [name, at, ends] of [
+      ['first', 0, game.lineStart],
+      ['last', last, game.lineEnd],
+    ] as const)
+      for (let k = 0; k < 3; k++)
+        if (points[at + k] !== ends[k]) {
+          ropeWrong.push(`the rope's ${name} point is not where the line is pinned`);
+          break;
+        }
+    report(ropeWrong);
+  }
 
   out.push(...fishingRules(game));
 

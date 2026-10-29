@@ -6,7 +6,7 @@ import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, KINDS, RELEASE } from '../src/lake';
+import { CLOCK, KINDS, RELEASE, ROPE } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
@@ -1209,5 +1209,38 @@ describe('the game in a lake it is handed', () => {
     const b = new Game(new Progress(memoryStore(), { [lake.id]: lake }), { lake, random: seeded(9) });
     expect([...a.drums.x]).toEqual([...b.drums.x]);
     expect([...a.drums.y]).toEqual([...b.drums.y]);
+  });
+});
+
+describe('the line as a rope under tension', () => {
+  /** The rope's length as the sum of its segments. */
+  function ropeLength(game: Game): number {
+    const p = game.rope.points;
+    let sum = 0;
+    for (let i = 3; i < p.length; i += 3) sum += Math.hypot(p[i] - p[i - 3], p[i + 1] - p[i - 2], p[i + 2] - p[i - 1]);
+    return sum;
+  }
+  const chord = (game: Game) =>
+    Math.hypot(
+      game.lineEnd[0] - game.lineStart[0],
+      game.lineEnd[1] - game.lineStart[1],
+      game.lineEnd[2] - game.lineStart[2],
+    );
+  /** The rope stepped on its own at the tension given, the fight itself held where it is. */
+  function ropeAt(game: Game, tension: number) {
+    game.line.tension = tension;
+    for (let f = 0; f < 120; f++) (game as unknown as { stepRope(dt: number): void }).stepRope(DT);
+  }
+
+  it('is drawn to its chord when strained to the full, and has its slack to spare when calm', () => {
+    const { game } = hookedGame(3);
+    ropeAt(game, 1);
+    const taut = ropeLength(game) / chord(game);
+    ropeAt(game, 0);
+    const calm = ropeLength(game) / chord(game);
+    // the taut line is the chord to within a fifth of the slack; the calm one has the slack over it
+    expect(taut, 'strained to one, the rope is its chord').toBeLessThan(1 + ROPE.slack * 0.2);
+    expect(calm, 'calm, the rope has its slack').toBeGreaterThan(1 + ROPE.slack * 0.6);
+    expect(calm - taut, 'the slack is the tension’s to take').toBeGreaterThan(ROPE.slack * 0.4);
   });
 });

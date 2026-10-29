@@ -1,48 +1,38 @@
 /**
  * The cast as it is drawn: the rod held out over the bank (the angler is the player, and is not drawn), the line from the rod's tip to the lure in the air
- * and to the bobber once it is in, sagging a little, the bobber bobbing by the game's clock, the lure, and while
+ * and to the bobber once it is in, as the segments of the game's rope (`Game.rope`, which hangs and strains it), the
+ * bobber where the game puts the line's end (bobbing by the game's clock), the lure, and while
  * aiming the preview of where it will go, a dotted arc and a ring where it lands, yellow over the water and red over
  * the bank. With a fish on the line, the rod bends toward it by the line's tension and the line warms from white to
  * red, and the bobber, dragged under, is gone; before that, it twitches at a nibble and dips under and shakes at the
  * bite. Every part is a pool sized once, written each frame from the game and the aim; nothing is made.
  */
 import type { GameGroup } from 'artshape-render/game/renderer';
-import { pathPoints, rodTip } from './cast';
+import { bentTip, pathPoints, rodTip } from './cast';
 import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
-import { DRUM_RULES, TREASURE_RULES } from './rules';
+import { LINE_DRAW, ROPE } from './lake';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
-import { STILL, type Surface } from './water/swell';
 
 /** How many pieces the line is drawn with, how many dots the preview, and how many pieces its ring. */
-export const LINE_PIECES = 24;
+export const LINE_PIECES = ROPE.points - 1;
 /** How many pieces the rod is drawn with, so it can bend, and how many colours the line takes as it tightens. */
 export const ROD_PIECES = 6;
 export const LINE_COLOURS = 4;
-/** How far the rod's tip is drawn down, and toward the fish, at the tightest. */
-const BEND = { down: 2.4, toward: 1.2 } as const;
 /** A landed fish, shown off: how far below the rod tip the lure at its mouth hangs, how far it sways, and how fast. */
-export const HANG = { drop: 1.6, sway: 0.2, rate: 1.7 } as const;
+export const HANG = LINE_DRAW.hang;
 /** How thick the line is with a fish on, so its colour reads from the shore. */
 const LINE_WIDTH_ON = 0.12;
-/** How far the bobber dips under at a bite, and twitches at a nibble, and how long the twitch lasts. */
-const DIP = 0.35;
-const TWITCH = { depth: 0.16, lasts: 0.3 } as const;
-/** How far the bobber shakes from side to side while the strike's window is open, and how fast, by the game's clock. */
-const SHAKE = { reach: 0.12, rate: 38 } as const;
 export const PREVIEW_DOTS = 24;
 const RING_PIECES = 20;
-/** How thick the line is; how far it sags, a share of its length; how far the lure hangs from the tip when ready. */
+/** How thick the line is. */
 const LINE_WIDTH = 0.06;
-const SAG = 0.06;
-const DANGLE = 1.6;
-/** The ring's radius and the thickness of its pieces; how far the bobber bobs, and how fast. */
+/** The ring's radius and the thickness of its pieces. */
 const RING = { radius: 1.4, width: 0.22 } as const;
-const BOB = { height: 0.07, rate: 2.3 } as const;
 
 /** What a cast is aimed at while it is being aimed. */
 export interface Aim {
@@ -101,8 +91,6 @@ export class CastDraw {
   readonly lines = Array.from({ length: LINE_COLOURS }, () => new Float32Array((LINE_PIECES + 1) * 16));
   readonly lure = new Float32Array(16);
   readonly bobber = new Float32Array(16);
-  /** Where the water stands, which the bobber rides: still water unless the page says the water swells. */
-  surface: Surface = STILL;
   readonly dots = new Float32Array(PREVIEW_DOTS * 16);
   readonly ringWater = new Float32Array(RING_PIECES * 16);
   readonly ringBank = new Float32Array(RING_PIECES * 16);
@@ -140,12 +128,7 @@ export class CastDraw {
    */
   private writeRod(bend: number, toward: ArrayLike<number>) {
     const t0 = rodTip(this.lake);
-    const dx = toward[0] - t0[0],
-      dy = toward[1] - t0[1];
-    const flat = Math.hypot(dx, dy) || 1;
-    this.tip[0] = t0[0] + (dx / flat) * BEND.toward * bend;
-    this.tip[1] = t0[1] + (dy / flat) * BEND.toward * bend;
-    this.tip[2] = t0[2] - BEND.down * bend;
+    bentTip(this.lake, bend, toward, this.tip);
     const h = this.hand;
     const at = (s: number, into: Float64Array) => {
       for (let k = 0; k < 3; k++) {
@@ -197,64 +180,49 @@ export class CastDraw {
     out.lines.fill(0);
     const on = bite.phase === 'hooked' || bite.phase === 'landed';
     const tension = bite.phase === 'hooked' ? line.tension : 0;
-    // where the lure is: hanging from the tip when ready, or wherever its cast, or the fish in whose mouth it is, has it
-    const t0 = rodTip(this.lake);
-    if (lure.phase === 'ready') {
-      this.end[0] = t0[0];
-      this.end[1] = t0[1];
-      this.end[2] = t0[2] - DANGLE;
-    } else if (bite.phase === 'landed') {
-      // landed, it is lifted out and hangs from the tip by a short line, swaying, the lure at its mouth
-      const sway = HANG.sway * Math.sin(game.t * HANG.rate);
-      this.end[0] = t0[0] + sway;
-      this.end[1] = t0[1];
-      this.end[2] = t0[2] - HANG.drop;
-      this.hang[0] = this.end[0];
-      this.hang[1] = this.end[1];
-      this.hang[2] = this.end[2] - FISH_BODY.length / 2;
-      out.hung = 1;
+    // where the lure is: the line's end when it hangs from the tip, is landed, or is in the air or fish's mouth; the
+    // game worked the end out, and the rope runs to it
+    const end = game.lineEnd;
+    if (lure.phase !== 'sinking') {
+      this.end.set(end);
+      if (bite.phase === 'landed') {
+        // landed, it is lifted out and hangs from the tip by a short line, swaying, the lure at its mouth
+        this.hang[0] = end[0];
+        this.hang[1] = end[1];
+        this.hang[2] = end[2] - FISH_BODY.length / 2;
+        out.hung = 1;
+      }
     } else this.end.set(lure.at);
     place(this.lure, 0, this.end[0], this.end[1], this.end[2]);
     this.writeRod(tension, this.end);
     out.rod = ROD_PIECES;
-    const tip = this.tip;
 
-    // the line runs to the bobber once the lure is in the water, and down from it to the lure; with a fish on, the
-    // bobber is dragged under and gone, and the line runs straight to the fish, the less slack the tighter it is
-    const to = this.b;
+    // with the lure in the water the line ends at the bobber, and runs on down from it to the lure; with a fish on, the
+    // bobber is dragged under and gone
     if (lure.phase === 'sinking') {
-      let z = this.surface(lure.bobber[0], lure.bobber[1], game.t) + BOB.height * Math.sin(game.t * BOB.rate);
-      // a drum pulls the bobber under harder than a fish does, and a treasure a little harder
-      if (bite.phase === 'biting')
-        z -= DIP * (bite.drum >= 0 ? DRUM_RULES.dip : bite.treasure >= 0 ? TREASURE_RULES.dip : 1);
-      else if (bite.phase === 'nibbling' && bite.nibbledAt >= 0 && game.t - bite.nibbledAt < TWITCH.lasts)
-        z -= TWITCH.depth * Math.sin((Math.PI * (game.t - bite.nibbledAt)) / TWITCH.lasts);
       // shaken while the window is open, so the bite is seen from the shore and not only read
-      const shake = bite.phase === 'biting' ? SHAKE.reach * Math.sin(game.t * SHAKE.rate) : 0;
-      place(this.bobber, 0, lure.bobber[0] + shake, lure.bobber[1], z);
+      const shake = bite.phase === 'biting' ? LINE_DRAW.shake.reach * Math.sin(game.t * LINE_DRAW.shake.rate) : 0;
+      place(this.bobber, 0, lure.bobber[0] + shake, lure.bobber[1], end[2]);
       out.bobber = 1;
-      to[0] = lure.bobber[0];
-      to[1] = lure.bobber[1];
-      to[2] = z;
-    } else to.set(this.end);
+    }
     const colour = on ? Math.min(LINE_COLOURS - 1, Math.floor(tension * LINE_COLOURS)) : 0;
     const pool = this.lines[colour];
-    const sag = SAG * (1 - 0.85 * tension);
     const width = on ? LINE_WIDTH_ON : LINE_WIDTH;
-    const len = Math.hypot(to[0] - tip[0], to[1] - tip[1], to[2] - tip[2]);
-    const at = (s: number, into: Float64Array) => {
-      into[0] = tip[0] + (to[0] - tip[0]) * s;
-      into[1] = tip[1] + (to[1] - tip[1]) * s;
-      into[2] = tip[2] + (to[2] - tip[2]) * s - sag * len * 4 * s * (1 - s);
-    };
+    const pts = game.rope.points;
     for (let k = 0; k < LINE_PIECES; k++) {
-      at(k / LINE_PIECES, this.a);
-      at((k + 1) / LINE_PIECES, this.c);
+      const u = k * 3;
+      this.a[0] = pts[u];
+      this.a[1] = pts[u + 1];
+      this.a[2] = pts[u + 2];
+      this.c[0] = pts[u + 3];
+      this.c[1] = pts[u + 4];
+      this.c[2] = pts[u + 5];
       piece(pool, k, this.a, this.c, width);
     }
     out.lines[colour] = LINE_PIECES;
     if (lure.phase === 'sinking') {
-      piece(pool, LINE_PIECES, to, lure.at, LINE_WIDTH);
+      this.b.set(end);
+      piece(pool, LINE_PIECES, this.b, lure.at, LINE_WIDTH);
       out.lines[colour]++;
     }
 

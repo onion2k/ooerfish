@@ -218,6 +218,8 @@ export interface GameApi {
   aim(to: { angle: number; power: number } | null): void;
   reelIn(): void;
   lure(): LureState;
+  /** The line as a rope: a copy of each of its points (x, y, z), rod's tip first, and where the line ends. */
+  rope(): { points: number[][]; lineEnd: number[] };
   /** The player strikes, as a tap does: says whether it hooked a fish biting, spooked one nibbling, twitched the lure, or did nothing. */
   strike(): string;
   /** The reel held or let go, as holding the screen, the Reel button or space does. */
@@ -799,6 +801,12 @@ export function createApi(host: DebugHost): GameApi {
       }
       game.reel(false);
       return moment === 'fight' ? game.bite.phase === 'hooked' : game.bite.phase === 'landed';
+    },
+    rope() {
+      const { points } = game.rope;
+      const copy: number[][] = [];
+      for (let i = 0; i < points.length; i += 3) copy.push([points[i], points[i + 1], points[i + 2]]);
+      return { points: copy, lineEnd: Array.from(game.lineEnd) };
     },
     lure() {
       const { lure } = game;

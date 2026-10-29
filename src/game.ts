@@ -15,7 +15,9 @@ import { School, steerTo } from './fish';
 import { Line } from './line';
 import {
   CLOCK,
+  LINE_DRAW,
   NIGHT,
+  ROPE,
   PHOTOS,
   DROP_NEAR,
   HEAL,
@@ -29,7 +31,8 @@ import {
 } from './lake';
 import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
-import { NO_WIND } from './cast';
+import { NO_WIND, bentTip, rodTip } from './cast';
+import { Rope } from './rope';
 import type { Lake } from './lakes/lake';
 import { HOME, LAKES } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
@@ -145,6 +148,15 @@ export class Game {
   readonly lure: Lure;
   readonly bite: Bite;
   readonly line = new Line();
+  /** The fishing line as a rope from the rod's tip to the line's end, stepped with the game (`docs/boat.md`, C0). */
+  readonly rope = new Rope();
+  /** Where the rope is pinned: the rod's tip, bent by the fight's tension, and what is on the line's end. */
+  readonly lineStart = new Float64Array(3);
+  readonly lineEnd = new Float64Array(3);
+  /** The height of the water at a point and a time, which the bobber rides: the page hands in the water's own; still until then. */
+  surface: (x: number, y: number, t: number) => number = () => 0;
+  /** The lowest a point of the rope may be at an x and y: the ground off the water, the bed on it, and a little over; made once. */
+  private readonly keepOut: (x: number, y: number, z: number) => number;
   /** Whether the reel is held, which pushes the zone up the fight's bar. */
   reeling = false;
   /** How many fish have been landed and stowed this session; the count cured, which the save keeps for each lake, is `progress.entry(lake.id).cured`. */
@@ -265,6 +277,13 @@ export class Game {
       lake,
     );
     this.bite.gear = this.gear;
+    // a point over the water and above its surface is above the bed, so only the shore's lookup is paid for it
+    this.keepOut = (x, y, z) =>
+      lake.inside(x, y)
+        ? z >= ROPE.aboveGround
+          ? z
+          : -lake.bedDepth(x, y) + ROPE.aboveGround
+        : lake.ground(x, y) + ROPE.aboveGround;
     this.fish.fill(lake.fishCount, () => this.random());
     // the cured are as many of each kind as the journal says were caught; a save without a journal, or with one that
     // accounts for fewer than were cured, has the rest cured in slot order, as every save once was
@@ -275,6 +294,7 @@ export class Game {
     );
     // what the save already meets is marked without a word, since nothing happened to tell
     this.answer(false);
+    this.layRope();
   }
 
   /**
@@ -335,6 +355,66 @@ export class Game {
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
     this.fish.stroke(dt, this.bite.phase === 'hooked' ? this.bite.fish : -1, this.line.pulling);
+    this.stepRope(dt);
+  }
+
+  /**
+   * Where the line starts and ends now, in `lineStart` and `lineEnd`, and the tension it is under. The end is where the
+   * lure hangs from the tip when ready; the landed fish's hang, swaying; the bobber on the water (bobbing, dipped at a
+   * bite, twitched at a nibble, and heavier for a drum or a treasure) while the lure sinks; and otherwise the lure, which
+   * is the fish's mouth when one is on. The start is the tip bent toward the end by the tension, which only a fish on the
+   * line gives. The drawing reads these and decides nothing.
+   */
+  private lineEnds(): number {
+    const { lure, bite, lineEnd } = this;
+    const tension = bite.phase === 'hooked' ? this.line.tension : 0;
+    if (lure.phase === 'ready') {
+      const t0 = rodTip(this.lake);
+      lineEnd[0] = t0[0];
+      lineEnd[1] = t0[1];
+      lineEnd[2] = t0[2] - LINE_DRAW.dangle;
+    } else if (bite.phase === 'landed') {
+      const t0 = rodTip(this.lake);
+      lineEnd[0] = t0[0] + LINE_DRAW.hang.sway * Math.sin(this.t * LINE_DRAW.hang.rate);
+      lineEnd[1] = t0[1];
+      lineEnd[2] = t0[2] - LINE_DRAW.hang.drop;
+    } else if (lure.phase === 'sinking') {
+      let z =
+        this.surface(lure.bobber[0], lure.bobber[1], this.t) +
+        LINE_DRAW.bob.height * Math.sin(this.t * LINE_DRAW.bob.rate);
+      const { dip, twitch } = LINE_DRAW;
+      if (bite.phase === 'biting')
+        z -= dip * (bite.drum >= 0 ? DRUM_RULES.dip : bite.treasure >= 0 ? TREASURE_RULES.dip : 1);
+      else if (bite.phase === 'nibbling' && bite.nibbledAt >= 0 && this.t - bite.nibbledAt < twitch.lasts)
+        z -= twitch.depth * Math.sin((Math.PI * (this.t - bite.nibbledAt)) / twitch.lasts);
+      lineEnd[0] = lure.bobber[0];
+      lineEnd[1] = lure.bobber[1];
+      lineEnd[2] = z;
+    } else lineEnd.set(lure.at);
+    bentTip(this.lake, tension, lineEnd, this.lineStart);
+    return tension;
+  }
+
+  /** The rope length: the chord and the slack a line has to spare, none when strained to the tension of one. */
+  private ropeLength(tension: number): number {
+    const a = this.lineStart,
+      b = this.lineEnd;
+    return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) * (1 + ROPE.slack * (1 - tension));
+  }
+
+  /** One step of the rope, pinned to the ends of the line as they are now. */
+  private stepRope(dt: number) {
+    // a ready line hangs straight under the tip with nothing to move it: laid once, it is not stepped, which keeps the
+    // rope off the cost of every frame the player is not fishing
+    if (this.lure.phase === 'ready') return this.layRope();
+    const tension = this.lineEnds();
+    this.rope.step(dt, this.lineStart, this.lineEnd, this.ropeLength(tension), this.keepOut);
+  }
+
+  /** The rope laid straight from the tip to the line's end, as a ready line is at the start and when the player is back at the pond. */
+  private layRope() {
+    this.lineEnds();
+    this.rope.reset(this.lineStart, this.lineEnd);
   }
 
   /**
@@ -394,6 +474,7 @@ export class Game {
     this.arriving = false;
     this.fadeElapsed = 0;
     this.sinceSaved = 0;
+    this.layRope();
     this.persist();
     return true;
   }

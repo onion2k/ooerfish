@@ -574,7 +574,7 @@ async function main() {
       const water = style.groups(dirt, lake);
       fishSlot = water.length;
       // what floats rides the swells the water is drawn with, at the water's own pace
-      casting.surface = surfaceOf(
+      game.surface = surfaceOf(
         style.wavesIn?.(seasonNow(), weatherDressed) ?? style.waves,
         MM_PER_UNIT,
         lake.waterPace,

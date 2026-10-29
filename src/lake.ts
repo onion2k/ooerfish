@@ -743,6 +743,39 @@ export const CAST = {
 } as const;
 
 /**
+ * The line as a rope (`docs/boat.md`, C0), every figure a first guess to be tuned by eye: how many points it has and
+ * how many times each step relaxes it to its length; gravity on a fishing line in air, in world units a second each
+ * second (a unit is a tenth of a metre, and a light line sags slower than a stone falls); how much of its speed a point
+ * keeps each step; how much longer than the chord it is at calm, a share of the chord (a strained line is the chord);
+ * how far an end may jump in a step, a share of the length, before the rope is laid straight again and not whipped
+ * across the lake; and how far a point is kept above the ground or the bed.
+ */
+export const ROPE = {
+  points: 24,
+  iterations: 6,
+  gravity: 6,
+  damping: 0.92,
+  slack: 0.01,
+  whip: 0.5,
+  aboveGround: 0.05,
+} as const;
+
+/**
+ * Where the line ends, in the figures the game and the drawing share: how far the lure hangs from the tip when ready; a
+ * landed fish shown off, how far below the tip it hangs, how far it sways and how fast; how far the bobber dips at a
+ * bite and twitches at a nibble, and for how long; how far it shakes while the strike's window is open, and how fast;
+ * and how far it bobs and how fast.
+ */
+export const LINE_DRAW = {
+  dangle: 1.6,
+  hang: { drop: 1.6, sway: 0.2, rate: 1.7 },
+  dip: 0.35,
+  twitch: { depth: 0.16, lasts: 0.3 },
+  shake: { reach: 0.12, rate: 38 },
+  bob: { height: 0.07, rate: 2.3 },
+} as const;
+
+/**
  * The frame, in milliseconds, past which the page steps down to the lean rung (no grass) at boot: the
  * frame budget itself. A machine that draws the full rung inside the budget keeps it.
  */

@@ -22,6 +22,29 @@ export function rodTip(lake: Lake = HOME): [number, number, number] {
   return [a.x, a.y + a.tipReach, lake.ground(a.x, a.y) + a.tipHeight];
 }
 
+/** How far the rod's tip is drawn down, and toward the fish, at the tightest line. */
+export const BEND = { down: 2.4, toward: 1.2 } as const;
+
+/**
+ * Where the rod's tip is with the line at `tension` (nought to one) and the fish at `toward`: drawn down and toward it,
+ * written into `out`, which is the very tip when the line is slack.
+ */
+export function bentTip(
+  lake: Lake,
+  tension: number,
+  toward: ArrayLike<number>,
+  out: Float64Array | number[] = [0, 0, 0],
+): Float64Array | number[] {
+  const t0 = rodTip(lake);
+  const dx = toward[0] - t0[0],
+    dy = toward[1] - t0[1];
+  const flat = Math.hypot(dx, dy) || 1;
+  out[0] = t0[0] + (dx / flat) * BEND.toward * tension;
+  out[1] = t0[1] + (dy / flat) * BEND.toward * tension;
+  out[2] = t0[2] - BEND.down * tension;
+  return out;
+}
+
 /** What a lake's casts are thrown from and at: its rod's tip and the speed of a cast at full power, worked out once for each lake. */
 interface Throw {
   tip: [number, number, number];

@@ -285,6 +285,11 @@ agrees. The kit now gives the pebbles and the bank's clumps only.
   drum stands on the bank by the cabin (`bankSpot`, `DrumDraw.bank`). `journalWords` lists the treasures found (the
   bottle's note under its name) under "Found in the pond". `game.treasures()`, `keep()` and `fishTo('landed',
 '<id>')` are the test API.
+- **The line as a rope** (`docs/boat.md`, C0): `src/rope.ts` is the fishing line, `ROPE.points` (24) pinned at the rod's
+  tip and the line's end, stepped at the end of `Game.step` (a ready line is laid straight once and not stepped), its
+  length the chord plus slack by the fight's tension; `Game.lineStart` and `lineEnd` are the ends (`lineEnds`, the figures
+  `LINE_DRAW` in `lake.ts`, the bobber's height from `Game.surface`, which the page hands the swell), `bentTip` in
+  `cast.ts` the tip under tension, and `castdraw.ts` draws the segments and decides nothing; `game.rope()` reads the points.
 - `src/main.ts` is the page. It turns what the game says into the water (when
   the contamination changes: `showWater`), the light (when the clock comes to
   the next look: `showLight`, each frame comparing `nearestTime` to the look's

@@ -4,10 +4,15 @@ import { careful } from '../src/angler';
 import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
-import { WEATHER } from '../src/lake';
+import { ROPE, WEATHER } from '../src/lake';
 import { DT, newGame, settle } from './helpers';
 
 const NORTH = Math.PI / 2;
+
+/** The game's line worked out again for a clock or tension a test has set by hand, since the draw reads what the step made. */
+function again(game: unknown) {
+  (game as { stepRope(dt: number): void }).stepRope(DT);
+}
 
 /** Where a point of the unit box's own space is carried to by placement `i`. */
 function carried(m: Float32Array, i: number, x: number, y: number, z: number): number[] {
@@ -104,6 +109,7 @@ describe('the cast, drawn', () => {
     expect(draw.write(game, null).bobber).toBe(1);
     const z = (t: number) => {
       game.t = t;
+      again(game);
       draw.write(game, null);
       return draw.bobber[14];
     };
@@ -111,10 +117,10 @@ describe('the cast, drawn', () => {
     expect(z(12)).toBeCloseTo(z(12), 10);
     // and it rides the swells: as far over the water as before, where the water stands
     const still = z(10.4);
-    draw.surface = (x, y, t) => 0.3 * Math.cos(x - y + t);
+    game.surface = (x, y, t) => 0.3 * Math.cos(x - y + t);
     const riding = z(10.4);
     expect(riding - still).toBeCloseTo(0.3 * Math.cos(game.lure.bobber[0] - game.lure.bobber[1] + 10.4), 5);
-    draw.surface = () => 0;
+    game.surface = () => 0;
     // and the lure is under it, at its depth
     draw.write(game, null);
     expect(draw.lure[14]).toBeCloseTo(-game.lure.depth, 5);
@@ -138,6 +144,7 @@ describe('the fight, drawn', () => {
     const draw = new CastDraw();
     const tipAt = (tension: number) => {
       game.line.tension = tension;
+      again(game);
       expect(draw.write(game, null).rod).toBe(ROD_PIECES);
       return carried(draw.rod, ROD_PIECES - 1, 0.5, 0, 0);
     };
@@ -164,6 +171,7 @@ describe('the fight, drawn', () => {
       [0.95, 3],
     ] as const) {
       game.line.tension = tension;
+      again(game);
       const n = draw.write(game, null);
       expect(n.lines.length).toBe(LINE_COLOURS);
       n.lines.forEach((count, k) =>
@@ -178,6 +186,7 @@ describe('the fight, drawn', () => {
   it('runs the line from the bent tip to the hooked fish, its bobber gone under', () => {
     const game = onTheLine();
     game.line.tension = 0.7;
+    again(game);
     const draw = new CastDraw();
     const n = draw.write(game, null);
     expect(n.bobber).toBe(0);
@@ -200,6 +209,7 @@ describe('the fight, drawn', () => {
       let most = 0;
       for (let k = 0; k < 20; k++) {
         game.t += 0.05;
+        again(game);
         draw.write(game, null);
         most = Math.max(most, Math.hypot(draw.bobber[12] - game.lure.bobber[0], draw.bobber[13] - game.lure.bobber[1]));
       }
@@ -220,7 +230,7 @@ describe('the fight, drawn', () => {
     const { game } = newGame(1);
     game.cast(NORTH, 0.62);
     const draw = new CastDraw();
-    const bobberZ = () => (draw.write(game, null), draw.bobber[14]);
+    const bobberZ = () => (again(game), draw.write(game, null), draw.bobber[14]);
     for (let f = 0; f < 3600 && game.bite.phase !== 'nibbling'; f++) game.step(DT);
     // the still bob's range, before any nibble
     let lo = Infinity;
@@ -289,5 +299,42 @@ describe('the preview in a wind', () => {
     const landing = flight(NORTH, 0.6, game.lake, WEATHER.wind.vector).landing;
     for (let k = 0; k < 3; k++) expect(bent[k]).toBeCloseTo(landing[k], 4);
     expect(bent[0] - calm[0], 'downwind').toBeGreaterThan(1);
+  });
+});
+
+describe('the line, drawn as the rope', () => {
+  it('has as many pieces as the rope has segments, the first from the line’s start and the last to its end, to the bit', () => {
+    expect(LINE_PIECES).toBe(ROPE.points - 1);
+    const game = onTheLine();
+    game.line.tension = 0.5;
+    again(game);
+    const draw = new CastDraw();
+    const n = draw.write(game, null);
+    const k = n.lines.findIndex((c) => c > 0);
+    expect(n.lines[k]).toBe(LINE_PIECES);
+    // the pieces are placed in f32, so "to the bit" is to the f32 of the rope's own point
+    const first = carried(draw.lines[k], 0, -0.5, 0, 0),
+      last = carried(draw.lines[k], LINE_PIECES - 1, 0.5, 0, 0);
+    for (let j = 0; j < 3; j++) {
+      expect(first[j]).toBeCloseTo(game.lineStart[j], 5);
+      expect(last[j]).toBeCloseTo(game.lineEnd[j], 5);
+    }
+  });
+
+  it('makes nothing in a write: the pools and lists are the very objects as before', () => {
+    const game = onTheLine();
+    const draw = new CastDraw();
+    const before = [...draw.lines, draw.rod, draw.lure, draw.bobber, draw.dots, draw.ringWater, draw.ringBank];
+    const drawn = draw.write(game, null);
+    const lines = drawn.lines;
+    for (let f = 0; f < 5; f++) {
+      game.step(DT);
+      expect(draw.write(game, { angle: NORTH, power: 0.5 })).toBe(drawn);
+    }
+    expect(drawn.lines).toBe(lines);
+    expect([...draw.lines, draw.rod, draw.lure, draw.bobber, draw.dots, draw.ringWater, draw.ringBank]).toEqual(before);
+    before.forEach((pool, i) =>
+      expect(pool).toBe([...draw.lines, draw.rod, draw.lure, draw.bobber, draw.dots, draw.ringWater, draw.ringBank][i]),
+    );
   });
 });

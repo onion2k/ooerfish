@@ -137,6 +137,8 @@ export function hashGame(game: Game): string {
     ...lure.wind,
   ])
     eat(n);
+  // the rope the line is, every point of it
+  for (const n of game.rope.points) eat(n);
   // the bite and the fight, every number of each, so a fish's coming, nibbling and fighting are held to the seed
   const { bite, line } = game;
   eat(['none', 'coming', 'nibbling', 'biting', 'hooked', 'landed'].indexOf(bite.phase));
