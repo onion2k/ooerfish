@@ -13,5 +13,8 @@ export default defineConfig({
     // work, and Vitest's ten seconds for a hook failed it on a machine at a load of sixteen, once, with the change
     // it was guarding sound. It gets the test's allowance for the same reason.
     hookTimeout: 30_000,
+    // A turn of the event loop between tests, so a long file of synchronous tests keeps answering the main thread;
+    // the file says why.
+    setupFiles: ['test/setup.ts'],
   },
 });
