@@ -52,6 +52,37 @@ describe('the same seed gives the same game', () => {
     expect(night.days, 'the day went up').toBeGreaterThan(1);
   });
 
+  it('plays a row and a landing out the same, twice, and hashes the boat', () => {
+    const run = playTwice({
+      seed: 3,
+      frames: 1800,
+      every: 100,
+      label: 'rowed',
+      meddle: (game) => {
+        const spot = game.lake.boat!.spot;
+        // the same frames in both passes: out to the spot, a cast from it, and home again
+        const frame = Math.round(game.t * 60);
+        if (frame === 60) game.row(spot[0], spot[1]);
+        if (frame === 1500 && game.boat.aboard) game.land();
+      },
+    });
+    expect(run.diverged, run.note).toBe(null);
+  });
+
+  it('hashes the boat, so a game with it rowed differs from one without', () => {
+    const one = newGame(5).game;
+    const two = newGame(5).game;
+    expect(hashGame(one)).toBe(hashGame(two));
+    one.row(0, -5);
+    expect(hashGame(one)).not.toBe(hashGame(two));
+    for (let f = 0; f < 600; f++) {
+      one.step(DT);
+      two.step(DT);
+    }
+    expect(one.boat.aboard).toBe(true);
+    expect(hashGame(one)).not.toBe(hashGame(two));
+  });
+
   it('hashes the weather itself, so a game in fog differs from one in sun though fog lifts and blows nothing', () => {
     const one = newGame(5).game;
     const two = newGame(5).game;

@@ -1,16 +1,19 @@
 /** The lake without its picture: its clock, and that it is played the same from a seed. */
 import { describe, expect, it } from 'vitest';
-import { flight } from '../src/cast';
+import { aimAt, flight, rodTip } from '../src/cast';
+import { careful } from '../src/angler';
+import { landingAboard, rowPath } from '../src/boat';
 import { fightFor, treasureFight, type Temper } from '../src/fight';
 import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, KINDS, RELEASE, ROPE } from '../src/lake';
+import { BOAT, CLOCK, KINDS, RELEASE, ROPE } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
 import { HOME, LAKES, lakeNamed } from '../src/lakes';
+import { RESERVOIR } from '../src/lakes/reservoir';
 import type { Lake } from '../src/lakes/lake';
 import { NIGHT } from '../src/lake';
 import { DT, castAtDrum, castAtTreasure, newGame, settle } from './helpers';
@@ -46,7 +49,7 @@ describe('the lake', () => {
     expect(store.json).toBe(null);
     game.persist();
     expect(store.json).toBe(
-      `{"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":${game.timeOfDay},"place":"pond","requests":[],"photos":[],"tally":{"rain":0,"run":0,"best":0}}`,
+      `{"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[],"boat":null}},"day":1,"time":${game.timeOfDay},"place":"pond","requests":[],"photos":[],"tally":{"rain":0,"run":0,"best":0}}`,
     );
   });
 });
@@ -615,7 +618,7 @@ describe('a drum of waste', () => {
     expect(hauled).toEqual([[1, DRUMS.count]]);
     expect(JSON.parse(store.json!)).toEqual({
       lake: HOME.id,
-      lakes: { [HOME.id]: { cured: FISH_COUNT, drums: 1, journal: {}, found: [] } },
+      lakes: { [HOME.id]: { cured: FISH_COUNT, drums: 1, journal: {}, found: [], boat: null } },
       day: 1,
       time: game.timeOfDay,
       place: 'pond',
@@ -902,7 +905,7 @@ describe('a treasure on the bed', () => {
     expect(game.healTo, 'no heal begun').toBe(game.healFrom);
     expect(JSON.parse(store.json!)).toEqual({
       lake: HOME.id,
-      lakes: { [HOME.id]: { cured: FISH_COUNT, drums: 1, journal: {}, found: ['lunchbox'] } },
+      lakes: { [HOME.id]: { cured: FISH_COUNT, drums: 1, journal: {}, found: ['lunchbox'], boat: null } },
       day: 1,
       time: game.timeOfDay,
       place: 'pond',
@@ -923,8 +926,8 @@ describe('a treasure on the bed', () => {
       JSON.stringify({
         lake: 'duckpond',
         lakes: {
-          duckpond: { cured: FISH_COUNT, drums: 0, journal: {}, found: ['page1', 'page2'] },
-          reservoir: { cured: 0, drums: 0, journal: {}, found: ['page4', 'page5', 'page6'] },
+          duckpond: { cured: FISH_COUNT, drums: 0, journal: {}, found: ['page1', 'page2'], boat: null },
+          reservoir: { cured: 0, drums: 0, journal: {}, found: ['page4', 'page5', 'page6'], boat: null },
         },
       }),
     );
@@ -1330,5 +1333,498 @@ describe('the bobber’s body', () => {
     const a = newGame(1).game,
       b = newGame(1).game;
     expect(a.bodies.world).not.toBe(b.bodies.world);
+  });
+});
+
+describe('the boat (`docs/boat.md`, C2)', () => {
+  const SOUTH = -HOME.shoreRadius(-Math.PI / 2);
+  const MOORING = HOME.boat!.mooring;
+  const NORTH = Math.PI / 2;
+
+  /** A game at the pond, or any lake, with every event the boat tells kept in order. */
+  function boatGame(seed = 1, json: string | null = null, lake: Lake = HOME) {
+    const told: string[] = [];
+    const store = memoryStore(json);
+    const game = new Game(new Progress(store, LAKES), {
+      lake,
+      random: seeded(seed),
+      events: {
+        rowed: (x, y) => told.push(`rowed ${x.toFixed(2)},${y.toFixed(2)}`),
+        anchored: (x, y) => told.push(`anchored ${x.toFixed(2)},${y.toFixed(2)}`),
+        ashore: () => told.push('ashore'),
+      },
+    });
+    return { game, told, store };
+  }
+
+  /** Step until the boat is no longer rowing, within a minute and a half. */
+  function arrive(game: Game) {
+    for (let f = 0; f < 90 * 60 && game.boat.rowing; f++) game.step(DT);
+    expect(game.boat.rowing).toBe(false);
+  }
+
+  /** The game anchored at (x, y). */
+  function anchoredAt(x: number, y: number, seed = 1, json: string | null = null) {
+    const made = boatGame(seed, json);
+    expect(made.game.row(x, y)).toBe(true);
+    arrive(made.game);
+    return made;
+  }
+
+  const saved = (store: { json: string | null }) => (JSON.parse(store.json!) as Save).lakes[HOME.id].boat;
+
+  it('lies ashore at the mooring, and the angler is the shore’s, to the very objects', () => {
+    const { game } = boatGame();
+    expect(game.boat).toMatchObject({
+      aboard: false,
+      rowing: false,
+      x: MOORING.x,
+      y: MOORING.y,
+      heading: MOORING.heading,
+    });
+    expect(game.anglerAt()).toBe(HOME.angler);
+    expect(game.landing()).toBe(HOME.landAt);
+    expect(game.bodies.boatX).toBeCloseTo(MOORING.x, 4);
+    expect(game.bodies.boatY).toBeCloseTo(MOORING.y, 4);
+    expect(game.bodies.boatHeld).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  describe('row refuses, and changes nothing, for', () => {
+    /** The game as the boat sees it, to compare a refusal against. */
+    const looks = (game: Game) =>
+      JSON.stringify([game.boat, game.lure.phase, game.bite.phase, game.place, game.splashes.count]);
+    const refuses = (game: Game, x: number, y: number, told: string[] = []) => {
+      const before = looks(game);
+      expect(game.row(x, y)).toBe(false);
+      expect(looks(game)).toBe(before);
+      expect(told).toEqual([]);
+    };
+
+    it('a lake with no boat', () => {
+      const { game, told } = boatGame(1, null, { ...HOME, boat: null });
+      refuses(game, 0, -5, told);
+      expect(game.land()).toBe(false);
+    });
+
+    it('away from the pond: in the cabin, yawning, and leaving', () => {
+      const cabin = boatGame();
+      expect(cabin.game.enter()).toBe(true);
+      refuses(cabin.game, 0, -5, cabin.told);
+      const yawning = boatGame();
+      expect(yawning.game.sleep()).toBe(true);
+      refuses(yawning.game, 0, -5, yawning.told);
+      const leaving = boatGame();
+      expect(leaving.game.travel('reservoir')).toBe(true);
+      expect(leaving.game.place).toBe('leaving');
+      refuses(leaving.game, 0, -5, leaving.told);
+    });
+
+    it('a fish hooked or landed', () => {
+      const hooked = hookedGame(1).game;
+      refuses(hooked, 0, -5);
+      const landed = landedGame().game;
+      refuses(landed, 0, -5);
+    });
+
+    it('a row under way', () => {
+      const { game, told } = boatGame();
+      expect(game.row(0, -5)).toBe(true);
+      expect(game.boat.rowing).toBe(true);
+      told.length = 0;
+      refuses(game, 4, -8, told);
+      expect(game.land()).toBe(false);
+    });
+
+    it('a point that is not a number', () => {
+      const { game, told } = boatGame();
+      for (const [x, y] of [
+        [NaN, -5],
+        [0, NaN],
+        [Infinity, 0],
+        [0, -Infinity],
+        ['3', -5],
+        [undefined, -5],
+        [null, 0],
+      ] as unknown as [number, number][])
+        refuses(game, x, y, told);
+    });
+
+    it('a point off the water, at the shore’s edge, within the keep-off of it, in a boulder and on the jetty', () => {
+      const { game, told } = anchoredAt(0, -5);
+      told.length = 0;
+      const deck = HOME.jetty!.deck;
+      const b = HOME.boulders[1];
+      for (const [x, y] of [
+        [0, SOUTH - 5],
+        [0, SOUTH],
+        [0, SOUTH + 1],
+        [0, SOUTH + BOAT.keepOff - 0.1],
+        [b.x, b.y],
+        [b.x + b.radius + BOAT.keepOff - 0.1, b.y],
+        [deck.x + deck.inward[0] * 6, deck.y + deck.inward[1] * 6],
+        [
+          deck.x + deck.inward[0] * (HOME.jetty!.spec.length + BOAT.keepOff - 0.2),
+          deck.y + deck.inward[1] * (HOME.jetty!.spec.length + BOAT.keepOff - 0.2),
+        ],
+      ])
+        refuses(game, x, y, told);
+      // and one just inside the margin is rowed to
+      expect(game.row(0, SOUTH + BOAT.keepOff + 0.1)).toBe(true);
+    });
+
+    it('a line that crosses the jetty’s deck, to a point on clear water beyond it', () => {
+      const { game, told } = boatGame();
+      const deck = HOME.jetty!.deck;
+      // start on one side of the deck and ask for the other: both ends clear, the line across the planks
+      const at = (inward: number, along: number) =>
+        [
+          deck.x + deck.inward[0] * inward + deck.along[0] * along,
+          deck.y + deck.inward[1] * inward + deck.along[1] * along,
+        ] as const;
+      const [ax, ay] = at(12, 6),
+        [zx, zy] = at(12, -6);
+      expect(HOME.inside(ax, ay, BOAT.keepOff)).toBe(true);
+      expect(HOME.inside(zx, zy, BOAT.keepOff)).toBe(true);
+      // the boat is put there by a save, as a player would have rowed round to it
+      const aboard = boatGame(1, JSON.stringify({ boat: { x: ax, y: ay, heading: 0 } }));
+      expect(aboard.game.boat.aboard).toBe(true);
+      refuses(aboard.game, zx, zy, aboard.told);
+      expect(told).toEqual([]);
+      expect(game.boat.aboard).toBe(false);
+    });
+  });
+
+  describe('a row', () => {
+    it('boards the player, reels the lure in and lets the reel go', () => {
+      const { game, told } = boatGame();
+      game.cast(NORTH, 0.5);
+      settle(game, 120);
+      expect(game.lure.phase).toBe('sinking');
+      game.reel(true);
+      expect(game.row(0, -5)).toBe(true);
+      expect(game.boat).toMatchObject({ aboard: true, rowing: true });
+      expect(game.lure.phase).toBe('ready');
+      expect(game.reeling).toBe(false);
+      expect(game.bodies.held).toBe(true);
+      expect(told).toEqual(['rowed 0.00,-5.00']);
+    });
+
+    it('lets a coming fish go, as the yawn does', () => {
+      for (let seed = 1; seed <= 8; seed++) {
+        const { game } = boatGame(seed);
+        game.cast(NORTH, 0.6);
+        for (let f = 0; f < 3600 && game.bite.phase === 'none'; f++) game.step(DT);
+        if (game.bite.phase === 'none') continue;
+        expect(['coming', 'nibbling', 'biting']).toContain(game.bite.phase);
+        expect(game.row(0, -5)).toBe(true);
+        expect(game.bite.phase, `seed ${seed}`).toBe('none');
+        expect(game.fish.held, `seed ${seed}`).toBe(-1);
+        return;
+      }
+      throw new Error('no seed had a fish come');
+    });
+
+    it('moves along the line at the boat’s speed, heading along it, and anchors at the end, told and saved', () => {
+      const { game, told, store } = boatGame();
+      const [tx, ty] = [0, -5];
+      const length = Math.hypot(tx - MOORING.x, ty - MOORING.y);
+      expect(game.row(tx, ty)).toBe(true);
+      const heading = Math.atan2(ty - MOORING.y, tx - MOORING.x);
+      expect(game.boat.heading).toBe(heading);
+      for (let f = 1; f <= 120; f++) {
+        game.step(DT);
+        const gone = Math.hypot(game.boat.x - MOORING.x, game.boat.y - MOORING.y);
+        expect(gone, `frame ${f}`).toBeCloseTo(BOAT.speed * f * DT, 6);
+        // on the line the whole way, and the body with it
+        expect(game.bodies.boatX).toBeCloseTo(game.boat.x, 3);
+        expect(game.bodies.boatY).toBeCloseTo(game.boat.y, 3);
+        expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(game.boat.rowing).toBe(true);
+      expect(told).toEqual(['rowed 0.00,-5.00']);
+      // a row under way is not saved, whatever writes the save meanwhile: a load lands at the last anchorage
+      game.persist();
+      expect(saved(store)).toBeNull();
+      arrive(game);
+      expect(game.boat).toMatchObject({ x: tx, y: ty, heading, aboard: true, rowing: false });
+      expect(told).toEqual(['rowed 0.00,-5.00', 'anchored 0.00,-5.00']);
+      expect(game.t).toBeCloseTo(length / BOAT.speed, 1);
+      expect(saved(store)).toEqual({ x: tx, y: ty, heading });
+    });
+
+    it('goes on from an anchorage to another, the save keeping the last anchorage while under way', () => {
+      const { game, store } = anchoredAt(0, -5);
+      expect(game.row(-10, 6)).toBe(true);
+      game.persist();
+      expect(saved(store)).toEqual({ x: 0, y: -5, heading: Math.atan2(-5 - MOORING.y, 0 - MOORING.x) });
+      arrive(game);
+      expect(saved(store)).toEqual({ x: -10, y: 6, heading: Math.atan2(11, -10) });
+    });
+
+    it('reads back from the save: aboard at the anchorage, anchored, fishing from there', () => {
+      const { game, store } = anchoredAt(0, -5);
+      const { game: again } = newGame(2, store.json);
+      expect(again.boat).toMatchObject({ aboard: true, rowing: false, x: 0, y: -5 });
+      expect(again.anglerAt()).toEqual(game.anglerAt());
+      expect(again.bodies.boatX).toBeCloseTo(0, 4);
+      expect(checkInvariants(again)).toEqual([]);
+    });
+
+    it('rows at the Reservoir from its mooring to its spot, and lands again', () => {
+      const lake = RESERVOIR;
+      const { mooring, spot } = lake.boat!;
+      const { game, told } = boatGame(1, null, lake);
+      expect([game.boat.x, game.boat.y]).toEqual([mooring.x, mooring.y]);
+      expect(game.row(spot[0], spot[1])).toBe(true);
+      arrive(game);
+      expect([game.boat.x, game.boat.y]).toEqual([spot[0], spot[1]]);
+      expect(game.land()).toBe(true);
+      arrive(game);
+      expect(game.boat).toMatchObject({ aboard: false, x: mooring.x, y: mooring.y });
+      expect(told.map((t) => t.split(' ')[0])).toEqual(['rowed', 'anchored', 'rowed', 'ashore']);
+      expect(game.progress.entry(lake.id).boat).toBeNull();
+    });
+  });
+
+  describe('land', () => {
+    it('is refused ashore', () => {
+      const { game, told } = boatGame();
+      expect(game.land()).toBe(false);
+      expect(told).toEqual([]);
+    });
+
+    it('is refused with a fish hooked or landed, and away from the pond', () => {
+      const { game } = anchoredAt(0, -5);
+      game.fish.held = 0;
+      game.bite.phase = 'landed';
+      expect(game.land()).toBe(false);
+      game.bite.phase = 'none';
+      game.fish.held = -1;
+      expect(game.sleep()).toBe(false);
+    });
+
+    it('rows the boat to the mooring and steps off, told and saved', () => {
+      const { game, told, store } = anchoredAt(0, -5);
+      told.length = 0;
+      expect(game.land()).toBe(true);
+      expect(game.boat).toMatchObject({ aboard: true, rowing: true });
+      expect(told).toEqual([`rowed ${MOORING.x.toFixed(2)},${MOORING.y.toFixed(2)}`]);
+      expect(game.land(), 'not while rowing').toBe(false);
+      arrive(game);
+      expect(game.boat).toMatchObject({
+        aboard: false,
+        rowing: false,
+        x: MOORING.x,
+        y: MOORING.y,
+        heading: MOORING.heading,
+      });
+      expect(told.at(-1)).toBe('ashore');
+      expect(saved(store)).toBeNull();
+      expect(game.anglerAt()).toBe(HOME.angler);
+      expect(game.landing()).toBe(HOME.landAt);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is refused when the straight way home crosses what the boat keeps off, and allowed once the player has rowed round', () => {
+      // anchored behind the boulder at (16, -12) from the mooring on the far side of the pond
+      const [x, y] = [12, -16];
+      expect(HOME.inside(x, y, BOAT.keepOff)).toBe(true);
+      expect(rowPath(HOME, x, y, MOORING.x, MOORING.y)).toBe(false);
+      const { game, told } = boatGame(1, JSON.stringify({ boat: { x, y, heading: 0 } }));
+      expect(game.boat.aboard).toBe(true);
+      expect(game.land()).toBe(false);
+      expect(game.boat).toMatchObject({ aboard: true, rowing: false, x, y });
+      expect(told).toEqual([]);
+      expect(game.row(0, -5)).toBe(true);
+      arrive(game);
+      expect(game.land()).toBe(true);
+    });
+  });
+
+  describe('aboard', () => {
+    it('is a cast thrown from the seat’s tip, and flies and lands from there', () => {
+      const { game } = anchoredAt(0, -5);
+      const stand = { ...game.anglerAt() };
+      expect(game.cast(NORTH, 0.5)).toBe(true);
+      expect([...game.lure.at]).toEqual(rodTip(HOME, stand));
+      const f = flight(NORTH, 0.5, HOME, [0, 0], stand);
+      for (let i = 0; i < 400 && game.lure.phase === 'flying'; i++) game.step(DT);
+      expect(game.lure.phase).toBe('sinking');
+      expect(game.lure.bobber[0]).toBeCloseTo(f.landing[0], 6);
+      expect(game.lure.bobber[1]).toBeCloseTo(f.landing[1], 6);
+      expect(f.landing[1]).toBeGreaterThan(stand.y);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('has the ready line hung from the seat’s tip, not the shore’s', () => {
+      const { game } = anchoredAt(0, -5);
+      game.step(DT);
+      const tip = rodTip(HOME, game.anglerAt());
+      expect(game.lineEnd[0]).toBeCloseTo(tip[0], 9);
+      expect(game.lineEnd[1]).toBeCloseTo(tip[1], 9);
+      expect(Math.abs(game.lineEnd[1] - HOME.angler.y)).toBeGreaterThan(5);
+    });
+
+    it('lands a fish beside the seat: the fight starts from the landing and ends at it', () => {
+      for (let seed = 1; seed <= 12; seed++) {
+        const { game } = anchoredAt(0, -5, seed);
+        const stand = { ...game.anglerAt() };
+        const near = [...Array(game.fish.count).keys()]
+          .filter((i) => !game.fish.cured[i])
+          .sort(
+            (a, b) =>
+              Math.hypot(game.fish.x[a] - 0, game.fish.y[a] - 5) - Math.hypot(game.fish.x[b] - 0, game.fish.y[b] - 5),
+          )[0];
+        const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], HOME, [0, 0], stand);
+        game.cast(angle, power);
+        for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+        if (game.bite.phase !== 'biting') continue;
+        expect(game.strike()).toBe('hooked');
+        const landing = [...game.landing()];
+        expect(landing).toEqual([...landingAboard(game.boat)]);
+        expect(Math.hypot(landing[0] - HOME.landAt[0], landing[1] - HOME.landAt[1])).toBeGreaterThan(5);
+        const i = game.bite.fish;
+        expect(game.line.out).toBeCloseTo(Math.hypot(game.fish.x[i] - landing[0], game.fish.y[i] - landing[1]), 6);
+        for (let f = 0; f < 180 * 60 && (game.bite.phase as string) === 'hooked'; f++) {
+          const l = game.line;
+          game.reel(careful(l.zone, l.zoneSpeed, l.fishAt, l.figures.width));
+          game.step(DT);
+          expect(checkInvariants(game)).toEqual([]);
+        }
+        if ((game.bite.phase as string) !== 'landed') continue;
+        // the landed fish hangs from the rod at the seat, and was brought in to the water beside it
+        expect(Math.hypot(game.fish.x[i] - landing[0], game.fish.y[i] - landing[1])).toBeLessThan(2);
+        expect(game.stow()).toBe(true);
+        // and the cured fish is let go near the boat, on the water
+        const x = game.fish.x[i],
+          y = game.fish.y[i];
+        expect(HOME.inside(x, y, RELEASE.margin)).toBe(true);
+        expect(Math.hypot(x - stand.x, y - stand.y)).toBeGreaterThanOrEqual(RELEASE.distance - 1e-9);
+        expect(Math.hypot(x - stand.x, y - stand.y)).toBeLessThan(RELEASE.distance + RELEASE.steps * RELEASE.step);
+        return;
+      }
+      throw new Error('no seed landed a fish from the boat');
+    });
+
+    it('lets a cured fish go RELEASE.distance toward the middle from the seat, on the water, with a splash', () => {
+      const { game } = anchoredAt(0, -10);
+      const stand = { ...game.anglerAt() };
+      const splashed: number[][] = [];
+      const again = new Game(game.progress, {
+        lake: HOME,
+        random: seeded(3),
+        events: { splashed: (x, y, s) => splashed.push([x, y, s]) },
+      });
+      expect(again.boat.aboard).toBe(true);
+      const seat = { ...again.anglerAt() };
+      expect(seat.x).toBeCloseTo(stand.x, 9);
+      again.bite.phase = 'landed';
+      again.bite.fish = 0;
+      again.fish.held = 0;
+      again.lure.phase = 'hooked';
+      again.fish.x[0] = 20;
+      again.fish.y[0] = 25;
+      again.stow();
+      const [x, y] = [again.fish.x[0], again.fish.y[0]];
+      expect(HOME.inside(x, y, RELEASE.margin)).toBe(true);
+      expect(Math.hypot(x - seat.x, y - seat.y)).toBeCloseTo(RELEASE.distance, 9);
+      expect(y, 'toward the middle').toBeGreaterThan(seat.y);
+      expect(splashed.at(-1)).toEqual([x, y, RELEASE.splash]);
+    });
+
+    it('refuses cast, strike, drop and dropNear while rowing, and enter, travel and sleep while rowing and while anchored', () => {
+      const { game } = boatGame();
+      expect(game.row(0, -5)).toBe(true);
+      const looks = () => JSON.stringify([game.lure.phase, game.splashes.count, game.place, game.boat.aboard]);
+      const before = looks();
+      expect(game.cast(NORTH, 0.5)).toBe(false);
+      expect(game.strike()).toBe('none');
+      expect(game.drop(0, 0)).toBe(false);
+      expect(game.dropNear(0, 0)).toBe(false);
+      expect(game.enter()).toBe(false);
+      expect(game.travel('reservoir')).toBe(false);
+      expect(game.travel(HOME.id)).toBe(false);
+      expect(game.sleep()).toBe(false);
+      expect(game.sleepThrough(2)).toBe(false);
+      expect(looks()).toBe(before);
+      arrive(game);
+      // anchored, the pebble and the cast are allowed again; the cabin, the journey and bed are not, until landed
+      expect(game.dropNear(0, 0)).toBe(true);
+      expect(game.enter()).toBe(false);
+      expect(game.travel('reservoir')).toBe(false);
+      expect(game.sleep()).toBe(false);
+      expect(game.place).toBe('pond');
+      expect(game.land()).toBe(true);
+      arrive(game);
+      expect(game.travel('reservoir')).toBe(true);
+    });
+
+    it('does not draw the chance a refused pebble would have, so a refusal moves nothing', () => {
+      const a = boatGame(5).game,
+        b = boatGame(5).game;
+      a.row(0, -5);
+      b.row(0, -5);
+      a.dropNear(0, 0);
+      expect(a.random()).toBe(b.random());
+    });
+  });
+
+  describe('the day’s end', () => {
+    /** A hair before midnight, with the player aboard at an anchorage or ashore. */
+    function lateAt(json: string | null) {
+      const made = boatGame(1, json);
+      made.game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+      return made;
+    }
+
+    it('waits for a row, as it waits for a fish, and yawns at the anchoring', () => {
+      const { game } = lateAt(null);
+      expect(game.row(-20, -5)).toBe(true);
+      game.step(DT);
+      expect(game.timeOfDay).toBeLessThan(0.01);
+      for (let f = 0; f < 60 && game.boat.rowing; f++) {
+        game.step(DT);
+        expect(game.place, `frame ${f}`).toBe('pond');
+      }
+      expect(game.boat.rowing).toBe(true);
+      arrive(game);
+      // the yawn comes on the step the boat anchors, or the next
+      game.step(DT);
+      expect(game.place).toBe('yawning');
+      expect(game.boat.aboard).toBe(true);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('wakes ashore at the mooring, the save’s boat cleared, from the anchorage', () => {
+      const { game, store } = lateAt(JSON.stringify({ boat: { x: 0, y: -5, heading: 0 } }));
+      expect(game.boat.aboard).toBe(true);
+      game.step(DT);
+      expect(game.place).toBe('yawning');
+      expect(game.boat.aboard).toBe(true);
+      sleepThrough(game);
+      expect(game.place).toBe('cabin');
+      expect(game.boat).toMatchObject({
+        aboard: false,
+        rowing: false,
+        x: MOORING.x,
+        y: MOORING.y,
+        heading: MOORING.heading,
+      });
+      expect(saved(store)).toBeNull();
+      expect(game.anglerAt()).toBe(HOME.angler);
+      expect(game.out()).toBe(true);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('wakes ashore after a row ended in the yawn too', () => {
+      const { game, store } = lateAt(null);
+      game.row(-20, -5);
+      arrive(game);
+      game.step(DT);
+      sleepThrough(game);
+      expect(game.boat.aboard).toBe(false);
+      expect(saved(store)).toBeNull();
+    });
   });
 });

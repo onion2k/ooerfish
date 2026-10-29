@@ -40,8 +40,8 @@ describe('what must stay bounded', () => {
     }
     expect(
       now['save bytes'],
-      'a fresh save is {"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":0.25,"place":"pond","requests":[],"photos":[],"tally":{"rain":0,"run":0,"best":0}}, a hundred and eighty-three bytes: the lake and an entry for each lake the game has',
-    ).toBe(183);
+      'a fresh save is {"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[],"boat":null}},"day":1,"time":0.25,"place":"pond","requests":[],"photos":[],"tally":{"rain":0,"run":0,"best":0}}, a hundred and ninety-five bytes: the lake and an entry for each lake the game has',
+    ).toBe(195);
     expect(WATCH.photos!.ceiling).toBe(PHOTOS.most);
     expect(WATCH['requests answered']!.ceiling).toBe(REQUESTS.length);
     expect(WATCH['treasures found']!.ceiling).toBe(Math.max(...Object.values(LAKES).map((l) => l.treasures.count)));

@@ -83,6 +83,8 @@ export interface GestureTarget {
   mode(): Mode;
   bitePhase(): string;
   lurePhase(): string;
+  /** Whether the boat is being rowed, in which the phone's gestures are ignored, as they are in row mode. Optional: a target without a boat never rows. */
+  rowing?(): boolean;
   /** The screen's shorter side in pixels and the camera's heading round the compass, for a drag's cast. */
   view(): { short: number; heading: number };
   /** A gesture from the phone arrived in look mode: the page goes to cast mode, at the Shore view, and the gesture goes on. */
@@ -222,9 +224,12 @@ export class Gesture {
     return aimFrom(e.x - from.x, e.y - from.y, short, heading);
   }
 
-  /** The phone's gestures, which always act as in cast mode: the first in look mode asks the page to go there. */
+  /** The phone's gestures, which always act as in cast mode: the first in look mode asks the page to go there; in row mode and while rowing they are ignored. */
   private fromPhone(e: PhoneGesture) {
     const t = this.target;
+    // in row mode and while the boat is rowed the phone is not the rod: its touches are ignored, not refused (no call, no
+    // word to the page); what it says about itself and its leaving are always taken
+    if (e.type !== 'hello' && e.type !== 'gone' && (t.mode() === 'row' || t.rowing?.())) return;
     switch (e.type) {
       case 'hello':
         this.motion = e.motion;

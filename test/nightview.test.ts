@@ -328,3 +328,18 @@ describe('the morning line', () => {
     expect(nightWords('yawning', 5, false, 'Duck Pond', 'dawn').yawn).toBe('Yawn… time for bed');
   });
 });
+
+describe('the Go to the cabin item aboard the boat', () => {
+  it('is greyed while the player is aboard, rowing or anchored, and live again ashore, with the bed left alone', () => {
+    const { game, el, night } = view();
+    night.show();
+    expect(el.cabin.disabled).toBe(false);
+    game.boat.aboard = true;
+    night.show();
+    expect(el.cabin.disabled).toBe(true);
+    expect(el.bed.disabled).toBe(false);
+    game.boat.aboard = false;
+    night.show();
+    expect(el.cabin.disabled).toBe(false);
+  });
+});

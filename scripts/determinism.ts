@@ -141,6 +141,12 @@ export function hashGame(game: Game): string {
   eat(game.bodies.x);
   eat(game.bodies.y);
   eat(game.bodies.held ? 1 : 0);
+  // the boat: where it is and points, whether the player is aboard and rowing, the row it is on, and its body's place
+  const { boat } = game;
+  for (const n of [boat.x, boat.y, boat.heading, boat.fromX, boat.fromY, boat.toX, boat.toY, boat.rowedAt]) eat(n);
+  eat((boat.aboard ? 1 : 0) + (boat.rowing ? 2 : 0));
+  eat(game.bodies.boatX);
+  eat(game.bodies.boatY);
   // the rope the line is, every point of it
   for (const n of game.rope.points) eat(n);
   // the bite and the fight, every number of each, so a fish's coming, nibbling and fighting are held to the seed

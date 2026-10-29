@@ -10,7 +10,15 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { layoutFor } from '../src/layout';
+import { BOAT } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { start, watch } from './game';
+
+/** The pond's spot, and the frames of the row to it from the mooring: all of them, and a half of them. */
+const SPOT = HOME.boat!.spot;
+const ROW_FRAMES = Math.ceil(
+  (Math.hypot(SPOT[0] - HOME.boat!.mooring.x, SPOT[1] - HOME.boat!.mooring.y) / BOAT.speed) * 60,
+);
 
 /** A phone, a tablet or a desk: its size, and whether it is a touch screen. */
 const BREAKPOINTS = [
@@ -29,7 +37,10 @@ const BREAKPOINTS = [
  * The overlays: every top-level, fixed-position thing the page lays over the canvas, by id. A box inside one of
  * these is part of it, so it is not listed on its own.
  *   pond        the lake's gauge, top left.
- *   hud         the Cast button and the hint, one box: its children are laid out inside it by the page.
+ *   hud         the Cast and Row buttons and the hint, one box: its children are laid out inside it by the page.
+ *   modeButton, rowButton  the two buttons inside the hud, read on their own as well (the hud's box holds them whole) so
+ *               that they are held apart from each other and from every overlay but the hud: Row beside Cast, clear of the
+ *               gauge, the menu, the bucket, the fight and the words, and, rowing, both greyed but there.
  *   menu        the corner button and its list, one box.
  *   bucket      the count of fish kept.
  *   phoneStatus the paired phone's word.
@@ -101,6 +112,9 @@ type Moment =
   | 'fight'
   | 'landed'
   | 'cured'
+  | 'rowing'
+  | 'aboard'
+  | 'aboard fight'
   | 'drum card'
   | 'bottle card'
   | 'start again'
@@ -123,6 +137,9 @@ const MOMENTS: Moment[] = [
   'fight',
   'landed',
   'cured',
+  'rowing',
+  'aboard',
+  'aboard fight',
   'drum card',
   'bottle card',
   'start again',
@@ -147,6 +164,10 @@ const AT_LEAST: Record<Moment, number> = {
   fight: 5,
   landed: 4,
   cured: 3,
+  // the gauge, the menu, the hud and its two buttons; aboard the cast line and the bucket join them, and a fight the bar
+  rowing: 5,
+  aboard: 5,
+  'aboard fight': 7,
   'drum card': 4,
   'bottle card': 4,
   'start again': 1,
@@ -189,6 +210,15 @@ async function boxes(page: Page): Promise<Box[]> {
         if (r.width <= 0 || r.height <= 0) continue;
         out.push({ id, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
+      // the Cast and Row buttons inside the hud, on their own, while the hud shows
+      const hud = document.getElementById('hud');
+      if (hud && !hud.hidden && getComputedStyle(hud).display !== 'none')
+        for (const id of ['modeButton', 'rowButton']) {
+          const el = document.getElementById(id);
+          if (!el || el.hidden || getComputedStyle(el).display === 'none') continue;
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) out.push({ id, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+        }
       // the question before Start again is a modal over the whole screen: its card is the box to hold inside the screen
       const card = document.querySelector<HTMLElement>('#startAgain:not([hidden]) .card');
       if (card) {
@@ -309,62 +339,92 @@ async function reach(page: Page, moment: Moment) {
                     : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
-  const ok = await page.evaluate(async (m) => {
-    const g = window.game!;
-    if (m === 'look' || m === 'welcome') return true;
-    if (m === 'start again') {
-      await g.startAgain();
+  const ok = await page.evaluate(
+    async ([m, spot, frames]) => {
+      const g = window.game!;
+      if (m === 'look' || m === 'welcome') return true;
+      if (m === 'start again') {
+        await g.startAgain();
+        return true;
+      }
+      if (m === 'journal' || m === 'journal found') {
+        await g.openJournal();
+        return true;
+      }
+      if (m === 'post' || m === 'post answered') {
+        await g.openPost();
+        return g.pagesOpen();
+      }
+      if (m === 'lakes' || m === 'lakes cabin') {
+        await g.openLakes();
+        return g.pagesOpen();
+      }
+      if (m === 'sleep') {
+        await g.openSleep();
+        return g.pagesOpen();
+      }
+      if (m === 'camera') {
+        await g.openCamera();
+        return g.cameraOpen();
+      }
+      if (m === 'still') {
+        await g.lookAt(0);
+        g.step(5);
+        return g.still().shown;
+      }
+      if (m === 'drum card') return g.fishTo('landed', 'drum');
+      // the bottle's card is the longest: its note is the most words a card ever holds
+      if (m === 'bottle card') return g.fishTo('landed', 'bottle');
+      if (m === 'yawn' || m === 'morning') {
+        // to bed from the pond: the screen half dark and yawning, or woken in the cabin with the fade lifted
+        await g.sleep();
+        g.step(m === 'yawn' ? 45 : 160);
+        return g.place() === (m === 'yawn' ? 'yawning' : 'cabin');
+      }
+      if (m === 'cast') {
+        await g.mode('cast');
+        g.step(30);
+        return true;
+      }
+      // the boat rowed half way to the pond's spot, the Row and Cast buttons greyed
+      if (m === 'rowing') {
+        if (!g.row(spot[0], spot[1])) return false;
+        g.step(Math.floor(frames / 2));
+        return g.boat().rowing;
+      }
+      // anchored at the spot with the lure cast from the seat and sinking (the bobber out), and the same with a fish on
+      if (m === 'aboard' || m === 'aboard fight') {
+        // out past the spot and back to it, so the boat points up the lake at the middle and the water before the camera is where the fish are
+        if (!g.row(spot[0], spot[1] * 2)) return false;
+        g.step(1500);
+        if (!g.row(spot[0], spot[1])) return false;
+        g.step(frames + 2);
+        if (!g.boat().aboard || g.boat().rowing) return false;
+        // cast mode puts the camera at the shore framing from the seat, behind the rod and along the heading
+        await g.mode('cast');
+        g.step(30);
+        if (m === 'aboard fight') {
+          if (!g.fishTo('bite')) return false;
+          const struck = g.strike() === 'hooked';
+          g.step(30);
+          return struck && g.fishing().phase === 'hooked';
+        }
+        g.cast(g.boat().heading + 0.15, 0.6);
+        g.step(90);
+        return g.boat().aboard;
+      }
+      if (m === 'bite') return g.fishTo('bite');
+      if (m === 'fight') {
+        if (!g.fishTo('bite')) return false;
+        const struck = g.strike() === 'hooked';
+        g.step(30);
+        return struck && g.fishing().phase === 'hooked';
+      }
+      if (!g.fishTo('landed')) return false;
       return true;
-    }
-    if (m === 'journal' || m === 'journal found') {
-      await g.openJournal();
-      return true;
-    }
-    if (m === 'post' || m === 'post answered') {
-      await g.openPost();
-      return g.pagesOpen();
-    }
-    if (m === 'lakes' || m === 'lakes cabin') {
-      await g.openLakes();
-      return g.pagesOpen();
-    }
-    if (m === 'sleep') {
-      await g.openSleep();
-      return g.pagesOpen();
-    }
-    if (m === 'camera') {
-      await g.openCamera();
-      return g.cameraOpen();
-    }
-    if (m === 'still') {
-      await g.lookAt(0);
-      g.step(5);
-      return g.still().shown;
-    }
-    if (m === 'drum card') return g.fishTo('landed', 'drum');
-    // the bottle's card is the longest: its note is the most words a card ever holds
-    if (m === 'bottle card') return g.fishTo('landed', 'bottle');
-    if (m === 'yawn' || m === 'morning') {
-      // to bed from the pond: the screen half dark and yawning, or woken in the cabin with the fade lifted
-      await g.sleep();
-      g.step(m === 'yawn' ? 45 : 160);
-      return g.place() === (m === 'yawn' ? 'yawning' : 'cabin');
-    }
-    if (m === 'cast') {
-      await g.mode('cast');
-      g.step(30);
-      return true;
-    }
-    if (m === 'bite') return g.fishTo('bite');
-    if (m === 'fight') {
-      if (!g.fishTo('bite')) return false;
-      const struck = g.strike() === 'hooked';
-      g.step(30);
-      return struck && g.fishing().phase === 'hooked';
-    }
-    if (!g.fishTo('landed')) return false;
-    return true;
-  }, moment);
+    },
+    [moment, SPOT, ROW_FRAMES] as const,
+  );
   expect(ok, `the page reached ${moment}`).toBe(true);
   if (moment === 'cured') {
     await page.locator('#catch').click();
@@ -407,6 +467,9 @@ for (const bp of BREAKPOINTS) {
                 q = all[b];
               // the dialog is modal, so it lies over the other overlays by design, as the pairing overlay does
               if (MODALS.includes(p.id) || MODALS.includes(q.id)) continue;
+              // a button inside the hud is part of its box, which holds it whole
+              const inHud = (x: string) => x === 'modeButton' || x === 'rowButton';
+              if ((p.id === 'hud' && inHud(q.id)) || (q.id === 'hud' && inHud(p.id))) continue;
               if (
                 Math.min(p.right, q.right) - Math.max(p.left, q.left) > EDGE_SLACK &&
                 Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > EDGE_SLACK
@@ -425,12 +488,12 @@ for (const bp of BREAKPOINTS) {
               failures.add(`${still}: ${show(b)} is outside the ${bp.width}x${bp.height} screen`);
 
           // while a fish is on or biting, nothing stands over the bobber, the line's end or the fish
-          if (moment === 'bite' || moment === 'fight') {
+          if (moment === 'bite' || moment === 'fight' || moment === 'aboard' || moment === 'aboard fight') {
             const points = await page.evaluate(() => window.game!.onScreen());
             // a hooked fish drags the bobber under, so in the fight there is no bobber to cover; the line and the fish remain
             const named: [string, { x: number; y: number } | null][] = [['line end', points.line]];
-            if (moment === 'bite') named.push(['bobber', points.bobber]);
-            if (moment === 'fight') named.push(['hooked fish', points.fish]);
+            if (moment === 'bite' || moment === 'aboard') named.push(['bobber', points.bobber]);
+            if (moment === 'fight' || moment === 'aboard fight') named.push(['hooked fish', points.fish]);
             for (const [what, at] of named) {
               expect(at, `${what} is on the screen at ${label}`).not.toBeNull();
               for (const b of all) {
@@ -555,7 +618,7 @@ for (const bp of BREAKPOINTS) {
         );
 
         await look(moment);
-        if (moment === 'fight') {
+        if (moment === 'fight' || moment === 'aboard fight') {
           for (let k = 1; k < FIGHT_SAMPLES; k++) {
             const on = await page.evaluate(
               ([hold, gap]) => {

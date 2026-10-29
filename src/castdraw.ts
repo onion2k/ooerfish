@@ -11,7 +11,7 @@ import type { GameGroup } from 'artshape-render/game/renderer';
 import { bentTip, pathPoints, rodTip } from './cast';
 import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
-import type { Lake } from './lakes/lake';
+import type { Lake, Stand } from './lakes/lake';
 import { HOME } from './lakes';
 import { LINE_DRAW, ROPE } from './lake';
 import { place } from './matrix';
@@ -33,6 +33,10 @@ const RING_PIECES = 20;
 const LINE_WIDTH = 0.06;
 /** The ring's radius and the thickness of its pieces. */
 const RING = { radius: 1.4, width: 0.22 } as const;
+
+/** Aboard the boat the rod is held this far ahead of the seat and this far over its base, since the rod rises from the lap. */
+const HAND_AHEAD = 0.4;
+const HAND_UP = 0.5;
 
 /** What a cast is aimed at while it is being aimed. */
 export interface Aim {
@@ -101,6 +105,8 @@ export class CastDraw {
   private readonly end = new Float64Array(3);
   /** Where the rod is held, and where its tip is drawn this frame, bent or not. */
   private readonly hand: [number, number, number];
+  /** The shore's hand, worked out once: ashore it is exactly this, so nothing ashore moves. */
+  private readonly shoreHand: readonly [number, number, number];
   private readonly tip = new Float64Array(3);
   /** Where the middle of a landed fish hangs, when `hung` says one does. */
   readonly hang = new Float64Array(3);
@@ -119,16 +125,34 @@ export class CastDraw {
   constructor(private readonly lake: Lake = HOME) {
     const { angler } = lake;
     const z = lake.ground(angler.x, angler.y);
-    this.hand = [angler.x + 0.6, angler.y + 0.5, z + 5];
+    this.shoreHand = [angler.x + 0.6, angler.y + 0.5, z + 5];
+    this.hand = [...this.shoreHand];
+  }
+
+  /**
+   * The hand worked out from where the game has the angler: the shore's, to the bit, ashore; aboard, just ahead of the
+   * seat and a little over the thwart, since the rod rises from the lap toward its tip. Written into the hand, never made.
+   */
+  private holdAt(at: Stand) {
+    const h = this.hand;
+    if (at === this.lake.angler || at.heading === undefined) {
+      h[0] = this.shoreHand[0];
+      h[1] = this.shoreHand[1];
+      h[2] = this.shoreHand[2];
+      return;
+    }
+    h[0] = at.x + Math.cos(at.heading) * HAND_AHEAD;
+    h[1] = at.y + Math.sin(at.heading) * HAND_AHEAD;
+    h[2] = (at.base ?? 0) + HAND_UP;
   }
 
   /**
    * The rod from the hand to its tip, the tip drawn down and toward the fish by `bend` (nought to one): a curve whose
    * middle is where the straight rod's would be, so it is straight unbent and bows as it bends.
    */
-  private writeRod(bend: number, toward: ArrayLike<number>) {
-    const t0 = rodTip(this.lake);
-    bentTip(this.lake, bend, toward, this.tip);
+  private writeRod(bend: number, toward: ArrayLike<number>, stand: Stand) {
+    const t0 = rodTip(this.lake, stand);
+    bentTip(this.lake, bend, toward, this.tip, stand);
     const h = this.hand;
     const at = (s: number, into: Float64Array) => {
       for (let k = 0; k < 3; k++) {
@@ -174,6 +198,9 @@ export class CastDraw {
   /** Everything where it is now, and the preview if a cast is being aimed. */
   write(game: Game, aim: Aim | null): Drawn {
     const { lure, bite, line } = game;
+    // the rod is held from wherever the game has the angler: the shore's place, or the boat's seat
+    const stand = game.anglerAt();
+    this.holdAt(stand);
     const out = this.drawn;
     out.dots = out.ringWater = out.ringBank = out.bobber = out.hung = 0;
     out.lure = 1;
@@ -194,7 +221,7 @@ export class CastDraw {
       }
     } else this.end.set(lure.at);
     place(this.lure, 0, this.end[0], this.end[1], this.end[2]);
-    this.writeRod(tension, this.end);
+    this.writeRod(tension, this.end, stand);
     out.rod = ROD_PIECES;
 
     // with the lure in the water the line ends at the bobber, and runs on down from it to the lure; with a fish on, the
@@ -227,7 +254,7 @@ export class CastDraw {
     }
 
     if (aim) {
-      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path, this.lake, game.wind);
+      const onWater = pathPoints(aim.angle, aim.power, PREVIEW_DOTS, this.path, this.lake, game.wind, stand);
       for (let k = 0; k < PREVIEW_DOTS; k++)
         place(this.dots, k, this.path[k * 3], this.path[k * 3 + 1], this.path[k * 3 + 2]);
       out.dots = PREVIEW_DOTS;

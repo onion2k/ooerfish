@@ -42,6 +42,12 @@ export class Angler {
   constructor(
     private readonly game: Game,
     private readonly random: Random,
+    /**
+     * Whether it fishes from the boat: the pace gate boards it on every third seed (`seed % 3 === 0`), so the gate holds
+     * the minutes of both the shore and the boat. A flag handed in, and not a draw of its own chance, so the other seeds'
+     * draws, and the shore's pace, are exactly what they were.
+     */
+    private readonly boards = false,
   ) {}
 
   /** What the angler does this frame, then the lake on by `dt`. */
@@ -49,6 +55,13 @@ export class Angler {
     const g = this.game;
     // a night passed, the angler wakes in the cabin and goes straight down to the pond, as a player at the door would
     if (g.place === 'cabin') g.out();
+    // aboard, it rows out to the lake's spot before it fishes, and again after a wake, which puts it ashore; it waits out the row
+    if (this.boards && g.lake.boat && g.place === 'pond' && !g.boat.aboard && !g.boat.rowing && g.bite.phase === 'none')
+      g.row(...g.lake.boat.spot);
+    if (g.boat.rowing) {
+      g.step(dt);
+      return;
+    }
     const { phase } = g.bite;
     if (phase === 'hooked') this.seen[this.frames++ % this.seen.length] = g.line.fishAt;
     else this.frames = 0;
@@ -69,8 +82,11 @@ export class Angler {
     if (g.lure.phase === 'lying' || this.waited > PATIENCE) g.reelIn();
     // the cast it aims is the lake's to say: toward its middle, a little either way
     const aim = g.lake.aim;
+    // aboard, the middle of the lake lies the other way from the seat's, so the bearing is worked out from there
+    const seat = g.anglerAt();
+    const toward = g.boat.aboard ? Math.atan2(-seat.y, -seat.x) : aim.angle;
     if (g.lure.phase === 'ready')
-      g.cast(aim.angle + (this.random() * 2 - 1) * aim.spread, aim.power + (this.random() * 2 - 1) * aim.powerSpread);
+      g.cast(toward + (this.random() * 2 - 1) * aim.spread, aim.power + (this.random() * 2 - 1) * aim.powerSpread);
     g.step(dt);
   }
 }

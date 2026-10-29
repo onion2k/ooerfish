@@ -7,6 +7,7 @@
  * It lies round the world's origin with its surface at nought, and the world's z is up. Its shape is not from chance:
  * the same pond is the same every run whatever the seed.
  */
+import { BOAT } from '../lake';
 import { DRUM_RULES, WATER_LEVEL } from '../rules';
 import type { Lake, Notch, TreasureSpec, View, ViewName, WakingEye } from './lake';
 
@@ -774,6 +775,20 @@ const FISH_COUNT = 12;
  */
 const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
 
+/**
+ * Where the boat lies (`docs/boat.md`, C2): off the lake end of the jetty, `BOAT.keepOff` and a little more past the
+ * deck's end so its middle is a legal anchorage (`inside` with that margin holds it) and half the deck's width across, so
+ * it lies beside the line the deck runs on and not on it; it points inward, down the deck's line toward the middle. And
+ * the spot the pace angler rows to: two thirds of the way from the angler to the middle, short of it, where the water is
+ * open. First guesses.
+ */
+const MOORING = {
+  x: DECK.x + DECK.inward[0] * (JETTY.length + BOAT.keepOff + 0.5) + DECK.along[0] * (JETTY.width / 2),
+  y: DECK.y + DECK.inward[1] * (JETTY.length + BOAT.keepOff + 0.5) + DECK.along[1] * (JETTY.width / 2),
+  heading: Math.atan2(DECK.inward[1], DECK.inward[0]),
+};
+const BOAT_SPOT = [0, ANGLER.y / 3] as const;
+
 /** The sun's shadow is fitted to the lake and the banks round it, up to the tallest tree standing on the cliff's plateau, with a unit to spare. */
 const SHADOW_BOX = {
   min: [-(SHORE_RADIUS * 1.5 + BANK_RISE) * STRETCH, -(SHORE_RADIUS * 1.5 + BANK_RISE), -8] as [number, number, number],
@@ -845,6 +860,7 @@ export const DUCK_POND: Lake = {
     floor: CABIN_FLOOR,
     wakingEye: WAKING_EYE,
   },
+  boat: { mooring: MOORING, spot: BOAT_SPOT },
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,
 

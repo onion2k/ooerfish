@@ -34,7 +34,9 @@ import {
   WEATHER,
   awake,
   ROPE,
+  BOAT,
 } from './lake';
+import { seatOf } from './boat';
 import { weatherOf } from './calendar';
 import { poseFish } from './swim';
 import { REQUESTS } from './town/requests';
@@ -159,6 +161,66 @@ function tallyRules(game: Game, out: string[]) {
     if (!Number.isSafeInteger(tally[key]) || tally[key] < 0)
       out.push(`the tally's ${key} is ${tally[key]}, not a whole number from nought`);
   if (tally.run > tally.best) out.push(`the tally's run, ${tally.run}, is longer than its best, ${tally.best}`);
+}
+
+/**
+ * The boat (`docs/boat.md`, C2). Its place is a finite point and heading, and its middle is on the water `BOAT.keepOff`
+ * in from the shore, every boulder and the jetty, or at its mooring; the player is aboard only at the pond (or the
+ * yawn at the day's end) and only at a lake with a boat; the angler's place is the seat aboard and the lake's own ashore,
+ * and a lure that is out was thrown from where the angler is; a row under way is aboard, with the lure in, nothing hooked
+ * or landed, and its ends on the water; the boat's body is at the boat and held; and, when not rowing, the save
+ * says where the boat is, or ashore when nobody is aboard.
+ */
+function boatRules(game: Game, out: string[]) {
+  const { boat, lake, lure } = game;
+  if (![boat.x, boat.y, boat.heading].every(Number.isFinite)) return void out.push('the boat is not a number');
+  const mooring = lake.boat?.mooring;
+  const moored = mooring !== undefined && boat.x === mooring.x && boat.y === mooring.y;
+  if (!lake.inside(boat.x, boat.y, BOAT.keepOff) && !moored)
+    out.push(
+      `the boat is at ${boat.x.toFixed(1)},${boat.y.toFixed(1)}, off the water by the keep-off and not at its mooring`,
+    );
+  if (boat.aboard && !lake.boat) out.push('the player is aboard a boat the lake does not keep');
+  if (boat.aboard && game.place !== 'pond' && game.place !== 'yawning')
+    out.push(`the player is aboard in the ${game.place}`);
+  if (boat.rowing && !boat.aboard) out.push('the boat is rowing with nobody aboard');
+  if (boat.rowing) {
+    if (lure.phase !== 'ready' || game.bite.phase !== 'none')
+      out.push(`the boat is rowing with the lure ${lure.phase} and the bite ${game.bite.phase}`);
+    if (![boat.fromX, boat.fromY, boat.toX, boat.toY, boat.rowedAt].every(Number.isFinite))
+      out.push('the row is not a number');
+    else if (
+      !lake.inside(boat.toX, boat.toY, BOAT.keepOff) &&
+      !(mooring && boat.toX === mooring.x && boat.toY === mooring.y)
+    )
+      out.push(`the row ends at ${boat.toX.toFixed(1)},${boat.toY.toFixed(1)}, off the water by the keep-off`);
+  }
+  // the angler is at the seat aboard and at the lake's place ashore
+  const at = game.anglerAt();
+  if (boat.aboard) {
+    const seat = seatOf(boat);
+    if (at.x !== seat[0] || at.y !== seat[1]) out.push('the angler is aboard but not at the seat');
+  } else if (at !== lake.angler) out.push('the angler is ashore but not at the lake’s place');
+  // a cast out was thrown from where the angler stands now, since a row reels it in first
+  if (
+    lure.phase !== 'ready' &&
+    (lure.stand.x !== at.x || lure.stand.y !== at.y || lure.stand.tipHeight !== at.tipHeight)
+  )
+    out.push(`the lure was thrown from ${lure.stand.x.toFixed(1)},${lure.stand.y.toFixed(1)}, not where the angler is`);
+  // the boat's body is where the boat is, and held for the whole of this slice
+  const bodies = game.bodies;
+  if (lake.boat) {
+    if (!bodies.boatHeld) out.push('the boat’s body is not held');
+    if (Math.abs(bodies.boatX - boat.x) > 1e-3 || Math.abs(bodies.boatY - boat.y) > 1e-3)
+      out.push(`the boat’s body is at ${bodies.boatX.toFixed(2)},${bodies.boatY.toFixed(2)}, not at the boat`);
+  }
+  // the save says where an anchored boat is
+  if (!boat.rowing) {
+    const kept = game.progress.entry(lake.id).boat;
+    if (!boat.aboard && kept !== null) out.push('the player is ashore, but the save keeps a boat');
+    else if (boat.aboard && (!kept || kept.x !== boat.x || kept.y !== boat.y || kept.heading !== boat.heading))
+      out.push('the boat is anchored, but the save does not say where');
+  }
 }
 
 /**
@@ -440,6 +502,7 @@ export function checkInvariants(game: Game): string[] {
   requestRules(game, out);
   photoRules(game, out);
   tallyRules(game, out);
+  boatRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

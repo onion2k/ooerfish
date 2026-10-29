@@ -232,6 +232,30 @@ export interface GameApi {
   photos(): Photo[];
   /** The contests' tally as saved, a copy: the fish stowed in rain, the run of casts landed with none wasted, and the longest run. */
   tally(): { rain: number; run: number; best: number };
+  /**
+   * The boat as the game has it, a copy (`docs/boat.md`, C2): where it is and points, whether the player is aboard and
+   * whether it is being rowed, the row it is on, and the physics world's body of it (where it is and whether the game holds it).
+   */
+  boat(): {
+    x: number;
+    y: number;
+    heading: number;
+    aboard: boolean;
+    rowing: boolean;
+    from: [number, number];
+    to: [number, number];
+    body: { x: number; y: number; held: boolean };
+    /** What the page drew of it last frame: where, which way it points, and whether the winter cover was on it. */
+    drawn: { x: number; y: number; heading: number; cover: boolean };
+  };
+  /** The boat rowed to (x, y), boarding first; false, and nothing changed, where `Game.row` refuses. */
+  row(x: number, y: number): boolean;
+  /** The boat rowed home and the player stepped off; false, and nothing changed, where `Game.land` refuses. */
+  land(): boolean;
+  /** Where the angler stands and holds the rod: the lake's place ashore, the boat's seat aboard. */
+  anglerAt(): { x: number; y: number; tipHeight: number; tipReach: number };
+  /** Where a fish is landed: the lake's landing ashore, beside the seat aboard. */
+  landing(): [number, number];
   /** The photograph at this place in the album thrown away, as Discard does; false, and nothing changed, for a place with none. */
   discard(index: number): boolean;
   /** The journal's logbook section as the page shows it: the six pages in order over every lake, their words once found, and the count. */
@@ -342,8 +366,9 @@ export interface GameApi {
   paint(value: 'on' | 'off'): Promise<void>;
 
   /**
-   * The page's mode: `look`, where a drag turns the camera in every view, or `cast`, where the camera is held at the
-   * Shore view and a drag back aims a cast. With a mode, puts the page in it as the button does, resolving once it is
+   * The page's mode: `look`, where a drag turns the camera in every view; `cast`, where the camera is held at the
+   * Shore view and a drag back aims a cast; or `row` (`docs/boat.md`, C2), where a drag looks round and a tap on the water
+   * rows the boat there and a tap on the bank lands. With a mode, puts the page in it as the button does, resolving once it is
    * ready to draw; without, says which it is in.
    */
   mode(): Mode;
@@ -593,6 +618,8 @@ export interface DebugHost {
   /** The page's mode, and putting the page in one as its button does. */
   mode(): Mode;
   setMode(to: Mode): Promise<void>;
+  /** What the page drew of the boat last frame. */
+  boatDrawn(): { x: number; y: number; heading: number; cover: boolean };
   /** Down from the cabin to the pond, the camera at the shore. */
   out(): Promise<boolean>;
   /** Into the cabin by day, the camera at the pillow. */
@@ -701,6 +728,24 @@ export function createApi(host: DebugHost): GameApi {
     }),
     photos: () => JSON.parse(JSON.stringify(game.progress.save.photos)) as Photo[],
     tally: () => ({ ...game.progress.save.tally }),
+    boat: () => ({
+      x: game.boat.x,
+      y: game.boat.y,
+      heading: game.boat.heading,
+      aboard: game.boat.aboard,
+      rowing: game.boat.rowing,
+      from: [game.boat.fromX, game.boat.fromY],
+      to: [game.boat.toX, game.boat.toY],
+      body: { x: game.bodies.boatX, y: game.bodies.boatY, held: game.bodies.boatHeld },
+      drawn: { ...host.boatDrawn() },
+    }),
+    row: (x, y) => game.row(x, y),
+    land: () => game.land(),
+    anglerAt: () => {
+      const { x, y, tipHeight, tipReach } = game.anglerAt();
+      return { x, y, tipHeight, tipReach };
+    },
+    landing: () => [game.landing()[0], game.landing()[1]],
     discard: (index) => game.discard(index),
     logbook: () => logbookWords(LAKES, game.progress.save),
     gear: () => ({ ...game.gear }),
@@ -740,8 +785,10 @@ export function createApi(host: DebugHost): GameApi {
        * passes every kind's water on the way down.
        */
       const fishFor = (wanted: (i: number) => boolean): boolean => {
-        const dist = (i: number) =>
-          Math.hypot(game.fish.x[i] - game.lake.angler.x, game.fish.y[i] - game.lake.angler.y);
+        const dist = (i: number) => {
+          const at = game.anglerAt();
+          return Math.hypot(game.fish.x[i] - at.x, game.fish.y[i] - at.y);
+        };
         for (let attempt = 0; attempt < 12; attempt++) {
           let near = -1;
           for (let i = 0; i < game.fish.count; i++) {
@@ -749,7 +796,7 @@ export function createApi(host: DebugHost): GameApi {
             if (near < 0 || dist(i) < dist(near)) near = i;
           }
           if (near < 0) return false;
-          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], game.lake, game.wind);
+          const { angle, power } = aimAt(game.fish.x[near], game.fish.y[near], game.lake, game.wind, game.anglerAt());
           if (!game.cast(angle, power)) return false;
           for (let f = 0; f < 2400 && game.bite.phase !== 'biting'; f++) {
             frame();
@@ -764,13 +811,19 @@ export function createApi(host: DebugHost): GameApi {
         // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
         const i = game.drums.found.indexOf(0);
         if (i < 0) return false;
-        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake, game.wind);
+        const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake, game.wind, game.anglerAt());
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (treasure >= 0) {
         // the lure thrown to the treasure, if it is still on the bed, and left to lie there, where it is snagged
         if (game.treasures.found[treasure]) return false;
-        const { angle, power } = aimAt(game.treasures.x[treasure], game.treasures.y[treasure], game.lake, game.wind);
+        const { angle, power } = aimAt(
+          game.treasures.x[treasure],
+          game.treasures.y[treasure],
+          game.lake,
+          game.wind,
+          game.anglerAt(),
+        );
         if (!game.cast(angle, power)) return false;
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
       } else if (want >= 0) {
@@ -829,7 +882,7 @@ export function createApi(host: DebugHost): GameApi {
     preview() {
       const to = host.aiming();
       if (!to) return null;
-      const f = flight(to.angle, to.power, game.lake, game.wind);
+      const f = flight(to.angle, to.power, game.lake, game.wind, game.anglerAt());
       return { x: f.landing[0], y: f.landing[1], z: f.landing[2], onWater: f.onWater };
     },
     drop: (x, y) => game.drop(x, y),

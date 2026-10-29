@@ -332,6 +332,31 @@ export interface Cabin {
   wakingEye: WakingEye;
 }
 
+/**
+ * Where an angler stands and how the rod is held: the point, how high the rod's tip is held over `base` (the ground there
+ * unless given, since a boat's seat is on the water and the ground under it is the bed), how far out in front of them it
+ * reaches, and which way is front (due north unless given, which is how the shore's angler faces and keeps its sums to
+ * the bit). The shore's is the lake's `angler`; the boat's is worked from the boat's state (`src/boat.ts`).
+ */
+export interface Stand {
+  x: number;
+  y: number;
+  tipHeight: number;
+  tipReach: number;
+  base?: number;
+  heading?: number;
+}
+
+/**
+ * The boat a lake keeps (`docs/boat.md`, C2): where it lies and is boarded, as a point and the way it points, and the
+ * spot the pace angler rows to. The mooring is on the water, `BOAT.keepOff` in from everything, so the boat that lies
+ * there is a legal anchorage like any other.
+ */
+export interface LakeBoat {
+  mooring: { x: number; y: number; heading: number };
+  spot: readonly [number, number];
+}
+
 /** A lake. */
 export interface Lake {
   /** What the save calls it. */
@@ -395,6 +420,8 @@ export interface Lake {
   cliff: Cliff | null;
   jetty: Jetty | null;
   cabin: Cabin | null;
+  /** The boat it keeps and where it lies, or null for a lake with none (`docs/boat.md`, C2). */
+  boat: LakeBoat | null;
   /** A straight dam in place of a cliff (`src/dam.ts` draws it as a painted solid); optional, so a lake without one need not say so. */
   dam?: Dam | null;
   scenery: Scenery;
@@ -412,7 +439,7 @@ export interface Lake {
   fishShallowest: number;
   fishAboveBed: number;
   /** Where the angler stands, how high the rod's tip is held, and how far out in front. */
-  angler: { x: number; y: number; tipHeight: number; tipReach: number };
+  angler: Stand;
   /** Where the angler stands, as the places on the bed are measured from. */
   from: readonly [number, number];
   /** Where in the shallows below the angler a fish is landed. */

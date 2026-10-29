@@ -8,7 +8,7 @@ import type { Mode } from '../src/mode';
 /** A target that records the calls made on it, with the mode and phases it is told to report. */
 function fake(mode: Mode = 'cast') {
   const calls: string[] = [];
-  const state = { mode, bite: 'none', lure: 'ready', short: 800, heading: 0.5, strikeHooks: false };
+  const state = { mode, bite: 'none', lure: 'ready', short: 800, heading: 0.5, strikeHooks: false, rowing: false };
   const target: GestureTarget = {
     cast: (angle, power) => calls.push(`cast ${angle.toFixed(4)} ${power.toFixed(4)}`),
     strike: () => {
@@ -21,6 +21,7 @@ function fake(mode: Mode = 'cast') {
     mode: () => state.mode,
     bitePhase: () => state.bite,
     lurePhase: () => state.lure,
+    rowing: () => state.rowing,
     view: () => ({ short: state.short, heading: state.heading }),
     wantCast: () => {
       calls.push('want cast');
@@ -586,5 +587,54 @@ describe('the phone without motion', () => {
     f.gesture.handle(noMotion);
     f.gesture.handle(pad('down', 0, 0, 1, 0));
     expect(f.calls).toEqual(['want cast']);
+  });
+});
+
+describe('the phone in row mode and while rowing', () => {
+  const hello = { type: 'hello', source: 'phone', motion: true } as const;
+  const gestures: GestureEvent[] = [
+    { type: 'down', source: 'phone', at: 0 },
+    { type: 'move', source: 'phone', x: 0.5, y: 0.5, aspect: 0.5, at: 5 },
+    { type: 'move', source: 'phone', x: 0.9, y: 0.1, aspect: 0.5, at: 10 },
+    { type: 'tilt', source: 'phone', g: 30 },
+    { type: 'flick', source: 'phone', peak: 60 },
+    { type: 'up', source: 'phone', at: 1000 },
+  ];
+
+  it('is ignored in row mode: no cast, no strike, no aim, and the page is not asked for cast mode', () => {
+    const f = fake('row');
+    f.gesture.handle(hello);
+    for (const g of gestures) f.gesture.handle(g);
+    expect(f.calls).toEqual([]);
+  });
+
+  it('is ignored while the boat is rowed, in any mode', () => {
+    for (const mode of ['look', 'cast'] as const) {
+      const f = fake(mode);
+      f.state.rowing = true;
+      f.gesture.handle(hello);
+      for (const g of gestures) f.gesture.handle(g);
+      expect(f.calls, mode).toEqual([]);
+    }
+  });
+
+  it('is heard again once the row is over and the mode is cast, and a hold on the reel is let go by the phone leaving', () => {
+    const f = fake('cast');
+    f.state.rowing = true;
+    f.gesture.handle(hello);
+    f.gesture.handle({ type: 'down', source: 'phone', at: 0 });
+    expect(f.calls).toEqual([]);
+    f.state.rowing = false;
+    f.gesture.handle({ type: 'down', source: 'phone', at: 0 });
+    f.gesture.handle({ type: 'tilt', source: 'phone', g: 10 });
+    expect(f.calls.some((c) => c.startsWith('aim'))).toBe(true);
+    f.gesture.handle({ type: 'gone', source: 'phone' });
+  });
+
+  it('does not hold the screen back: a tap on the water in row mode reaches the page as a point', () => {
+    const f = fake('row');
+    f.gesture.handle(down(200, 200, 0));
+    f.gesture.handle(up(200, 200, 50));
+    expect(f.calls).toEqual(['pebble 200 200']);
   });
 });

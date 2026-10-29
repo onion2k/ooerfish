@@ -16,6 +16,7 @@ import { HOME } from '../src/lakes';
 import type { Lake } from '../src/lakes/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
+import { newGame } from './helpers';
 
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
@@ -23,7 +24,7 @@ const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 /** A save with nothing in it: at the home, its entry fresh, dawn at the pond. */
 const FRESH = {
   lake: HOME.id,
-  lakes: { [HOME.id]: { cured: 0, drums: 0, journal: {}, found: [] } },
+  lakes: { [HOME.id]: { cured: 0, drums: 0, journal: {}, found: [], boat: null } },
   day: 1,
   time: 0.25,
   place: 'pond',
@@ -129,6 +130,8 @@ const KEPT: Record<string, Record<string, unknown>> = {
   },
   // the contests' tally: fish stowed in rain, the run of casts that landed, and the longest run
   '13-tally.json': { cured: 12, drums: 2, tally: { rain: 1, run: 2, best: 2 } },
+  // the boat: the player aboard, anchored in the open water of the pond
+  '14-boat.json': { cured: 4, boat: { x: 2, y: -12, heading: 0.5 } },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -347,6 +350,76 @@ describe('saves from every shape the game has written', () => {
   });
 });
 
+describe('the boat', () => {
+  const boatOf = (b: string) => entryOf(`{"cured": 3, "boat": ${b}}`).boat;
+
+  it('is ashore for an old save, and a point and a heading are kept as written', () => {
+    expect(entryOf('{"cured": 3}').boat).toBeNull();
+    expect(boatOf('{"x": 2, "y": -12, "heading": 0.5}')).toEqual({ x: 2, y: -12, heading: 0.5 });
+    expect(boatOf('{"x": 0, "y": 0, "heading": -3}')).toEqual({ x: 0, y: 0, heading: -3 });
+  });
+
+  it('is ashore when it is not a finite point and heading, and extras are dropped', () => {
+    for (const bad of [
+      'null',
+      '4',
+      '"boat"',
+      '[1, 2, 3]',
+      'true',
+      '{}',
+      '{"x": 1, "y": 2}',
+      '{"x": "1", "y": 2, "heading": 0}',
+      '{"x": 1, "y": null, "heading": 0}',
+      '{"x": 1e400, "y": 2, "heading": 0}',
+      '{"x": 1, "y": 2, "heading": 1e400}',
+      '{"x": 1, "y": 2, "heading": [0]}',
+    ])
+      expect(boatOf(bad), bad).toBeNull();
+    expect(boatOf('{"x": 1, "y": 2, "heading": 0, "speed": 9}')).toEqual({ x: 1, y: 2, heading: 0 });
+  });
+
+  it('puts the player aboard there at the pond, anchored, with the lure in', () => {
+    const { game } = newGame(1, read('14-boat.json'));
+    expect(game.boat).toMatchObject({ aboard: true, rowing: false, x: 2, y: -12, heading: 0.5 });
+    expect(game.lure.phase).toBe('ready');
+    expect(game.anglerAt()).not.toBe(HOME.angler);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('is ashore when the point is not on the water by the margin, and the save forgets it', () => {
+    // on the bank, off the water by the keep-off, at the shore's edge, and on the jetty’s deck
+    const deck = HOME.jetty!.deck;
+    for (const [x, y] of [
+      [0, -40],
+      [0, -HOME.shoreRadius(-Math.PI / 2) + 1],
+      [deck.x + deck.inward[0] * 6, deck.y + deck.inward[1] * 6],
+    ]) {
+      const { game } = newGame(1, JSON.stringify({ cured: 3, boat: { x, y, heading: 0 } }));
+      expect(game.boat.aboard, `${x},${y}`).toBe(false);
+      expect(game.boat.x).toBe(HOME.boat!.mooring.x);
+      expect(game.progress.entry(HOME.id).boat).toBeNull();
+      expect(game.anglerAt()).toBe(HOME.angler);
+    }
+  });
+
+  it('is ashore from a cabin save, since the cabin is reached from the shore', () => {
+    const { game } = newGame(1, JSON.stringify({ place: 'cabin', cured: 3, boat: { x: 2, y: -12, heading: 0 } }));
+    expect(game.boat.aboard).toBe(false);
+  });
+
+  it('is written again as the game has it, null ashore and the point aboard', () => {
+    const store = memoryStore(read('14-boat.json'));
+    const game = new Game(new Progress(store));
+    game.persist();
+    expect((JSON.parse(store.json!) as Save).lakes[HOME.id].boat).toEqual({ x: 2, y: -12, heading: 0.5 });
+    expect(game.row(0, -5)).toBe(true);
+    for (let f = 0; f < 600; f++) game.step(1 / 60);
+    expect(game.land()).toBe(true);
+    for (let f = 0; f < 60 * 20; f++) game.step(1 / 60);
+    expect((JSON.parse(store.json!) as Save).lakes[HOME.id].boat).toBeNull();
+  });
+});
+
 describe('the requests answered', () => {
   // a flat save that earns all three: the pond clean, every one of the six kinds caught, a pike over the rival's weight
   const EARNED =
@@ -408,7 +481,7 @@ describe('the save per lake', () => {
   const other: Lake = { ...HOME, id: 'other', name: 'Other Water', drums: { ...HOME.drums, count: 1 } };
   const both: Record<string, Lake> = { [HOME.id]: HOME, [other.id]: other };
   const load = (json: string, lakes = both) => new Progress(memoryStore(json), lakes);
-  const entry = (cured = 0, drums = 0) => ({ cured, drums, journal: {}, found: [] });
+  const entry = (cured = 0, drums = 0) => ({ cured, drums, journal: {}, found: [], boat: null });
 
   it('has an entry for every lake the game has, fresh, and the home as the lake it is at', () => {
     const { save } = new Progress(memoryStore(), both);

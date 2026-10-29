@@ -11,7 +11,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES } from '../src/rules';
-import { FIGHT, GEAR, HEAL, KINDS, PHOTOS } from '../src/lake';
+import { BOAT, FIGHT, GEAR, HEAL, KINDS, PHOTOS } from '../src/lake';
 
 /** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
 const ROD = GEAR.find((g) => g.id === 'rod')!;
@@ -707,6 +707,7 @@ test.describe('Start again', () => {
     await ready(page);
     expect(await stored(page)).toBeNull();
     expect(await saved(page)).toEqual({
+      boat: null,
       cured: 0,
       day: 1,
       drums: 0,
@@ -807,6 +808,7 @@ test.describe('the day ends', () => {
     expect(await day(page)).toBe(2);
     expect(await page.evaluate(() => window.game!.events())).toContain('woke 2');
     expect(flat(await page.evaluate(() => window.game!.save()))).toEqual({
+      boat: null,
       cured: 0,
       day: 2,
       drums: 0,
@@ -3035,6 +3037,95 @@ test.describe('the new kinds', () => {
     expect(await page.evaluate(() => window.game!.events())).toContain('answered pink');
     const saved = JSON.parse(await page.evaluate(() => window.game!.save())) as { requests: string[] };
     expect(saved.requests).toContain('pink');
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the boat', () => {
+  const state = (page: Page) => page.evaluate(() => window.game!.boat());
+
+  test('Row, a tap on the water, rowed and anchored, a fish landed aboard and stowed, a tap on the bank, ashore again', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await play(page, 30, 'half a second at the pond');
+    const spot = HOME.boat!.spot;
+    // ashore: the boat lies at its mooring, nobody in it, and the button offers a row
+    expect(await state(page)).toMatchObject({ aboard: false, rowing: false, x: HOME.boat!.mooring.x });
+    await expect(page.locator('#rowButton')).toHaveText('Row');
+    await expect(page.locator('#rowButton')).toBeEnabled();
+
+    // Row puts the page in row mode, whose button says how to leave it
+    await page.locator('#rowButton').click();
+    expect(await page.evaluate(() => window.game!.mode())).toBe('row');
+    await expect(page.locator('#rowButton')).toHaveText('Look round');
+
+    // a tap on the water at the lake's spot, through the page: the boat sets off, and the mode is look again
+    const tap = (await page.evaluate(([x, y]) => window.game!.project(x, y, 0), spot))!;
+    await page.mouse.click(tap.x, tap.y);
+    const start0 = await state(page);
+    expect(start0.rowing, 'rowing').toBe(true);
+    expect(start0.aboard).toBe(true);
+    expect(Math.hypot(start0.to[0] - spot[0], start0.to[1] - spot[1]), 'rowed to the tap').toBeLessThan(2);
+    expect(await page.evaluate(() => window.game!.mode())).toBe('look');
+    // the buttons are greyed while it rows
+    await play(page, 20, 'under way');
+    await expect(page.locator('#rowButton')).toBeDisabled();
+    await expect(page.locator('#modeButton')).toBeDisabled();
+    // the menu's walk to the cabin is greyed aboard
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to the cabin' })).toBeDisabled();
+    await page.locator('#menuButton').click();
+
+    // stepped the length of the row, it is anchored at the point
+    const frames = Math.ceil(
+      (Math.hypot(start0.to[0] - start0.from[0], start0.to[1] - start0.from[1]) / BOAT.speed) * 60,
+    );
+    await play(page, frames, 'the row');
+    const anchored = await state(page);
+    expect(anchored.rowing).toBe(false);
+    expect(anchored.aboard).toBe(true);
+    expect(anchored.x).toBeCloseTo(start0.to[0], 6);
+    expect(anchored.y).toBeCloseTo(start0.to[1], 6);
+    await expect(page.locator('#rowButton')).toBeEnabled();
+    const saved = JSON.parse(await page.evaluate(() => window.game!.save())) as {
+      lakes: Record<string, { boat: { x: number; y: number } | null }>;
+    };
+    expect(saved.lakes[HOME.id].boat, 'the save keeps the anchorage').toMatchObject({ x: anchored.x, y: anchored.y });
+
+    // a fish fished for from the boat is landed beside the seat, and stowed
+    expect(await page.evaluate(() => window.game!.fishTo('landed', 'bream')), 'a bream landed aboard').toBe(true);
+    const seat = await page.evaluate(() => window.game!.anglerAt());
+    const landing = await page.evaluate(() => window.game!.landing());
+    expect(Math.hypot(landing[0] - seat.x, landing[1] - seat.y), 'landed beside the seat').toBeLessThan(2.5);
+    expect(await page.evaluate(() => window.game!.stow()), 'stowed').toBe(true);
+    await play(page, 30, 'the bream stowed');
+    expect(flat(await page.evaluate(() => window.game!.save())).cured, 'the bream cured').toBe(1);
+
+    // Row and a tap on the bank (here the sky, which is off the water) lands: the boat rows home and the player steps off
+    await page.evaluate(() => window.game!.reelIn());
+    await page.locator('#rowButton').click();
+    expect(await page.evaluate(() => window.game!.mode())).toBe('row');
+    const box = (await page.locator('#view').boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + 6);
+    expect((await state(page)).rowing, 'rowing home').toBe(true);
+    const home = await state(page);
+    const back = Math.ceil((Math.hypot(home.to[0] - home.from[0], home.to[1] - home.from[1]) / BOAT.speed) * 60) + 2;
+    await play(page, back, 'the row home');
+    const ashore = await state(page);
+    expect(ashore).toMatchObject({ aboard: false, rowing: false });
+    expect(ashore.x).toBeCloseTo(HOME.boat!.mooring.x, 6);
+    expect(await page.evaluate(() => window.game!.anglerAt())).toMatchObject({ x: HOME.angler.x, y: HOME.angler.y });
+    const after = JSON.parse(await page.evaluate(() => window.game!.save())) as {
+      lakes: Record<string, { boat: unknown }>;
+    };
+    expect(after.lakes[HOME.id].boat, 'ashore again in the save').toBe(null);
+    // the menu's cabin walk is open again
+    await page.locator('#menuButton').click();
+    await expect(page.getByRole('menuitem', { name: 'Go to the cabin' })).toBeEnabled();
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
     expect(problems).toEqual([]);
   });
 });

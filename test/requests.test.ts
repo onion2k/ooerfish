@@ -7,7 +7,14 @@ import { REQUESTS, REQUEST_RULES, requestNamed } from '../src/town/requests';
 import { logbookPages } from '../src/town/logbook';
 import { TOWN } from '../src/town/town';
 
-const entry = (over: Partial<LakeSave> = {}): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [], ...over });
+const entry = (over: Partial<LakeSave> = {}): LakeSave => ({
+  cured: 0,
+  drums: 0,
+  journal: {},
+  found: [],
+  boat: null,
+  ...over,
+});
 const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   lake: HOME.id,
   lakes,

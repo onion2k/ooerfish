@@ -82,7 +82,16 @@
     color: var(--dim);
     font-size: 13px;
   }
-  #modeButton {
+  /* the two mode buttons side by side: Cast, and Row beside it (docs/boat.md, C2) */
+  #modes {
+    display: flex;
+    gap: 8px;
+    /* as wide as the two buttons are, past the hud's own limit, so a button's words never wrap into a taller one */
+    width: max-content;
+    pointer-events: none;
+  }
+  #modeButton,
+  #rowButton {
     pointer-events: auto;
     cursor: pointer;
     font: inherit;
@@ -90,11 +99,19 @@
     color: var(--ink);
     min-width: 96px;
     min-height: 44px;
+    white-space: nowrap;
     touch-action: manipulation;
   }
-  #modeButton:focus-visible {
+  #modeButton:focus-visible,
+  #rowButton:focus-visible {
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
+  }
+  /* greyed while the boat is rowed, and for a lake with none: dimmer, not gone, with the word still said */
+  #modeButton:disabled,
+  #rowButton:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   /* what the phone is doing, once one has paired: a line under the menu and the bucket's count (which end at 60px),
      where it is not in the way of the fight and never over either */
@@ -1166,6 +1183,14 @@
     top: 75px;
     right: 12px;
   }
+  /* the Row button stands beside Cast, and at 360 px the pair, with Look round in either, must end before the bucket's
+     words do: a little smaller, the height of a thumb's reach kept */
+  html[data-layout='portrait'] #modeButton,
+  html[data-layout='portrait'] #rowButton {
+    min-width: 0;
+    padding: 10px;
+    font-size: 13px;
+  }
   html[data-layout='portrait'] #phoneStatus {
     top: 127px;
     right: 12px;
@@ -1279,8 +1304,13 @@
     align-items: center;
     max-width: none;
   }
+  /* with Row beside Cast the hint wraps in the room left before the bucket and the menu, and does not run under them */
   html[data-layout='sideways'] #help {
-    white-space: nowrap;
+    white-space: normal;
+    max-width: max(120px, calc(100vw - 696px));
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 6px 10px;
   }
   /* and the phone's line, which stands beside Cast on a touch screen, goes under the menu where the hint cannot reach */
   @media (hover: hover) {
@@ -1487,7 +1517,10 @@
   </div>
 </div>
 <div id="hud">
-  <button class="panel" id="modeButton" type="button" hidden>Cast</button>
+  <div id="modes">
+    <button class="panel" id="modeButton" type="button" hidden>Cast</button>
+    <button class="panel" id="rowButton" type="button" hidden>Row</button>
+  </div>
   <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>
 </div>
 <div id="night" aria-hidden="true" hidden></div>

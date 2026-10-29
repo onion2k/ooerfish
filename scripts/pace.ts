@@ -34,7 +34,8 @@ export function paceRun(seed: number, fish = CHECK.fish, capMinutes = CHECK.capM
   // the gate times the lake, not the weather, and its baseline was taken in the sun
   game.setWeather('sunny');
   // the angler's own chance, apart from the lake's
-  const angler = new Angler(game, seeded(seed * 7 + 3));
+  // every third seed fishes from the boat (`docs/boat.md`, C2), rowed out to the lake's spot
+  const angler = new Angler(game, seeded(seed * 7 + 3), seed % 3 === 0);
   const frames = Math.round(capMinutes * 3600);
   for (let f = 0; f < frames; f++) {
     angler.step(DT);

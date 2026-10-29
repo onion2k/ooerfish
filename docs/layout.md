@@ -66,6 +66,13 @@ The user also wants a way to reset the pond: there is no Start again today.
   chooses Start again.
 - **phone:** the point of this. The phone and pairing pictures are rewritten at the Pixel 7a's size.
 - **the mode:** look and cast in each layout. The Cast button stays in the top row in portrait and sideways.
+- **the Row button** (`docs/boat.md`, C2): beside Cast in the same box, the `hud`, in every layout: bottom left of the
+  screen at a desk's width, with the hint above them; in portrait the pair sits in the top row under the gauge, a
+  little smaller (13 px, no minimum width) so that the two, with "Look round" in either, end before the bucket's words
+  do at 360 px; sideways it sits in the slim top row after Cast. Both are greyed while the boat is rowed. The layout
+  spec reads the two buttons on their own and holds them clear of each other and of every overlay but the hud, and
+  gains the moments `rowing`, `aboard` and `aboard fight`, the last two held to the bobber, the line's end and the
+  hooked fish as the bite and the fight are, the camera being behind the seat.
 - **the rung:** unaffected.
 - **the lab:** the pictures are taken at each time of day where a layout differs, and at least by day.
 - **the line and the fish:** held clear by criterion 2 during the fight.

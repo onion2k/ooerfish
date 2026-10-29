@@ -9,6 +9,7 @@
  * oval's, cut off by the dam's face, so everything built from the shore (the bed, the banks' sheet, the foam, the
  * surface, the fish's room) meets the wall without knowing there is one.
  */
+import { BOAT } from '../lake';
 import { DRUM_RULES, WATER_LEVEL } from '../rules';
 import { DUCK_POND } from './duckpond';
 import type { Dam, DamSpec, Lake, TreasureSpec, View, ViewName } from './lake';
@@ -337,6 +338,14 @@ const SOUTH = -shoreRadius(-Math.PI / 2);
 /** Where the angler stands, in the middle of the south bank. */
 const ANGLER = { x: 0, y: SOUTH - 3.5, tipHeight: 8, tipReach: 4 } as const;
 
+/**
+ * Where the boat lies (`docs/boat.md`, C2): off the beach ahead of the angler by `BOAT.keepOff` and one more, so its
+ * middle is a legal anchorage, pointing north across the water; and the spot the pace angler rows to, two thirds of the
+ * way from the angler to the middle. First guesses.
+ */
+const MOORING = { x: 0, y: SOUTH + BOAT.keepOff + 1, heading: Math.PI / 2 };
+const BOAT_SPOT = [0, ANGLER.y / 3] as const;
+
 /** How far a cast reaches at full power: further than the pond's, since the middle is half as far again. */
 const CAST_REACH = 66;
 
@@ -404,6 +413,7 @@ export const RESERVOIR: Lake = {
   cliff: null,
   jetty: null,
   cabin: null,
+  boat: { mooring: MOORING, spot: BOAT_SPOT },
   dam: DAM,
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,

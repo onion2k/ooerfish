@@ -138,12 +138,13 @@ export async function set(page: Page, scene: Scene, frames = 120) {
   );
 }
 
-/** The corners that tell how to look round, the look or cast button, the pond's gauge and lines, the menu and the bucket: not the look. */
+/** The corners that tell how to look round, the look or cast button, the Row button, the pond's gauge and lines, the menu and the bucket: not the look. */
 export async function hideOverlays(page: Page) {
   await page.evaluate(() => {
     for (const id of [
       'help',
       'modeButton',
+      'rowButton',
       'pond',
       'welcome',
       'toast',

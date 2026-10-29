@@ -208,7 +208,184 @@ exactly; the physics is bundled today by nothing, so this is the first cost of i
 - **Not verified:** nothing moves the body yet, so the read-back is proved only by the body staying put; C3's belts
   and wind are what will show it.
 
-## Verification, both slices
+---
+
+## C2. The boat from spot to spot: rowed anywhere on the water, the camera following, fished from and landed
+
+### Context
+
+The third slice of Part C (`docs/boat.md`; C0 the rope and C1 the bobber's body are in). `DESIGN.md` stage 8: "The
+boat goes from spot to spot and anchors". Decided with the user: **the row is shown**, the boat moving along a
+straight line at `BOAT.speed` with the camera following, and **the player picks anywhere on the water**, not marked
+spots. A tap on the water drops a pebble in look mode already, so rowing is a **mode** behind a **Row button**, as
+casting is behind Cast: in row mode a tap on the water rows there and a tap on the bank lands. The boat is a body of
+its own kind in C1's world, carried the whole of this slice (the game puts it where it rows; C3 lets it go to
+drift). Nothing about the fight changes: the angler's place moves, and everything that read `lake.angler` or
+`lake.landAt` reads the game's place instead.
+
+### What
+
+- **Content.** `BOAT` in `src/lake.ts` (first guesses): `speed` 6 (world units a second), `keepOff` 3 (how far the
+  boat's middle keeps from the shore, a boulder or the jetty, through `lake.inside(x, y, keepOff)`), `hull`
+  (`length` 4.2, `width` 1.7, `freeboard` 0.5, `seat` 0.35 up, the seat 0.8 aft of the middle), `tip` (the rod's
+  tip height over the seat 3.6 and reach ahead 2.4, as the shore's `tipHeight`/`tipReach`), `landAt` (a fish is
+  landed 1.5 beside the seat), `rock` (the rocking's roll 0.03 and pitch 0.02 radians and rate, drawing only),
+  `cover` (the winter canvas's height over the gunwale). `Lake.boat: { mooring: { x, y, heading }; spot: [x, y] } |
+null`: where the boat lies and is boarded (the pond: beside the jetty's lake end, heading inward; the Reservoir:
+  off the beach ahead of the angler, since it has no jetty) and the spot the pace angler rows to (near the middle).
+  Both lakes have a boat.
+- **The boat in the game** (`src/boat.ts`, pure sums, and `Game`): `Boat` state: `x, y, heading, aboard, rowing,
+from, to, rowedAt`. `Game.row(x, y)`: refused (false) away from the pond, yawning or leaving, with a fish hooked or
+  landed, while rowing, for a point that is not a number, off the water by `keepOff`, or whose straight path from
+  the boat crosses ground the boat keeps off (`rowPath(lake, from, to)` samples the line every half unit); otherwise
+  the lure is reeled in (a coming or nibbling fish lets go, as the yawn does), the angler is aboard (boarding from
+  the mooring if ashore: the boat starts where it lies), and the boat rows along the line at `BOAT.speed`, its
+  heading the line's, told as `GameEvents.rowed` at the start and `anchored` at the end, where it is anchored and
+  the save written. `Game.land()`: refused as `row` is, and when ashore; rows to the mooring and steps off on
+  arrival (`aboard` false, told as `landed`... name it `GameEvents.ashore`), saved. `cast`, `strike`, `drop` and
+  `dropNear` are refused while rowing; the fight cannot start while rowing since the lure is ready. **The angler's
+  place** is `Game.anglerAt()`: ashore the lake's `angler`; aboard the seat, with the boat's tip figures, and
+  `Game.landing()` the lake's `landAt` ashore or `BOAT.landAt` beside the seat aboard: `rodTip(lake, at)` takes the
+  place (the throw memo keyed by the tip's height, since a boat's tip and the shore's differ), `cast`, `strike`'s
+  bearing, the fight's `lx, ly`, `fightFind`, the release of a cured fish and the bodies' spawn read them. Nothing
+  else reads `lake.angler` (the grass, the scenery and the bed finds keep the shore's). The boat's body is put each
+  step at the boat.
+- **The save.** `LakeSave.boat: { x: number; y: number; heading: number } | null` (default null: ashore, the boat at
+  its mooring): written at an anchoring and a landing; a load with it has the angler aboard there. A row under way
+  is not saved: a load lands at the last anchorage. `test/saves/14-boat.json`.
+- **The page.** `src/mode.ts` gains `row`: `nextMode` from `'row'` (the button) toggles look and row, `cast`
+  leaves row for cast, `view` leaves it for look; `orbits('row')` is true (a drag looks round), `wording('row')` is
+  `{ button: 'Look round', hint: 'tap the water to row there, tap the bank to land' }` and the Row button reads "Row"
+  in the other modes. A tap in row mode: on the water `game.row(x, y)`, off it `game.land()`, the mode back to look
+  either way; a refusal leaves the mode. While rowing the Row and Cast buttons are greyed (`disabled`). The camera:
+  aboard, the `shore` and `phone` framings (cast mode's) and the `boat` view are centred on the seat and turned to
+  the heading (`framingFor(lake, name, aspect, boat)`, pure: the view's target moved to the seat and its azimuth
+  the heading's), and while rowing the page sets the orbit's target each frame so the camera follows; the orbit is
+  on in look mode aboard as ashore. The phone's gestures are ignored in row mode and while rowing. `castdraw.ts`
+  holds the rod from `game.anglerAt()`.
+- **The boat drawn** (`src/boatdraw.ts`): a hull of painted timber (`timber` as the cabin's, `PALETTE.hull`,
+  `PALETTE.gunwale`), a thwart, two oars laid in, a moving group placed each frame at the boat with its heading and
+  rocking by a sway (`roll`, `pitch` from the time, as ooergolf's sway: drawing only, never the game's), the hull
+  riding `game.surface` at its middle; and the **winter cover**, a canvas over the gunwales in `PALETTE.cover`
+  (snow-white in winter), a part scaled to nothing unless the season is winter and nobody is aboard, handed over on
+  change as the frost is. `game.boat()` reads the state, the body and what was drawn.
+- **The tools.** The pace angler rows to `lake.boat.spot` on every third seed before it casts (the pace moves,
+  meant; the gate is widened to no one). The fuzzer rows to random points on and off the water and NaN, lands,
+  taps Row at random, and casts aboard; the invariants hold the boat.
+- **Not in this slice:** drift (C3), the boat's dressing (F2), the ducklings following (stage 11).
+
+### Acceptance criteria
+
+1. `row` and `land` refuse as listed and otherwise board, reel in, row at `BOAT.speed` along the line, anchor and
+   save: `test/boat.test.ts`, `test/game.test.ts`.
+2. Aboard, a cast flies from the seat's tip, a fish is landed beside the seat and a cured one let go beside the boat;
+   ashore everything is as it was to the bit (the pace and balance baselines hold exactly on the seeds that do not
+   board): `test/game.test.ts`, `test/cast.test.ts`.
+3. The save reads the boat back, an old save is ashore, and anything not a finite point on the water is ashore:
+   `test/saves.test.ts`.
+4. The mode's rules: `test/mode.test.ts`. The framings aboard: `test/lake.test.ts` (or `test/views.test.ts`).
+5. The invariants: the boat's middle inside the water by `keepOff` or at its mooring; aboard implies the angler's
+   place is the seat; rowing implies the lure ready and nothing hooked; the body at the boat; the save's boat where
+   the boat is when anchored: `test/invariants.test.ts`.
+6. End to end, `smoke/progress.spec.ts` "the boat": Row, a tap on the water, the boat seen rowing (the API reads it),
+   anchored, a cast from it and a fish landed (`fishTo` aboard), Row and a tap on the bank, ashore again; the layout
+   spec gains the moments `rowing` and `aboard` and the Row button.
+
+### Edge cases (from the checklist)
+
+- **save:** aboard at an anchorage, reloaded (aboard there); an old save (ashore); a row under way (the last
+  anchorage); Start again (ashore).
+- **the mode:** look, cast and row, each from each; the button and the R key; a tap on the water, the bank, the
+  cabin (lands, since it is off the water) and a button; cast again aboard; the view picked while aboard (look
+  mode, the camera at the view's place as named).
+- **the phone:** its gestures ignored in row mode and while rowing; a flick aboard casts from the seat.
+- **the layout:** the Row button at a desk's, a phone's, a tablet's and a sideways width, clear of Cast, the gauge
+  and the fight; `smoke/layout.spec.ts`.
+- **the day:** midnight while rowing: the yawn waits for the anchoring as it waits for a fight (`midnightWaits`),
+  then yawns aboard; the wake is at home ashore (the save's `boat` cleared at a wake, since the player walks down).
+  The cabin: `enter` from the boat refused (the cabin is reached from the shore), "Go to the cabin" lands first? No:
+  refused aboard, the menu item greyed, said in the test.
+- **the lakes:** the Reservoir's mooring and spot; travel aboard refused (land first), said.
+- **the water:** a row to the shore's edge (refused by `keepOff`), to a boulder's flank (refused), across the jetty
+  (refused by the path), to the deepest; the boat rides the swell.
+- **the line:** a cast from the boat onto the bank, reeled in, and a row with a line out (reeled in first).
+- **the fish:** a fish hooked from the boat fights as from the shore (the line knows nothing of the place); a
+  cured fish let go beside the boat on the water (`RELEASE.distance` toward the middle, as ashore).
+- **the contamination, the calendar, the rung, the switches:** the boat is drawn on both rungs; winter's cover
+  shown by the season; the paint off draws the hull plain. **snags, drift:** not reachable.
+
+### Decisions (mine, said so they can be changed)
+
+- **A mode, not a long press:** rowing and pebbles both tap the water; a button is what the page already does for
+  casting, and a phone has no second button.
+- **Refused, not clamped:** a tap too near the shore or across the jetty does nothing, and the hint says to tap the
+  water. A clamped destination would surprise more than a refusal.
+- **The pace angler boards on a third of its seeds,** so the gate holds both the shore's minutes and the boat's.
+- **The boat is always carried in this slice;** `Bodies.step` skips while every body is carried, so the bench's
+  idle scenarios hold.
+
+### Performance risk
+
+A boat step a frame while rowing (a few sums) and its body `put`: nothing. A moving painted group (about 200
+triangles) and the cover: under 0.05 ms, measured by `measureFrame` at the standard scene and from the boat. The
+download: the boat, the mode and the draw, about 3 kB gzipped, said exactly. Pictures: every one with the jetty in
+view moves (the boat moored there), the Reservoir's shore ones too (the beach mooring).
+
+### Test plan
+
+- **Unit:** `test/boat.test.ts` (`rowPath`, the row's sums, the state), `test/game.test.ts` (the criteria aboard),
+  `test/mode.test.ts`, `test/saves.test.ts` (+corpus), `test/invariants.test.ts`, `test/boatdraw.test.ts` (the hull
+  painted, built the same each time, under 400 triangles, a placement at the boat).
+- **End to end:** the smoke stage, the layout moments, `game.boat()`, `game.row(x, y)`, `game.land()`,
+  `game.mode('row')`, `game.anglerAt()`.
+- **Fuzzer:** `row` (on the water, off it, NaN, across the jetty), `land`, a cast aboard; the invariants above; a
+  coverage test that across seeds 1 to 24 the boat anchors and a fish is landed aboard.
+- **Pictures:** new `boat-moored` (desk and phone), `boat-rowing`, `boat-cast` (a cast from the seat), `boat-fight`,
+  `boat-winter`, `reservoir-boat`; every moved one looked at.
+- **Perf and bench:** before and after; `/gate-moved` for the pace (meant) and the pictures.
+
+### Parts
+
+Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'s C2 section (this spec copied in).
+
+- [ ] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
+- [x] 1. `BOAT`, `Lake.boat` for both lakes, `src/boat.ts`, `Game.row`/`land`/`anglerAt`/`landing`, the readers
+      moved off `lake.angler`/`landAt`, `rodTip(lake, at)`, the save field and corpus, the boat's body put, the
+      invariants, the determinism hash, `game.boat()`/`row`/`land`/`anglerAt`. Check: `test/boat`, `test/game`,
+      `test/cast`, `test/saves`, `test/invariants`, `npm run determinism`.
+- [x] 2. The page: `mode.ts` row, the Row button and its CSS and layout, the tap, the camera following and the
+      framings aboard, `castdraw` from `anglerAt`, `src/boatdraw.ts` with the cover, `game.mode('row')`. Check:
+      `test/mode`, `test/boatdraw`, the smoke stage.
+- [x] 3. The tools: the pace angler aboard on a third of seeds, the fuzzer's actions and coverage test, the layout
+      moments, the pictures. Check: `test/fuzz`, `npm run look -- -g boat`.
+- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (a row across the jetty allowed; the landing
+      not beside the boat; the save's boat not read), `/gate-moved` for the pace and the pictures, the notes.
+      Commit and push.
+
+### C2's notes (built 29 Oct 2026)
+
+- **As built:** `src/boat.ts` is the row's sums and `Game.row`/`land`/`anglerAt`/`landing` the game's side; a `Stand`
+  (the angler's place, with the boat's `heading` and `base` on the water) is what `rodTip`, the flight, the preview and
+  the draw take, and ashore it is the lake's `angler` to the bit (`test/ashore.test.ts` holds five seeds to hashes taken
+  before the change). The page's row mode is a third mode beside look and cast (`#rowButton`, the R key); a refused
+  tap leaves it. Aboard, the shore, phone and boat framings sit behind the seat looking along the heading, and while
+  rowing the page retargets the orbit on the seat each frame. The boat is four painted groups moved each frame, with
+  the winter cover handed over on change. The pace angler boards on every third seed (the gate moved 2.2 to 2.07 min,
+  within its tolerance, so no baseline was written); the fuzzer's boat actions are drawn from a stream of their own at
+  a weight of two so the older coverage holds, and a quarter of its seeds start aboard.
+- **Changed from the spec:** the layout moments and the boat pictures row out past the spot and back so the boat points
+  up the lake, since a row straight from the jetty leaves the camera looking at the south bank with the fish behind it;
+  the framing itself is as specified. `HAND_UP` in the draw came down from 1.2 to 0.5 so the rod's butt rests on the
+  rail (ashore unmoved, since the shore keeps its hand). `land()` is refused when the straight way home crosses ground
+  the boat keeps off: row to open water first.
+- **The cost:** the bench within tolerance on every scenario; boot 812 ms and frame 3.99 ms in the full suite; the
+  download grew by 4,157 bytes gzipped, 241,479 to 245,636. Pictures: 91 moved (the boat at the jetty or the beach,
+  the Row button in every HUD) and seven are new, each looked at.
+- **Bugs found in the build:** two smoke stages held the save's shape without the new field, updated.
+- **Not verified:** the row in play on the live site; the boat's figures (its speed, where it moors, the hull) are
+  first guesses for the play-test; nothing drifts yet.
+
+## Verification, every slice
 
 `npm run check` green; `npm run fuzz -- --seeds 1-24` clean; `npm run perf` alone, before and after; the bench's
 moved baselines written from two readings that agree with the machine idle; every moved picture looked at (the rope's

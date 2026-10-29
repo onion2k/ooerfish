@@ -59,6 +59,11 @@ export const PALETTE = {
   cabinWindow: [1, 0.85, 0.45] as Colour,
   deck: [0.5, 0.36, 0.22] as Colour,
   post: [0.4, 0.3, 0.18] as Colour,
+  /** The rowing boat (`docs/boat.md`, C2): a weathered hull, a lighter gunwale and thwart, pale oars, and the winter canvas over it, a cool white. */
+  hull: [0.36, 0.26, 0.16] as Colour,
+  gunwale: [0.52, 0.38, 0.23] as Colour,
+  oar: [0.66, 0.52, 0.34] as Colour,
+  cover: [0.9, 0.92, 0.95] as Colour,
   /** The waterfalls' water, a pale blue-white, and the foam where it lands. */
   fallWater: [0.7, 0.86, 0.95] as Colour,
   foam: [0.96, 0.99, 1] as Colour,

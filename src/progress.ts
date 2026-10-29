@@ -29,6 +29,12 @@ export interface LakeSave {
   journal: Journal;
   /** The ids of the treasures found and kept for the shelf, in the order they were found, each once and never more than the pond has. */
   found: string[];
+  /**
+   * Where the boat lies with the player aboard, anchored (`docs/boat.md`, C2): its middle and the way it points. Null when
+   * the player is ashore, the boat at its mooring, which is how every save from before the boat reads. A row under way is
+   * never saved, so a load lands at the last anchorage.
+   */
+  boat: { x: number; y: number; heading: number } | null;
 }
 
 export interface Save {
@@ -55,7 +61,7 @@ export interface Save {
 }
 
 /** A save as a test may hand one in: any of the fields, the flat shape from before there were lakes included, which reads as the home's. */
-export type SaveSaid = Partial<Save> & Partial<LakeSave>;
+export type SaveSaid = Omit<Partial<Save>, 'lakes'> & Partial<LakeSave> & { lakes?: Record<string, Partial<LakeSave>> };
 
 /** Where the save is kept. */
 export interface SaveStore {
@@ -224,7 +230,19 @@ function readPhotos(raw: unknown, save: Save, lakes: Record<string, Lake>): Phot
   return out;
 }
 
-const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [] });
+/**
+ * The boat as anyone may have written it: a point and a heading, each a finite number, or else none, which is ashore.
+ * Whether the point is on the water is the game's to say when it loads, since the lake is what knows.
+ */
+function readBoat(raw: unknown): LakeSave['boat'] {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const e = raw as Record<string, unknown>;
+  const { x, y, heading } = e;
+  if (typeof x !== 'number' || typeof y !== 'number' || typeof heading !== 'number') return null;
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(heading) ? { x, y, heading } : null;
+}
+
+const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [], boat: null });
 
 /**
  * One lake's entry as anyone may have written it, read against that lake: the count cured a whole number from nought,
@@ -239,6 +257,7 @@ function readEntry(raw: unknown, lake: Lake, day: number): LakeSave {
   if (whole(said.drums) && said.drums >= 0) out.drums = Math.min(said.drums, lake.drums.count);
   out.journal = readJournal(said.journal, out.cured, day);
   out.found = readFound(said.found, lake);
+  out.boat = readBoat(said.boat);
   return out;
 }
 

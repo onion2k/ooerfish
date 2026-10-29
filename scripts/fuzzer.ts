@@ -72,12 +72,16 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     woke: 0,
     hauled: 0,
     found: 0,
+    anchored: 0,
+    ashore: 0,
   };
   // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
   const bed = { chosen: false };
   const count = (what: string) => () => {
     happened[what]++;
   };
+  // whether the player was aboard as the frame began, kept by the loop since the game is made after these events
+  const boatAboard = { now: false };
   const events: GameEvents = {
     splashed: count('splashed'),
     nibbled: count('nibbled'),
@@ -85,12 +89,19 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     hooked: count('hooked'),
     missed: count('missed'),
     slipped: count('slipped'),
-    landed: count('landed'),
+    landed: () => {
+      happened.landed++;
+      // a fish landed from the boat, which the coverage test wants seen at least once over the seeds
+      if (boatAboard.now) done['landed aboard'] = (done['landed aboard'] ?? 0) + 1;
+    },
     cured: count('cured'),
     gifted: count('gifted'),
     yawned: count('yawned'),
     hauled: count('hauled'),
     found: count('found'),
+    // the boat's two ends, told: a row ended at an anchorage, and the player stepped ashore at the mooring
+    anchored: count('anchored'),
+    ashore: count('ashore'),
     // a request answered in play, counted by its id, so the contests' two are seen to be answered
     answered: (id: string) => {
       done[`answered ${id}`] = (done[`answered ${id}`] ?? 0) + 1;
@@ -186,10 +197,24 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     // round, from a stream of its own drawn after the others so none of theirs moves
     const dayAtStart = 1 + Math.floor(seeded(seed * 29 + 7)() * 70);
     done[`start in ${seasonOf(dayAtStart)}`] = 1;
+    // one seed in four starts anchored at the lake's spot with the rod in its hand, from a stream of its own, so a fish is
+    // fished for and landed from the boat in seeds the row actions need not reach (a save from the boat is read as ashore
+    // when the player is in the cabin)
+    const boatAtStart =
+      lake.boat && seeded(seed * 71 + 5)() < 0.25
+        ? { x: lake.boat.spot[0], y: lake.boat.spot[1], heading: lake.boat.mooring.heading }
+        : null;
+    done['start aboard'] = boatAtStart && placeAtStart === 'pond' ? 1 : 0;
     const startSave = {
       lake: lake.id,
       lakes: {
-        [lake.id]: { cured: curedAtStart, drums: drumsAtStart, journal: journalAtStart, found: foundAtStart },
+        [lake.id]: {
+          cured: curedAtStart,
+          drums: drumsAtStart,
+          journal: journalAtStart,
+          found: foundAtStart,
+          boat: boatAtStart,
+        },
       },
       time: timeAtStart,
       place: placeAtStart,
@@ -281,6 +306,17 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     for (const k of KINDS) done[`caught ${k.id}`] = 0;
     done['bites in a clean pond'] = 0;
     done['most cured'] = 0;
+    // the boat, from nought as the rest are
+    for (const what of [
+      'row',
+      'row refused',
+      'land',
+      'land refused',
+      'row to the spot',
+      'cast aboard',
+      'landed aboard',
+    ])
+      done[what] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
     for (const what of [
       'woke at midnight',
@@ -297,7 +333,19 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     /** A cast, counted when it is thrown into a pond with no uncured fish left. */
     const cast = (angle: number, power: number) => {
       const into = game.pondClean;
-      if (game.cast(angle, power) && into) done['clean casts']++;
+      const aboard = game.boat.aboard;
+      const cast = game.cast(angle, power);
+      if (cast && into) done['clean casts']++;
+      if (cast && aboard) done['cast aboard']++;
+    };
+    // where the boat is rowed is drawn from a stream of its own, so the monkey's other chance is as it was before there was a boat
+    const boating = seeded(seed * 61 + 29);
+    /** A point to row to: over the lake and a little past its shore, so some of them are on the bank, now and then no number. */
+    const rowPoint = (): [number, number] => {
+      if (boating() < 0.06) return [NaN, boating() * 10];
+      const angle = boating() * Math.PI * 2;
+      const r = lake.shoreRadius(angle) * boating() * 1.15;
+      return [Math.cos(angle) * r, Math.sin(angle) * r];
     };
     // which set a cast to the bed is aimed at is decided from a stream of its own, so the monkey's own chance is drawn
     // as it was before there were treasures: the same seeds still fish the same water, and a treasure aimed at only
@@ -649,6 +697,29 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       }
       did('look at');
     };
+    /**
+     * The boat's three actions, chosen from a stream of their own, at a weight of two against the rest (a larger one
+     * took so many turns from the rest that the pond was no longer cleaned by a haul in twenty-four seeds), and among themselves
+     * three parts in five a row to a point, one home and one to the lake's spot, and with none of the monkey's chance
+     * drawn, so the seeds played before the boat play the same until the boat first moves.
+     */
+    const boatman = seeded(seed * 67 + 31);
+    const boatAct = () => {
+      const u = boatman() * 5;
+      if (u < 3) {
+        // the boat rowed to a point over the lake or past its shore, or now and then to no number: refused where the
+        // game refuses and otherwise under way, the game stepping on while it rows
+        const [x, y] = rowPoint();
+        done[game.row(x, y) ? 'row' : 'row refused']++;
+      } else if (u < 4) {
+        // the boat rowed home and stepped off, where it is aboard and the way is clear
+        done[game.land() ? 'land' : 'land refused']++;
+      } else if (lake.boat && game.row(...lake.boat.spot)) {
+        // the boat rowed to the lake's spot, the pace angler's place, so a fish is fished for from the boat
+        done['row to the spot']++;
+      }
+      did('boat');
+    };
     const walker = seeded(seed * 37 + 11);
     const chooser = seeded(seed * 53 + 7);
     const pickWeather = seeded(seed * 41 + 17);
@@ -659,6 +730,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       if (pickWeather() < 0.5 / (total + 0.5)) return setWeather();
       if (chooser() < 0.3 / (total + 0.3)) return snapping() < 0.7 ? snap() : discard();
       if (looking() < 0.3 / (total + 0.3)) return lookAtOne();
+      if (boatman() < 2 / (total + 2)) return boatAct();
       for (const [w, go] of actions) {
         if ((pick -= w) < 0) return go();
       }
@@ -701,6 +773,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
           inCabin = 0;
         }
       } else inCabin = 0;
+      boatAboard.now = game.boat.aboard;
       game.step(page.paused ? 0 : DT);
       if (game.bite.drum >= 0 && !snagged) done['drum snagged']++;
       snagged = game.bite.drum >= 0;

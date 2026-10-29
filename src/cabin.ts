@@ -23,7 +23,7 @@ const WOOD = 1;
  * the gate's choice, since a board has no ridges worth choosing between. Made once with the group it is in, never in a
  * frame. Without it the eaves and the deck's rim would be as plain as the glass.
  */
-function timber(mesh: Mesh) {
+export function timber(mesh: Mesh) {
   return painted(split(mesh), { set: WOOD, choice: 'gate' });
 }
 

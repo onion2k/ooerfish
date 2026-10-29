@@ -10,7 +10,7 @@ import { KINDS } from '../src/lake';
 const POND = LAKES.duckpond;
 const RES = LAKES.reservoir;
 
-const fresh = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [] });
+const fresh = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [], boat: null });
 
 /** A save at a lake with the given entries made over the fresh ones. */
 function saveOf(

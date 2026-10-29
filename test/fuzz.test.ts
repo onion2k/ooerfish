@@ -119,8 +119,9 @@ describe('the fuzzer', () => {
   it('reaches the treasures: a lure aimed at them, one snagged and kept, some seeds starting with some found, and one snagged in a clean pond', () => {
     const done: Record<string, number> = {},
       happened: Record<string, number> = {};
+    // eight thousand frames a seed, not four: the boat's actions take some of the monkey's turns, and four thousand kept no treasure over the twenty-four
     for (let seed = 1; seed <= 24; seed++) {
-      const r = fuzz(seed, 4000, 'duckpond');
+      const r = fuzz(seed, 8000, 'duckpond');
       expect(r.failure, JSON.stringify(r.failure)).toBe(null);
       // fish bites in a clean pond are what must not happen: a treasure may be snagged there
       expect(r.done['bites in a clean pond'], `seed ${seed}`).toBe(0);
@@ -166,6 +167,23 @@ describe('the fuzzer', () => {
     expect(done['woke from bed'], 'a seed went to bed early and woke').toBeGreaterThan(0);
     expect(done['bed refused'], 'a bed refused mid-fight').toBeGreaterThan(0);
     expect(done['down to the pond'], 'a seed went down to the pond').toBeGreaterThan(0);
+  });
+
+  it('reaches the boat: across seeds 1 to 24 it is rowed and anchors, steps ashore, is refused, is cast from, and lands a fish aboard', () => {
+    const done: Record<string, number> = {},
+      happened: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 8000, 'duckpond');
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
+    }
+    expect(done['row'], 'a row begun').toBeGreaterThan(0);
+    expect(done['row refused'], 'a row refused').toBeGreaterThan(0);
+    expect(happened.anchored, 'the boat anchored').toBeGreaterThan(0);
+    expect(happened.ashore, 'the player stepped ashore').toBeGreaterThan(0);
+    expect(done['cast aboard'], 'a cast from the boat').toBeGreaterThan(0);
+    expect(done['landed aboard'], 'a fish landed from the boat').toBeGreaterThan(0);
   });
 
   it('plays the same way twice from a seed', () => {

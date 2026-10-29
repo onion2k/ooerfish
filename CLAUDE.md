@@ -543,6 +543,16 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   `visibilitychange` hidden and `pagehide` (`keep` in `main.ts`, off once Start again has wiped the save). A load
   into the cabin gets the pillow camera from the page after `ready`, since `woke` does not fire. `test/saves/` has a
   file for each shape. Chance comes from `random.ts`, handed in.
+- **The boat** (`docs/boat.md`, C2): `src/boat.ts` is the row's sums (`rowPath`, `rowAt`, `seatOf`, `anglerAboard`,
+  `landingAboard`) and `Game.boat` its state; `Game.row(x, y)` boards from the lake's `mooring` and rows a straight line
+  at `BOAT.speed` to any point `lake.inside(x, y, BOAT.keepOff)` whose way is open (refused mid-fight, yawning, leaving,
+  rowing, away from the pond; the lure is reeled in first), `Game.land()` rows home and steps off; `GameEvents.rowed`,
+  `anchored`, `ashore`. `Game.anglerAt()` is the angler's `Stand` (the lake's `angler` ashore, the seat aboard, with
+  `heading` and `base`) and `landing()` where a fish is landed: everything that threw, bent, drew or released from the
+  shore takes them, and nothing in the game reads `lake.angler` for a cast. `LakeSave.boat` keeps an anchorage. The
+  page's row mode (`mode.ts`, `#rowButton`, R) taps the water to row and the bank to land; `framingFor(..., stand)`
+  looks along the heading aboard; `src/boatdraw.ts` is the painted hull, moved each frame, with the winter cover; the
+  pace angler boards on every third seed. `game.boat()`, `row`, `land`, `anglerAt`, `landing` and `mode('row')` are the API.
 - **The physics** (`docs/boat.md`, C1): `src/physics.ts` is the one door to artshape-physics, and nothing else in `src/`
   imports it. Its floor is the water's surface (the package refuses the bed as terrain), its rock the shore on a grid of
   `PHYSICS.tile`, a world a game (`newWorld(lake)`; `worldFor(lake)` the memoised grid for readers), and `Bodies` the

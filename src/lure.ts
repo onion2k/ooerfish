@@ -5,7 +5,7 @@
  */
 import { NO_WIND, flightAt, landingTime } from './cast';
 import { CAST } from './lake';
-import type { Lake } from './lakes/lake';
+import type { Lake, Stand } from './lakes/lake';
 
 export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying' | 'hooked';
 
@@ -17,6 +17,12 @@ export class Lure {
   castAt = 0;
   /** The wind's push it was thrown in, kept so a sky that changes in the air changes nothing; written into at a cast, never made. */
   readonly wind: [number, number] = [0, 0];
+  /**
+   * Where the cast was thrown from: the lake's own angler on the shore, else a copy of the stand it was thrown from
+   * (the boat's seat), kept so that nothing done after the cast, a row included, changes the flight.
+   */
+  stand: Stand;
+  private readonly origin: Stand = { x: 0, y: 0, tipHeight: 0, tipReach: 0 };
   /** How long its flight lasts. */
   flies = 0;
   /** Where it is now, and where its bobber floats once it has landed on the water. */
@@ -27,20 +33,39 @@ export class Lure {
   sunk = 0;
 
   /** The lake it is cast over: its rod's tip, its water and its bed. */
-  constructor(private readonly lake: Lake) {}
+  constructor(private readonly lake: Lake) {
+    this.stand = lake.angler;
+  }
 
-  /** Thrown, from the rod's tip, at the time `t`. */
-  cast(angle: number, power: number, t: number, wind: readonly [number, number] = NO_WIND) {
+  /** Thrown, from the rod's tip held at `stand` (the shore's angler unless told), at the time `t`. */
+  cast(
+    angle: number,
+    power: number,
+    t: number,
+    wind: readonly [number, number] = NO_WIND,
+    stand: Stand = this.lake.angler,
+  ) {
+    if (stand === this.lake.angler) this.stand = stand;
+    else {
+      const o = this.origin;
+      o.x = stand.x;
+      o.y = stand.y;
+      o.tipHeight = stand.tipHeight;
+      o.tipReach = stand.tipReach;
+      o.base = stand.base;
+      o.heading = stand.heading;
+      this.stand = o;
+    }
     this.phase = 'flying';
     this.angle = angle;
     this.power = Math.min(1, Math.max(0, power));
     this.castAt = t;
     this.wind[0] = wind[0];
     this.wind[1] = wind[1];
-    this.flies = landingTime(angle, this.power, this.lake, this.wind);
+    this.flies = landingTime(angle, this.power, this.lake, this.wind, this.stand);
     this.depth = 0;
     this.sunk = 0;
-    flightAt(angle, this.power, 0, this.at, this.lake, this.wind);
+    flightAt(angle, this.power, 0, this.at, this.lake, this.wind, this.stand);
   }
 
   /** Brought back to the rod, ready to cast again. */
@@ -54,7 +79,7 @@ export class Lure {
   step(t: number, dt: number): [number, number] | null {
     if (this.phase === 'flying') {
       const since = t - this.castAt;
-      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at, this.lake, this.wind);
+      flightAt(this.angle, this.power, Math.min(since, this.flies), this.at, this.lake, this.wind, this.stand);
       if (since < this.flies) return null;
       if (this.lake.inside(this.at[0], this.at[1])) {
         this.phase = 'sinking';

@@ -421,7 +421,7 @@ describe('the save per lake', () => {
 
   it('reports an entry for a lake the game does not have', () => {
     const { game } = newGame();
-    game.progress.save.lakes.nowhere = { cured: 0, drums: 0, journal: {}, found: [] };
+    game.progress.save.lakes.nowhere = { cured: 0, drums: 0, journal: {}, found: [], boat: null };
     expect(problems(game)).toMatch(/an entry for a lake not known: nowhere/);
   });
 
@@ -630,5 +630,96 @@ describe('the tally', () => {
     const { game } = newGame();
     Object.assign(game.progress.save.tally, { run: 3, best: 2 });
     expect(checkInvariants(game).join('\n')).toMatch(/the tally's run, 3, is longer than its best, 2/);
+  });
+});
+
+describe('the boat', () => {
+  /** A game with the player aboard, anchored at (0, -5). */
+  function aboard() {
+    const { game } = newGame();
+    expect(game.row(0, -5)).toBe(true);
+    for (let f = 0; f < 60 * 60 && game.boat.rowing; f++) game.step(1 / 60);
+    return game;
+  }
+
+  it('holds of a boat ashore, rowing, anchored and fished from', () => {
+    const { game } = newGame();
+    expect(checkInvariants(game)).toEqual([]);
+    expect(game.row(0, -5)).toBe(true);
+    for (let f = 0; f < 600 && game.boat.rowing; f++) {
+      game.step(1 / 60);
+      expect(checkInvariants(game)).toEqual([]);
+    }
+    expect(game.boat.rowing).toBe(false);
+    expect(game.cast(Math.PI / 2, 0.5)).toBe(true);
+    settle(game, 120);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a boat moved onto the bank, and one off the water by the keep-off that is not at its mooring', () => {
+    const game = aboard();
+    game.boat.y = -HOME.shoreRadius(-Math.PI / 2) - 4;
+    expect(checkInvariants(game).join('\n')).toMatch(
+      /the boat is at .*, off the water by the keep-off and not at its mooring/,
+    );
+    game.boat.x = NaN;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is not a number/);
+  });
+
+  it('reports an aboard angler whose place is not the seat, and a cast thrown from elsewhere', () => {
+    const game = aboard();
+    game.cast(Math.PI / 2, 0.5);
+    expect(checkInvariants(game)).toEqual([]);
+    // the lure was thrown from the shore's angler, not the boat’s seat
+    game.lure.stand = HOME.angler;
+    expect(checkInvariants(game).join('\n')).toMatch(/the lure was thrown from .*, not where the angler is/);
+    // and an angler aboard with the boat gone ashore, or ashore with the boat's flag up, is not where it should be
+    const ashore = newGame().game;
+    ashore.boat.aboard = true;
+    expect(checkInvariants(ashore).join('\n')).toMatch(/the boat is anchored, but the save does not say where/);
+  });
+
+  it('reports a rowing boat with the lure out, or a fish on, or nobody aboard', () => {
+    const { game } = newGame();
+    game.row(-10, 6);
+    game.lure.phase = 'sinking';
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is rowing with the lure sinking and the bite none/);
+    game.lure.phase = 'ready';
+    game.bite.phase = 'hooked';
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is rowing with the lure ready and the bite hooked/);
+    game.bite.phase = 'none';
+    game.boat.aboard = false;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is rowing with nobody aboard/);
+  });
+
+  it('reports a body off the boat, or let go', () => {
+    const game = aboard();
+    game.bodies.putBoat(game.boat.x + 5, game.boat.y);
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat’s body is at .*, not at the boat/);
+    game.bodies.putBoat(game.boat.x, game.boat.y);
+    expect(checkInvariants(game)).toEqual([]);
+    game.bodies.world.carried[game.bodies.boat] = 0;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat’s body is not held/);
+  });
+
+  it('reports a save that does not say where an anchored boat is, or keeps a boat for a player ashore', () => {
+    const game = aboard();
+    game.progress.entry(HOME.id).boat = null;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is anchored, but the save does not say where/);
+    game.persist();
+    expect(checkInvariants(game)).toEqual([]);
+    const { game: ashore } = newGame();
+    ashore.progress.entry(HOME.id).boat = { x: 0, y: 0, heading: 0 };
+    expect(checkInvariants(ashore).join('\n')).toMatch(/the player is ashore, but the save keeps a boat/);
+  });
+
+  it('reports the player aboard in the cabin, or at a lake with no boat', () => {
+    const game = aboard();
+    game.place = 'cabin';
+    expect(checkInvariants(game).join('\n')).toMatch(/the player is aboard in the cabin/);
+    const { game: none } = newGame();
+    (none as { lake: unknown }).lake = { ...HOME, boat: null };
+    none.boat.aboard = true;
+    expect(checkInvariants(none).join('\n')).toMatch(/the player is aboard a boat the lake does not keep/);
   });
 });

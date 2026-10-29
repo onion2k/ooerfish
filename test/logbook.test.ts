@@ -4,7 +4,7 @@ import { HOME, LAKES } from '../src/lakes';
 import type { LakeSave, Save } from '../src/progress';
 import { logbookPages, logbookWords, pagesFound } from '../src/town/logbook';
 
-const entry = (found: string[]): LakeSave => ({ cured: 0, drums: 0, journal: {}, found });
+const entry = (found: string[]): LakeSave => ({ cured: 0, drums: 0, journal: {}, found, boat: null });
 const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   lake: HOME.id,
   lakes,

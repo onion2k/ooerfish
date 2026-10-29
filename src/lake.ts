@@ -1,4 +1,4 @@
-import type { Lake, View, ViewName } from './lakes/lake';
+import type { Lake, Stand, View, ViewName } from './lakes/lake';
 import type { Colour } from './palette';
 
 /**
@@ -678,9 +678,16 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
 /**
  * Where the camera stands, in this lake, for a view on a screen of this aspect (width over height): the Shore view takes the phone's
  * framing on a screen taller than it is wide, which the lake's whole width needs, the cabin view its wider lens, and every other view stays as it is.
- * An aspect that is no positive number is not a tall screen.
+ * An aspect that is no positive number is not a tall screen. Aboard the boat (a `stand` with a heading, `Game.anglerAt()`)
+ * the shore, phone and boat views are the seat's instead (`docs/boat.md`, C2), whatever the screen's shape.
  */
-export function framingFor(lake: Lake, name: ViewName, aspect: number): View {
+export function framingFor(lake: Lake, name: ViewName, aspect: number, stand?: Stand): View {
+  // aboard the boat the shore, phone and boat views are the seat's: centred on it, the camera behind looking along the
+  // heading, at the boat view's height and distance. A stand with no heading is the shore's own angler, and changes nothing.
+  if (stand?.heading !== undefined && (name === 'shore' || name === 'phone' || name === 'boat')) {
+    const { polar, radius } = lake.views.boat;
+    return { x: stand.x, y: stand.y, azimuth: stand.heading + Math.PI, polar, radius };
+  }
   const tall = aspect > 0 && aspect < 1;
   if (tall && name === 'shore') return lake.views.phone;
   if (tall && name === 'cabin') return lake.views.cabinTall;
@@ -774,6 +781,25 @@ export const PHYSICS = {
   capacity: 8,
   radii: { bobber: 0.38, boat: 1.6 },
   bottom: -20,
+} as const;
+
+/**
+ * The boat (`docs/boat.md`, C2), every figure a first guess to be tuned by rowing it: how fast it rows, in world units a
+ * second; how far its middle keeps from the shore, a boulder or the jetty (a point is rowed to only if `inside` holds
+ * it this far in); its hull, the length and width of the painted solid, how far the gunwale stands over the water, and
+ * the seat (how high it is over the water and how far aft of the middle); the rod's tip over the seat and how far
+ * ahead of it, as the shore's `tipHeight` and `tipReach` are; how far beside the seat a fish is landed; how far the
+ * rocking rolls and pitches, in radians, and how fast it goes (drawing only, never the game's); and how high the winter
+ * canvas stands over the gunwale.
+ */
+export const BOAT = {
+  speed: 6,
+  keepOff: 3,
+  hull: { length: 4.2, width: 1.7, freeboard: 0.5, seat: { up: 0.35, aft: 0.8 } },
+  tip: { height: 3.6, reach: 2.4 },
+  landAt: 1.5,
+  rock: { roll: 0.03, pitch: 0.02, rate: 1.4 },
+  cover: 0.3,
 } as const;
 
 /**

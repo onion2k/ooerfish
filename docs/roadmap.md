@@ -63,7 +63,7 @@ drift shows the line needs to bend) or becomes the design's rope of sixteen to t
 - [x] **C1. `src/physics.ts` and the bodies** (landed 29 Oct 2026, the bobber's; the boat's kind waits on C2). The lure and the bobber as bodies in a `World`, buoyancy added in
       the game's step as golf's wind is, the cast's flight unchanged. Nothing visible moves: the look pictures hold
       or `/gate-moved` says why. The bench times it.
-- [ ] **C2. The boat from spot to spot.** `Game.board`, a boat at the jetty, moved between a lake's `spots`
+- [x] **C2. The boat from spot to spot** (`docs/boat.md`, landed 29 Oct 2026: rowed with the camera following, to a tap anywhere on the water, through a Row mode). `Game.board`, a boat at the jetty, moved between a lake's `spots`
       (content, in the `Lake`), anchored by a tap; the `boat` view from its seat; the cast's reach from the boat;
       rocking by ooergolf's sway. The pace angler and the fuzzer board at random; the invariants keep the boat on
       the water.

@@ -58,7 +58,9 @@ describe('the cure', () => {
       // saved at once, as a count of fish and not as the contamination, so a retuned step re-derives it
       expect(JSON.parse(store.json!)).toEqual({
         lake: game.lake.id,
-        lakes: { [game.lake.id]: { cured: k, drums: 0, journal: expect.any(Object) as unknown, found: [] } },
+        lakes: {
+          [game.lake.id]: { cured: k, drums: 0, journal: expect.any(Object) as unknown, found: [], boat: null },
+        },
         day: 1,
         time: expect.any(Number) as unknown,
         place: 'pond',

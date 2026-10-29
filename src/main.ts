@@ -19,6 +19,7 @@ import { MapDraw, mapHit } from './mapdraw';
 import { MoonDraw } from './moondraw';
 import { RainbowDraw } from './rainbowdraw';
 import { FrostDraw } from './frostdraw';
+import { BoatDraw } from './boatdraw';
 import { fallsOf, fallGroups, fallMists, mistDue } from './falls';
 import type { Emit } from 'artshape-render/game/particles';
 import { fallingDue, fallingEmits, fallingKind, fallingOf, windDrift } from './falling';
@@ -60,7 +61,7 @@ import {
   type Weather,
 } from './lake';
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
-import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
+import { nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
@@ -104,7 +105,8 @@ const bootMsg = document.getElementById('bootMsg')!;
 const help = document.getElementById('help')!;
 const castLine = document.getElementById('castLine')!;
 const phoneStatus = document.getElementById('phoneStatus')!;
-const modeButton = document.getElementById('modeButton')!;
+const modeButton = document.getElementById('modeButton') as HTMLButtonElement;
+const rowButton = document.getElementById('rowButton') as HTMLButtonElement;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 main().catch((err: unknown) => {
@@ -197,6 +199,26 @@ async function main() {
       pond.photographed();
     },
     discarded: (index) => log(`discarded ${index}`),
+    rowed: (x, y) => {
+      log(`rowed ${x.toFixed(1)},${y.toFixed(1)}`);
+      // the boat sets off: an aim begun and a reel held are let go, the page looks (the camera follows the seat by a drag
+      // that turns it, which cast mode's still camera could not), and the boat's cover comes off with the player aboard
+      showMode(nextMode(mode, 'done').mode);
+      aim = null;
+      letGoOfReel();
+      void showWater();
+    },
+    anchored: (x, y) => {
+      log(`anchored ${x.toFixed(1)},${y.toFixed(1)}`);
+      // the camera is put at its view again, from the seat where the boat now lies
+      void setView(viewName, true);
+    },
+    ashore: () => {
+      log('ashore');
+      // stepped off at the mooring: the camera is put at its view from the shore's place, and the boat is covered in winter
+      void setView(viewName, true);
+      void showWater();
+    },
     yawned: () => {
       log('yawned');
       // the night is begun from look or from cast: an aim begun and a reel held are let go, and the page looks
@@ -293,6 +315,9 @@ async function main() {
   let caps = 0;
   /** The frost at a clean lake's edge, scaled to nothing unless it is winter and the lake is clean: the dynamic set's last group. Made before the first dress, which sets it. */
   const frost = new FrostDraw(lake);
+  /** The boat, a moving part of four groups placed each frame, and the dynamic set's slot of its first; none in a lake with no boat. */
+  const boatDraw = new BoatDraw(lake);
+  let boatSlot = -1;
   /**
    * The lake dressed for a season (`docs/seasons.md`, part 2): the static set built again with the season's palette
    * (the meshes are memoised and only the albedo differs) and the grass handed over with the season's blades, once, at
@@ -522,6 +547,13 @@ async function main() {
     rainbowDrawn.weather = weatherDressed;
     return rainbow.groups(time.name, weatherDressed);
   }
+  /** Whether the boat's cover was written for another season or another state of the boat (aboard or not) than the page is at. */
+  const boatStale = () => boatDraw.shown() !== (seasonNow() === 'winter' && !game.boat.aboard);
+  /** The boat's groups, with the cover shown for winter with nobody aboard or scaled to nothing: the dynamic set's last. */
+  function boatGroupsNow() {
+    boatDraw.show(seasonNow(), game.boat.aboard);
+    return boatDraw.groups();
+  }
   /** The frost's group, written for winter and a clean lake or scaled to nothing. */
   function frostGroups() {
     frost.show(seasonNow(), game.pondClean);
@@ -541,7 +573,8 @@ async function main() {
       dayDrawn !== game.day ||
       lakeDrawn !== game.progress.save.lake ||
       skyStale() ||
-      frostStale()
+      frostStale() ||
+      boatStale()
     ) {
       watered = dirt;
       curedDrawn = cured;
@@ -580,7 +613,7 @@ async function main() {
         lake.waterPace,
       );
       // the drums and the treasures last, so the slots of the fish and the cast ahead of them are as they were
-      renderer.setDynamic([
+      const dynamic = [
         ...water,
         ...fish.groups(game.fish.cured, game.fish.kind, glowDrawn),
         ...casting.groups(),
@@ -599,7 +632,11 @@ async function main() {
         ...rainbowGroups(),
         // and the frost after that, written for the season and the lake's state as they stand, so a change hands it over
         ...frostGroups(),
-      ]);
+      ];
+      // and the boat after that, its slot noted for the frame to move
+      boatSlot = dynamic.length;
+      dynamic.push(...boatGroupsNow());
+      renderer.setDynamic(dynamic);
     }
     finish();
     await prepared();
@@ -669,7 +706,8 @@ async function main() {
     // a view picked, from the test API, is look mode unless it is the mode itself that picked it
     if (!byMode) showMode(nextMode(mode, 'view').mode);
     // the Shore view is framed for a phone on a screen taller than it is wide
-    const v = framingFor(lake, viewName, width / height);
+    // aboard the boat the shore, phone and boat views are the seat's, turned to the way the boat points
+    const v = framingFor(lake, viewName, width / height, game.boat.aboard ? game.anglerAt() : undefined);
     tall = height > width;
     look(v.x, v.y, v);
     aim = null;
@@ -806,11 +844,20 @@ async function main() {
         if (!invertInto(tapInverse, cam.viewProjection)) return;
         const box = canvas.getBoundingClientRect();
         const at = waterPoint(tapInverse, ((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2);
+        // row mode's tap rows to the water it falls on, and lands from anywhere off it (the bank, the cabin, the sky); a
+        // refusal (too near the shore, across the jetty, a fish on) says nothing and leaves the mode, a row begun
+        // leaves it for look through the `rowed` event
+        if (mode === 'row') {
+          if (at && lake.inside(at[0], at[1])) game.row(at[0], at[1]);
+          else game.land();
+          return;
+        }
         if (at) game.drop(at[0], at[1]);
       },
       mode: () => mode,
       bitePhase: () => game.bite.phase,
       lurePhase: () => game.lure.phase,
+      rowing: () => game.boat.rowing,
       view: () => {
         const box = canvas.getBoundingClientRect();
         return {
@@ -1153,7 +1200,8 @@ async function main() {
     showMenu(false);
     // the yawn and the fade of a journey are no time for it
     if (lakesOpen || (game.place !== 'pond' && game.place !== 'cabin')) return Promise.resolve();
-    const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+    // a journey starts from the shore: aboard the boat Go is greyed as it is with a fish on, since the game refuses it
+    const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed' || game.boat.aboard;
     const rows = lakesWords(Object.values(LAKES), game.progress.save, game.progress.save.lake, {
       inCabin: game.place === 'cabin',
       fighting,
@@ -1470,7 +1518,9 @@ async function main() {
   const onControl = (e: KeyboardEvent) =>
     pagesOpen() ||
     (e.target instanceof HTMLElement &&
-      e.target.closest('#catch, #modeButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu') !== null);
+      e.target.closest(
+        '#catch, #modeButton, #rowButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu',
+      ) !== null);
   window.addEventListener('keydown', (e) => {
     // Enter brings the player down from the cabin, as the button does
     if (e.key === 'Enter' && !e.repeat && game.place === 'cabin' && !onControl(e)) {
@@ -1479,6 +1529,10 @@ async function main() {
     }
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
+      return;
+    }
+    if (e.code === 'KeyR' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
+      void setMode('row');
       return;
     }
     if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
@@ -1574,17 +1628,23 @@ async function main() {
     orbit.enabled = orbitOn();
     const words = wording(mode);
     modeButton.textContent = words.button;
+    rowButton.textContent = rowWording(mode).button;
     help.textContent = words.hint;
   }
   /** A mode event: the mode it makes, and the camera put at the shore if it says so, resolving once that is ready. */
   async function setMode(event: ModeEvent) {
     // there is no casting away from the pond: C and the test API's mode are let go there
     if (!atPond() || pagesOpen()) return;
+    // the boat is rowed or it is not: the Cast and Row buttons are greyed while it is, and the keys are let go with them;
+    // a lake with no boat has no row to ask for
+    if (game.boat.rowing && event !== 'view' && event !== 'done' && event !== 'look') return;
+    if (event === 'row' && !lake.boat) return;
     const step = nextMode(mode, event);
     showMode(step.mode);
     if (step.camera === 'shore') await setView('shore', true);
   }
   modeButton.addEventListener('click', () => void setMode('toggle'));
+  rowButton.addEventListener('click', () => void setMode('row'));
 
   await setDirt(game.contamination);
   await showLight(time);
@@ -1615,10 +1675,20 @@ async function main() {
     renderer.move(g++, casting.dots, drawn.dots);
     renderer.move(g++, casting.ringWater, drawn.ringWater);
     renderer.move(g, casting.ringBank, drawn.ringBank);
+    // the boat where the game has it, rocking by the game's clock: each of its parts has a matrix of one
+    if (boatSlot >= 0 && boatDraw.matrices.length) {
+      boatDraw.write(game, game.t);
+      for (let k = 0; k < boatDraw.matrices.length; k++) renderer.move(boatSlot + k, boatDraw.matrices[k], 1);
+    }
     showCast();
     fightView.show();
     pond.show();
     night.show();
+    // the mode buttons are greyed while the boat is rowed, and Row for a lake with no boat; written on change only
+    const rowing = game.boat.rowing;
+    if (modeButton.disabled !== rowing) modeButton.disabled = rowing;
+    const noRow = rowing || !lake.boat;
+    if (rowButton.disabled !== noRow) rowButton.disabled = noRow;
     const away = !atPond();
     if (away !== hudAway) {
       hudAway = away;
@@ -1684,6 +1754,7 @@ async function main() {
   boot.classList.add('gone');
   help.hidden = false;
   modeButton.hidden = false;
+  rowButton.hidden = false;
 
   // ---- each frame ----
 
@@ -1718,6 +1789,12 @@ async function main() {
     // a drag turns the camera only at the pond: the yawn and the cabin switch it off, and the way back switches it on
     const turns = orbitOn();
     if (orbit.enabled !== turns) orbit.enabled = turns;
+    // while the boat is rowed the camera's target is the seat, so the orbit carries the camera along with it, keeping the
+    // way the player has turned it to (the view is put again at the anchoring)
+    if (game.boat.rowing && turns) {
+      const seat = game.anglerAt();
+      cam.target = [seat.x, seat.y, cam.target[2]];
+    }
     orbit.update();
     cam.update();
     // the renderer's clock is the game's at the water's pace, so a paused lake is still and a test that steps it draws
@@ -1861,6 +1938,7 @@ async function main() {
     view: () => viewName,
     mode: () => mode,
     setMode: (to) => setMode(to),
+    boatDrawn: () => boatDraw.last,
   });
 
   let last = performance.now();

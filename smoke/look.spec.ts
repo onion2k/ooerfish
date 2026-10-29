@@ -19,7 +19,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { HOME } from '../src/lakes';
-import { HEAL } from '../src/lake';
+import { BOAT, HEAL } from '../src/lake';
 import type { SaveSaid } from '../src/progress';
 import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, ready, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
@@ -1503,5 +1503,126 @@ test.describe('the weather on a phone', () => {
     await set(page, { ...STANDARD, view: 'phone', weather: 'rain' }, 180);
     await expect(page).toHaveScreenshot('phone-weather-rain.png', TOLERANCE);
     expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * The boat (`docs/boat.md`, C2): moored at the jetty with the Row button beside Cast, at a desk's width and a phone's;
+ * rowed half way to the pond's spot; anchored there with a cast from the seat sinking, and with a fish on; the winter
+ * canvas over it ashore; and the Reservoir's boat off the beach. Seeded and paused, the row stepped by the frame.
+ */
+const SPOT = HOME.boat!.spot;
+const ROW_FRAMES = Math.ceil(
+  (Math.hypot(SPOT[0] - HOME.boat!.mooring.x, SPOT[1] - HOME.boat!.mooring.y) / BOAT.speed) * 60,
+);
+
+/**
+ * The boat rowed out past the pond's spot and back to it, so it points up the lake at the middle, and anchored there,
+ * the page in cast mode at the shore framing from the seat: behind the rod, along the heading, over the water ahead.
+ */
+async function anchored(page: Page) {
+  await page.evaluate(
+    async ([spot, frames]) => {
+      const g = window.game!;
+      g.row(spot[0], spot[1] * 2);
+      g.step(1500);
+      g.row(spot[0], spot[1]);
+      g.step(frames + 2);
+      await g.mode('cast');
+      g.step(30);
+    },
+    [SPOT, ROW_FRAMES] as const,
+  );
+  expect(await page.evaluate(() => window.game!.boat())).toMatchObject({ aboard: true, rowing: false });
+}
+
+test.describe('the boat', () => {
+  test('boat-moored', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, STANDARD, 60);
+    await expect(page.locator('#rowButton')).toHaveText('Row');
+    await expect(page).toHaveScreenshot('boat-moored.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-rowing', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, { ...STANDARD, view: 'boat' }, 60);
+    await page.evaluate(
+      ([spot, frames]) => {
+        window.game!.row(spot[0], spot[1]);
+        window.game!.step(Math.floor(frames / 2));
+      },
+      [SPOT, ROW_FRAMES] as const,
+    );
+    expect((await page.evaluate(() => window.game!.boat())).rowing).toBe(true);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('boat-rowing.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-cast', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, { ...STANDARD, dirt: 0.2 }, 60);
+    await anchored(page);
+    // thrown a little to the left of the way the boat points, which is the way the camera looks
+    await page.evaluate((c) => {
+      window.game!.cast(window.game!.boat().heading + 0.2, c.power);
+      window.game!.step(c.sinking);
+    }, CAST_SHOT);
+    expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('none');
+    expect(await page.evaluate(() => window.game!.lure().phase)).toBe('sinking');
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('boat-cast.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-fight', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, { ...STANDARD, dirt: 0.2 }, 60);
+    await anchored(page);
+    await page.evaluate(() => {
+      window.game!.fishTo('fight');
+      window.game!.step(1);
+    });
+    expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('hooked');
+    await expect(page).toHaveScreenshot('boat-fight.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-winter', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 6, day: 29 } });
+    await set(page, STANDARD, 600);
+    await hideOverlays(page);
+    expect(await page.evaluate(() => window.game!.boat().drawn.cover)).toBe(true);
+    await expect(page.locator('#view')).toHaveScreenshot('boat-winter.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('reservoir-boat', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+    await set(page, STANDARD, 180);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('reservoir-boat.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('phone-boat-moored', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+      await set(page, { ...STANDARD, view: 'phone' }, 60);
+      await expect(page).toHaveScreenshot('phone-boat-moored.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
   });
 });

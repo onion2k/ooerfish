@@ -96,19 +96,29 @@ export function worldFor(lake: Lake): World {
   return kept;
 }
 
-/** The game's bodies in a world: for now the bobber's, spawned carried at the angler's landing so the game places it. */
+/**
+ * The game's bodies in a world: the bobber's, spawned carried at the angler's landing so the game places it, and the
+ * boat's (a lake that keeps one), carried at the boat's place for the whole of the slice that rows it: the game puts it
+ * where it rows, and a later slice lets it go to drift.
+ */
 export class Bodies {
   /** The bobber's slot in the world. */
   readonly bobber: number;
+  /** The boat's slot, or minus one in a lake with no boat. */
+  readonly boat: number;
 
   constructor(
     readonly world: World,
     lake: Lake,
+    landing: readonly [number, number] = lake.landAt,
+    boatAt: readonly [number, number] | null = lake.boat ? [lake.boat.mooring.x, lake.boat.mooring.y] : null,
   ) {
-    const [x, y] = lake.landAt;
-    this.bobber = world.spawn(KIND.bobber, x, y, PHYSICS.radii.bobber);
+    this.bobber = world.spawn(KIND.bobber, landing[0], landing[1], PHYSICS.radii.bobber);
     if (this.bobber < 0) throw new Error('the physics world has no room for the bobber');
     world.carried[this.bobber] = 1;
+    this.boat = boatAt ? world.spawn(KIND.boat, boatAt[0], boatAt[1], PHYSICS.radii.boat) : -1;
+    if (boatAt && this.boat < 0) throw new Error('the physics world has no room for the boat');
+    if (this.boat >= 0) world.carried[this.boat] = 1;
   }
 
   get x(): number {
@@ -137,6 +147,30 @@ export class Bodies {
     w.z[i] = PHYSICS.radii.bobber;
   }
 
+  /** The boat's body put where the game rows it, while it is carried; nothing in a lake with no boat. */
+  putBoat(x: number, y: number) {
+    if (this.boat < 0) return;
+    const w = this.world,
+      i = this.boat;
+    w.x[i] = x;
+    w.y[i] = y;
+    w.z[i] = PHYSICS.radii.boat;
+  }
+
+  /** The boat's body's place, or nought in a lake with none. */
+  get boatX(): number {
+    return this.boat < 0 ? 0 : this.world.x[this.boat];
+  }
+
+  get boatY(): number {
+    return this.boat < 0 ? 0 : this.world.y[this.boat];
+  }
+
+  /** Whether the game holds the boat's body (it does, for the whole of this slice); true in a lake with none. */
+  get boatHeld(): boolean {
+    return this.boat < 0 || this.world.carried[this.boat] === 1;
+  }
+
   /** Let go at (x, y), at rest on the surface: woken, so the world looks at it from there. */
   drop(x: number, y: number) {
     const w = this.world,
@@ -159,7 +193,7 @@ export class Bodies {
    * idle game nothing, as the ready rope costs it nothing.
    */
   step(dt: number) {
-    if (this.world.carried[this.bobber]) return;
+    if (this.world.carried[this.bobber] && this.boatHeld) return;
     this.world.step(dt, (kind, x, y, slot, hole) => {
       throw new Error(`a body of kind ${kind} left the physics world at ${x},${y} (slot ${slot}, hole ${hole})`);
     });

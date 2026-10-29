@@ -84,3 +84,44 @@ export function frame(
   out[o + 14] = pz;
   out[o + 15] = 1;
 }
+
+/**
+ * A placement turned about its own forward axis by `roll`, about its own left by `pitch` and about Z by `yaw`, in that
+ * order (so yaw is applied last, to the pitched, rolled solid), at (`x`, `y`, `z`): a boat's heading with its sway. Its
+ * own X is forward, Y left and Z up; with no pitch and no roll it is `place` at a scale of one.
+ */
+export function tilted(
+  out: Float32Array,
+  i: number,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  pitch: number,
+  roll: number,
+  scale = 1,
+) {
+  const o = i * 16;
+  const cy = Math.cos(yaw),
+    sy = Math.sin(yaw),
+    cp = Math.cos(pitch),
+    sp = Math.sin(pitch),
+    cr = Math.cos(roll),
+    sr = Math.sin(roll);
+  out[o] = cy * cp * scale;
+  out[o + 1] = sy * cp * scale;
+  out[o + 2] = -sp * scale;
+  out[o + 3] = 0;
+  out[o + 4] = (cy * sp * sr - sy * cr) * scale;
+  out[o + 5] = (sy * sp * sr + cy * cr) * scale;
+  out[o + 6] = cp * sr * scale;
+  out[o + 7] = 0;
+  out[o + 8] = (cy * sp * cr + sy * sr) * scale;
+  out[o + 9] = (sy * sp * cr - cy * sr) * scale;
+  out[o + 10] = cp * cr * scale;
+  out[o + 11] = 0;
+  out[o + 12] = x;
+  out[o + 13] = y;
+  out[o + 14] = z;
+  out[o + 15] = 1;
+}

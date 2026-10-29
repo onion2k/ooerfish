@@ -5,6 +5,7 @@ import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
 import { ROPE, WEATHER } from '../src/lake';
+import { HOME } from '../src/lakes';
 import { DT, newGame, settle } from './helpers';
 
 const NORTH = Math.PI / 2;
@@ -336,5 +337,39 @@ describe('the line, drawn as the rope', () => {
     before.forEach((pool, i) =>
       expect(pool).toBe([...draw.lines, draw.rod, draw.lure, draw.bobber, draw.dots, draw.ringWater, draw.ringBank][i]),
     );
+  });
+});
+
+describe('the rod aboard the boat', () => {
+  it('is held from the seat and ends at the boat’s rod tip, and the preview flies from that tip too', () => {
+    const { game } = newGame(1);
+    expect(game.row(HOME.boat!.spot[0], HOME.boat!.spot[1])).toBe(true);
+    settle(game, 60 * 40);
+    expect(game.boat.aboard && !game.boat.rowing).toBe(true);
+    const stand = game.anglerAt();
+    const draw = new CastDraw();
+    expect(draw.write(game, null).rod).toBe(ROD_PIECES);
+    const tip = carried(draw.rod, ROD_PIECES - 1, 0.5, 0, 0);
+    const want = rodTip(HOME, stand);
+    for (let k = 0; k < 3; k++) expect(tip[k]).toBeCloseTo(want[k], 4);
+    // the butt is beside the seat, a little over the boat’s seat height and not on the shore
+    const butt = carried(draw.rod, 0, -0.5, 0, 0);
+    expect(Math.hypot(butt[0] - stand.x, butt[1] - stand.y)).toBeLessThan(1.5);
+    expect(butt[2]).toBeLessThan(want[2]);
+    // the preview’s first dot is on the arc from the tip, not from the shore
+    draw.write(game, { angle: game.boat.heading, power: 0.5 });
+    const dot0 = carried(draw.dots, 0, 0, 0, 0);
+    for (let k = 0; k < 3; k++) expect(dot0[k]).toBeCloseTo(want[k], 3);
+  });
+
+  it('is exactly the shore’s ashore: the hand is where it was built to be', () => {
+    const { game } = newGame(1);
+    const draw = new CastDraw();
+    draw.write(game, null);
+    const a = HOME.angler;
+    const butt = carried(draw.rod, 0, -0.5, 0, 0);
+    expect(butt[0]).toBeCloseTo(a.x + 0.6, 4);
+    expect(butt[1]).toBeCloseTo(a.y + 0.5, 4);
+    expect(butt[2]).toBeCloseTo(HOME.ground(a.x, a.y) + 5, 4);
   });
 });

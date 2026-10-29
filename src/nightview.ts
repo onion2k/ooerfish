@@ -30,7 +30,7 @@ export interface NightElements {
   camera?: HTMLButtonElement;
   /** The Sleep through… item beside it, greyed by the same flag: the bed and sleeping through are refused together. */
   sleep: HTMLButtonElement;
-  /** The Go to the cabin item beside them, greyed mid-fight and in the cabin, where there is no door to walk in by. */
+  /** The Go to the cabin item beside them, greyed mid-fight, in the cabin (where there is no door to walk in by) and aboard the boat. */
   cabin: HTMLButtonElement;
 }
 
@@ -171,10 +171,12 @@ export class NightView {
       el.bed.disabled = el.sleep.disabled = !w.bed;
       if (el.camera) el.camera.disabled = !w.bed;
     }
-    const cabin = w.cabin ? 'on' : 'off';
+    // the cabin is reached from the shore: the item is greyed aboard the boat, rowing or anchored, as the game refuses it
+    const walk = w.cabin && !g.boat.aboard;
+    const cabin = walk ? 'on' : 'off';
     if (cabin !== was.cabin) {
       was.cabin = cabin;
-      el.cabin.disabled = !w.cabin;
+      el.cabin.disabled = !walk;
     }
   }
 }

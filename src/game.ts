@@ -14,6 +14,7 @@ import { BedFinds, places } from './bedfinds';
 import { School, steerTo } from './fish';
 import { Line } from './line';
 import {
+  BOAT,
   CLOCK,
   LINE_DRAW,
   NIGHT,
@@ -34,8 +35,9 @@ import { rainSpot } from './rain';
 import { NO_WIND, bentTip, rodTip } from './cast';
 import { Rope } from './rope';
 import { Bodies, newWorld } from './physics';
-import type { Lake } from './lakes/lake';
+import type { Lake, Stand } from './lakes/lake';
 import { HOME, LAKES } from './lakes';
+import { anglerAboard, landingAboard, newBoat, rowAt, rowPath, type BoatState } from './boat';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import { recorded } from './journal';
 import { Progress } from './progress';
@@ -90,6 +92,12 @@ export interface GameEvents {
    * it was: the page loads afresh, told once.
    */
   left?(id: string): void;
+  /** The boat began a row, boarding first if the player was ashore, to this point on the water (a landing is a row to the mooring). */
+  rowed?(x: number, y: number): void;
+  /** A row ended at this anchorage, the player aboard and the save written there. */
+  anchored?(x: number, y: number): void;
+  /** The boat reached its mooring and the player stepped off: the boat is ashore, and the save says so. */
+  ashore?(): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
@@ -149,6 +157,12 @@ export class Game {
   readonly lure: Lure;
   /** The bodies the physics steps: the bobber, carried by the game while the lure is not on the water (`docs/boat.md`, C1). */
   readonly bodies: Bodies;
+  /**
+   * The boat (`docs/boat.md`, C2): ashore at the lake's mooring until a row boards it, then wherever it was rowed, the
+   * player aboard with the rod held from the seat; one object written into, never made again. A lake with no boat has
+   * one that is never used.
+   */
+  readonly boat: BoatState;
   readonly bite: Bite;
   readonly line = new Line();
   /** The fishing line as a rope from the rod's tip to the line's end, stepped with the game (`docs/boat.md`, C0). */
@@ -234,6 +248,12 @@ export class Game {
   /** Where the player lands at the lake being left for: the pond, or the cabin at home. */
   private arrival: 'pond' | 'cabin' = 'pond';
   private told = false;
+  /** The row in train is a landing, to the mooring, and not a row to an anchorage. */
+  private landingIn = false;
+  /** Where the angler is while aboard and where a fish is landed, written into when asked and never made again. */
+  private readonly stand: Stand = { x: 0, y: 0, tipHeight: 0, tipReach: 0 };
+  private readonly landingPoint: [number, number] = [0, 0];
+  private readonly rowPoint: [number, number] = [0, 0];
 
   constructor(
     readonly progress: Progress,
@@ -247,12 +267,22 @@ export class Game {
     this.drums = new BedFinds(found.drums);
     this.treasures = new BedFinds(found.treasures);
     this.lure = new Lure(lake);
-    this.bodies = new Bodies(newWorld(lake), lake);
     this.day = progress.save.day;
     // the clock is held in the cabin wherever it stood, so a cabin save keeps its time
     this.place = progress.save.place;
     this.timeOfDay = progress.save.time;
     const mine = progress.entry(lake.id);
+    // the boat lies at its mooring, unless the save left the player aboard at an anchorage at the pond: one that is not on
+    // the water by `keepOff` (a lake since changed, a hand-written save), or at a lake with no boat, is read as ashore
+    this.boat = newBoat(lake);
+    const saved = mine.boat;
+    if (saved && lake.boat && this.place === 'pond' && lake.inside(saved.x, saved.y, BOAT.keepOff)) {
+      this.boat.x = saved.x;
+      this.boat.y = saved.y;
+      this.boat.heading = saved.heading;
+      this.boat.aboard = true;
+    } else if (saved) mine.boat = null;
+    this.bodies = new Bodies(newWorld(lake), lake, this.landing(), lake.boat ? [this.boat.x, this.boat.y] : null);
     this.contamination = lake.contaminationAfter(mine.cured, mine.drums);
     this.drums.loadFirst(mine.drums);
     this.treasures.load(mine.found.map((id) => lake.treasures.list.findIndex((t) => t.id === id)));
@@ -332,6 +362,7 @@ export class Game {
       if (this.fadeElapsed >= NIGHT.fadeIn) this.arriving = false;
     }
     this.t += dt;
+    if (this.boat.rowing) this.stepRow();
     this.sinceSaved += dt;
     this.healElapsed += dt;
     this.waterDirt = healToward(this.healFrom, this.healTo, this.healElapsed, HEAL.seconds);
@@ -340,7 +371,8 @@ export class Game {
     // only a step carries the clock across midnight, so the lever (`setTimeOfDay`) never makes one; a fish on the line
     // or landed holds the yawn off, the clock running on, and it comes on the first step after the fight is settled
     if (pastMidnight(before, this.timeOfDay)) this.midnightWaits = true;
-    if (this.midnightWaits && !this.fighting) {
+    // the yawn waits for a row as it waits for a fish: it comes at the anchoring
+    if (this.midnightWaits && !this.fighting && !this.boat.rowing) {
       this.yawn();
       return;
     }
@@ -395,12 +427,12 @@ export class Game {
     const { lure, bite, lineEnd } = this;
     const tension = bite.phase === 'hooked' ? this.line.tension : 0;
     if (lure.phase === 'ready') {
-      const t0 = rodTip(this.lake);
+      const t0 = rodTip(this.lake, this.anglerAt());
       lineEnd[0] = t0[0];
       lineEnd[1] = t0[1];
       lineEnd[2] = t0[2] - LINE_DRAW.dangle;
     } else if (bite.phase === 'landed') {
-      const t0 = rodTip(this.lake);
+      const t0 = rodTip(this.lake, this.anglerAt());
       lineEnd[0] = t0[0] + LINE_DRAW.hang.sway * Math.sin(this.t * LINE_DRAW.hang.rate);
       lineEnd[1] = t0[1];
       lineEnd[2] = t0[2] - LINE_DRAW.hang.drop;
@@ -417,7 +449,7 @@ export class Game {
       lineEnd[1] = lure.bobber[1];
       lineEnd[2] = z;
     } else lineEnd.set(lure.at);
-    bentTip(this.lake, tension, lineEnd, this.lineStart);
+    bentTip(this.lake, tension, lineEnd, this.lineStart, this.anglerAt());
     return tension;
   }
 
@@ -486,7 +518,9 @@ export class Game {
    * number of nights that is not a whole number from one to a round of the moon.
    */
   sleepThrough(nights: number): boolean {
-    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still) return false;
+    // bed is reached from the shore, not the boat: land first
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still || this.boat.aboard)
+      return false;
     if (!Number.isInteger(nights) || nights < 1 || nights > MOON.days) return false;
     this.nights = nights;
     this.yawn();
@@ -510,10 +544,12 @@ export class Game {
    * and the screen comes up from black over `NIGHT.fadeIn`, as a wake does, with the clock, the day, the fish, the heal
    * and the splashes held exactly where they are. Saved as the cabin at that time, so a load lands there and `out`
    * resumes it. Refused, and nothing changed, with a fish hooked or landed (or the yawn owed for a midnight passed
-   * mid-fight), while yawning or leaving, in the cabin already, and at a lake with no cabin.
+   * mid-fight), while yawning or leaving, in the cabin already, and at a lake with no cabin; and aboard the boat, rowing
+   * or anchored, since the cabin is reached from the shore: land first.
    */
   enter(): boolean {
-    if (this.place !== 'pond' || this.fighting || this.midnightWaits || !this.lake.cabin) return false;
+    if (this.place !== 'pond' || this.fighting || this.midnightWaits || !this.lake.cabin || this.boat.aboard)
+      return false;
     this.reelIn();
     this.reeling = false;
     this.place = 'cabin';
@@ -529,10 +565,11 @@ export class Game {
    * the clock as it is, and the screen starts to fade out; at the end of the fade the page is told (`left`) and loads
    * afresh at the new lake. At the lake the player is at it goes out from the cabin, as `out` does, and is nothing at
    * the pond. Refused, and nothing changed, for a lake the game does not know, with a fish hooked or landed, and while
-   * yawning or already leaving.
+   * yawning or already leaving, and aboard the boat, rowing or anchored: a journey starts from the shore, so land first.
    */
   travel(id: string, into: 'pond' | 'cabin' = 'pond'): boolean {
-    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still) return false;
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still || this.boat.aboard)
+      return false;
     if (!Object.hasOwn(this.progress.lakes, id)) return false;
     // the cabin is at home only: a journey into it anywhere else is refused
     if (into === 'cabin' && id !== HOME.id) return false;
@@ -591,6 +628,8 @@ export class Game {
     this.waterDirt = this.healFrom = this.healTo = this.contamination;
     this.healElapsed = 0;
     this.splashes.clear();
+    // the player walks down from the cabin to the mooring in the morning, so the boat is ashore and the save says so
+    this.stowBoat();
     this.place = 'cabin';
     this.fadeElapsed = 0;
     // waking is at home, where the cabin is: the save names the home, and the page loads afresh there if it is not
@@ -601,6 +640,8 @@ export class Game {
 
   /** The player strikes: a fish biting is hooked, one nibbling lets go, and with none at the lure it is twitched. */
   strike(): Strike {
+    // the lure is in, and a strike with a rod in a boat being rowed is no strike
+    if (this.boat.rowing) return 'none';
     const did = this.bite.strike(this.t, this.fish, this.lure);
     if (did !== 'none') this.events.struck?.(did);
     if (did === 'hooked' && this.bite.drum >= 0) this.hookDrum();
@@ -609,7 +650,7 @@ export class Game {
       this.catchDrum = false;
       this.catchTreasure = -1;
       const i = this.bite.fish;
-      const [lx, ly] = this.lake.landAt;
+      const [lx, ly] = this.landing();
       this.catchKind = this.fish.kind[i];
       const [least, most] = KINDS[this.catchKind].weight;
       this.catchWeight = Math.round((least + this.random() * (most - least)) * 100) / 100;
@@ -637,7 +678,7 @@ export class Game {
   /** A drum snagged and struck: hauled by its own profile, the lure at the drum, and no chance drawn for weight or temper. */
   private hookDrum() {
     const i = this.bite.drum;
-    const [lx, ly] = this.lake.landAt;
+    const [lx, ly] = this.landing();
     const [x, y] = [this.drums.x[i], this.drums.y[i]];
     this.catchDrum = true;
     this.catchTreasure = -1;
@@ -656,7 +697,7 @@ export class Game {
   /** A treasure snagged and struck: hauled by its own profile, the lure at it, and no chance drawn for weight or temper. */
   private hookTreasure() {
     const i = this.bite.treasure;
-    const [lx, ly] = this.lake.landAt;
+    const [lx, ly] = this.landing();
     const [x, y] = [this.treasures.x[i], this.treasures.y[i]];
     this.catchDrum = false;
     this.catchTreasure = i;
@@ -803,13 +844,13 @@ export class Game {
   }
 
   /**
-   * Fish `i` cured and let go in the pond, `RELEASE.distance` out from the angler toward the middle and facing away from
-   * the shore, or further out a step at a time until that is on the water; if none of the tries is, it stays where the
+   * Fish `i` cured and let go in the pond, `RELEASE.distance` out from the angler (the shore's, or the boat's seat aboard)
+   * toward the middle and facing away from the shore, or further out a step at a time until that is on the water; if none of the tries is, it stays where the
    * fight left it, which was on the water. A small splash is told there.
    */
   private release(i: number) {
     const { lake } = this;
-    const { angler } = lake;
+    const angler = this.anglerAt();
     const heading = Math.atan2(-angler.y, -angler.x);
     const [dx, dy] = [Math.cos(heading), Math.sin(heading)];
     let x = this.fish.x[i],
@@ -831,7 +872,7 @@ export class Game {
     if (this.catchDrum || this.catchTreasure >= 0) return this.fightFind(dt);
     const i = this.bite.fish;
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
-    const [lx, ly] = this.lake.landAt;
+    const [lx, ly] = this.landing();
     const north = Math.PI / 2;
     const sway = HOOKED.sway * Math.sin((this.t - this.hookedAt) * HOOKED.swayRate);
     const b = Math.min(north + HOOKED.wide, Math.max(north - HOOKED.wide, this.bearing)) + sway;
@@ -857,7 +898,7 @@ export class Game {
   /** A drum or a treasure hauled on by `dt`: the lure is drawn in along the line toward the landing, the thing on the bed beneath it staying put until it is hauled or kept. */
   private fightFind(dt: number) {
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
-    const [lx, ly] = this.lake.landAt;
+    const [lx, ly] = this.landing();
     const b = Math.min(Math.PI / 2 + HOOKED.wide, Math.max(Math.PI / 2 - HOOKED.wide, this.bearing));
     const [x, y] = [lx + Math.cos(b) * this.line.out, ly + Math.sin(b) * this.line.out];
     this.lure.at[0] = x;
@@ -965,7 +1006,8 @@ export class Game {
    */
   drop(x: number, y: number, size = 1): boolean {
     // the cabin and the yawn have no water to drop anything on, and a splash made there would hang unmoving till morning
-    if (this.place !== 'pond') return false;
+    // nor while the boat is rowed: a pebble thrown from a moving boat is not a game anyone has asked for
+    if (this.place !== 'pond' || this.boat.rowing) return false;
     if (![x, y, size].every(Number.isFinite) || size <= 0 || !this.lake.inside(x, y)) return false;
     this.splashes.add(x, y, this.t, size);
     this.events.splashed?.(x, y, size);
@@ -975,8 +1017,8 @@ export class Game {
 
   /** A pebble dropped somewhere on the water near (x, y), by chance; on the water somewhere else if none is near. */
   dropNear(x: number, y: number): boolean {
-    // refused before any chance is drawn, so a refusal away from the pond moves nothing
-    if (this.place !== 'pond') return false;
+    // refused before any chance is drawn, so a refusal away from the pond, or while rowing, moves nothing
+    if (this.place !== 'pond' || this.boat.rowing) return false;
     for (let tries = 0; tries < 40; tries++) {
       const a = this.random() * Math.PI * 2,
         r = Math.sqrt(this.random()) * DROP_NEAR;
@@ -988,15 +1030,15 @@ export class Game {
     return this.drop(0, 0);
   }
 
-  /** A cast thrown at `angle` round the compass and `power` from nought to one; one out already is reeled in first. Refused, and nothing changed, for what is not a finite number, and away from the pond. */
+  /** A cast thrown at `angle` round the compass and `power` from nought to one, from the rod's tip wherever the angler is (the shore, or the boat's seat); one out already is reeled in first. Refused, and nothing changed, for what is not a finite number, away from the pond, and while the boat is rowed. */
   cast(angle: number, power: number): boolean {
     if (!Number.isFinite(angle) || !Number.isFinite(power)) return false;
     // there is no casting from the cabin or while yawning: the lure was brought in for the night and stays in
     if (this.place !== 'pond') return false;
-    // a fish on the line, or landed and waiting to be stowed, is seen to first
-    if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return false;
+    // a fish on the line, or landed and waiting to be stowed, is seen to first, and the oars are shipped before a rod is cast
+    if (this.bite.phase === 'hooked' || this.bite.phase === 'landed' || this.boat.rowing) return false;
     this.reelIn();
-    this.lure.cast(angle, power, this.t, this.wind);
+    this.lure.cast(angle, power, this.t, this.wind, this.anglerAt());
     this.bodies.take();
     // the cast before this one ended with no fish stowed, so the run of casts that each landed one is broken
     if (!this.castStowed) this.progress.save.tally.run = 0;
@@ -1022,6 +1064,117 @@ export class Game {
       // leaving is for the lake the save names, at its pond or, at home, its cabin
       this.progress.save.place = this.place === 'leaving' ? this.arrival : this.place;
     }
+    // the boat is saved where it lies at an anchorage, and as ashore otherwise; a row under way is not saved, so a load
+    // lands at the last anchorage (or the mooring, for a row from the shore)
+    if (!this.boat.rowing) {
+      const mine = this.progress.entry(this.lake.id);
+      if (!this.boat.aboard) mine.boat = null;
+      else if (mine.boat) {
+        mine.boat.x = this.boat.x;
+        mine.boat.y = this.boat.y;
+        mine.boat.heading = this.boat.heading;
+      } else mine.boat = { x: this.boat.x, y: this.boat.y, heading: this.boat.heading };
+    }
     this.progress.persist();
+  }
+
+  /**
+   * Where the angler is: the lake's own place on the shore, and the boat's seat aboard, with the rod held from there
+   * (`BOAT.tip`). Every reader of where the angler stands asks this and not the lake; the grass, the scenery and the bed
+   * finds keep the shore's. Aboard it is one object written into, so keep what is needed of it rather than the object.
+   */
+  anglerAt(): Stand {
+    return this.boat.aboard ? anglerAboard(this.boat, this.stand) : this.lake.angler;
+  }
+
+  /** Where a fish is landed: the lake's `landAt` on the shore, `BOAT.landAt` beside the seat aboard. Aboard it is one array written into. */
+  landing(): readonly [number, number] {
+    return this.boat.aboard ? (landingAboard(this.boat, this.landingPoint) as [number, number]) : this.lake.landAt;
+  }
+
+  /**
+   * The boat rowed to (x, y), straight and at `BOAT.speed`, the player boarding first if ashore (the boat starts from
+   * where it lies, the mooring). The lure is reeled in as the yawn does it (a coming or nibbling fish lets go), the reel
+   * let go, and the boat's heading is the line's. At the end it is anchored there, the save written and `anchored` told.
+   * Refused, and nothing changed, at a lake with no boat, away from the pond (the cabin, the yawn, a journey), with a fish
+   * hooked or landed, while a photograph is looked at, while rowing already, for a point that is not a finite number, and
+   * for a point or a line that the boat keeps off: the end must be on the water `BOAT.keepOff` in from the shore, every
+   * boulder and the jetty, and so must every half unit of the straight line from where the boat is.
+   */
+  row(x: number, y: number): boolean {
+    if (!this.mayRow() || !rowPath(this.lake, this.boat.x, this.boat.y, x, y)) return false;
+    this.setOff(x, y, false);
+    return true;
+  }
+
+  /**
+   * The boat rowed home to its mooring and the player stepped off: refused as `row` is, and when ashore already, and when
+   * the straight line home crosses ground the boat keeps off (row to open water first). At the end the boat lies at its
+   * mooring, `aboard` is false, the save says ashore and `ashore` is told.
+   */
+  land(): boolean {
+    const mooring = this.lake.boat?.mooring;
+    if (!mooring || !this.boat.aboard || !this.mayRow()) return false;
+    if (!rowPath(this.lake, this.boat.x, this.boat.y, mooring.x, mooring.y)) return false;
+    this.setOff(mooring.x, mooring.y, true);
+    return true;
+  }
+
+  /** Whether a row or a landing may begin now, apart from where it goes. */
+  private mayRow(): boolean {
+    return !(!this.lake.boat || this.place !== 'pond' || this.fighting || this.boat.rowing || this.still);
+  }
+
+  /** The row begun: the lure in, the player aboard, the line from here to (x, y) laid out from now. */
+  private setOff(x: number, y: number, home: boolean) {
+    const { boat } = this;
+    this.reelIn();
+    this.reeling = false;
+    boat.fromX = boat.x;
+    boat.fromY = boat.y;
+    boat.toX = x;
+    boat.toY = y;
+    boat.rowedAt = this.t;
+    if (Math.hypot(x - boat.x, y - boat.y) > 0) boat.heading = Math.atan2(y - boat.y, x - boat.x);
+    boat.aboard = true;
+    boat.rowing = true;
+    this.landingIn = home;
+    this.events.rowed?.(x, y);
+  }
+
+  /** The row on to now: the boat where its line has it, and at the end anchored, or, home, the player stepped off. */
+  private stepRow() {
+    const { boat } = this;
+    rowAt(boat, this.t, this.rowPoint);
+    boat.x = this.rowPoint[0];
+    boat.y = this.rowPoint[1];
+    this.bodies.putBoat(boat.x, boat.y);
+    if ((this.t - boat.rowedAt) * BOAT.speed < Math.hypot(boat.toX - boat.fromX, boat.toY - boat.fromY)) return;
+    boat.rowing = false;
+    if (this.landingIn) {
+      this.landingIn = false;
+      this.stowBoat();
+      this.persist();
+      this.events.ashore?.();
+    } else {
+      this.persist();
+      this.events.anchored?.(boat.x, boat.y);
+    }
+  }
+
+  /** The boat put ashore at its mooring with nobody aboard, in the game and in the save's memory (written by the next `persist`). */
+  private stowBoat() {
+    const { boat } = this;
+    const m = this.lake.boat?.mooring;
+    boat.aboard = false;
+    boat.rowing = false;
+    this.landingIn = false;
+    if (m) {
+      boat.x = boat.fromX = boat.toX = m.x;
+      boat.y = boat.fromY = boat.toY = m.y;
+      boat.heading = m.heading;
+      this.bodies.putBoat(m.x, m.y);
+    }
+    this.progress.entry(this.lake.id).boat = null;
   }
 }

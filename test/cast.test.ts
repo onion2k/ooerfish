@@ -1,6 +1,8 @@
 /** The cast: its flight as a sum, and the lure through its states, headless. */
 import { describe, expect, it } from 'vitest';
-import { aimAt, flight, flightAt, pathPoints, rodTip } from '../src/cast';
+import { aimAt, bentTip, flight, flightAt, landingTime, pathPoints, rodTip } from '../src/cast';
+import { anglerAboard, newBoat } from '../src/boat';
+import { Lure } from '../src/lure';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { HOME } from '../src/lakes';
@@ -247,5 +249,72 @@ describe('the wind on a cast', () => {
       expect(Math.hypot(f.landing[0] - x, f.landing[1] - y), `${x},${y}`).toBeLessThan(0.05);
       expect(aimAt(x, y, HOME, [0, 0])).toEqual(aimAt(x, y));
     }
+  });
+});
+
+describe('a cast from the boat’s seat (`docs/boat.md`, C2)', () => {
+  const boat = { ...newBoat(HOME), x: 4, y: -6, heading: 0.9, aboard: true };
+  const seat = anglerAboard(boat);
+
+  it('has its tip over the seat on the water, ahead along the heading, and the shore’s as it was', () => {
+    const tip = rodTip(HOME, seat);
+    expect(tip[0]).toBeCloseTo(seat.x + Math.cos(0.9) * seat.tipReach, 12);
+    expect(tip[1]).toBeCloseTo(seat.y + Math.sin(0.9) * seat.tipReach, 12);
+    // over the seat’s height on the water, and not over the bed under it
+    expect(tip[2]).toBeCloseTo(seat.base! + seat.tipHeight, 12);
+    expect(tip[2]).toBeGreaterThan(0);
+    // the shore's angler, given or not, is the very same sums
+    expect(rodTip(HOME, HOME.angler)).toEqual(rodTip(HOME));
+    const a = HOME.angler;
+    expect(rodTip(HOME)).toEqual([a.x, a.y + a.tipReach, HOME.ground(a.x, a.y) + a.tipHeight]);
+  });
+
+  it('starts at that tip and lands where its path first meets the water, from the seat', () => {
+    const at = new Float64Array(3);
+    flightAt(NORTH, 0.6, 0, at, HOME, [0, 0], seat);
+    expect([...at]).toEqual(rodTip(HOME, seat));
+    const f = flight(NORTH, 0.6, HOME, [0, 0], seat);
+    expect(f.onWater).toBe(true);
+    expect(f.landing[1]).toBeGreaterThan(seat.y);
+    expect(f.landing[0]).toBeCloseTo(rodTip(HOME, seat)[0], 6);
+    expect(f.time).toBe(landingTime(NORTH, 0.6, HOME, [0, 0], seat));
+    // from the shore's tip it is another flight altogether
+    expect(f.landing).not.toEqual(flight(NORTH, 0.6).landing);
+  });
+
+  it('is thrown the full speed its own tip’s height gives, which reaches the lake’s reach over flat water', () => {
+    const f = flight(Math.PI, 1, HOME, [0, 0], { ...seat, heading: Math.PI });
+    const tip = rodTip(HOME, { ...seat, heading: Math.PI });
+    expect(Math.hypot(f.landing[0] - tip[0], f.landing[1] - tip[1])).toBeCloseTo(HOME.castReach, 3);
+  });
+
+  it('the preview is the flight, the aim lands on its target, and the bent tip bends from the seat', () => {
+    const out = new Float64Array(3 * 8);
+    pathPoints(NORTH, 0.5, 8, out, HOME, [0, 0], seat);
+    const f = flight(NORTH, 0.5, HOME, [0, 0], seat);
+    expect([out[21], out[22], out[23]]).toEqual(f.landing);
+    expect([out[0], out[1], out[2]]).toEqual(rodTip(HOME, seat));
+    const { angle, power } = aimAt(10, 8, HOME, [0, 0], seat);
+    const landed = flight(angle, power, HOME, [0, 0], seat);
+    expect(Math.hypot(landed.landing[0] - 10, landed.landing[1] - 8)).toBeLessThan(0.05);
+    const bent = bentTip(HOME, 0, [20, 20, 0], [0, 0, 0], seat);
+    expect([...bent]).toEqual(rodTip(HOME, seat));
+  });
+
+  it('is kept by the lure, so a boat that moves after the cast moves nothing of the flight', () => {
+    const lure = new Lure(HOME);
+    const mover = { ...seat };
+    lure.cast(NORTH, 0.5, 0, [0, 0], mover);
+    const first = [...lure.at];
+    mover.x += 30;
+    mover.y += 30;
+    lure.step(0, 0.01);
+    const want = new Float64Array(3);
+    flightAt(NORTH, 0.5, 0, want, HOME, [0, 0], seat);
+    expect(first).toEqual([...want]);
+    expect([...lure.at]).toEqual([...want]);
+    lure.step(lure.flies / 2, 0.01);
+    flightAt(NORTH, 0.5, lure.flies / 2, want, HOME, [0, 0], seat);
+    expect([...lure.at]).toEqual([...want]);
   });
 });
