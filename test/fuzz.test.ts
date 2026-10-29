@@ -184,6 +184,12 @@ describe('the fuzzer', () => {
     expect(happened.ashore, 'the player stepped ashore').toBeGreaterThan(0);
     expect(done['cast aboard'], 'a cast from the boat').toBeGreaterThan(0);
     expect(done['landed aboard'], 'a fish landed from the boat').toBeGreaterThan(0);
+    expect(done['weigh anchor'], 'the anchor weighed').toBeGreaterThan(0);
+    expect(done['drop anchor'], 'the anchor dropped').toBeGreaterThan(0);
+    expect(happened.adrift, 'the boat told adrift').toBeGreaterThan(0);
+    expect(done['drifted'], 'the boat drifted').toBeGreaterThan(0);
+    expect(done['cast adrift'], 'a cast thrown adrift').toBeGreaterThan(0);
+    expect(done['bobber drifted'], 'a bobber drifted').toBeGreaterThan(0);
   });
 
   it('plays the same way twice from a seed', () => {

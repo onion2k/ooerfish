@@ -34,7 +34,7 @@ export interface LakeSave {
    * the player is ashore, the boat at its mooring, which is how every save from before the boat reads. A row under way is
    * never saved, so a load lands at the last anchorage.
    */
-  boat: { x: number; y: number; heading: number } | null;
+  boat: { x: number; y: number; heading: number; anchored: boolean } | null;
 }
 
 export interface Save {
@@ -232,14 +232,16 @@ function readPhotos(raw: unknown, save: Save, lakes: Record<string, Lake>): Phot
 
 /**
  * The boat as anyone may have written it: a point and a heading, each a finite number, or else none, which is ashore.
- * Whether the point is on the water is the game's to say when it loads, since the lake is what knows.
+ * Whether its anchor is down is a boolean, and anything else (a C2 save has none) is down. Whether the point is on the
+ * water is the game's to say when it loads, since the lake is what knows.
  */
 function readBoat(raw: unknown): LakeSave['boat'] {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
   const e = raw as Record<string, unknown>;
   const { x, y, heading } = e;
   if (typeof x !== 'number' || typeof y !== 'number' || typeof heading !== 'number') return null;
-  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(heading) ? { x, y, heading } : null;
+  const anchored = typeof e.anchored === 'boolean' ? e.anchored : true;
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(heading) ? { x, y, heading, anchored } : null;
 }
 
 const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [], boat: null });

@@ -242,6 +242,8 @@ export interface GameApi {
     heading: number;
     aboard: boolean;
     rowing: boolean;
+    /** Whether the anchor is down: true ashore and after every row, false only aboard and not rowing, when the boat drifts (C3). */
+    anchored: boolean;
     from: [number, number];
     to: [number, number];
     body: { x: number; y: number; held: boolean };
@@ -252,6 +254,8 @@ export interface GameApi {
   row(x: number, y: number): boolean;
   /** The boat rowed home and the player stepped off; false, and nothing changed, where `Game.land` refuses. */
   land(): boolean;
+  /** The anchor dropped (true) or weighed (false) (`docs/boat.md`, C3); false, and nothing changed, where `Game.anchor` refuses. */
+  anchor(down: boolean): boolean;
   /** Where the angler stands and holds the rod: the lake's place ashore, the boat's seat aboard. */
   anglerAt(): { x: number; y: number; tipHeight: number; tipReach: number };
   /** Where a fish is landed: the lake's landing ashore, beside the seat aboard. */
@@ -734,6 +738,7 @@ export function createApi(host: DebugHost): GameApi {
       heading: game.boat.heading,
       aboard: game.boat.aboard,
       rowing: game.boat.rowing,
+      anchored: game.boat.anchored,
       from: [game.boat.fromX, game.boat.fromY],
       to: [game.boat.toX, game.boat.toY],
       body: { x: game.bodies.boatX, y: game.bodies.boatY, held: game.bodies.boatHeld },
@@ -741,6 +746,7 @@ export function createApi(host: DebugHost): GameApi {
     }),
     row: (x, y) => game.row(x, y),
     land: () => game.land(),
+    anchor: (down) => game.anchor(down),
     anglerAt: () => {
       const { x, y, tipHeight, tipReach } = game.anglerAt();
       return { x, y, tipHeight, tipReach };

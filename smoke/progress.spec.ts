@@ -3129,3 +3129,70 @@ test.describe('the boat', () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe('the boat adrift', () => {
+  const state = (page: Page) => page.evaluate(() => window.game!.boat());
+
+  test('Weigh anchor, the wind carries the boat and a bobber, Drop anchor holds it, the A key weighs it again', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await play(page, 30, 'half a second at the pond');
+    // ashore there is no anchor to weigh: the button is hidden
+    await expect(page.locator('#anchorButton')).toBeHidden();
+
+    // rowed out and anchored at the spot
+    const spot = HOME.boat!.spot;
+    expect(await page.evaluate(([x, y]) => window.game!.row(x, y), spot)).toBe(true);
+    const row = await state(page);
+    const frames = Math.ceil((Math.hypot(row.to[0] - row.from[0], row.to[1] - row.from[1]) / BOAT.speed) * 60) + 2;
+    await expect(page.locator('#anchorButton')).toBeDisabled();
+    await play(page, frames, 'the row');
+    expect((await state(page)).anchored).toBe(true);
+    await expect(page.locator('#anchorButton')).toBeVisible();
+    await expect(page.locator('#anchorButton')).toBeEnabled();
+    await expect(page.locator('#anchorButton')).toHaveText('Weigh anchor');
+
+    // weighed by the button: the boat is free, and the button offers to drop it
+    await page.locator('#anchorButton').click();
+    expect((await state(page)).anchored).toBe(false);
+    await expect(page.locator('#anchorButton')).toHaveText('Drop anchor');
+
+    // in the wind the boat drifts
+    expect(await page.evaluate(() => window.game!.weather('wind'))).toBe(true);
+    const before = await state(page);
+    await play(page, 600, 'ten seconds adrift');
+    const after = await state(page);
+    expect(Math.hypot(after.x - before.x, after.y - before.y), 'the boat drifted').toBeGreaterThan(1);
+
+    // a cast from the seat toward the middle lands, and its bobber is carried downwind
+    expect(await page.evaluate(() => window.game!.cast(0, 0.6))).toBe(true);
+    await play(page, 120, 'the cast landed');
+    const landed = (await page.evaluate(() => window.game!.lure())).bobber;
+    await play(page, 300, 'five seconds on the wind');
+    const drifted = (await page.evaluate(() => window.game!.lure())).bobber;
+    expect(Math.hypot(drifted[0] - landed[0], drifted[1] - landed[1]), 'the bobber drifted').toBeGreaterThan(1);
+
+    // reeled in, since a lure thrown from where the boat was is not the seat's once the anchor holds it elsewhere, and
+    // then dropped: the boat is still
+    await page.evaluate(() => window.game!.reelIn());
+    await page.locator('#anchorButton').click();
+    await expect(page.locator('#anchorButton')).toHaveText('Weigh anchor');
+    const held = await state(page);
+    await play(page, 120, 'two seconds at anchor');
+    const still = await state(page);
+    expect(Math.hypot(still.x - held.x, still.y - held.y), 'held').toBeLessThan(1e-3);
+
+    // the A key weighs it again
+    // (not over the focused button, where a key is only what it presses, as C and R are)
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await page.keyboard.press('a');
+    expect((await state(page)).anchored).toBe(false);
+    await expect(page.locator('#anchorButton')).toHaveText('Drop anchor');
+
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});

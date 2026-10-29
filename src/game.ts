@@ -16,6 +16,7 @@ import { Line } from './line';
 import {
   BOAT,
   CLOCK,
+  DRIFT,
   LINE_DRAW,
   NIGHT,
   ROPE,
@@ -34,7 +35,7 @@ import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
 import { NO_WIND, bentTip, rodTip } from './cast';
 import { Rope } from './rope';
-import { Bodies, newWorld } from './physics';
+import { Bodies, KIND, newWorld } from './physics';
 import type { Lake, Stand } from './lakes/lake';
 import { HOME, LAKES } from './lakes';
 import { anglerAboard, landingAboard, newBoat, rowAt, rowPath, type BoatState } from './boat';
@@ -94,8 +95,10 @@ export interface GameEvents {
   left?(id: string): void;
   /** The boat began a row, boarding first if the player was ashore, to this point on the water (a landing is a row to the mooring). */
   rowed?(x: number, y: number): void;
-  /** A row ended at this anchorage, the player aboard and the save written there. */
+  /** A row ended at this anchorage, or the anchor was dropped here, the player aboard and the save written there. */
   anchored?(x: number, y: number): void;
+  /** The anchor was weighed: the boat is free to drift on the wind and the currents (`docs/boat.md`, C3). */
+  adrift?(): void;
   /** The boat reached its mooring and the player stepped off: the boat is ashore, and the save says so. */
   ashore?(): void;
 }
@@ -281,8 +284,11 @@ export class Game {
       this.boat.y = saved.y;
       this.boat.heading = saved.heading;
       this.boat.aboard = true;
+      this.boat.anchored = saved.anchored;
     } else if (saved) mine.boat = null;
     this.bodies = new Bodies(newWorld(lake), lake, this.landing(), lake.boat ? [this.boat.x, this.boat.y] : null);
+    // a boat saved adrift drifts on from where it was
+    if (!this.boat.anchored) this.bodies.letGoBoat();
     this.contamination = lake.contaminationAfter(mine.cured, mine.drums);
     this.drums.loadFirst(mine.drums);
     this.treasures.load(mine.found.map((id) => lake.treasures.list.findIndex((t) => t.id === id)));
@@ -391,6 +397,7 @@ export class Game {
       this.bodies.drop(landed[0], landed[1]);
     }
     this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.timeOfDay, this.drums, this.treasures);
+    this.blow(dt);
     this.stepBodies(dt);
     if (this.bite.phase === 'hooked') this.fight(dt);
     // the stroke last, once every fish has moved for the step however it was moved
@@ -405,15 +412,39 @@ export class Game {
    * from it: one that has not is the lure's own place rounded, and writing that would round the lure for nothing.
    */
   private stepBodies(dt: number) {
-    const { bodies, lure } = this;
+    const { bodies, lure, boat, lake } = this;
     bodies.step(dt);
+    // a boat adrift is read back from its body, unless that is off the water by the keep-off: then it is put back where
+    // it was and stopped, so it is held at the last of the water and never aground; the heading holds
+    if (boat.aboard && !boat.anchored && !boat.rowing) {
+      const bx = bodies.boatX,
+        by = bodies.boatY;
+      if (bx !== Math.fround(boat.x) || by !== Math.fround(boat.y)) {
+        if (lake.inside(bx, by, BOAT.keepOff)) {
+          boat.x = bx;
+          boat.y = by;
+        } else bodies.stillBoat(boat.x, boat.y);
+      }
+    }
     if (lure.phase !== 'sinking') return;
     if (bodies.x !== Math.fround(lure.bobber[0]) || bodies.y !== Math.fround(lure.bobber[1])) {
-      lure.bobber[0] = bodies.x;
-      lure.bobber[1] = bodies.y;
+      // likewise the bobber against the margin of the bank, so a lure is never blown onto the grass
+      if (lake.inside(bodies.x, bodies.y, DRIFT.bank)) {
+        lure.bobber[0] = bodies.x;
+        lure.bobber[1] = bodies.y;
+      } else bodies.still(lure.bobber[0], lure.bobber[1]);
     }
     lure.at[0] = lure.bobber[0];
     lure.at[1] = lure.bobber[1];
+  }
+
+  /** The wind's push on the free bodies for a step: the bobber and the boat adrift, in the wind weather and no other. */
+  private blow(dt: number) {
+    if (this.weather !== 'wind') return;
+    const [dx, dy] = WEATHER.wind.direction;
+    const { bobber, boat } = DRIFT.wind;
+    this.bodies.blow(KIND.bobber, bobber * dx, bobber * dy, dt);
+    this.bodies.blow(KIND.boat, boat * dx, boat * dy, dt);
   }
 
   /**
@@ -1073,7 +1104,10 @@ export class Game {
         mine.boat.x = this.boat.x;
         mine.boat.y = this.boat.y;
         mine.boat.heading = this.boat.heading;
-      } else mine.boat = { x: this.boat.x, y: this.boat.y, heading: this.boat.heading };
+        mine.boat.anchored = this.boat.anchored;
+      } else {
+        mine.boat = { x: this.boat.x, y: this.boat.y, heading: this.boat.heading, anchored: this.boat.anchored };
+      }
     }
     this.progress.persist();
   }
@@ -1120,6 +1154,31 @@ export class Game {
     return true;
   }
 
+  /**
+   * The anchor weighed (`down` false) or dropped (true), docs/boat.md C3: weighed, the boat's body is let go where it
+   * lies and drifts on the wind and the currents, told as `adrift`; dropped, it is held where it has got to, told as
+   * `anchored`. Either way the save is written. Refused, and nothing changed, at a lake with no boat, ashore, while
+   * rowing, away from the pond, while a photograph is looked at, and when the anchor is so already. A fight neither
+   * refuses it nor is refused by it, and the seat goes with the boat.
+   */
+  anchor(down: boolean): boolean {
+    const { boat } = this;
+    if (typeof down !== 'boolean') return false;
+    if (!this.lake.boat || !boat.aboard || boat.rowing || this.place !== 'pond' || this.still) return false;
+    if (boat.anchored === down) return false;
+    boat.anchored = down;
+    if (down) {
+      this.bodies.holdBoat();
+      this.persist();
+      this.events.anchored?.(boat.x, boat.y);
+    } else {
+      this.bodies.letGoBoat();
+      this.persist();
+      this.events.adrift?.();
+    }
+    return true;
+  }
+
   /** Whether a row or a landing may begin now, apart from where it goes. */
   private mayRow(): boolean {
     return !(!this.lake.boat || this.place !== 'pond' || this.fighting || this.boat.rowing || this.still);
@@ -1138,6 +1197,9 @@ export class Game {
     if (Math.hypot(x - boat.x, y - boat.y) > 0) boat.heading = Math.atan2(y - boat.y, x - boat.x);
     boat.aboard = true;
     boat.rowing = true;
+    // a row carries the boat, whether it was adrift or at anchor
+    boat.anchored = true;
+    this.bodies.holdBoat();
     this.landingIn = home;
     this.events.rowed?.(x, y);
   }
@@ -1168,6 +1230,8 @@ export class Game {
     const m = this.lake.boat?.mooring;
     boat.aboard = false;
     boat.rowing = false;
+    boat.anchored = true;
+    this.bodies.holdBoat();
     this.landingIn = false;
     if (m) {
       boat.x = boat.fromX = boat.toX = m.x;

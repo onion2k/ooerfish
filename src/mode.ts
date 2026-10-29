@@ -57,6 +57,11 @@ export function wording(mode: Mode): { button: string; hint: string } {
     : { button: 'Look round', hint: 'drag back to cast, tap to strike, hold to reel, C to look round' };
 }
 
+/** The Anchor button's words: what it does next, so "Weigh anchor" while the anchor is down (`docs/boat.md`, C3). */
+export function anchorWording(anchored: boolean): string {
+  return anchored ? 'Weigh anchor' : 'Drop anchor';
+}
+
 /** What the Row button says it will do next: Row in look and cast, and Look round when row mode is on. */
 export function rowWording(mode: Mode): { button: string } {
   return { button: mode === 'row' ? 'Look round' : 'Row' };

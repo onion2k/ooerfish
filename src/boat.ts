@@ -14,7 +14,8 @@ const SAMPLE = 0.5;
 
 /**
  * The boat's state: where its middle is and the way it points (radians round from east), whether the player is aboard
- * and whether it is being rowed, and the row in train: where it began, where it will end and the game time it began.
+ * and whether it is being rowed, whether its anchor is down (true ashore, and at the end of every row; false only aboard
+ * and not rowing, when the boat drifts, `docs/boat.md`, C3), and the row in train: where it began, where it will end and the game time it began.
  * The row's figures mean nothing while it is not rowing.
  */
 export interface BoatState {
@@ -23,6 +24,7 @@ export interface BoatState {
   heading: number;
   aboard: boolean;
   rowing: boolean;
+  anchored: boolean;
   fromX: number;
   fromY: number;
   toX: number;
@@ -39,6 +41,7 @@ export function newBoat(lake: Lake): BoatState {
     heading: m.heading,
     aboard: false,
     rowing: false,
+    anchored: true,
     fromX: m.x,
     fromY: m.y,
     toX: m.x,

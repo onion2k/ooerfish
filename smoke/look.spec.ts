@@ -1594,6 +1594,52 @@ test.describe('the boat', () => {
     expect(problems).toEqual([]);
   });
 
+  // anchor weighed in the wind: the boat carried off the spot and the bobber with it, the third button reading Drop anchor
+  async function adrift(page: Page) {
+    await anchored(page);
+    await page.evaluate(async () => {
+      const g = window.game!;
+      g.anchor(false);
+      await g.weather('wind');
+      g.cast(g.boat().heading + 0.2, 0.6);
+      g.step(1200);
+    });
+    expect(await page.evaluate(() => window.game!.boat())).toMatchObject({ aboard: true, anchored: false });
+    await expect(page.locator('#anchorButton')).toHaveText('Drop anchor');
+    expect(await page.evaluate(() => window.game!.lure().phase)).toBe('sinking');
+  }
+
+  test('wind-drift', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, STANDARD, 60);
+    const landed = await page.evaluate(async () => {
+      const g = window.game!;
+      await g.weather('wind');
+      g.cast(Math.PI / 2, 0.6);
+      g.step(60);
+      const at = g.lure().bobber.slice();
+      g.step(720);
+      return { at, now: g.lure().bobber.slice() };
+    });
+    // the bobber lies downwind of where the first second left it
+    expect(Math.hypot(landed.now[0] - landed.at[0], landed.now[1] - landed.at[1])).toBeGreaterThan(0.5);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('wind-drift.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-adrift', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, { ...STANDARD, dirt: 0.2 }, 60);
+    await adrift(page);
+    const boat = await page.evaluate(() => window.game!.boat());
+    expect(Math.hypot(boat.x - SPOT[0], boat.y - SPOT[1])).toBeGreaterThan(0.5);
+    await expect(page).toHaveScreenshot('boat-adrift.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   test('boat-winter', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true, save: { cured: 6, day: 29 } });
@@ -1622,6 +1668,15 @@ test.describe('the boat', () => {
       await start(page, { seed: 11, paused: true, save: { cured: 8 } });
       await set(page, { ...STANDARD, view: 'phone' }, 60);
       await expect(page).toHaveScreenshot('phone-boat-moored.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+
+    test('phone-boat-adrift', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+      await set(page, { ...STANDARD, dirt: 0.2, view: 'phone' }, 60);
+      await adrift(page);
+      await expect(page).toHaveScreenshot('phone-boat-adrift.png', TOLERANCE);
       expect(problems).toEqual([]);
     });
   });

@@ -8,7 +8,7 @@ import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { BOAT, CLOCK, KINDS, RELEASE, ROPE } from '../src/lake';
+import { BOAT, CLOCK, DRIFT, KINDS, RELEASE, ROPE, WEATHER } from '../src/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
@@ -1550,16 +1550,21 @@ describe('the boat (`docs/boat.md`, C2)', () => {
       expect(game.boat).toMatchObject({ x: tx, y: ty, heading, aboard: true, rowing: false });
       expect(told).toEqual(['rowed 0.00,-5.00', 'anchored 0.00,-5.00']);
       expect(game.t).toBeCloseTo(length / BOAT.speed, 1);
-      expect(saved(store)).toEqual({ x: tx, y: ty, heading });
+      expect(saved(store)).toEqual({ x: tx, y: ty, heading, anchored: true });
     });
 
     it('goes on from an anchorage to another, the save keeping the last anchorage while under way', () => {
       const { game, store } = anchoredAt(0, -5);
       expect(game.row(-10, 6)).toBe(true);
       game.persist();
-      expect(saved(store)).toEqual({ x: 0, y: -5, heading: Math.atan2(-5 - MOORING.y, 0 - MOORING.x) });
+      expect(saved(store)).toEqual({
+        x: 0,
+        y: -5,
+        heading: Math.atan2(-5 - MOORING.y, 0 - MOORING.x),
+        anchored: true,
+      });
       arrive(game);
-      expect(saved(store)).toEqual({ x: -10, y: 6, heading: Math.atan2(11, -10) });
+      expect(saved(store)).toEqual({ x: -10, y: 6, heading: Math.atan2(11, -10), anchored: true });
     });
 
     it('reads back from the save: aboard at the anchorage, anchored, fishing from there', () => {
@@ -1646,9 +1651,10 @@ describe('the boat (`docs/boat.md`, C2)', () => {
     it('is a cast thrown from the seat’s tip, and flies and lands from there', () => {
       const { game } = anchoredAt(0, -5);
       const stand = { ...game.anglerAt() };
-      expect(game.cast(NORTH, 0.5)).toBe(true);
+      // north-west, off the pond's current, which would carry the bobber away from where the flight lands it
+      expect(game.cast(NORTH + 0.5, 0.5)).toBe(true);
       expect([...game.lure.at]).toEqual(rodTip(HOME, stand));
-      const f = flight(NORTH, 0.5, HOME, [0, 0], stand);
+      const f = flight(NORTH + 0.5, 0.5, HOME, [0, 0], stand);
       for (let i = 0; i < 400 && game.lure.phase === 'flying'; i++) game.step(DT);
       expect(game.lure.phase).toBe('sinking');
       expect(game.lure.bobber[0]).toBeCloseTo(f.landing[0], 6);
@@ -1825,6 +1831,409 @@ describe('the boat (`docs/boat.md`, C2)', () => {
       sleepThrough(game);
       expect(game.boat.aboard).toBe(false);
       expect(saved(store)).toBeNull();
+    });
+  });
+});
+
+describe('the boat adrift (`docs/boat.md`, C3)', () => {
+  const MOORING = HOME.boat!.mooring;
+  const NORTH = Math.PI / 2;
+  const [WX, WY] = WEATHER.wind.direction;
+  /** What a steady push is divided by to give the drift it settles at, measured (the floor's drag and the settling's). */
+  const TEN = 10;
+
+  /** Every fish cured and every drum hauled, so nothing bites and the save agrees with the pond. */
+  const CLEAN = JSON.stringify({
+    cured: 12,
+    journal: {
+      bream: { caught: 4, best: 0.85, first: 1 },
+      perch: { caught: 5, best: 1.9, first: 1 },
+      pike: { caught: 3, best: 3.1, first: 1 },
+    },
+  });
+
+  /** A game at the pond with the boat's events kept in order, and (unless a save is handed in) no fish to bite. */
+  function adriftGame(seed = 1, json: string | null = CLEAN, lake: Lake = HOME) {
+    const told: string[] = [];
+    const store = memoryStore(json);
+    const game = new Game(new Progress(store, LAKES), {
+      lake,
+      random: seeded(seed),
+      events: {
+        rowed: () => told.push('rowed'),
+        anchored: (x, y) => told.push(`anchored ${x.toFixed(2)},${y.toFixed(2)}`),
+        adrift: () => told.push('adrift'),
+        ashore: () => told.push('ashore'),
+      },
+    });
+    return { game, told, store };
+  }
+
+  /** Step until the boat is no longer rowing. */
+  function arrive(game: Game) {
+    for (let f = 0; f < 90 * 60 && game.boat.rowing; f++) game.step(DT);
+    expect(game.boat.rowing).toBe(false);
+  }
+
+  /** The game anchored at (x, y), aboard. */
+  function anchoredAt(x: number, y: number, seed = 1, json: string | null = CLEAN) {
+    const made = adriftGame(seed, json);
+    expect(made.game.row(x, y)).toBe(true);
+    arrive(made.game);
+    return made;
+  }
+
+  /** The distance a point has gone along the wind's direction from (x0, y0). */
+  const downwind = (x: number, y: number, x0: number, y0: number) => (x - x0) * WX + (y - y0) * WY;
+
+  const saved = (store: { json: string | null }) => (JSON.parse(store.json!) as Save).lakes[HOME.id].boat;
+
+  /** A cast from the game's stand that lands on the water, stepped until it sinks. */
+  function sinking(game: Game, angle = NORTH + 0.5, power = 0.5) {
+    expect(game.cast(angle, power)).toBe(true);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+  }
+
+  /** The bobber put on the water at (x, y), free and sinking, as a cast landing there would leave it. */
+  function bobberAt(game: Game, x: number, y: number) {
+    sinking(game);
+    game.lure.bobber[0] = x;
+    game.lure.bobber[1] = y;
+    game.bodies.drop(x, y);
+  }
+
+  describe('anchor refuses, and changes nothing, for', () => {
+    const looks = (game: Game) =>
+      JSON.stringify([game.boat, game.lure.phase, game.bite.phase, game.place, game.bodies.boatHeld, game.levers]);
+    const refuses = (game: Game, down: boolean, told: string[]) => {
+      const before = looks(game);
+      expect(game.anchor(down)).toBe(false);
+      expect(looks(game)).toBe(before);
+      expect(told).not.toContain('adrift');
+    };
+
+    it('a lake with no boat', () => {
+      const { game, told } = adriftGame(1, CLEAN, { ...HOME, boat: null });
+      refuses(game, false, told);
+      refuses(game, true, told);
+    });
+
+    it('a player ashore', () => {
+      const { game, told } = adriftGame();
+      refuses(game, false, told);
+      refuses(game, true, told);
+    });
+
+    it('a boat being rowed', () => {
+      const { game, told } = adriftGame();
+      expect(game.row(0, -5)).toBe(true);
+      told.length = 0;
+      refuses(game, false, told);
+      refuses(game, true, told);
+    });
+
+    it('anywhere but the pond: the yawn, a journey', () => {
+      const yawning = anchoredAt(0, -5);
+      yawning.game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+      yawning.game.step(DT);
+      expect(yawning.game.place).toBe('yawning');
+      refuses(yawning.game, false, yawning.told);
+      const leaving = anchoredAt(0, -5);
+      leaving.game.boat.aboard = false;
+      leaving.game.boat.x = MOORING.x;
+      leaving.game.boat.y = MOORING.y;
+      leaving.game.bodies.putBoat(MOORING.x, MOORING.y);
+      expect(leaving.game.travel('reservoir')).toBe(true);
+      refuses(leaving.game, false, leaving.told);
+    });
+
+    it('a photograph looked at', () => {
+      const { game, told } = anchoredAt(0, -5);
+      game.progress.save.photos.push({
+        lake: HOME.id,
+        day: 1,
+        time: 0.4,
+        weather: 'sunny',
+        view: { x: 0, y: 0, z: 0, azimuth: 0, polar: 1, radius: 30 },
+        kinds: [],
+        lit: false,
+      });
+      expect(game.lookAt(0)).toBe(true);
+      refuses(game, false, told);
+    });
+
+    it('the anchor already so, and a word that is not a boolean', () => {
+      const { game, told } = anchoredAt(0, -5);
+      refuses(game, true, told);
+      expect(game.anchor(false)).toBe(true);
+      told.length = 0;
+      refuses(game, false, told);
+      expect((game as unknown as { anchor(d: unknown): boolean }).anchor('yes')).toBe(false);
+      expect((game as unknown as { anchor(d: unknown): boolean }).anchor(undefined)).toBe(false);
+      expect(told).toEqual([]);
+    });
+  });
+
+  describe('weighing and dropping the anchor', () => {
+    it('lets the body go, tells it and saves it adrift', () => {
+      const { game, told, store } = anchoredAt(0, -5);
+      told.length = 0;
+      expect(game.anchor(false)).toBe(true);
+      expect(told).toEqual(['adrift']);
+      expect(game.boat.anchored).toBe(false);
+      expect(game.bodies.boatHeld).toBe(false);
+      expect(saved(store)).toMatchObject({ x: 0, y: -5, anchored: false });
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('holds the body again where the boat has got to, tells it and saves it anchored', () => {
+      const { game, told, store } = anchoredAt(0, -5);
+      game.setWeather('wind');
+      game.anchor(false);
+      settle(game, 60 * 5);
+      const { x, y } = game.boat;
+      expect(Math.hypot(x, y + 5)).toBeGreaterThan(0.3);
+      told.length = 0;
+      expect(game.anchor(true)).toBe(true);
+      expect(told).toEqual([`anchored ${x.toFixed(2)},${y.toFixed(2)}`]);
+      expect(game.boat.anchored).toBe(true);
+      expect(game.bodies.boatHeld).toBe(true);
+      expect(saved(store)).toMatchObject({ x, y, anchored: true });
+      settle(game, 60 * 5);
+      expect([game.boat.x, game.boat.y]).toEqual([x, y]);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is taken by a row from adrift: the body held, the anchor down, and the row made', () => {
+      const { game } = anchoredAt(0, -5);
+      game.anchor(false);
+      expect(game.row(-10, 6)).toBe(true);
+      expect(game.boat.anchored).toBe(true);
+      expect(game.bodies.boatHeld).toBe(true);
+      expect(checkInvariants(game)).toEqual([]);
+      arrive(game);
+      expect([game.boat.x, game.boat.y]).toEqual([-10, 6]);
+      game.anchor(false);
+      expect(game.land()).toBe(true);
+      expect(game.bodies.boatHeld).toBe(true);
+      arrive(game);
+      expect(game.boat.aboard).toBe(false);
+      expect(game.boat.anchored).toBe(true);
+    });
+  });
+
+  describe('in the wind', () => {
+    it('carries a weighed boat downwind at about the push over ten, and an anchored one not at all', () => {
+      const { game } = anchoredAt(-10, -5);
+      game.setWeather('wind');
+      settle(game, 60 * 10);
+      expect([game.boat.x, game.boat.y], 'anchored').toEqual([-10, -5]);
+      game.anchor(false);
+      settle(game, 60 * 10);
+      const v = downwind(game.boat.x, game.boat.y, -10, -5) / 10;
+      expect(v).toBeGreaterThan((DRIFT.wind.boat / TEN) * 0.7);
+      expect(v).toBeLessThan((DRIFT.wind.boat / TEN) * 1.3);
+      expect(game.boat.heading, 'it does not turn').toBe(Math.atan2(-5 - MOORING.y, -10 - MOORING.x));
+      expect(Math.hypot(game.bodies.boatX - game.boat.x, game.bodies.boatY - game.boat.y)).toBeLessThan(1e-3);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('carries a free bobber downwind at about the push over ten, the rope’s end going with it', () => {
+      const { game } = adriftGame();
+      game.setWeather('wind');
+      sinking(game);
+      const [x0, y0] = [game.lure.bobber[0], game.lure.bobber[1]];
+      settle(game, 60 * 10);
+      const v = downwind(game.lure.bobber[0], game.lure.bobber[1], x0, y0) / 10;
+      expect(v).toBeGreaterThan((DRIFT.wind.bobber / TEN) * 0.7);
+      expect(v).toBeLessThan((DRIFT.wind.bobber / TEN) * 1.3);
+      expect(game.lineEnd[0]).toBeCloseTo(game.bodies.x, 3);
+      expect(game.lineEnd[1]).toBeCloseTo(game.bodies.y, 3);
+      expect(game.lure.at[0]).toBe(game.lure.bobber[0]);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('blows nothing in the other weathers, and the bobber sleeps where it was cast', () => {
+      for (const weather of ['sunny', 'rain', 'fog', 'shower']) {
+        const { game } = adriftGame();
+        game.setWeather(weather);
+        sinking(game);
+        const [x0, y0] = [game.lure.bobber[0], game.lure.bobber[1]];
+        settle(game, 60 * 10);
+        expect(Math.hypot(game.lure.bobber[0] - x0, game.lure.bobber[1] - y0), weather).toBeLessThan(1e-4);
+        expect(game.bodies.asleep, weather).toBe(true);
+      }
+    });
+
+    it('stops the drift when the wind drops, the drag stilling the body', () => {
+      const { game } = anchoredAt(-10, -5);
+      game.anchor(false);
+      game.setWeather('wind');
+      settle(game, 60 * 5);
+      game.setWeather('sunny');
+      settle(game, 60 * 3);
+      const [x, y] = [game.boat.x, game.boat.y];
+      settle(game, 60 * 5);
+      expect(Math.hypot(game.boat.x - x, game.boat.y - y)).toBeLessThan(1e-3);
+    });
+  });
+
+  describe('on a current', () => {
+    const c = HOME.currents[0];
+    const alongOf = (x: number, y: number) => (x - c.x) * Math.cos(c.heading) + (y - c.y) * Math.sin(c.heading);
+
+    it('carries a bobber along it at about its speed within a second, and the rope’s end goes with it', () => {
+      const { game } = adriftGame();
+      bobberAt(game, c.x, c.y + 4);
+      const start = alongOf(game.bodies.x, game.bodies.y);
+      settle(game, 60);
+      const gone = alongOf(game.bodies.x, game.bodies.y) - start;
+      expect(gone, 'along the flow').toBeGreaterThan(c.speed * 0.4);
+      expect(gone).toBeLessThan(c.speed * 1.2);
+      const v1 = game.bodies.world.vy[game.bodies.bobber];
+      expect(Math.abs(v1)).toBeGreaterThan(c.speed * 0.5);
+      expect(game.lure.bobber[1]).toBeCloseTo(game.bodies.y, 3);
+      expect(game.lineEnd[1]).toBeCloseTo(game.bodies.y, 3);
+      settle(game, 60 * 5);
+      expect(game.bodies.asleep).toBe(false);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('lifts the lure over the shallows as the bobber is carried, its depth following the bed', () => {
+      const { game } = adriftGame();
+      bobberAt(game, c.x, c.y + 6);
+      settle(game, 60 * 3);
+      const stopAt = () => Math.max(0, Math.min(5, HOME.bedDepth(game.lure.bobber[0], game.lure.bobber[1]) - 0.3));
+      let moved = 0;
+      for (let f = 0; f < 60 * 12; f++) {
+        const [x, y] = [game.lure.bobber[0], game.lure.bobber[1]];
+        game.step(DT);
+        moved += Math.hypot(game.lure.bobber[0] - x, game.lure.bobber[1] - y);
+        expect(game.lure.depth, `frame ${f}`).toBeLessThanOrEqual(stopAt() + 1e-9);
+      }
+      expect(moved).toBeGreaterThan(2);
+    });
+
+    it('carries a weighed boat too, and an anchored one not', () => {
+      const { game } = anchoredAt(c.x, c.y + 4);
+      settle(game, 60 * 4);
+      expect(game.boat.y).toBe(c.y + 4);
+      game.anchor(false);
+      settle(game, 60 * 4);
+      expect(game.boat.y).toBeLessThan(c.y + 4 - 0.5);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+  });
+
+  describe('at the bank', () => {
+    it('holds a bobber blown at the bank at least DRIFT.bank in, on the water, a minute and more', () => {
+      const { game } = adriftGame();
+      game.setWeather('wind');
+      sinking(game);
+      // start it where the wind has the bank within a minute: the middle, with the east shore some 30 units off
+      bobberAt(game, 0, 0);
+      let nearest = Infinity;
+      for (let f = 0; f < 60 * 150; f++) {
+        game.step(DT);
+        expect(HOME.inside(game.bodies.x, game.bodies.y, DRIFT.bank), `frame ${f}`).toBe(true);
+        expect(HOME.inside(game.lure.bobber[0], game.lure.bobber[1], DRIFT.bank), `frame ${f}`).toBe(true);
+        nearest = Math.min(nearest, HOME.inward(game.bodies.x, game.bodies.y));
+        if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      // it got to the bank: it was blown for 150 s at 0.4 u/s, 60 units, further than the pond’s half width
+      expect(Math.hypot(game.bodies.x, game.bodies.y)).toBeGreaterThan(15);
+      expect(nearest).toBeGreaterThan(0);
+    });
+
+    it('holds a weighed boat blown at the bank at least BOAT.keepOff in, on the water, and keeps its heading', () => {
+      const { game } = anchoredAt(0, 0);
+      const heading = game.boat.heading;
+      game.setWeather('wind');
+      game.anchor(false);
+      for (let f = 0; f < 60 * 240; f++) {
+        game.step(DT);
+        expect(HOME.inside(game.boat.x, game.boat.y, BOAT.keepOff), `frame ${f}`).toBe(true);
+        if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(Math.hypot(game.boat.x, game.boat.y), 'it got to the bank').toBeGreaterThan(15);
+      expect(game.boat.heading).toBe(heading);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('holds both, the boat with a cast out, drifting together', () => {
+      const { game } = anchoredAt(0, 0);
+      game.setWeather('wind');
+      game.anchor(false);
+      sinking(game, NORTH, 0.3);
+      for (let f = 0; f < 60 * 200; f++) {
+        game.step(DT);
+        if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(HOME.inside(game.boat.x, game.boat.y, BOAT.keepOff)).toBe(true);
+      expect(HOME.inside(game.bodies.x, game.bodies.y, DRIFT.bank)).toBe(true);
+    });
+  });
+
+  describe('the reservoir', () => {
+    it('weighs its boat by the dam and holds it on the water in the wind', () => {
+      const { game } = adriftGame(1, null, RESERVOIR);
+      expect(game.row(...RESERVOIR.boat!.spot)).toBe(true);
+      arrive(game);
+      expect(game.anchor(false)).toBe(true);
+      game.setWeather('wind');
+      for (let f = 0; f < 60 * 120; f++) {
+        game.step(DT);
+        if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(RESERVOIR.inside(game.boat.x, game.boat.y, BOAT.keepOff)).toBe(true);
+    });
+  });
+
+  describe('the day’s end', () => {
+    it('yawns with the boat adrift, and wakes ashore at the mooring, anchored, the body held', () => {
+      const { game, store } = anchoredAt(0, -5);
+      game.anchor(false);
+      game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+      game.step(DT);
+      expect(game.place).toBe('yawning');
+      expect(game.boat).toMatchObject({ aboard: true, anchored: false });
+      expect(checkInvariants(game)).toEqual([]);
+      sleepThrough(game);
+      expect(game.place).toBe('cabin');
+      expect(game.boat).toMatchObject({ aboard: false, anchored: true, x: MOORING.x, y: MOORING.y });
+      expect(game.bodies.boatHeld).toBe(true);
+      expect(saved(store)).toBeNull();
+      expect(game.out()).toBe(true);
+      settle(game, 60 * 5);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+  });
+
+  describe('a fish on the line', () => {
+    it('is fought from a seat that drifts, neither refusing the anchor nor refused by it', () => {
+      let tried = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const { game } = anchoredAt(0, -5, seed, null);
+        // cast toward the middle, where the fish are, and wait for a bite
+        game.cast(NORTH, 0.35);
+        for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+        if (game.bite.phase !== 'biting' || game.strike() !== 'hooked') continue;
+        tried++;
+        game.setWeather('wind');
+        expect(game.anchor(false)).toBe(true);
+        const [x0, y0] = [game.boat.x, game.boat.y];
+        for (let f = 0; f < 60 * 6 && (game.bite.phase as string) === 'hooked'; f++) {
+          game.reel(f % 40 < 20);
+          game.step(DT);
+          expect(checkInvariants(game), `seed ${seed} frame ${f}`).toEqual([]);
+        }
+        expect(Math.hypot(game.boat.x - x0, game.boat.y - y0), `seed ${seed}`).toBeGreaterThan(0.05);
+        expect(game.anchor(true)).toBe(true);
+        expect(game.anchor(false)).toBe(true);
+        expect(checkInvariants(game)).toEqual([]);
+      }
+      expect(tried, 'some seed hooked a fish').toBeGreaterThan(0);
     });
   });
 });

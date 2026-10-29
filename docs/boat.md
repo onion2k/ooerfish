@@ -385,6 +385,178 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
 - **Not verified:** the row in play on the live site; the boat's figures (its speed, where it moors, the hull) are
   first guesses for the play-test; nothing drifts yet.
 
+## C3. Drift, wind and current
+
+### Context
+
+The fourth slice of Part C (`docs/boat.md`; C0 the rope, C1 the bobber's body and C2 the rowed boat are in, a0cb7a4).
+`DESIGN.md` stage 8: "wind and current make it drift, carrying the lure and moving the line". Decided with the user
+(29 Oct 2026): **a row still ends anchored**, as it does now, and the anchor is **weighed to drift** and dropped to
+hold, so nothing already built moves; the control is **a third button beside Cast and Row, shown only aboard**
+("Weigh anchor" / "Drop anchor", the A key), wrapping under the pair on a phone's portrait. The bobber, let go on the
+water since C1, drifts whether or not the boat does, so the wind is felt from the shore too. The physics does the
+carrying: the wind is a push added each step as the cast's is (`hit`, the floor's drag giving a terminal speed), and
+a current is one of the package's belts. Nothing is drawn for a current in this slice: the drift shows it.
+
+### Where it stands now (measured)
+
+- The package's floor drag is 5.5, so a steady push `a` gives a drift of about `a / 5.5` u/s; its default
+  `sleepDrift` 0.25 over 40 substeps puts to sleep anything moving under 0.75 u/s, so a slow drift needs the
+  tuning's `sleepDrift` lowered (0.05, so under 0.15 u/s sleeps), given through `newWorld`.
+- A world step with two awake bodies and one belt: 1.86 µs (C1's table); the bench's casting and fight scenarios
+  are sunny and cast off any belt, so the resting bobber sleeps as it does now and the baselines are expected to
+  hold; `/gate-moved` if not.
+- The wind weather is 10 to 20% of days by season; the cast's push is 12 u/s², far too hard for a drift (2.2 u/s).
+
+### What
+
+- **Content.** `DRIFT` in `src/lake.ts` (first guesses): `wind: { bobber: 2.2, boat: 1.4 }` pushes in u/s² in the
+  wind weather along `WEATHER.wind.direction` (terminal about 0.4 and 0.25 u/s: the pond's 67 units in four to five
+  minutes of a twelve-minute day), `bank: 0.5` (how far in from the waterline a drifting bobber is held, the fish's
+  own margin), `sleepDrift: 0.05`. `Lake.currents: readonly Current[]` (`src/lakes/lake.ts`:
+  `{ x, y, heading, length, width, speed }`, a strip of water flowing one way); the Duck Pond's one runs from the
+  falls' foot south toward the middle (length 20, width 6, speed 0.6), the Reservoir's from the middle north to the
+  dam's face (length 24, width 8, speed 0.5); each lies on the water and clear of the mooring and the pace spot (a
+  unit test holds it).
+- **The physics** (`src/physics.ts`): `currentsOf(lake)` turns the currents into belts once (a `WeakMap`), set on
+  the world at `newWorld`; `Bodies.blow(ax, ay, dt)` hits every free body; `letGoBoat()` frees the boat's body
+  awake where it is and `holdBoat()` carries it again, still; `still(i, x, y)` puts a body back and stops it.
+  `Bodies.step` runs the world while any body is free.
+- **The game.** `BoatState.anchored` (true ashore and at every row's end). `Game.anchor(down: boolean)`: refused
+  (false) ashore, while rowing, away from the pond, while a photograph is looked at, and when already so; otherwise
+  weighs (the boat's body let go, `GameEvents.adrift`) or drops (held, `GameEvents.anchored(x, y)`), the save
+  written. A fight neither refuses nor is refused by it. Each step: the wind blown on the free bodies in the wind
+  weather; the boat adrift reads its place back from its body unless that place is off the water by `BOAT.keepOff`,
+  when the body is put back and stilled (the heading holds; a drifting boat does not turn); the bobber likewise
+  against `DRIFT.bank` (the lure's depth already follows the bed under its bobber each step). A row or a landing
+  from adrift holds the body again. The yawn and the wake are unchanged (the wake puts the boat ashore).
+- **The save.** `LakeSave.boat` gains `anchored: boolean` (default true, so every C2 save is anchored; anything not
+  a boolean is true); written at a weigh, a drop and on the clock's cadence while adrift, so a load lands about
+  where the boat was. `test/saves/15-adrift.json`.
+- **The page.** `#anchorButton` in `#modes` after Row: hidden unless aboard at a lake with a boat, greyed while
+  rowing, reading `anchorWording(anchored)` ("Weigh anchor" / "Drop anchor"), the A key; `#modes` wraps in
+  portrait so it sits under the pair. Adrift, the orbit's target follows the seat each frame as it does rowing.
+  `game.anchor(down)` and `game.boat()` (gains `anchored`, `adrift` body state) are the API.
+- **The tools.** The fuzzer weighs and drops anchor at random from its boat stream and casts adrift; coverage asks
+  that across seeds 1 to 24 the boat is weighed, drifts (moves while adrift) and is dropped again, and that a bobber
+  drifts in wind. The invariants: adrift implies aboard, not rowing, the body free and the boat at it; anchored
+  implies the body held; both on the water by `keepOff`; the save's `anchored` matches when not rowing; the
+  bobber's body on the water (already). Determinism hashes `anchored`. Leaks: nothing new is kept (the belts are
+  made once). The pace angler is unchanged (it anchors as every row does).
+- **Not in this slice:** a current drawn (a dressing later), the boat turning as it drifts, snags (C4).
+
+### Acceptance criteria
+
+1. `anchor` refuses as listed and otherwise weighs and drops, told and saved: `test/boat.test.ts`,
+   `test/game.test.ts` ("the boat adrift").
+2. In the wind weather a free bobber drifts downwind at about `DRIFT.wind.bobber / 5.5` u/s and a weighed boat at
+   about `DRIFT.wind.boat / 5.5`; in sunny weather off a current neither moves and the bobber sleeps as before:
+   `test/game.test.ts`, `test/physics.test.ts`.
+3. A bobber on a current is carried along it at its speed within half a second, and the rope's end goes with it;
+   the lure's depth follows the bed: `test/game.test.ts`.
+4. A drifting bobber is held `DRIFT.bank` in from the waterline and a drifting boat `BOAT.keepOff` in, never
+   off the water: `test/game.test.ts` (a wind blowing straight at the bank, stepped a minute), `test/invariants`.
+5. The save reads `anchored` back, a C2 save is anchored, and a load adrift drifts on: `test/saves.test.ts`.
+6. Each lake's currents lie on the water clear of the mooring and the spot: `test/lakes.test.ts`.
+7. End to end, `smoke/progress.spec.ts` "the boat adrift": rowed out, Weigh anchor shown and pressed, the wind
+   lever set, the boat seen to move and the button to read Drop anchor, a cast whose bobber drifts, Drop anchor and
+   the boat still; the layout spec's `adrift` moment holds the third button clear.
+
+### Edge cases (from the checklist)
+
+- **save:** adrift, reloaded (adrift there, drifting on); a C2 save (anchored); Start again (ashore).
+- **the mode:** the Anchor button in look, cast and row; the A key; pressed while rowing (greyed, nothing); a view
+  picked while adrift (the camera at the view from the seat, following).
+- **the phone:** the phone's gestures as aboard anchored; nothing new.
+- **the layout:** three buttons at a desk's, a phone's, a tablet's and a sideways width; portrait wraps the third.
+- **the day:** midnight adrift (the yawn comes as anchored, the wake puts the boat ashore and anchored); the cabin
+  and travel refused aboard as before.
+- **the lakes:** each lake's currents; the Reservoir's boat weighed by the dam.
+- **the water:** drift into the shore (held), onto a boulder's flank (held, `inside` counts boulders), under the
+  jetty (held, keepOff counts it), over the shallows (the lure lifted), at the deepest.
+- **the line:** a cast adrift (from the moving seat), the rope between a drifting boat and a drifting bobber; a
+  bobber drifting onto the bank (held at the margin, still fishable); a reel-in and a cast take the body as now.
+- **the fish:** a nibble on a drifting bobber (the fish follows the lure as it does now); a fish hooked adrift
+  (the body is taken at the hook; the seat drifts; the fight is the same); a cured fish let go beside a drifting boat.
+- **the weather:** wind on and off through the lever mid-drift (the push stops, the drag stills the body); rain,
+  fog and the rest blow nothing.
+- **the rung, the switches:** nothing is drawn, so nothing changes.
+- **snags, the calendar:** not reachable.
+
+### Decisions (mine, said so they can be changed)
+
+- **Nothing is drawn for a current;** the drift shows it, and a visible current is a dressing of its own.
+- **The boat keeps its heading adrift;** turning it to the drift is a picture change for a later slice.
+- **The anchor can be weighed or dropped mid-fight;** the fight does not depend on it.
+- **The wind blows only in the wind weather;** the other days are calm, as the cast finds them.
+
+### Performance risk
+
+A world step while a body is awake, about 2 µs, only in wind or on a current; a `hit` a step on two bodies in
+wind: nothing. No new groups: the frame is untouched. The download: the button, the content and the sums, about
+1.5 kB gzipped, said exactly. The bench's scenarios are calm and off the currents, so the baselines should hold.
+
+### Test plan
+
+- **Unit:** `test/physics.test.ts` (belts from currents, blow, let go and hold, still), `test/boat.test.ts`
+  (`anchorWording`, the state), `test/game.test.ts` (criteria 1 to 4), `test/saves.test.ts` (+corpus),
+  `test/lakes.test.ts` (6), `test/invariants.test.ts`, `test/mode.test.ts` if the mode changes (it should not).
+- **End to end:** the smoke stage, the layout moment `adrift`, `game.anchor(down)`, `game.boat()`.
+- **Fuzzer:** `weigh`, `drop` and a cast adrift; coverage over seeds 1 to 24; the invariants above.
+- **Pictures:** new `wind-drift` (from the shore in wind, a cast stepped twelve seconds: the bobber downwind and
+  the rope bent), `boat-adrift` (aboard, weighed, twenty seconds of wind, the button reading Drop anchor),
+  `phone-boat-adrift` (the wrapped button); every moved one looked at.
+- **Perf and bench:** before and after; `/gate-moved` for anything that moves.
+
+### Parts
+
+Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'s C3 section (this spec copied in).
+
+- [x] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
+- [x] 1. `DRIFT`, `Lake.currents` for both lakes, `physics.ts` (belts, blow, let go, hold, still, the tuning),
+      `BoatState.anchored`, `Game.anchor`, the step's drift and keep-off, the save field and corpus, the invariants,
+      the determinism hash, `game.anchor`/`boat()`. Check: `test/physics`, `test/boat`, `test/game`, `test/saves`,
+      `test/lakes`, `test/invariants`, `npm run determinism`.
+- [x] 2. The page: the Anchor button and its CSS and wrap, the A key, the camera following adrift. Check: the smoke
+      stage, `npm run smoke -- layout.spec.ts`.
+- [x] 3. The tools: the fuzzer's actions and coverage, the layout moment, the pictures. Check: `test/fuzz`,
+      `npm run look -- -g "drift|adrift"`.
+- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the keep-off dropped: a bobber blown onto
+      the bank; the wind's push on the boat zeroed; `anchored` not read from the save), `/gate-moved` for anything
+      moved, the notes. Commit and push.
+
+### C3's notes (built 29 Oct 2026)
+
+- **Built as specified,** with these figures found in the build: the drift runs at the push over about ten, not over
+  the floor's drag of 5.5 alone, since the package's slow-speed settling (0.96 a substep) slows a body as much again,
+  so `DRIFT.wind` is `bobber: 4, boat: 2.5` for the intended 0.4 and 0.25 u/s (measured 0.403 and 0.252 over ten
+  seconds); a body on a current goes at about six tenths of the belt's figure (0.34 u/s on the pond's 0.6), since
+  the belt's blend and the drag settle there, and the figures are left as the belt's own, said in `Current`'s
+  comment. The Duck Pond's current is not from the falls' foot but down the east side, `(11.5, 6)` heading south,
+  16 by 5: the north shore is nearer than the spec guessed (about y = 23), the pace angler's cast from the boat
+  lands at about `(0, 22)`, and a current in the middle moved the shore's casts and `test/ashore.test.ts`. The
+  Reservoir's is as specified. `sleepDrift` lives under `DRIFT`.
+- **Changed from the spec:** the invariant that a cast out was thrown from where the angler stands holds the rod
+  tip's height only while aboard, since the seat drifts on after the throw and dropping anchor where it got to is
+  no fault (ashore it holds the place exactly); the fuzzer's keys are `weigh anchor` and `drop anchor`, since
+  `drop` was the pebble's. The portrait layout's wrap is written but not reached at the Pixel's 412 px, where the
+  three buttons fit in one row.
+- **Bugs found in the build:** dropping anchor with a line out tripped the cast's invariant (above); the pond's
+  current as first placed put the pace angler's boat cast and the shore's long casts on it, found by the lakes test
+  and the ashore hashes; Vitest's worker threw "Timeout calling onTaskUpdate" with every test green once the
+  fuzzer's file crossed a minute on a machine at a load of sixteen (a file of synchronous tests never reads its
+  message port), fixed by a turn of the event loop before each test (`test/setup.ts`), seen on the parent commit
+  under the same load.
+- **Noticed and left:** a bobber that lands within `DRIFT.bank` of the shore is held where it landed and never
+  drifts; while yawning the boat adrift holds still (the night's step), and the wake puts it ashore.
+- **The cost:** the bench within tolerance on every scenario, read alone on a quiet machine (casting and sinking
+  within five percent of its baseline either way across three runs; an earlier run at a load of twenty read the
+  parent commit slower than its own baseline too, so nothing was written); the pace 2.2 to 2.07 min as C2 left it;
+  the balance's sixty cells unmoved; boot 849 ms and frame 4.00 ms in the full suite; the download grew by 1,031
+  bytes gzipped, 245,636 to 246,667. Pictures: three new and three moved (the boat's, gaining the Anchor button),
+  each looked at.
+- **Not verified:** the drift in play on the live site; every drift figure is a first guess for the play-test.
+
 ## Verification, every slice
 
 `npm run check` green; `npm run fuzz -- --seeds 1-24` clean; `npm run perf` alone, before and after; the bench's

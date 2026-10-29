@@ -74,6 +74,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     found: 0,
     anchored: 0,
     ashore: 0,
+    adrift: 0,
   };
   // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
   const bed = { chosen: false };
@@ -102,6 +103,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     // the boat's two ends, told: a row ended at an anchorage, and the player stepped ashore at the mooring
     anchored: count('anchored'),
     ashore: count('ashore'),
+    // the anchor weighed, the boat free to drift
+    adrift: count('adrift'),
     // a request answered in play, counted by its id, so the contests' two are seen to be answered
     answered: (id: string) => {
       done[`answered ${id}`] = (done[`answered ${id}`] ?? 0) + 1;
@@ -315,6 +318,12 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       'row to the spot',
       'cast aboard',
       'landed aboard',
+      'weigh anchor',
+      'drop anchor',
+      'anchor refused',
+      'cast adrift',
+      'drifted',
+      'bobber drifted',
     ])
       done[what] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
@@ -337,6 +346,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       const cast = game.cast(angle, power);
       if (cast && into) done['clean casts']++;
       if (cast && aboard) done['cast aboard']++;
+      if (cast && aboard && !game.boat.anchored) done['cast adrift']++;
     };
     // where the boat is rowed is drawn from a stream of its own, so the monkey's other chance is as it was before there was a boat
     const boating = seeded(seed * 61 + 29);
@@ -705,8 +715,15 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
      */
     const boatman = seeded(seed * 67 + 31);
     const boatAct = () => {
-      const u = boatman() * 5;
-      if (u < 3) {
+      const adrift = game.boat.aboard && !game.boat.anchored;
+      // a boat adrift is as often as not brought up again, so the drift is ended and not only begun
+      const u = adrift && boatman() < 0.5 ? 5 : boatman() * 6;
+      if (u >= 5) {
+        // the anchor weighed or dropped, whichever it is not: refused where the game refuses (ashore, rowing)
+        const down = !game.boat.anchored;
+        const did = game.anchor(down);
+        done[did ? (down ? 'drop anchor' : 'weigh anchor') : 'anchor refused']++;
+      } else if (u < 3) {
         // the boat rowed to a point over the lake or past its shore, or now and then to no number: refused where the
         // game refuses and otherwise under way, the game stepping on while it rows
         const [x, y] = rowPoint();
@@ -774,7 +791,18 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
         }
       } else inCabin = 0;
       boatAboard.now = game.boat.aboard;
+      const wasAdrift = game.boat.aboard && !game.boat.anchored && !game.boat.rowing;
+      const boatWas = [game.boat.x, game.boat.y];
+      const bobberWas = [game.lure.bobber[0], game.lure.bobber[1]];
+      const wasSinking = game.lure.phase === 'sinking';
       game.step(page.paused ? 0 : DT);
+      if (wasAdrift && (game.boat.x !== boatWas[0] || game.boat.y !== boatWas[1])) done['drifted'] = 1;
+      if (
+        wasSinking &&
+        game.lure.phase === 'sinking' &&
+        (game.lure.bobber[0] !== bobberWas[0] || game.lure.bobber[1] !== bobberWas[1])
+      )
+        done['bobber drifted'] = 1;
       if (game.bite.drum >= 0 && !snagged) done['drum snagged']++;
       snagged = game.bite.drum >= 0;
       if (game.bite.treasure >= 0 && !treasureSnagged) {

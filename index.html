@@ -82,7 +82,7 @@
     color: var(--dim);
     font-size: 13px;
   }
-  /* the two mode buttons side by side: Cast, and Row beside it (docs/boat.md, C2) */
+  /* the mode buttons side by side: Cast, Row beside it (docs/boat.md, C2) and, aboard, Anchor (C3) */
   #modes {
     display: flex;
     gap: 8px;
@@ -91,7 +91,8 @@
     pointer-events: none;
   }
   #modeButton,
-  #rowButton {
+  #rowButton,
+  #anchorButton {
     pointer-events: auto;
     cursor: pointer;
     font: inherit;
@@ -103,13 +104,15 @@
     touch-action: manipulation;
   }
   #modeButton:focus-visible,
-  #rowButton:focus-visible {
+  #rowButton:focus-visible,
+  #anchorButton:focus-visible {
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
   /* greyed while the boat is rowed, and for a lake with none: dimmer, not gone, with the word still said */
   #modeButton:disabled,
-  #rowButton:disabled {
+  #rowButton:disabled,
+  #anchorButton:disabled {
     opacity: 0.5;
     cursor: default;
   }
@@ -1186,7 +1189,8 @@
   /* the Row button stands beside Cast, and at 360 px the pair, with Look round in either, must end before the bucket's
      words do: a little smaller, the height of a thumb's reach kept */
   html[data-layout='portrait'] #modeButton,
-  html[data-layout='portrait'] #rowButton {
+  html[data-layout='portrait'] #rowButton,
+  html[data-layout='portrait'] #anchorButton {
     min-width: 0;
     padding: 10px;
     font-size: 13px;
@@ -1520,6 +1524,7 @@
   <div id="modes">
     <button class="panel" id="modeButton" type="button" hidden>Cast</button>
     <button class="panel" id="rowButton" type="button" hidden>Row</button>
+    <button class="panel" id="anchorButton" type="button" hidden>Weigh anchor</button>
   </div>
   <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>
 </div>

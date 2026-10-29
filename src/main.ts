@@ -61,7 +61,7 @@ import {
   type Weather,
 } from './lake';
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
-import { nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from './mode';
+import { anchorWording, nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
@@ -107,6 +107,7 @@ const castLine = document.getElementById('castLine')!;
 const phoneStatus = document.getElementById('phoneStatus')!;
 const modeButton = document.getElementById('modeButton') as HTMLButtonElement;
 const rowButton = document.getElementById('rowButton') as HTMLButtonElement;
+const anchorButton = document.getElementById('anchorButton') as HTMLButtonElement;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 main().catch((err: unknown) => {
@@ -208,10 +209,15 @@ async function main() {
       letGoOfReel();
       void showWater();
     },
+    adrift: () => {
+      log('adrift');
+      showAnchor();
+    },
     anchored: (x, y) => {
       log(`anchored ${x.toFixed(1)},${y.toFixed(1)}`);
       // the camera is put at its view again, from the seat where the boat now lies
       void setView(viewName, true);
+      showAnchor();
     },
     ashore: () => {
       log('ashore');
@@ -1519,7 +1525,7 @@ async function main() {
     pagesOpen() ||
     (e.target instanceof HTMLElement &&
       e.target.closest(
-        '#catch, #modeButton, #rowButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu',
+        '#catch, #modeButton, #rowButton, #anchorButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu',
       ) !== null);
   window.addEventListener('keydown', (e) => {
     // Enter brings the player down from the cabin, as the button does
@@ -1533,6 +1539,10 @@ async function main() {
     }
     if (e.code === 'KeyR' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('row');
+      return;
+    }
+    if (e.code === 'KeyA' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
+      toggleAnchor();
       return;
     }
     if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
@@ -1645,6 +1655,22 @@ async function main() {
   }
   modeButton.addEventListener('click', () => void setMode('toggle'));
   rowButton.addEventListener('click', () => void setMode('row'));
+  /** The anchor weighed or dropped, as the button and the A key ask; the game refuses ashore, rowing and away. */
+  function toggleAnchor() {
+    if (!atPond() || pagesOpen()) return;
+    game.anchor(!game.boat.anchored);
+    showAnchor();
+  }
+  anchorButton.addEventListener('click', toggleAnchor);
+  /** The Anchor button from the game's state: shown only aboard, greyed while rowing, worded for what it does next; each written on change only. */
+  function showAnchor() {
+    const aboard = !!lake.boat && game.boat.aboard;
+    if (anchorButton.hidden === aboard) anchorButton.hidden = !aboard;
+    const rowing = game.boat.rowing;
+    if (anchorButton.disabled !== rowing) anchorButton.disabled = rowing;
+    const words = anchorWording(game.boat.anchored);
+    if (anchorButton.textContent !== words) anchorButton.textContent = words;
+  }
 
   await setDirt(game.contamination);
   await showLight(time);
@@ -1689,6 +1715,7 @@ async function main() {
     if (modeButton.disabled !== rowing) modeButton.disabled = rowing;
     const noRow = rowing || !lake.boat;
     if (rowButton.disabled !== noRow) rowButton.disabled = noRow;
+    showAnchor();
     const away = !atPond();
     if (away !== hudAway) {
       hudAway = away;
@@ -1791,7 +1818,7 @@ async function main() {
     if (orbit.enabled !== turns) orbit.enabled = turns;
     // while the boat is rowed the camera's target is the seat, so the orbit carries the camera along with it, keeping the
     // way the player has turned it to (the view is put again at the anchoring)
-    if (game.boat.rowing && turns) {
+    if ((game.boat.rowing || (game.boat.aboard && !game.boat.anchored)) && turns) {
       const seat = game.anglerAt();
       cam.target = [seat.x, seat.y, cam.target[2]];
     }

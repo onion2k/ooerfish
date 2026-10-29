@@ -1,6 +1,6 @@
 /** The page's mode, look or cast: what each event does to it and to the camera, and what the page says of it. */
 import { describe, expect, it } from 'vitest';
-import { nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from '../src/mode';
+import { anchorWording, nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from '../src/mode';
 
 describe('the mode of the page', () => {
   it('switches by the button or the key, to cast with the camera put at the shore, and back with it left where it is', () => {
@@ -61,6 +61,11 @@ describe('the mode of the page', () => {
     expect(rowWording('look').button).toBe('Row');
     expect(rowWording('cast').button).toBe('Row');
     expect(rowWording('row').button).toBe('Look round');
+  });
+
+  it('says on the Anchor button what it does next: weigh the anchor when it is down, drop it when it is weighed', () => {
+    expect(anchorWording(true)).toBe('Weigh anchor');
+    expect(anchorWording(false)).toBe('Drop anchor');
   });
 
   it('says on the button what it does next, and on the hint what a drag does now', () => {

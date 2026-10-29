@@ -144,7 +144,7 @@ export function hashGame(game: Game): string {
   // the boat: where it is and points, whether the player is aboard and rowing, the row it is on, and its body's place
   const { boat } = game;
   for (const n of [boat.x, boat.y, boat.heading, boat.fromX, boat.fromY, boat.toX, boat.toY, boat.rowedAt]) eat(n);
-  eat((boat.aboard ? 1 : 0) + (boat.rowing ? 2 : 0));
+  eat((boat.aboard ? 1 : 0) + (boat.rowing ? 2 : 0) + (boat.anchored ? 4 : 0));
   eat(game.bodies.boatX);
   eat(game.bodies.boatY);
   // the rope the line is, every point of it

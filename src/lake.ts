@@ -803,6 +803,25 @@ export const BOAT = {
 } as const;
 
 /**
+ * Drift (`docs/boat.md`, C3), first guesses to be tuned by watching it. `wind` is the push in world units a second each
+ * second on a free bobber and on a boat with its anchor weighed, along `WEATHER.wind.direction` in the wind weather and
+ * nothing in any other. What slows a body on the water is the package's floor drag of 5.5 and, at these slow speeds, its
+ * settling (the speed times 0.96 a substep at 120 a second, about another 4.9), so a steady push settles at a drift of
+ * about the push over ten, which was measured (the spec's push over 5.5 left out the settling): 4 and 2.5 give about
+ * 0.4 u/s for the bobber and 0.25 for the boat, the pond's width in four or five minutes of a twelve-minute day, and
+ * the cast's own 12 would be a gale. `bank` is how far in from the
+ * waterline a drifting bobber is held, the fish's own margin, so the lure is never blown onto the grass. `sleepDrift` is
+ * the tuning handed to the world: the package puts a body to sleep that has moved under `sleepDrift` over forty
+ * substeps, and its default of 0.25 would sleep anything going under 0.75 u/s, which is every drift here, so it is
+ * lowered until only what moves under 0.15 u/s rests.
+ */
+export const DRIFT = {
+  wind: { bobber: 4, boat: 2.5 },
+  bank: 0.5,
+  sleepDrift: 0.05,
+} as const;
+
+/**
  * Where the line ends, in the figures the game and the drawing share: how far the lure hangs from the tip when ready; a
  * landed fish shown off, how far below the tip it hangs, how far it sways and how fast; how far the bobber dips at a
  * bite and twitches at a nibble, and for how long; how far it shakes while the strike's window is open, and how fast;

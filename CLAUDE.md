@@ -553,12 +553,21 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   page's row mode (`mode.ts`, `#rowButton`, R) taps the water to row and the bank to land; `framingFor(..., stand)`
   looks along the heading aboard; `src/boatdraw.ts` is the painted hull, moved each frame, with the winter cover; the
   pace angler boards on every third seed. `game.boat()`, `row`, `land`, `anglerAt`, `landing` and `mode('row')` are the API.
+  **Drift** (C3): a row ends anchored (`BoatState.anchored`, saved); `Game.anchor(down)` weighs the anchor (the boat's
+  body let go, `GameEvents.adrift`) or drops it (held, `anchored`), refused ashore, rowing, away from the pond and when
+  already so; adrift, the boat reads its place from its body each step unless that is off the water by `BOAT.keepOff`,
+  when it is put back and stilled, and the bobber likewise against `DRIFT.bank`, so nothing drifts aground. The wind
+  weather pushes both free bodies (`DRIFT.wind`, in u/s², the drift about a tenth of it) and a lake's `currents` are
+  the physics' belts (`currentsOf`), carrying at about six tenths of the figure; nothing is drawn for a current. The
+  Anchor button (`#anchorButton`, A, shown only aboard, `anchorWording`) is the third in `#modes`; the fuzzer weighs
+  and drops at random; `game.anchor(down)` and `game.boat().anchored` are the API.
 - **The physics** (`docs/boat.md`, C1): `src/physics.ts` is the one door to artshape-physics, and nothing else in `src/`
   imports it. Its floor is the water's surface (the package refuses the bed as terrain), its rock the shore on a grid of
   `PHYSICS.tile`, a world a game (`newWorld(lake)`; `worldFor(lake)` the memoised grid for readers), and `Bodies` the
   slots: the bobber's, carried (placed by the game) except while the lure sinks, when it is dropped on the water and
   read back into `lure.bobber` only where it differs as a 32-bit float. The world is not stepped while every body is
-  carried. The lure's depth under the bobber stays the game's sum. `game.bodies()` reads it; the invariants hold the
+  carried, and stepped while any body is free (the bobber sinking, the boat adrift). Its tuning's `sleepDrift` is
+  lowered to `DRIFT.sleepDrift` so a slow drift is not put to sleep. The lure's depth under the bobber stays the game's sum. `game.bodies()` reads it; the invariants hold the
   body on the water, carried or at the bobber; `PHYSICS.capacity` is its ceiling in `scripts/leaks.ts`.
 
 ## Skills

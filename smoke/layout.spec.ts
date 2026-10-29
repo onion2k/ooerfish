@@ -115,6 +115,7 @@ type Moment =
   | 'rowing'
   | 'aboard'
   | 'aboard fight'
+  | 'adrift'
   | 'drum card'
   | 'bottle card'
   | 'start again'
@@ -140,6 +141,7 @@ const MOMENTS: Moment[] = [
   'rowing',
   'aboard',
   'aboard fight',
+  'adrift',
   'drum card',
   'bottle card',
   'start again',
@@ -168,6 +170,8 @@ const AT_LEAST: Record<Moment, number> = {
   rowing: 5,
   aboard: 5,
   'aboard fight': 7,
+  // aboard's five, and the anchor button beside the pair
+  adrift: 6,
   'drum card': 4,
   'bottle card': 4,
   'start again': 1,
@@ -393,7 +397,7 @@ async function reach(page: Page, moment: Moment) {
         return g.boat().rowing;
       }
       // anchored at the spot with the lure cast from the seat and sinking (the bobber out), and the same with a fish on
-      if (m === 'aboard' || m === 'aboard fight') {
+      if (m === 'aboard' || m === 'aboard fight' || m === 'adrift') {
         // out past the spot and back to it, so the boat points up the lake at the middle and the water before the camera is where the fish are
         if (!g.row(spot[0], spot[1] * 2)) return false;
         g.step(1500);
@@ -409,9 +413,14 @@ async function reach(page: Page, moment: Moment) {
           g.step(30);
           return struck && g.fishing().phase === 'hooked';
         }
+        if (m === 'adrift') {
+          // the anchor weighed in the wind, a cast out and a few seconds on, so the three buttons, the cast line and the drifting bobber are all shown
+          if (!g.anchor(false)) return false;
+          await g.weather('wind');
+        }
         g.cast(g.boat().heading + 0.15, 0.6);
-        g.step(90);
-        return g.boat().aboard;
+        g.step(m === 'adrift' ? 300 : 90);
+        return g.boat().aboard && (m !== 'adrift' || !g.boat().anchored);
       }
       if (m === 'bite') return g.fishTo('bite');
       if (m === 'fight') {

@@ -67,8 +67,10 @@ drift shows the line needs to bend) or becomes the design's rope of sixteen to t
       (content, in the `Lake`), anchored by a tap; the `boat` view from its seat; the cast's reach from the boat;
       rocking by ooergolf's sway. The pace angler and the fuzzer board at random; the invariants keep the boat on
       the water.
-- [ ] **C3. Drift, wind and current.** Unanchored, the boat drifts on the wind and a lake's currents (belts, as
-      ooergolf's streams, content in the `Lake`), carrying the lure and moving the line. Anchoring stops it.
+- [x] **C3. Drift, wind and current** (`docs/boat.md`, landed 29 Oct 2026: a row ends anchored, the anchor weighed
+      by a third button aboard; the wind weather's push and a lake's `currents` as belts, carrying the bobber too).
+      Unanchored, the boat drifts on the wind and a lake's currents (belts, as ooergolf's streams, content in the
+      `Lake`), carrying the lure and moving the line. Anchoring stops it.
 - [ ] **C4. Snags.** Reeds, rocks and rooftops as static bodies and boxes in the lake's content; a lure cast onto
       one catches, freed by a give of line; fish hide behind them. The Flooded Town and the Marsh need them.
 - [ ] **C5. Lazy fishing.** The rod propped on the rail or the boat's gunwale, the bobber left, a bell on the bite:

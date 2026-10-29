@@ -679,6 +679,18 @@ describe('the boat', () => {
     expect(checkInvariants(ashore).join('\n')).toMatch(/the boat is anchored, but the save does not say where/);
   });
 
+  it('lets a cast thrown from a seat that has since drifted stand, but not one thrown from another height', () => {
+    const game = aboard();
+    game.cast(Math.PI / 2 + 0.5, 0.5);
+    game.anchor(false);
+    game.setWeather('wind');
+    settle(game, 120);
+    expect(game.boat.x).not.toBe(game.lure.stand.x);
+    expect(checkInvariants(game)).toEqual([]);
+    game.lure.stand = { ...game.lure.stand, tipHeight: 1 };
+    expect(checkInvariants(game).join('\n')).toMatch(/the lure was thrown from/);
+  });
+
   it('reports a rowing boat with the lure out, or a fish on, or nobody aboard', () => {
     const { game } = newGame();
     game.row(-10, 6);
@@ -690,6 +702,67 @@ describe('the boat', () => {
     game.bite.phase = 'none';
     game.boat.aboard = false;
     expect(checkInvariants(game).join('\n')).toMatch(/the boat is rowing with nobody aboard/);
+  });
+
+  it('holds a cast thrown adrift once the anchor is dropped where the boat has drifted to, and a cast ashore to its place', () => {
+    const game = aboard();
+    expect(game.anchor(false)).toBe(true);
+    game.setWeather('wind');
+    expect(game.cast(Math.PI / 2, 0.5)).toBe(true);
+    for (let f = 0; f < 600; f++) game.step(1 / 60);
+    expect(game.lure.phase).toBe('sinking');
+    // the seat has drifted from where the cast was thrown; dropping anchor there is no fault
+    expect(game.anchor(true)).toBe(true);
+    expect(game.anglerAt().x).not.toBe(game.lure.stand.x);
+    expect(checkInvariants(game)).toEqual([]);
+    // ashore the stand is the lake's, and a cast from anywhere else is reported
+    const { game: shore } = newGame(1);
+    expect(shore.cast(Math.PI / 2, 0.5)).toBe(true);
+    shore.step(1 / 60);
+    shore.lure.stand = { ...shore.lure.stand, x: shore.lure.stand.x + 1 };
+    expect(checkInvariants(shore).join('\n')).toMatch(/the lure was thrown from/);
+  });
+
+  it('holds of a boat adrift, and reports an anchor up with the body held, a free body with the anchor down, or one off the water', () => {
+    const game = aboard();
+    expect(game.anchor(false)).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+    game.setWeather('wind');
+    for (let f = 0; f < 600; f++) {
+      game.step(1 / 60);
+      expect(checkInvariants(game)).toEqual([]);
+    }
+    // the anchor up, the body carried again
+    game.bodies.holdBoat();
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is adrift but its body is held/);
+    game.bodies.letGoBoat();
+    // the anchor down, the body free
+    game.boat.anchored = true;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat’s body is not held/);
+    game.boat.anchored = false;
+    expect(checkInvariants(game)).toEqual([]);
+    // off the water by the keep-off
+    game.boat.y = -HOME.shoreRadius(-Math.PI / 2) - 4;
+    expect(checkInvariants(game).join('\n')).toMatch(/off the water by the keep-off/);
+  });
+
+  it('reports the anchor up when ashore or rowing, and a save that disagrees with the boat about it', () => {
+    const { game: ashore } = newGame();
+    ashore.boat.anchored = false;
+    expect(checkInvariants(ashore).join('\n')).toMatch(/the anchor is up with the boat ashore/);
+    const rowing = newGame().game;
+    rowing.row(-10, 6);
+    rowing.boat.anchored = false;
+    expect(checkInvariants(rowing).join('\n')).toMatch(/the anchor is up with the boat rowing/);
+    const game = aboard();
+    game.anchor(false);
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.entry(HOME.id).boat!.anchored = true;
+    expect(checkInvariants(game).join('\n')).toMatch(/the save and the boat disagree about the anchor/);
+    game.persist();
+    expect(checkInvariants(game)).toEqual([]);
+    game.progress.entry(HOME.id).boat = null;
+    expect(checkInvariants(game).join('\n')).toMatch(/the boat is adrift, but the save does not say where/);
   });
 
   it('reports a body off the boat, or let go', () => {
@@ -709,7 +782,7 @@ describe('the boat', () => {
     game.persist();
     expect(checkInvariants(game)).toEqual([]);
     const { game: ashore } = newGame();
-    ashore.progress.entry(HOME.id).boat = { x: 0, y: 0, heading: 0 };
+    ashore.progress.entry(HOME.id).boat = { x: 0, y: 0, heading: 0, anchored: true };
     expect(checkInvariants(ashore).join('\n')).toMatch(/the player is ashore, but the save keeps a boat/);
   });
 

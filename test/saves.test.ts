@@ -11,7 +11,7 @@ import { Game } from '../src/game';
 import { gearFor } from '../src/fight';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, KINDS, PHOTOS } from '../src/lake';
+import { CLOCK, KINDS, PHOTOS, WEATHER } from '../src/lake';
 import { HOME } from '../src/lakes';
 import type { Lake } from '../src/lakes/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
@@ -131,7 +131,9 @@ const KEPT: Record<string, Record<string, unknown>> = {
   // the contests' tally: fish stowed in rain, the run of casts that landed, and the longest run
   '13-tally.json': { cured: 12, drums: 2, tally: { rain: 1, run: 2, best: 2 } },
   // the boat: the player aboard, anchored in the open water of the pond
-  '14-boat.json': { cured: 4, boat: { x: 2, y: -12, heading: 0.5 } },
+  '14-boat.json': { cured: 4, boat: { x: 2, y: -12, heading: 0.5, anchored: true } },
+  // the boat adrift: the anchor weighed (`docs/boat.md`, C3)
+  '15-adrift.json': { cured: 4, boat: { x: 2, y: -12, heading: 0.5, anchored: false } },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -355,8 +357,42 @@ describe('the boat', () => {
 
   it('is ashore for an old save, and a point and a heading are kept as written', () => {
     expect(entryOf('{"cured": 3}').boat).toBeNull();
-    expect(boatOf('{"x": 2, "y": -12, "heading": 0.5}')).toEqual({ x: 2, y: -12, heading: 0.5 });
-    expect(boatOf('{"x": 0, "y": 0, "heading": -3}')).toEqual({ x: 0, y: 0, heading: -3 });
+    expect(boatOf('{"x": 2, "y": -12, "heading": 0.5}')).toEqual({ x: 2, y: -12, heading: 0.5, anchored: true });
+    expect(boatOf('{"x": 0, "y": 0, "heading": -3}')).toEqual({ x: 0, y: 0, heading: -3, anchored: true });
+  });
+
+  it('reads whether the anchor is down as a boolean, a C2 save having none and so being anchored', () => {
+    expect(boatOf('{"x": 2, "y": -12, "heading": 0.5, "anchored": false}')).toEqual({
+      x: 2,
+      y: -12,
+      heading: 0.5,
+      anchored: false,
+    });
+    expect(boatOf('{"x": 2, "y": -12, "heading": 0.5, "anchored": true}')?.anchored).toBe(true);
+    for (const odd of ['"yes"', '"false"', '0', '1', 'null', '[]', '{}'])
+      expect(boatOf(`{"x": 2, "y": -12, "heading": 0.5, "anchored": ${odd}}`)?.anchored, odd).toBe(true);
+  });
+
+  it('loads adrift, the body free, and drifts on in the wind from where it was', () => {
+    const { game } = newGame(1, read('15-adrift.json'));
+    expect(game.boat).toMatchObject({ aboard: true, rowing: false, anchored: false, x: 2, y: -12 });
+    expect(game.bodies.boatHeld).toBe(false);
+    expect(checkInvariants(game)).toEqual([]);
+    game.setWeather('wind');
+    for (let f = 0; f < 60 * 10; f++) game.step(1 / 60);
+    const [wx, wy] = WEATHER.wind.direction;
+    const along = (game.boat.x - 2) * wx + (game.boat.y + 12) * wy;
+    expect(along, 'drifted downwind').toBeGreaterThan(1);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('loads anchored from a C2 save, the body held, and does not drift in the wind', () => {
+    const { game } = newGame(1, read('14-boat.json'));
+    expect(game.boat.anchored).toBe(true);
+    expect(game.bodies.boatHeld).toBe(true);
+    game.setWeather('wind');
+    for (let f = 0; f < 60 * 10; f++) game.step(1 / 60);
+    expect([game.boat.x, game.boat.y]).toEqual([2, -12]);
   });
 
   it('is ashore when it is not a finite point and heading, and extras are dropped', () => {
@@ -375,7 +411,7 @@ describe('the boat', () => {
       '{"x": 1, "y": 2, "heading": [0]}',
     ])
       expect(boatOf(bad), bad).toBeNull();
-    expect(boatOf('{"x": 1, "y": 2, "heading": 0, "speed": 9}')).toEqual({ x: 1, y: 2, heading: 0 });
+    expect(boatOf('{"x": 1, "y": 2, "heading": 0, "speed": 9}')).toEqual({ x: 1, y: 2, heading: 0, anchored: true });
   });
 
   it('puts the player aboard there at the pond, anchored, with the lure in', () => {
@@ -411,7 +447,12 @@ describe('the boat', () => {
     const store = memoryStore(read('14-boat.json'));
     const game = new Game(new Progress(store));
     game.persist();
-    expect((JSON.parse(store.json!) as Save).lakes[HOME.id].boat).toEqual({ x: 2, y: -12, heading: 0.5 });
+    expect((JSON.parse(store.json!) as Save).lakes[HOME.id].boat).toEqual({
+      x: 2,
+      y: -12,
+      heading: 0.5,
+      anchored: true,
+    });
     expect(game.row(0, -5)).toBe(true);
     for (let f = 0; f < 600; f++) game.step(1 / 60);
     expect(game.land()).toBe(true);

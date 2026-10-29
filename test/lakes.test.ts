@@ -13,7 +13,11 @@ import { RESERVOIR } from '../src/lakes/reservoir';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { HOME, LAKES, lakeNamed } from '../src/lakes';
 import { fallsOf } from '../src/falls';
+import { flight } from '../src/cast';
+import { landingAboard, newBoat } from '../src/boat';
+import { BOAT, DRIFT } from '../src/lake';
 import type { BedWorld } from '../src/bedfinds';
+import type { Current } from '../src/lakes/lake';
 import type { FallingWorld } from '../src/falling';
 
 /** Everything the snapshot asks of a lake, whichever way it is reached. */
@@ -257,4 +261,72 @@ describe('the registry of lakes', () => {
     expect(lakeNamed('the-sea')).toBe(HOME);
     expect(HOME).toBe(DUCK_POND);
   });
+});
+
+describe('the currents of the lakes (`docs/boat.md`, C3)', () => {
+  /** Whether a point lies in a current's strip, its edge counted in. */
+  const within = (c: Current, x: number, y: number) => {
+    const along = (x - c.x) * Math.cos(c.heading) + (y - c.y) * Math.sin(c.heading);
+    const across = -(x - c.x) * Math.sin(c.heading) + (y - c.y) * Math.cos(c.heading);
+    return Math.abs(along) <= c.length / 2 && Math.abs(across) <= c.width / 2;
+  };
+  /** The four corners and the two ends of a strip. */
+  const marks = (c: Current): [number, number][] => {
+    const out: [number, number][] = [];
+    for (const a of [-1, 0, 1])
+      for (const b of [-1, 1]) {
+        const along = (a * c.length) / 2,
+          across = (b * c.width) / 2;
+        out.push([
+          c.x + along * Math.cos(c.heading) - across * Math.sin(c.heading),
+          c.y + along * Math.sin(c.heading) + across * Math.cos(c.heading),
+        ]);
+      }
+    return out;
+  };
+
+  it('has the figures the doc names', () => {
+    expect(DRIFT).toEqual({ wind: { bobber: 4, boat: 2.5 }, bank: 0.5, sleepDrift: 0.05 });
+    expect(DUCK_POND.currents).toEqual([{ x: 11.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }]);
+    expect(RESERVOIR.currents).toEqual([{ x: 0, y: 16, heading: Math.PI / 2, length: 24, width: 8, speed: 0.5 }]);
+  });
+
+  for (const l of Object.values(LAKES))
+    describe(l.id, () => {
+      it('has at least one current, each well formed', () => {
+        expect(l.currents.length).toBeGreaterThan(0);
+        for (const c of l.currents)
+          for (const n of [c.x, c.y, c.heading, c.length, c.width, c.speed]) expect(Number.isFinite(n)).toBe(true);
+        for (const c of l.currents) expect(Math.min(c.length, c.width, c.speed)).toBeGreaterThan(0);
+      });
+
+      it('lies on the water at its ends and corners, clear of every boulder and the jetty', () => {
+        for (const c of l.currents)
+          for (const [x, y] of marks(c)) expect(l.inside(x, y, 1), `${x.toFixed(1)},${y.toFixed(1)}`).toBe(true);
+      });
+
+      it('is clear of the mooring, the spot, the shore’s landing and where the pace angler’s cast and landing fall', () => {
+        const boat = l.boat!;
+        const seated = { ...newBoat(l), x: boat.spot[0], y: boat.spot[1], heading: boat.mooring.heading, aboard: true };
+        const landing = landingAboard(seated) as [number, number];
+        const cast = flight(l.aim.angle, l.aim.power, l, [0, 0], l.angler).landing;
+        const castFromBoat = flight(l.aim.angle, l.aim.power, l, [0, 0], {
+          ...l.angler,
+          x: boat.spot[0],
+          y: boat.spot[1],
+        }).landing;
+        const spots: [string, number, number][] = [
+          ['mooring', boat.mooring.x, boat.mooring.y],
+          ['spot', boat.spot[0], boat.spot[1]],
+          ['shore landing', l.landAt[0], l.landAt[1]],
+          ['boat landing', landing[0], landing[1]],
+          ['cast from the shore', cast[0], cast[1]],
+          ['cast from the boat', castFromBoat[0], castFromBoat[1]],
+        ];
+        for (const c of l.currents)
+          for (const [what, x, y] of spots)
+            expect(within(c, x, y), `${what} at ${x.toFixed(1)},${y.toFixed(1)}`).toBe(false);
+        expect(BOAT.keepOff).toBeGreaterThan(0);
+      });
+    });
 });

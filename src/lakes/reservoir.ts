@@ -414,6 +414,7 @@ export const RESERVOIR: Lake = {
   jetty: null,
   cabin: null,
   boat: { mooring: MOORING, spot: BOAT_SPOT },
+  currents: [{ x: 0, y: 16, heading: Math.PI / 2, length: 24, width: 8, speed: 0.5 }],
   dam: DAM,
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,

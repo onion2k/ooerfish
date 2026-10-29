@@ -168,8 +168,10 @@ function tallyRules(game: Game, out: string[]) {
  * in from the shore, every boulder and the jetty, or at its mooring; the player is aboard only at the pond (or the
  * yawn at the day's end) and only at a lake with a boat; the angler's place is the seat aboard and the lake's own ashore,
  * and a lure that is out was thrown from where the angler is; a row under way is aboard, with the lure in, nothing hooked
- * or landed, and its ends on the water; the boat's body is at the boat and held; and, when not rowing, the save
- * says where the boat is, or ashore when nobody is aboard.
+ * or landed, and its ends on the water; and, in C3, the anchor: the boat is adrift (aboard, not rowing, the anchor up)
+ * only with its body free and the boat at it, and otherwise (anchored, rowing or ashore) with its body held at the
+ * boat; the anchor is up only aboard and not rowing; and, when not rowing, the save says whether the anchor is down, and
+ * where an anchored boat is, or ashore when nobody is aboard.
  */
 function boatRules(game: Game, out: string[]) {
   const { boat, lake, lure } = game;
@@ -201,25 +203,38 @@ function boatRules(game: Game, out: string[]) {
     const seat = seatOf(boat);
     if (at.x !== seat[0] || at.y !== seat[1]) out.push('the angler is aboard but not at the seat');
   } else if (at !== lake.angler) out.push('the angler is ashore but not at the lake’s place');
-  // a cast out was thrown from where the angler stands now, since a row reels it in first
+  // a cast out was thrown from where the angler stands now, since a row reels it in first; aboard, the seat may have
+  // drifted on since the throw, and dropping anchor where it got to is no fault, so only the height of the rod's tip
+  // is held there
   if (
     lure.phase !== 'ready' &&
-    (lure.stand.x !== at.x || lure.stand.y !== at.y || lure.stand.tipHeight !== at.tipHeight)
+    (lure.stand.tipHeight !== at.tipHeight || (!boat.aboard && (lure.stand.x !== at.x || lure.stand.y !== at.y)))
   )
     out.push(`the lure was thrown from ${lure.stand.x.toFixed(1)},${lure.stand.y.toFixed(1)}, not where the angler is`);
-  // the boat's body is where the boat is, and held for the whole of this slice
+  // the anchor is up only aboard and not rowing
+  if (!boat.anchored && (!boat.aboard || boat.rowing))
+    out.push(`the anchor is up with the boat ${boat.aboard ? 'rowing' : 'ashore'}`);
+  // the boat's body is where the boat is, free when the boat is adrift and held when it is anchored, rowed or ashore
   const bodies = game.bodies;
+  const adrift = boat.aboard && !boat.anchored && !boat.rowing;
   if (lake.boat) {
-    if (!bodies.boatHeld) out.push('the boat’s body is not held');
+    if (adrift && bodies.boatHeld) out.push('the boat is adrift but its body is held');
+    if (!adrift && !bodies.boatHeld) out.push('the boat’s body is not held');
     if (Math.abs(bodies.boatX - boat.x) > 1e-3 || Math.abs(bodies.boatY - boat.y) > 1e-3)
       out.push(`the boat’s body is at ${bodies.boatX.toFixed(2)},${bodies.boatY.toFixed(2)}, not at the boat`);
   }
-  // the save says where an anchored boat is
+  // the save says whether the anchor is down, and where an anchored boat is (an adrift one's place is written on the
+  // clock's cadence, so it is only ever near)
   if (!boat.rowing) {
     const kept = game.progress.entry(lake.id).boat;
     if (!boat.aboard && kept !== null) out.push('the player is ashore, but the save keeps a boat');
-    else if (boat.aboard && (!kept || kept.x !== boat.x || kept.y !== boat.y || kept.heading !== boat.heading))
-      out.push('the boat is anchored, but the save does not say where');
+    else if (boat.aboard && !kept)
+      out.push(`the boat is ${boat.anchored ? 'anchored' : 'adrift'}, but the save does not say where`);
+    else if (boat.aboard && kept) {
+      if (kept.anchored !== boat.anchored) out.push('the save and the boat disagree about the anchor');
+      else if (boat.anchored && (kept.x !== boat.x || kept.y !== boat.y || kept.heading !== boat.heading))
+        out.push('the boat is anchored, but the save does not say where');
+    }
   }
 }
 

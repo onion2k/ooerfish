@@ -357,6 +357,20 @@ export interface LakeBoat {
   spot: readonly [number, number];
 }
 
+/**
+ * A current (`docs/boat.md`, C3): a strip of water flowing one way, centred at (x, y), `length` long along `heading`
+ * (radians round from east) and `width` across, carrying what floats on it at `speed` world units a second. The physics
+ * does the carrying, as a belt.
+ */
+export interface Current {
+  x: number;
+  y: number;
+  heading: number;
+  length: number;
+  width: number;
+  speed: number;
+}
+
 /** A lake. */
 export interface Lake {
   /** What the save calls it. */
@@ -422,6 +436,8 @@ export interface Lake {
   cabin: Cabin | null;
   /** The boat it keeps and where it lies, or null for a lake with none (`docs/boat.md`, C2). */
   boat: LakeBoat | null;
+  /** The currents in its water (`docs/boat.md`, C3), each lying on the water clear of the mooring and the spot. */
+  currents: readonly Current[];
   /** A straight dam in place of a cliff (`src/dam.ts` draws it as a painted solid); optional, so a lake without one need not say so. */
   dam?: Dam | null;
   scenery: Scenery;

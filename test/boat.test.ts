@@ -218,6 +218,11 @@ describe('a boat at rest', () => {
       expect(b.rowing).toBe(false);
     });
 
+  for (const lake of LAKES)
+    it(`${lake.id}: lies at anchor, the anchor being up only aboard`, () => {
+      expect(newBoat(lake).anchored).toBe(true);
+    });
+
   it('a lake with none has one that is ashore', () => {
     expect(newBoat({ ...HOME, boat: null }).aboard).toBe(false);
   });

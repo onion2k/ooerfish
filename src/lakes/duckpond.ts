@@ -861,6 +861,10 @@ export const DUCK_POND: Lake = {
     wakingEye: WAKING_EYE,
   },
   boat: { mooring: MOORING, spot: BOAT_SPOT },
+  // down the pond's east side, south toward the middle from the eastern fall's water. Off the axis, beyond where the
+  // shore's casts land (to 8 east at the furthest) and the pace angler's boat casts do, so a game played from the shore
+  // and the pace gate's are as they were, and a cast has to be thrown to it
+  currents: [{ x: 11.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }],
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,
 

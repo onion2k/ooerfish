@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { PHYSICS } from '../src/lake';
+import { DRIFT, PHYSICS } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
 import { RESERVOIR } from '../src/lakes/reservoir';
-import { Bodies, KIND, extent, newWorld, worldFor } from '../src/physics';
+import { Bodies, KIND, currentsOf, extent, newWorld, worldFor } from '../src/physics';
 import { seeded } from '../src/random';
 
 const LAKE_LIST = Object.values(LAKES);
@@ -145,5 +145,166 @@ describe('the bobber’s body', () => {
     expect(() => {
       for (let i = 0; i < 120; i++) bodies.step(DT);
     }).not.toThrow();
+  });
+});
+
+describe('the currents as belts (`docs/boat.md`, C3)', () => {
+  const DT = 1 / 60;
+
+  it('are one belt for each of the lake’s currents, made once and shared', () => {
+    for (const lake of LAKE_LIST) {
+      const made = currentsOf(lake);
+      expect(made).toHaveLength(lake.currents.length);
+      expect(currentsOf(lake)).toBe(made);
+      expect(newWorld(lake).belts).toBe(made);
+      lake.currents.forEach((c, i) => {
+        expect(made[i]).toMatchObject({ cx: c.x, cy: c.y, half: c.length / 2, width: c.width, speed: c.speed });
+        expect(made[i].dx).toBeCloseTo(Math.cos(c.heading), 12);
+        expect(made[i].dy).toBeCloseTo(Math.sin(c.heading), 12);
+      });
+    }
+  });
+
+  it('lies where the pond’s current is: a bobber on it is carried along it, and one beside it is not', () => {
+    const c = HOME.currents[0];
+    const on = new Bodies(newWorld(HOME), HOME);
+    on.drop(c.x, c.y + 3);
+    for (let i = 0; i < 60; i++) on.step(DT);
+    expect(on.y, 'carried south').toBeLessThan(c.y + 3 - 0.3);
+    expect(Math.abs(on.x - c.x), 'and not across').toBeLessThan(0.05);
+    const beside = new Bodies(newWorld(HOME), HOME);
+    beside.drop(c.x - c.width / 2 - 2, c.y);
+    for (let i = 0; i < 60; i++) beside.step(DT);
+    expect(Math.hypot(beside.x - (c.x - c.width / 2 - 2), beside.y - c.y)).toBeLessThan(1e-4);
+    expect(beside.asleep).toBe(true);
+  });
+
+  it('are handed the world’s tuning with the lowered sleepDrift', () => {
+    expect((newWorld(HOME) as unknown as { tune: { sleepDrift: number } }).tune.sleepDrift).toBe(DRIFT.sleepDrift);
+  });
+});
+
+describe('the wind on the bodies (`docs/boat.md`, C3)', () => {
+  const DT = 1 / 60;
+  /** What a steady push is divided by to give the drift it settles at, measured: the floor's 5.5 and the settling's. */
+  const TEN = 10;
+  const fresh = () => new Bodies(newWorld(HOME), HOME);
+
+  it('moves a free body and not a carried one', () => {
+    const bodies = fresh();
+    bodies.blow(KIND.bobber, 2.2, 0, DT);
+    bodies.step(DT);
+    expect(bodies.x, 'carried, it is left be').toBeCloseTo(HOME.landAt[0], 5);
+    expect(bodies.y).toBeCloseTo(HOME.landAt[1], 5);
+    bodies.drop(0, 0);
+    for (let i = 0; i < 60; i++) {
+      bodies.blow(KIND.bobber, 2.2, 0, DT);
+      bodies.step(DT);
+    }
+    expect(bodies.x).toBeGreaterThan(0.1);
+    expect(Math.abs(bodies.y)).toBeLessThan(1e-4);
+    // the boat is carried, so a blow on it does nothing until it is let go
+    bodies.blow(KIND.boat, 1.4, 0, DT);
+    bodies.step(DT);
+    expect(bodies.boatX).toBeCloseTo(HOME.boat!.mooring.x, 4);
+  });
+
+  it('drifts at about the push over ten, the floor’s drag and the settling together, the bobber’s and the boat’s', () => {
+    for (const [kind, push] of [
+      [KIND.bobber, DRIFT.wind.bobber],
+      [KIND.boat, DRIFT.wind.boat],
+    ] as const) {
+      const bodies = fresh();
+      if (kind === KIND.bobber) bodies.drop(-10, 0);
+      else {
+        bodies.putBoat(-10, 0);
+        bodies.letGoBoat();
+      }
+      for (let i = 0; i < 60 * 5; i++) {
+        bodies.blow(kind, push, 0, DT);
+        bodies.step(DT);
+      }
+      const at = kind === KIND.bobber ? bodies.x : bodies.boatX;
+      const v = (at + 10) / 5;
+      expect(v, `kind ${kind}`).toBeGreaterThan((push / TEN) * 0.7);
+      expect(v, `kind ${kind}`).toBeLessThan((push / TEN) * 1.3);
+    }
+  });
+
+  it('lets go the boat where it is, still and awake, and holds it again, still', () => {
+    const bodies = fresh();
+    expect(bodies.boatHeld).toBe(true);
+    bodies.putBoat(-8, 3);
+    bodies.letGoBoat();
+    expect(bodies.boatHeld).toBe(false);
+    expect([bodies.boatX, bodies.boatY]).toEqual([-8, 3]);
+    expect(bodies.world.asleep[bodies.boat]).toBe(0);
+    for (let i = 0; i < 30; i++) {
+      bodies.blow(KIND.boat, 1.4, 0, DT);
+      bodies.step(DT);
+    }
+    const went = bodies.boatX;
+    expect(went).toBeGreaterThan(-8);
+    bodies.holdBoat();
+    expect(bodies.boatHeld).toBe(true);
+    expect(bodies.world.vx[bodies.boat]).toBe(0);
+    for (let i = 0; i < 30; i++) {
+      bodies.blow(KIND.boat, 1.4, 0, DT);
+      bodies.step(DT);
+    }
+    expect(bodies.boatX).toBe(went);
+  });
+
+  it('puts a body back where told and stops it', () => {
+    const bodies = fresh();
+    bodies.drop(0, 0);
+    for (let i = 0; i < 30; i++) {
+      bodies.blow(KIND.bobber, 2.2, 0, DT);
+      bodies.step(DT);
+    }
+    bodies.still(-5, 2);
+    expect([bodies.x, bodies.y]).toEqual([-5, 2]);
+    expect(bodies.world.vx[bodies.bobber]).toBe(0);
+    expect(bodies.held).toBe(false);
+    bodies.putBoat(6, 6);
+    bodies.letGoBoat();
+    bodies.blow(KIND.boat, 1.4, 0, DT);
+    bodies.step(DT);
+    bodies.stillBoat(3, 4);
+    expect([bodies.boatX, bodies.boatY]).toEqual([3, 4]);
+    expect(bodies.world.vx[bodies.boat]).toBe(0);
+    expect(bodies.boatHeld).toBe(false);
+  });
+
+  it('steps the world while only the boat is free', () => {
+    const bodies = fresh();
+    bodies.putBoat(-8, 3);
+    bodies.letGoBoat();
+    bodies.blow(KIND.boat, 1.4, 0, 1);
+    bodies.step(DT);
+    expect(bodies.boatX).toBeGreaterThan(-8);
+  });
+
+  it('still lets a body in a calm world go to sleep, with the lowered sleepDrift', () => {
+    const bodies = fresh();
+    bodies.drop(-5, 0);
+    bodies.putBoat(5, 0);
+    bodies.letGoBoat();
+    for (let i = 0; i < 600; i++) bodies.step(DT);
+    expect(bodies.asleep).toBe(true);
+    expect(bodies.world.asleep[bodies.boat]).toBe(1);
+    expect(Math.hypot(bodies.x + 5, bodies.y)).toBeLessThan(1e-4);
+  });
+
+  it('keeps a body on a slow current awake, which the package’s own sleepDrift would have put to sleep', () => {
+    // 0.6 u/s over the window of forty substeps is 0.2, under the default 0.25 and over the lowered 0.05
+    const c = HOME.currents[0];
+    const bodies = fresh();
+    bodies.drop(c.x, c.y + 4);
+    for (let i = 0; i < 60 * 4; i++) bodies.step(DT);
+    expect(bodies.asleep).toBe(false);
+    const y = bodies.y;
+    for (let i = 0; i < 60; i++) bodies.step(DT);
+    expect(y - bodies.y, 'still being carried').toBeGreaterThan(0.3);
   });
 });

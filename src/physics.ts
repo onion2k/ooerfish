@@ -7,8 +7,8 @@
  * The world's floor is the water's surface, flat, and the shore is its rock: the package refuses the bed as terrain at
  * every tile size, so what floats rests on the surface and the lure hangs under the bobber by the game's own sum.
  */
-import { World } from 'artshape-physics/world';
-import { PHYSICS } from './lake';
+import { World, type Belt } from 'artshape-physics/world';
+import { DRIFT, PHYSICS } from './lake';
 import type { Lake } from './lakes/lake';
 
 /** The kinds of body, by index in the world's radii. */
@@ -25,6 +25,29 @@ interface Layout {
 
 const layouts = new WeakMap<Lake, Layout>();
 const worlds = new WeakMap<Lake, World>();
+const belts = new WeakMap<Lake, Belt[]>();
+
+/**
+ * The lake's currents as the package's belts (`docs/boat.md`, C3): each strip's middle, half its length along its
+ * heading, its width across, the heading as a unit vector, and its speed. Made once for a lake and shared, since the
+ * world only reads them.
+ */
+export function currentsOf(lake: Lake): Belt[] {
+  let kept = belts.get(lake);
+  if (!kept) {
+    kept = lake.currents.map((c) => ({
+      cx: c.x,
+      cy: c.y,
+      half: c.length / 2,
+      width: c.width,
+      dx: Math.cos(c.heading),
+      dy: Math.sin(c.heading),
+      speed: c.speed,
+    }));
+    belts.set(lake, kept);
+  }
+  return kept;
+}
 
 /**
  * How far from the middle the world's square reaches: the furthest the shore goes from it in the world, and the margin.
@@ -79,14 +102,18 @@ function layoutOf(lake: Lake): Layout {
  */
 export function newWorld(lake: Lake): World {
   const { cols, rows, originX, originY, solid } = layoutOf(lake);
-  return new World({
+  // the tuning's `sleepDrift` is lowered so a slow drift is not taken for rest (see `DRIFT`)
+  const world = new World({
     capacity: PHYSICS.capacity,
     grid: { cols, rows, originX, originY, tile: PHYSICS.tile },
     solid,
     bottom: PHYSICS.bottom,
     radii: [PHYSICS.radii.bobber, PHYSICS.radii.boat],
     random: () => 0.5,
+    tuning: { sleepDrift: DRIFT.sleepDrift },
   });
+  world.belts = currentsOf(lake);
+  return world;
 }
 
 /** The lake's world, made the first time it is asked for and kept for that lake. */
@@ -98,8 +125,8 @@ export function worldFor(lake: Lake): World {
 
 /**
  * The game's bodies in a world: the bobber's, spawned carried at the angler's landing so the game places it, and the
- * boat's (a lake that keeps one), carried at the boat's place for the whole of the slice that rows it: the game puts it
- * where it rows, and a later slice lets it go to drift.
+ * boat's (a lake that keeps one), carried at the boat's place while it is rowed or anchored, the game putting it where
+ * it rows, and let go to drift when the anchor is weighed (`docs/boat.md`, C3).
  */
 export class Bodies {
   /** The bobber's slot in the world. */
@@ -166,7 +193,7 @@ export class Bodies {
     return this.boat < 0 ? 0 : this.world.y[this.boat];
   }
 
-  /** Whether the game holds the boat's body (it does, for the whole of this slice); true in a lake with none. */
+  /** Whether the game holds the boat's body (it does, rowed or anchored; not adrift); true in a lake with none. */
   get boatHeld(): boolean {
     return this.boat < 0 || this.world.carried[this.boat] === 1;
   }
@@ -185,6 +212,54 @@ export class Bodies {
   take() {
     this.world.wake(this.bobber);
     this.world.carried[this.bobber] = 1;
+  }
+
+  /** The boat's body let go where it is, at rest and woken, so it drifts: the anchor weighed. Nothing in a lake with no boat. */
+  letGoBoat() {
+    if (this.boat < 0) return;
+    const w = this.world,
+      i = this.boat;
+    w.vx[i] = w.vy[i] = w.vz[i] = 0;
+    w.carried[i] = 0;
+    w.wake(i);
+  }
+
+  /** The boat's body carried again, still: the anchor dropped, or a row begun. Woken first, as `take` does. */
+  holdBoat() {
+    if (this.boat < 0) return;
+    const w = this.world,
+      i = this.boat;
+    w.wake(i);
+    w.vx[i] = w.vy[i] = w.vz[i] = 0;
+    w.carried[i] = 1;
+  }
+
+  /** The bobber put back at (x, y) and stopped, still free: where the game's keep-off holds it. */
+  still(x: number, y: number) {
+    this.stillBody(this.bobber, x, y, PHYSICS.radii.bobber);
+  }
+
+  /** The boat's body put back at (x, y) and stopped, still free. */
+  stillBoat(x: number, y: number) {
+    if (this.boat >= 0) this.stillBody(this.boat, x, y, PHYSICS.radii.boat);
+  }
+
+  private stillBody(i: number, x: number, y: number, z: number) {
+    const w = this.world;
+    w.x[i] = x;
+    w.y[i] = y;
+    w.z[i] = z;
+    w.vx[i] = w.vy[i] = w.vz[i] = 0;
+    w.wake(i);
+  }
+
+  /**
+   * The wind's push of (ax, ay) world units a second each second on the bodies of one kind for `dt`, as a hit: a free
+   * body is given the speed, a carried one is left be, so it is only ever felt where something floats loose.
+   */
+  blow(kind: number, ax: number, ay: number, dt: number) {
+    const i = kind === KIND.bobber ? this.bobber : this.boat;
+    if (i >= 0) this.world.hit(i, ax * dt, ay * dt, 0);
   }
 
   /**
