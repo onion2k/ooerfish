@@ -123,6 +123,20 @@ describe('the journal page’s words', () => {
     expect(journalWords({}, KINDS, 0, 2, [], [], null, book).logbook).toBe(book);
   });
 
+  it('carries the album it was handed, and an empty one otherwise', () => {
+    expect(journalWords({}, KINDS, 0, 2).album).toEqual({
+      title: 'Photographs',
+      rows: [],
+      count: 'photographs: 0 of 12',
+    });
+    const album = {
+      title: 'Photographs',
+      rows: [{ index: 0, words: 'x', here: true }],
+      count: 'photographs: 1 of 12',
+    };
+    expect(journalWords({}, KINDS, 0, 2, [], [], null, undefined, album).album).toBe(album);
+  });
+
   it('ignores an id it was not handed a treasure for, and keeps the drums’ line as it was', () => {
     const page = words(['nope', 'lure']);
     expect(page.treasures.filter((t) => t.found)).toHaveLength(1);

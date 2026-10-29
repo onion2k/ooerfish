@@ -24,6 +24,7 @@ function saveOf(
     time: 0.1,
     place: 'cabin',
     requests: [],
+    photos: [],
   };
 }
 

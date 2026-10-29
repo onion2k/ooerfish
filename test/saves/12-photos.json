@@ -1,0 +1,49 @@
+{
+  "lake": "duckpond",
+  "lakes": {
+    "duckpond": {
+      "cured": 12,
+      "drums": 2,
+      "journal": {
+        "bream": {
+          "caught": 4,
+          "best": 0.9,
+          "first": 1
+        },
+        "pike": {
+          "caught": 3,
+          "best": 4.2,
+          "first": 3
+        }
+      },
+      "found": []
+    }
+  },
+  "day": 5,
+  "time": 0.3,
+  "place": "pond",
+  "requests": [
+    "ducks",
+    "biggest"
+  ],
+  "photos": [
+    {
+      "lake": "duckpond",
+      "day": 2,
+      "time": 0.25,
+      "weather": "rain",
+      "view": { "x": 0, "y": 0, "z": 0, "azimuth": 0.5, "polar": 1.2, "radius": 40 },
+      "kinds": ["bream", "pike"],
+      "lit": false
+    },
+    {
+      "lake": "duckpond",
+      "day": 4,
+      "time": 0.9,
+      "weather": "sunny",
+      "view": { "x": 1.5, "y": -2, "z": 0.5, "azimuth": 3.1, "polar": 1.0, "radius": 25 },
+      "kinds": [],
+      "lit": true
+    }
+  ]
+}

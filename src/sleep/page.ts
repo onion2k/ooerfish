@@ -3,8 +3,8 @@
  * be chosen. A pure function of the day, so it is tested without a page; the page writes what it says each time it
  * opens and not on a frame.
  */
-import { nextFull, nextNew, nextWeather } from '../calendar';
-import { WEATHER, type Weather } from '../lake';
+import { WEATHER_NAMES, nextFull, nextNew, nextWeather } from '../calendar';
+import { WEATHER } from '../lake';
 
 export interface SleepRow {
   /** How many nights to sleep through: a whole number from one to `MOON.days`. */
@@ -17,14 +17,6 @@ export interface SleepRow {
 
 /** "(1 night)" or "(3 nights)". */
 const nightsOf = (n: number) => `${n} ${n === 1 ? 'night' : 'nights'}`;
-
-/** The weather's kinds that have a row, with the name each is called in the label (sunny is the plain day, so none). */
-const WEATHER_NAMES: Readonly<Partial<Record<Weather, string>>> = {
-  rain: 'rain',
-  fog: 'fog',
-  shower: 'sun-shower',
-  wind: 'wind',
-};
 
 /**
  * The choices on `day`, nearest first: the moon's marks and the weather's next days within a round. The festivals'

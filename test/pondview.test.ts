@@ -20,6 +20,8 @@ const state = (over: Partial<PondState> = {}): PondState => ({
   toastHauled: 0,
   hauledUntil: -Infinity,
   foundUntil: -Infinity,
+  photographedUntil: -Infinity,
+  albumFullUntil: -Infinity,
   answered: null,
   answeredFrom: -Infinity,
   answeredUntil: -Infinity,
@@ -116,6 +118,22 @@ describe('what the pond says', () => {
     expect(said({ t: 1 })).toEqual({ lead: 'Found!', bold: "It's for the shelf." });
     expect(said({ t: 2 }), 'over at the time').toBe(null);
     expect(said({ t: 1, cured: 5 })?.lead, 'a treasure is not a cure').toBe('Found!');
+  });
+
+  it('says a photograph was taken, for a while after: "Photographed!"', () => {
+    const said = (over: Partial<PondState>) => pondWords(state({ photographedUntil: 2, ...over })).toast;
+    expect(said({ t: 1 })?.lead).toBe('Photographed!');
+    expect(said({ t: 2 }), 'over at the time').toBe(null);
+    expect(said({ t: 1, cured: 5 })?.lead, 'a photograph is not a cure').toBe('Photographed!');
+  });
+
+  it('says the album is full, and the newer of that and a photograph’s line', () => {
+    const full = pondWords(state({ albumFullUntil: 2, t: 1 })).toast;
+    expect(full?.lead).toBe('The album is full.');
+    expect(pondWords(state({ albumFullUntil: 2, t: 2 })).toast).toBe(null);
+    const both = state({ photographedUntil: 2, albumFullUntil: 3, t: 1 });
+    expect(pondWords(both).toast?.lead).toBe('The album is full.');
+    expect(pondWords({ ...both, photographedUntil: 4 }).toast?.lead).toBe('Photographed!');
   });
 
   it('says the newest of a cure’s, a haul’s and a treasure’s line', () => {
@@ -382,6 +400,19 @@ describe('the pond view', () => {
     expect(el.toast.innerHTML).toContain('Found!');
     expect(el.toast.innerHTML).toContain("It's for the shelf.");
     expect(el.gone.style.width, 'a treasure cleans nothing').toBe(before);
+    for (let f = 0; f < 60 * 2 + 5; f++) game.step(DT);
+    pond.show();
+    expect(el.toast.hidden).toBe(true);
+  });
+
+  it('says a photograph through the view, and the album full, then lets them go', () => {
+    const { game, el, pond } = view();
+    pond.photographed();
+    pond.show();
+    expect(el.toast.innerHTML).toContain('Photographed!');
+    pond.albumFull();
+    pond.show();
+    expect(el.toast.innerHTML).toContain('The album is full.');
     for (let f = 0; f < 60 * 2 + 5; f++) game.step(DT);
     pond.show();
     expect(el.toast.hidden).toBe(true);

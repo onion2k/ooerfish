@@ -20,6 +20,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { HOME } from '../src/lakes';
 import { HEAL } from '../src/lake';
+import type { SaveSaid } from '../src/progress';
 import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, ready, set, splashing, start, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
@@ -869,6 +870,89 @@ test.describe('the journal with the logbook half found', () => {
       await expect(page).toHaveScreenshot('phone-journal-logbook.png', TOLERANCE);
       expect(problems).toEqual([]);
     });
+  });
+});
+
+/**
+ * The camera (`docs/photo.md`, part 4): the viewfinder open at the standard scene, a still of a dusk rain looked at
+ * from a day, and the journal's album with three photographs (two of the pond, one lit, one of the Reservoir).
+ */
+const PHOTO_VIEW = { x: 0, y: 0, z: 0, azimuth: 0.5, polar: 1.2, radius: 40 };
+const ALBUM_SAVE: SaveSaid = {
+  cured: 5,
+  day: 4,
+  photos: [
+    { lake: 'duckpond', day: 2, time: 0.25, weather: 'rain', view: PHOTO_VIEW, kinds: ['bream', 'pike'], lit: false },
+    { lake: 'duckpond', day: 3, time: 0.9, weather: 'sunny', view: PHOTO_VIEW, kinds: ['eel'], lit: true },
+    { lake: 'reservoir', day: 3, time: 0.4, weather: 'sunny', view: PHOTO_VIEW, kinds: ['perch'], lit: false },
+  ],
+};
+
+test('desk-camera', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 4 } });
+  await set(page, STANDARD, 30);
+  await page.evaluate(() => window.game!.openCamera());
+  await expect(page.locator('#camera')).toBeVisible();
+  await expect(page).toHaveScreenshot('desk-camera.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test('desk-still', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: { cured: 4 } });
+  await set(page, STANDARD, 30);
+  await page.evaluate(async () => {
+    const g = window.game!;
+    await g.time('dusk');
+    await g.weather('rain');
+    await g.openCamera();
+    g.photograph();
+    await g.openCamera(false);
+    await g.time('day');
+    await g.weather(null);
+  });
+  await set(page, STANDARD, 30);
+  expect(await page.evaluate(() => window.game!.lookAt(0))).toBe(true);
+  await page.evaluate(() => window.game!.step(30));
+  expect(await page.evaluate(() => window.game!.still().shown)).toBe(true);
+  await expect(page).toHaveScreenshot('desk-still.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test('desk-journal-photos', async ({ page }) => {
+  const problems = watch(page);
+  await start(page, { seed: 11, paused: true, save: ALBUM_SAVE });
+  await set(page, STANDARD, 30);
+  await page.evaluate(() => window.game!.openJournal());
+  await expect(page.locator('#journalClose')).toBeFocused();
+  await page.evaluate(() => document.querySelector('#journal .card')!.scrollTo(0, 99999));
+  await expect(page).toHaveScreenshot('desk-journal-photos.png', TOLERANCE);
+  expect(problems).toEqual([]);
+});
+
+test.describe('the camera on a phone', () => {
+  test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+  test('phone-camera', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 4 } });
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
+    await page.evaluate(() => window.game!.openCamera());
+    await expect(page.locator('#camera')).toBeVisible();
+    await expect(page).toHaveScreenshot('phone-camera.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('phone-journal-photos', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: ALBUM_SAVE });
+    await set(page, { ...STANDARD, view: 'phone' }, 30);
+    await page.evaluate(() => window.game!.openJournal());
+    await expect(page.locator('#journalClose')).toBeFocused();
+    await page.evaluate(() => document.querySelector('#journal .card')!.scrollTo(0, 99999));
+    await expect(page).toHaveScreenshot('phone-journal-photos.png', TOLERANCE);
+    expect(problems).toEqual([]);
   });
 });
 

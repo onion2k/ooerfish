@@ -6,7 +6,7 @@
  * still), and the view writes the page only where something has changed.
  */
 import type { Game } from './game';
-import { seasonOf } from './calendar';
+import { HOUR, seasonOf } from './calendar';
 import { theLake } from './lakes/page';
 import { radioWords } from './radio';
 import type { Place } from './night';
@@ -26,6 +26,8 @@ export interface NightElements {
   elsewhere: HTMLElement;
   /** The Go to bed item in the menu, greyed when the night cannot be begun. */
   bed: HTMLButtonElement;
+  /** The Camera item, greyed with them: a photograph is not taken with a fish on the line. */
+  camera?: HTMLButtonElement;
   /** The Sleep through… item beside it, greyed by the same flag: the bed and sleeping through are refused together. */
   sleep: HTMLButtonElement;
   /** The Go to the cabin item beside them, greyed mid-fight and in the cabin, where there is no door to walk in by. */
@@ -46,9 +48,6 @@ export interface NightWords {
 
 /** The yawn's line, as the player is put to bed. */
 export const YAWN_WORDS = 'Yawn… time for bed';
-
-/** The hour's word for the look of the clock: dawn is the morning, and the other looks are named for the day's parts. */
-const HOUR: Readonly<Record<string, string>> = { dawn: 'morning', day: 'afternoon', dusk: 'evening', night: 'night' };
 
 /**
  * The hour's name on a day: summer's is the plain, capitalised word ("Morning", "Afternoon"), and the other seasons
@@ -170,6 +169,7 @@ export class NightView {
     if (bed !== was.bed) {
       was.bed = bed;
       el.bed.disabled = el.sleep.disabled = !w.bed;
+      if (el.camera) el.camera.disabled = !w.bed;
     }
     const cabin = w.cabin ? 'on' : 'off';
     if (cabin !== was.cabin) {

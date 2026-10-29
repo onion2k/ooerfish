@@ -300,6 +300,9 @@ Each stage is a feature, built and verified before the next, every gate green at
    _A second slice is in (29 Oct 2026, `docs/logbook.md`): the cooling pond's logbook, six pages on the
    beds of the pond and the Reservoir, each fished up as a junk treasure is and read in order in the journal, and
    Wendell Fisk's letter asking for them, answered at the sixth. The last page says what stage 14 promised._
+   _A third slice is in (29 Oct 2026, `docs/photo.md`): the camera, a page that frames the lake and keeps a
+   photograph as figures (the camera, the time, the weather, the kinds in frame), an album of twelve in the journal, a
+   photograph looked at drawn again with the grain held, and the postmistress's letter for the lit eel._
 8. **The boat:** moving, anchoring, drifting, currents and snags.
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**

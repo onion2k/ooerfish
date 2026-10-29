@@ -12,6 +12,7 @@ const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   time: 0.25,
   place: 'pond',
   requests: [],
+  photos: [],
 });
 const other = Object.keys(LAKES).find((id) => id !== HOME.id)!;
 

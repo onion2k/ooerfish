@@ -29,6 +29,7 @@ import { moonLight, moonName, moonOf, nextFull, nextNew, seasonOf } from './cale
 import { CLOCK, KINDS, type Season, type Weather } from './lake';
 import { LAKES } from './lakes';
 import { logbookWords, type LogbookWords } from './town/logbook';
+import type { Photo } from './photo';
 import { bankSpot } from './drumdraw';
 import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
@@ -223,6 +224,10 @@ export interface GameApi {
   reel(on: boolean): void;
   /** The save's journal: for each kind caught, by its id, how many, the best weight and the day of the first; and the ids of the treasures found. */
   journal(): { kinds: Journal; found: string[] };
+  /** The album as saved, a copy: each photograph's lake, day, time, weather, view, kinds in frame and whether it was lit. */
+  photos(): Photo[];
+  /** The photograph at this place in the album thrown away, as Discard does; false, and nothing changed, for a place with none. */
+  discard(index: number): boolean;
   /** The journal's logbook section as the page shows it: the six pages in order over every lake, their words once found, and the count. */
   logbook(): LogbookWords;
   /** The landed fish put in the bucket, as a tap on its card does; false with none landed. */
@@ -350,7 +355,7 @@ export interface GameApi {
    */
   pair(fixed?: { room: string; key: string; origin?: string }): Promise<void>;
   /**
-   * Whether a page holds the clock: the menu's list, the journal, the post, the lakes page, the sleep page, the Start
+   * Whether a page holds the clock: the menu's list, the journal, the post, the lakes page, the sleep page, the camera, a photograph looked at, the Start
    * again question or the pairing card is open. While one is, `step` moves nothing and no key, tap, button or phone gesture reaches the game.
    */
   pagesOpen(): boolean;
@@ -381,6 +386,27 @@ export interface GameApi {
    * cabin. A choice on it is a click on its button.
    */
   openSleep(open?: boolean): Promise<void>;
+  /**
+   * Opens the camera page as the menu's Camera item and the P key do, resolving once it is shown, or closes it again
+   * with `false`. It holds the game as every page does while the lake draws on and a drag frames the view; it is
+   * refused with a fish hooked or landed, while yawning or leaving, and with another page open.
+   */
+  openCamera(open?: boolean): Promise<void>;
+  /** Whether the camera page is open. */
+  cameraOpen(): boolean;
+  /** The photograph of what the camera sees, as Take does; false, and the album unchanged, with the camera closed or the album full. */
+  photograph(): boolean;
+  /** A test lever: the camera put to look at the point (x, y, z), a little way off, while the camera page is open. */
+  frame(x: number, y: number, z: number): void;
+  /**
+   * A photograph of the album looked at, as its Look button does: the camera, the clock and the weather put at its
+   * own and the grain held. False, and nothing done, for a place with none, one taken at another lake or another page open.
+   */
+  lookAt(index: number): Promise<boolean>;
+  /** Back from a photograph looked at: the camera, the clock, the weather lever, the orbit and the grain put back, and the journal opened again if it was. */
+  lookAway(): Promise<void>;
+  /** The still: whether the page shows one, the album place the page has, the album place the game holds (-1 for none), and the renderer's grain clock as the last frame left it. */
+  still(): { shown: boolean; index: number; held: number; postClock: number };
   /**
    * The map on the cabin's wall: the id of the lake its pin was last handed over on (the lake the save names, which
    * is the home's whenever the player is in the cabin, but for the moment of a journey's fade), and how many times
@@ -520,6 +546,13 @@ export interface DebugHost {
   openPost(open: boolean): Promise<void>;
   openLakes(open: boolean): Promise<void>;
   openSleep(open: boolean): Promise<void>;
+  openCamera(open: boolean): Promise<void>;
+  cameraOpen(): boolean;
+  photograph(): boolean;
+  frameOn(x: number, y: number, z: number): void;
+  lookAt(index: number): Promise<boolean>;
+  lookAway(): Promise<void>;
+  still(): { shown: boolean; index: number; postClock: number };
   map(): { pin: string; handovers: number };
   mapOnScreen(): { x: number; y: number } | null;
   tableOnScreen(): { x: number; y: number } | null;
@@ -660,6 +693,8 @@ export function createApi(host: DebugHost): GameApi {
       kinds: JSON.parse(JSON.stringify(game.progress.entry(game.lake.id).journal)) as Journal,
       found: [...game.progress.entry(game.lake.id).found],
     }),
+    photos: () => JSON.parse(JSON.stringify(game.progress.save.photos)) as Photo[],
+    discard: (index) => game.discard(index),
     logbook: () => logbookWords(LAKES, game.progress.save),
     gear: () => ({ ...game.gear }),
     fishing: () => ({
@@ -839,6 +874,13 @@ export function createApi(host: DebugHost): GameApi {
     openPost: (open = true) => host.openPost(open),
     openLakes: (open = true) => host.openLakes(open),
     openSleep: (open = true) => host.openSleep(open),
+    openCamera: (open = true) => host.openCamera(open),
+    cameraOpen: () => host.cameraOpen(),
+    photograph: () => host.photograph(),
+    frame: (x, y, z) => host.frameOn(x, y, z),
+    lookAt: (index) => host.lookAt(index),
+    lookAway: () => host.lookAway(),
+    still: () => ({ ...host.still(), held: game.still?.index ?? -1 }),
     map: () => host.map(),
     mapOnScreen: () => host.mapOnScreen(),
     tableOnScreen: () => host.tableOnScreen(),

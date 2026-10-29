@@ -24,6 +24,17 @@ describe('the fuzzer', () => {
       expect(done[action] ?? 0, action).toBeGreaterThan(0);
   });
 
+  it('photographs: across seeds 1 to 24 some start with a full album, a photograph is taken, one is refused at a full album, one is discarded, and none breaks a rule', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 4000, 'duckpond');
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+    }
+    for (const action of ['photograph', 'photograph refused', 'discard', 'look at'])
+      expect(done[action], action).toBeGreaterThan(0);
+  });
+
   it('fishes: across a few seeds, it strikes, reels and stows, and fish are hooked, slip and are landed', () => {
     const happened: Record<string, number> = {},
       done: Record<string, number> = {};

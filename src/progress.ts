@@ -12,7 +12,8 @@
  * a retuned step is applied to a save already written. A new field gets a
  * default here and a file in `test/saves`.
  */
-import { CLOCK, KINDS } from './lake';
+import { CLOCK, KINDS, PHOTOS, WEATHER } from './lake';
+import type { Photo } from './photo';
 import type { Lake } from './lakes/lake';
 import { HOME } from './lakes';
 import type { Journal } from './journal';
@@ -43,6 +44,8 @@ export interface Save {
   place: 'pond' | 'cabin';
   /** The ids of the town's requests answered, in the order they were, each once; nothing ever takes one away. */
   requests: string[];
+  /** The album, oldest first and never more than `PHOTOS.most`: each a record of figures, redrawn when it is looked at. */
+  photos: Photo[];
 }
 
 /** A save as a test may hand one in: any of the fields, the flat shape from before there were lakes included, which reads as the home's. */
@@ -159,6 +162,51 @@ function readRequests(raw: unknown, save: Save, lakes: Record<string, Lake>): st
   return out;
 }
 
+/**
+ * The album as anyone may have written it: a list, of which an entry is kept only when its lake is one the game has,
+ * its day a whole number from one up to today's, its time a finite number in [0, 1), its weather one the game has, its
+ * view six finite numbers, its kinds a list of kind ids and its `lit` a boolean. A repeated kind is kept once. Held to
+ * the first `PHOTOS.most`; anything that is not a list is none.
+ */
+function readPhotos(raw: unknown, save: Save, lakes: Record<string, Lake>): Photo[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Photo[] = [];
+  const ids: string[] = KINDS.map((k) => k.id);
+  for (const p of raw) {
+    if (out.length >= PHOTOS.most) break;
+    if (typeof p !== 'object' || p === null || Array.isArray(p)) continue;
+    const e = p as Record<string, unknown>;
+    if (typeof e.lake !== 'string' || !Object.hasOwn(lakes, e.lake)) continue;
+    if (!whole(e.day) || e.day < 1 || e.day > save.day) continue;
+    if (typeof e.time !== 'number' || !Number.isFinite(e.time) || e.time < 0 || e.time >= 1) continue;
+    if (typeof e.weather !== 'string' || !(WEATHER.kinds as readonly string[]).includes(e.weather)) continue;
+    const v = e.view;
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) continue;
+    const view = v as Record<string, unknown>;
+    const keys = ['x', 'y', 'z', 'azimuth', 'polar', 'radius'] as const;
+    if (!keys.every((k) => typeof view[k] === 'number' && Number.isFinite(view[k]))) continue;
+    if (!Array.isArray(e.kinds) || !e.kinds.every((k) => typeof k === 'string' && ids.includes(k))) continue;
+    if (typeof e.lit !== 'boolean') continue;
+    out.push({
+      lake: e.lake,
+      day: e.day,
+      time: e.time,
+      weather: e.weather as Photo['weather'],
+      view: {
+        x: view.x as number,
+        y: view.y as number,
+        z: view.z as number,
+        azimuth: view.azimuth as number,
+        polar: view.polar as number,
+        radius: view.radius as number,
+      },
+      kinds: [...new Set(e.kinds as string[])],
+      lit: e.lit,
+    });
+  }
+  return out;
+}
+
 const freshEntry = (): LakeSave => ({ cured: 0, drums: 0, journal: {}, found: [] });
 
 /**
@@ -220,6 +268,7 @@ export class Progress {
       this.save.lakes[home] = readEntry(said, lakes[home] ?? HOME, this.save.day);
     }
     this.save.requests = readRequests(said.requests, this.save, lakes);
+    this.save.photos = readPhotos(said.photos, this.save, lakes);
   }
 
   /** The home's id, or the first the registry has where the home is not in it (a test that plays some other lake alone). */
@@ -230,7 +279,7 @@ export class Progress {
   private fresh(): Save {
     const lakes: Record<string, LakeSave> = {};
     for (const id of Object.keys(this.lakes)) lakes[id] = freshEntry();
-    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond', requests: [] };
+    return { lake: this.homeId(), lakes, day: 1, time: CLOCK.startsAt, place: 'pond', requests: [], photos: [] };
   }
 
   /** What has been done at the lake with this id: the live entry the game writes, made fresh if the save has none. */

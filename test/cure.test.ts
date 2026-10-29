@@ -63,6 +63,7 @@ describe('the cure', () => {
         time: expect.any(Number) as unknown,
         place: 'pond',
         requests: [],
+        photos: [],
       });
     }
     expect(game.bucket).toBe(3);

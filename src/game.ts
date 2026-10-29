@@ -13,7 +13,20 @@ import { Bite, type Strike } from './bite';
 import { BedFinds, places } from './bedfinds';
 import { School, steerTo } from './fish';
 import { Line } from './line';
-import { CLOCK, NIGHT, DROP_NEAR, HEAL, GEAR, FISHING, KINDS, RELEASE, MOON, WEATHER, type Weather } from './lake';
+import {
+  CLOCK,
+  NIGHT,
+  PHOTOS,
+  DROP_NEAR,
+  HEAL,
+  GEAR,
+  FISHING,
+  KINDS,
+  RELEASE,
+  MOON,
+  WEATHER,
+  type Weather,
+} from './lake';
 import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
 import { NO_WIND } from './cast';
@@ -22,6 +35,7 @@ import { HOME, LAKES } from './lakes';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import { recorded } from './journal';
 import { Progress } from './progress';
+import type { Photo } from './photo';
 import { REQUESTS } from './town/requests';
 import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Gear, type Temper } from './fight';
 import type { Random } from './random';
@@ -55,6 +69,10 @@ export interface GameEvents {
   found?(id: string): void;
   /** A request of the town was answered, in play and not at a load: its id. */
   answered?(id: string): void;
+  /** A photograph was kept, at this place in the album. */
+  photographed?(index: number): void;
+  /** The photograph at this place in the album was discarded; the ones after it move up. */
+  discarded?(index: number): void;
   /** A fish was landed: what kind, and what it weighs, in kilograms. It waits by the rod to be stowed. */
   landed?(kind: string, weight: number, temper: Temper): void;
   /** The day's end began, at midnight or by choice: the player yawns and the screen starts to fade. */
@@ -159,6 +177,12 @@ export class Game {
   healElapsed = 0;
   /** How many times the lever has set the contamination, which the invariants read to tell a rise by the lever from one by any other road. */
   levers = 0;
+  /**
+   * The photograph being looked at, if one is (`docs/photo.md`): its place in the album, the photograph itself and the
+   * clock before the look. While it is, the clock and (at the pond) the weather are the photograph's, the page draws
+   * them, and `step` holds the game still.
+   */
+  still: { index: number; photo: Photo; timeBefore: number } | null = null;
   /** The weather the lever set, or null for the day's own; cleared by a wake, since the day moved. */
   private weatherLever: Weather | null = null;
   /** The day's own weather and the day it was worked out for, since the page reads it every frame and `weatherOf` makes a generator. */
@@ -269,6 +293,8 @@ export class Game {
 
   /** One frame of `dt` seconds. */
   step(dt: number) {
+    // a photograph looked at holds the game, as every page does, so the clock and the fish stay where the look found them
+    if (this.still) return;
     // away from the pond only the fade moves: the clock, the fish, the lure and the water hold until the player is back
     if (this.place !== 'pond') return this.stepNight(dt);
     if (this.arriving) {
@@ -348,7 +374,7 @@ export class Game {
    * number of nights that is not a whole number from one to a round of the moon.
    */
   sleepThrough(nights: number): boolean {
-    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still) return false;
     if (!Number.isInteger(nights) || nights < 1 || nights > MOON.days) return false;
     this.nights = nights;
     this.yawn();
@@ -393,7 +419,7 @@ export class Game {
    * yawning or already leaving.
    */
   travel(id: string, into: 'pond' | 'cabin' = 'pond'): boolean {
-    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting) return false;
+    if (this.place === 'yawning' || this.place === 'leaving' || this.fighting || this.still) return false;
     if (!Object.hasOwn(this.progress.lakes, id)) return false;
     // the cabin is at home only: a journey into it anywhere else is refused
     if (into === 'cabin' && id !== HOME.id) return false;
@@ -618,6 +644,43 @@ export class Game {
   }
 
   /**
+   * A photograph kept at the end of the album: the lake, day, clock and weather as the game has them now (the weather
+   * the lever set, if it did, since a photograph keeps what was shown) and the camera and the kinds in frame as the page
+   * works them out, which `Game` knows nothing of. A kind the lake cannot give is dropped and each is kept once. False,
+   * and nothing changed, with the album full or while yawning or leaving. A photograph can meet a request, so the town
+   * is asked as it is after a stow.
+   */
+  photograph(subjects: { view: Photo['view']; kinds: string[]; lit: boolean }): boolean {
+    if (this.place !== 'pond' && this.place !== 'cabin') return false;
+    const { photos } = this.progress.save;
+    if (photos.length >= PHOTOS.most) return false;
+    const possible = new Set<string>(this.lake.fishKinds.map((k) => KINDS[k].id));
+    photos.push({
+      lake: this.lake.id,
+      day: this.day,
+      time: this.timeOfDay,
+      weather: this.weather,
+      view: { ...subjects.view },
+      kinds: [...new Set(subjects.kinds)].filter((id) => possible.has(id)),
+      lit: subjects.lit,
+    });
+    this.persist();
+    this.events.photographed?.(photos.length - 1);
+    this.answer(true);
+    return true;
+  }
+
+  /** The photograph at `index` thrown away, the later ones moving up; false, and nothing changed, for a place with none. */
+  discard(index: number): boolean {
+    const { photos } = this.progress.save;
+    if (!Number.isInteger(index) || index < 0 || index >= photos.length) return false;
+    photos.splice(index, 1);
+    this.persist();
+    this.events.discarded?.(index);
+    return true;
+  }
+
+  /**
    * Fish `i` cured and let go in the pond, `RELEASE.distance` out from the angler toward the middle and facing away from
    * the shore, or further out a step at a time until that is on the water; if none of the tries is, it stays where the
    * fight left it, which was on the water. A small splash is told there.
@@ -711,6 +774,8 @@ export class Game {
 
   /** The sky today: the lever's if it was set, else the day's own (`weatherOf`). */
   get weather(): Weather {
+    // a photograph looked at at the pond shows the weather it was taken in, whatever the lever or the day say
+    if (this.still && this.place === 'pond') return this.still.photo.weather;
     if (this.weatherLever) return this.weatherLever;
     if (this.dayWeatherFor !== this.day) {
       this.dayWeather = weatherOf(this.day);
@@ -737,6 +802,29 @@ export class Game {
     if (name !== null && !(WEATHER.kinds as readonly string[]).includes(name)) return false;
     this.weatherLever = name as Weather | null;
     this.levers++;
+    return true;
+  }
+
+  /**
+   * A photograph of the album looked at: the clock is put to the one it was taken at, at the pond (the cabin's holds),
+   * and the weather becomes its own through the `weather` getter, neither counted as a lever. Refused, and nothing
+   * changed, for a place with no photograph, one of another lake, a still already, a fish hooked or landed, and
+   * anywhere but the pond and the cabin.
+   */
+  lookAt(index: number): boolean {
+    const photo = Number.isInteger(index) ? this.progress.save.photos[index] : undefined;
+    if (!photo || photo.lake !== this.lake.id || this.still || this.fighting) return false;
+    if (this.place !== 'pond' && this.place !== 'cabin') return false;
+    this.still = { index, photo, timeBefore: this.timeOfDay };
+    if (this.place === 'pond') this.setTimeOfDay(photo.time);
+    return true;
+  }
+
+  /** The photograph put down: the clock back to where it was at the pond. False, and nothing changed, with none looked at. */
+  lookAway(): boolean {
+    if (!this.still) return false;
+    if (this.place === 'pond') this.setTimeOfDay(this.still.timeBefore);
+    this.still = null;
     return true;
   }
 
@@ -801,7 +889,8 @@ export class Game {
     // the yawn keeps what the save had: its clock is just past midnight and the day has not gone up, so a load from it
     // lands before the yawn, which comes again
     if (this.place !== 'yawning') {
-      this.progress.save.time = this.timeOfDay;
+      // a photograph looked at has the clock at its own time: the save keeps play's, so a load lands where play was
+      this.progress.save.time = this.still ? this.still.timeBefore : this.timeOfDay;
       // leaving is for the lake the save names, at its pond or, at home, its cabin
       this.progress.save.place = this.place === 'leaving' ? this.arrival : this.place;
     }

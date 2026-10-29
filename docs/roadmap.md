@@ -44,7 +44,7 @@ the Marsh. Sound is cross-cutting and comes once there is a radio to play.
       Reservoir, each a treasure with a page number (not a third `BedFinds`: a page does nothing a treasure does not),
       read in order in the journal's new section; the engineer's letter is met by all six. The last page's line, the
       hidden thing of stage 14, is written in with them.
-- [ ] **B4. Photo mode.** A page that stops the clock, frames the view, and keeps a photograph: the camera, the
+- [x] **B4. Photo mode** (`docs/photo.md`, landed 29 Oct 2026). A page that stops the clock, frames the view, and keeps a photograph: the camera, the
       time and the weather, drawn again when looked at (the renderer's `postClock` holds a still's grain), not
       pixels, so the save stays small. Answers the postmistress's request and fills the journal. Counted in
       `leaks.ts`. _Decision first:_ figures re-drawn (recommended) or an image kept.

@@ -29,7 +29,7 @@
 import { Game } from '../src/game';
 import { particleWindow } from '../src/falling';
 import { seasonOf } from '../src/calendar';
-import { FISH_CAPACITY, KINDS, PARTICLE_POOL, SPLASH_CAPACITY } from '../src/lake';
+import { FISH_CAPACITY, KINDS, PARTICLE_POOL, PHOTOS, SPLASH_CAPACITY } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
 import { REQUESTS } from '../src/town/requests';
 import { Progress, memoryStore } from '../src/progress';
@@ -46,7 +46,8 @@ const DT = 1 / 60;
 export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }>> = {
   fish: { ceiling: FISH_CAPACITY },
   splashes: { ceiling: SPLASH_CAPACITY },
-  'save bytes': { ceiling: 2_000 },
+  // twelve photographs at about 130 bytes each (`docs/photo.md`) are why the ceiling is 4000 and not 2000: the rest of the save is about 300
+  'save bytes': { ceiling: 4_000 },
   // the journal keeps an entry for each kind of fish and no more, and the save counts the drums hauled of those the lake has, the most of any lake the game has
   'journal kinds': { ceiling: KINDS.length },
   'drums hauled': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.drums.count)) },
@@ -54,6 +55,8 @@ export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }
   'treasures found': { ceiling: Math.max(...Object.values(LAKES).map((l) => l.treasures.count)) },
   // the town's requests are kept by id, none twice, of the ones it has
   'requests answered': { ceiling: REQUESTS.length },
+  // the album is held to its size and a thirteenth is refused
+  photos: { ceiling: PHOTOS.most },
   // the sources that can hold the reel: the screen's pointer, the key, the button and the phone
   'gesture holds': { ceiling: 4 },
   // the one phone; a second or a stranger is never kept
@@ -78,6 +81,7 @@ export function sizes(game: Game, room?: Crowd): Record<string, number> {
     'drums hauled': game.progress.entry(game.lake.id).drums,
     'treasures found': game.progress.entry(game.lake.id).found.length,
     'requests answered': game.progress.save.requests.length,
+    photos: game.progress.save.photos.length,
     'particle window': particleWindow(seasonOf(game.day), game.lake, game.weather),
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };

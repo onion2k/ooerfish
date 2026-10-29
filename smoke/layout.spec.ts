@@ -51,6 +51,9 @@ const BREAKPOINTS = [
  *               its words must fit it without scrolling.
  *   postCard    the post's page, a modal of the same kind, its letters free to scroll but able to.
  *   lakesCard   the lakes page, a modal of the same kind, its two rows and their buttons fitting it without scrolling.
+ *   cameraFrame, cameraLine, cameraTake, cameraDone, stillLine, stillBack  the camera's viewfinder and the still's:
+ *               the frame (a modal of the same kind, which the line and buttons stand inside) held inset from every edge,
+ *               and the line and buttons inside the screen and clear of each other. Every overlay above is hidden under both.
  *   sleepCard   the sleep page, a modal of the same kind, its six choices fitting it without scrolling.
  * Left out: `pairing` (a full-screen modal, closed in every moment here, and it would cover everything by design),
  * `boot` (the cover, gone by then) and `stage` (the canvas the overlays are over).
@@ -83,7 +86,7 @@ const FIGHT_SAMPLES = 12;
 const FIGHT_GAP = 30;
 
 /** The modal pages' cards, which lie over the other overlays by design. */
-const MODALS = ['startAgainCard', 'journalCard', 'postCard', 'lakesCard', 'sleepCard'];
+const MODALS = ['startAgainCard', 'journalCard', 'postCard', 'lakesCard', 'sleepCard', 'cameraFrame', 'stillFrame'];
 
 /** How near an overlay's edge may come to the bobber, the line's end or the fish, in CSS pixels: a finger-width of nothing is not asked, but the point must not sit on the edge. */
 const POINT_MARGIN = 6;
@@ -108,6 +111,8 @@ type Moment =
   | 'lakes'
   | 'lakes cabin'
   | 'sleep'
+  | 'camera'
+  | 'still'
   | 'yawn'
   | 'morning';
 const MOMENTS: Moment[] = [
@@ -128,6 +133,8 @@ const MOMENTS: Moment[] = [
   'lakes',
   'lakes cabin',
   'sleep',
+  'camera',
+  'still',
   'yawn',
   'morning',
 ];
@@ -150,6 +157,8 @@ const AT_LEAST: Record<Moment, number> = {
   lakes: 1,
   'lakes cabin': 1,
   sleep: 1,
+  camera: 4,
+  still: 3,
   // the gauge, the menu and the words; and, in the cabin, the line, the radio under it and the two buttons with them
   yawn: 3,
   morning: 6,
@@ -210,6 +219,22 @@ async function boxes(page: Page): Promise<Box[]> {
         const r = sleep.getBoundingClientRect();
         out.push({ id: 'sleepCard', left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       }
+      // the camera's viewfinder and the still's: the frame, and the line and buttons inside it
+      for (const [host, ids] of [
+        ['camera', ['Frame', 'Line', 'Take', 'Done']],
+        ['still', ['Frame', 'Line', 'Back']],
+      ] as const)
+        if (!document.getElementById(host)!.hidden)
+          for (const part of ids) {
+            const el =
+              part === 'Frame'
+                ? document.querySelector<HTMLElement>(`#${host} .frame`)
+                : document.getElementById(host + part);
+            if (!el) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0)
+              out.push({ id: host + part, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+          }
       return out;
     },
     OVERLAYS as readonly string[],
@@ -223,6 +248,15 @@ async function boxes(page: Page): Promise<Box[]> {
 async function reach(page: Page, moment: Moment) {
   // the journal's page is read from a save with a journal part filled and a drum hauled, so that it has words to fit; the
   // drum's card from a pond with every fish cured, so that only a drum can be landed
+  const pondPhoto = {
+    lake: 'duckpond',
+    day: 1,
+    time: 0.3,
+    weather: 'sunny' as const,
+    view: { x: 0, y: 0, z: 0, azimuth: 0.5, polar: 1.2, radius: 40 },
+    kinds: ['bream', 'pike'],
+    lit: false,
+  };
   const save =
     moment === 'welcome'
       ? {}
@@ -238,6 +272,7 @@ async function reach(page: Page, moment: Moment) {
                 journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
                 // some pages of the logbook found, so that its section has words to fit
                 found: ['page1', 'page2'],
+                photos: [pondPhoto],
               },
             }
           : moment === 'journal found'
@@ -249,6 +284,7 @@ async function reach(page: Page, moment: Moment) {
                   drums: 1,
                   journal: { perch: { caught: 2, best: 1.9, first: 1 }, pike: { caught: 1, best: 3.62, first: 2 } },
                   found: ['lure', 'plush', 'lunchbox', 'badge', 'bottle', 'duck', 'page1', 'page2', 'page3'],
+                  photos: [pondPhoto],
                 },
               }
             : // the post's answered letters: the ducks (a clean pond) and the rival (a big pike) answered, so two replies show
@@ -267,7 +303,10 @@ async function reach(page: Page, moment: Moment) {
                 : // the sleep page on day 9, where every weather is within the round: its six rows, the most it ever holds
                   moment === 'sleep'
                   ? { save: { cured: 3, day: 9 } }
-                  : { save: { cured: 3 } };
+                  : // the still is read from an album with one photograph in it
+                    moment === 'still'
+                    ? { save: { cured: 3, photos: [pondPhoto] } }
+                    : { save: { cured: 3 } };
   await start(page, { seed: 7, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(async (m) => {
@@ -292,6 +331,15 @@ async function reach(page: Page, moment: Moment) {
     if (m === 'sleep') {
       await g.openSleep();
       return g.pagesOpen();
+    }
+    if (m === 'camera') {
+      await g.openCamera();
+      return g.cameraOpen();
+    }
+    if (m === 'still') {
+      await g.lookAt(0);
+      g.step(5);
+      return g.still().shown;
     }
     if (m === 'drum card') return g.fishTo('landed', 'drum');
     // the bottle's card is the longest: its note is the most words a card ever holds
@@ -433,7 +481,7 @@ for (const bp of BREAKPOINTS) {
             if (fit.scroll > fit.shown + 1 && !['auto', 'scroll'].includes(fit.overflow))
               failures.add(`${still}: the post's card needs ${fit.scroll}px, shows ${fit.shown}px and cannot scroll`);
             if (fit.close <= 0) failures.add(`${still}: the post's Close button has no size`);
-            if (fit.letters !== 5) failures.add(`${still}: the post lists ${fit.letters} letters, not five`);
+            if (fit.letters !== 6) failures.add(`${still}: the post lists ${fit.letters} letters, not six`);
             if (fit.replies !== (moment === 'post' ? 0 : 2))
               failures.add(`${still}: the post shows ${fit.replies} replies`);
           }
@@ -468,6 +516,17 @@ for (const bp of BREAKPOINTS) {
             if (fit.scroll > fit.shown + 1)
               failures.add(`${still}: the sleep page's words need ${fit.scroll}px and the card shows ${fit.shown}px`);
             if (fit.buttons !== 6) failures.add(`${still}: the sleep page has ${fit.buttons} choices, not 6`);
+          }
+
+          // the camera and the still: the frame is inset from every edge, and every other overlay is hidden under them
+          if (moment === 'camera' || moment === 'still') {
+            const frame = all.find((b) => b.id === moment + 'Frame');
+            if (!frame) failures.add(`${still}: no frame`);
+            else if (frame.left < 8 || frame.top < 8 || frame.right > bp.width - 8 || frame.bottom > bp.height - 8)
+              failures.add(`${still}: ${show(frame)} is not inset from the screen's edges`);
+            for (const b of all)
+              if (OVERLAYS.includes(b.id as (typeof OVERLAYS)[number]))
+                failures.add(`${still}: ${show(b)} shows under the ${moment}`);
           }
 
           // the keyboard hint names keys a phone does not have

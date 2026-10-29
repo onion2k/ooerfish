@@ -46,7 +46,7 @@ describe('the lake', () => {
     expect(store.json).toBe(null);
     game.persist();
     expect(store.json).toBe(
-      `{"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":${game.timeOfDay},"place":"pond","requests":[]}`,
+      `{"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":${game.timeOfDay},"place":"pond","requests":[],"photos":[]}`,
     );
   });
 });
@@ -620,6 +620,7 @@ describe('a drum of waste', () => {
       time: game.timeOfDay,
       place: 'pond',
       requests: [],
+      photos: [],
     });
     expect(game.bite.phase).toBe('none');
     expect(game.bite.drum).toBe(-1);
@@ -905,6 +906,7 @@ describe('a treasure on the bed', () => {
       time: game.timeOfDay,
       place: 'pond',
       requests: [],
+      photos: [],
     });
     expect(game.bite.phase).toBe('none');
     expect(game.bite.treasure).toBe(-1);

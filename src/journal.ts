@@ -6,6 +6,8 @@
  */
 
 import { theLake } from './lakes/page';
+import { PHOTOS } from './lake';
+import type { AlbumWords } from './photo';
 import type { LogbookWords } from './town/logbook';
 
 /**
@@ -76,13 +78,15 @@ export interface JournalPage {
   found: string;
   /** The logbook's section: the plant's pages in order over every lake, handed in and not read here. */
   logbook: LogbookWords;
+  /** The album's section, "Photographs", handed in as the logbook is; the page makes the buttons of its rows. */
+  album: AlbumWords;
 }
 
 /**
  * The words of the journal page: each kind, caught or not, the drums of waste hauled out of those on the bed, and each
  * junk treasure found (by `found`, a list of ids) by name, with the bottle's note under it, or as not yet found. An id of
  * a treasure not handed in is ignored, and a treasure with a page is left out of the found rows and their count, since
- * it is in the book. `logbook` is that section's words, made over every lake by the caller; with none handed in it is an empty book. `lakeName` is the lake the book is of, or null at the home, whose page keeps
+ * it is in the book. `logbook` is that section's words, made over every lake by the caller; with none handed in it is an empty book, and `album` likewise is the photographs' words. `lakeName` is the lake the book is of, or null at the home, whose page keeps
  * the plain heading it has always had.
  */
 export function journalWords(
@@ -94,6 +98,7 @@ export function journalWords(
   found: readonly string[] = [],
   lakeName: string | null = null,
   logbook: LogbookWords = { title: 'The logbook', rows: [], found: 'pages found: 0 of 0' },
+  album: AlbumWords = { title: 'Photographs', rows: [], count: `photographs: 0 of ${PHOTOS.most}` },
 ): JournalPage {
   const rows = kinds.map(({ id, name, fact }): JournalRow => {
     const e = journal[id];
@@ -120,5 +125,6 @@ export function journalWords(
     treasures: rows2,
     found: `found: ${n} of ${rows2.length}`,
     logbook,
+    album,
   };
 }

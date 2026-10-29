@@ -11,7 +11,7 @@ import { Game } from '../src/game';
 import { gearFor } from '../src/fight';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, KINDS } from '../src/lake';
+import { CLOCK, KINDS, PHOTOS } from '../src/lake';
 import { HOME } from '../src/lakes';
 import type { Lake } from '../src/lakes/lake';
 import { Progress, memoryStore, type Save } from '../src/progress';
@@ -28,6 +28,7 @@ const FRESH = {
   time: 0.25,
   place: 'pond',
   requests: [],
+  photos: [],
 };
 
 const DIR = new URL('saves/', import.meta.url);
@@ -100,6 +101,31 @@ const KEPT: Record<string, Record<string, unknown>> = {
   },
   // the town's requests: the ids answered, in order
   '11-requests.json': { cured: 12, drums: 2, requests: ['ducks', 'biggest'] },
+  // the album: two photographs, one lit, one of two kinds
+  '12-photos.json': {
+    cured: 12,
+    drums: 2,
+    photos: [
+      {
+        lake: HOME.id,
+        day: 2,
+        time: 0.25,
+        weather: 'rain',
+        view: { x: 0, y: 0, z: 0, azimuth: 0.5, polar: 1.2, radius: 40 },
+        kinds: ['bream', 'pike'],
+        lit: false,
+      },
+      {
+        lake: HOME.id,
+        day: 4,
+        time: 0.9,
+        weather: 'sunny',
+        view: { x: 1.5, y: -2, z: 0.5, azimuth: 3.1, polar: 1, radius: 25 },
+        kinds: [],
+        lit: true,
+      },
+    ],
+  },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -394,7 +420,7 @@ describe('the save per lake', () => {
     expect(progress.entry(other.id), 'the other lake is untouched').toEqual(entry());
     progress.persist();
     const written = JSON.parse(store.json!) as Record<string, unknown>;
-    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'place', 'requests', 'time']);
+    expect(Object.keys(written).sort()).toEqual(['day', 'lake', 'lakes', 'photos', 'place', 'requests', 'time']);
     for (const old of ['cured', 'drums', 'journal', 'found']) expect(written, old).not.toHaveProperty(old);
   });
 
@@ -493,5 +519,53 @@ describe('the save per lake', () => {
       expect(a.fish.curedCount()).toBe(3);
       expect(b.fish.curedCount()).toBe(Math.min(4, other.fishCount));
     });
+  });
+});
+
+describe('the album', () => {
+  const GOOD = {
+    lake: 'duckpond',
+    day: 2,
+    time: 0.5,
+    weather: 'fog',
+    view: { x: 0, y: 0, z: 0, azimuth: 1, polar: 1, radius: 30 },
+    kinds: ['bream'],
+    lit: false,
+  };
+  const albumOf = (photos: unknown, day = 5) => new Progress(memoryStore(JSON.stringify({ day, photos }))).save.photos;
+
+  it('is none by default, and an old save without the field has none', () => {
+    expect(albumOf(undefined)).toEqual([]);
+    expect(new Progress(memoryStore('{"cured": 3}')).save.photos).toEqual([]);
+  });
+
+  it('keeps a good photograph and drops each malformed one', () => {
+    const bad = [
+      { ...GOOD, lake: 'nowhere' },
+      { ...GOOD, time: 1 },
+      { ...GOOD, time: -0.1 },
+      { ...GOOD, day: 6 },
+      { ...GOOD, day: 0 },
+      { ...GOOD, day: 1.5 },
+      { ...GOOD, weather: 'hail' },
+      { ...GOOD, kinds: ['bream', 'kraken'] },
+      { ...GOOD, kinds: 'bream' },
+      { ...GOOD, lit: 1 },
+      { ...GOOD, view: { ...GOOD.view, radius: null } },
+      { ...GOOD, view: 4 },
+      null,
+      'x',
+    ];
+    expect(albumOf([...bad, GOOD, ...bad])).toEqual([GOOD]);
+  });
+
+  it('is none when it is not a list, and held to the first twelve', () => {
+    for (const bad of [null, 4, 'x', { 0: GOOD }]) expect(albumOf(bad)).toEqual([]);
+    const many = Array.from({ length: 20 }, (_, i) => ({ ...GOOD, day: 1 + (i % 5) }));
+    expect(albumOf(many)).toEqual(many.slice(0, PHOTOS.most));
+  });
+
+  it('keeps each kind of a photograph once', () => {
+    expect(albumOf([{ ...GOOD, kinds: ['bream', 'bream'] }])[0].kinds).toEqual(['bream']);
   });
 });

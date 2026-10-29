@@ -11,7 +11,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES } from '../src/rules';
-import { FIGHT, GEAR, HEAL, KINDS } from '../src/lake';
+import { FIGHT, GEAR, HEAL, KINDS, PHOTOS } from '../src/lake';
 
 /** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
 const ROD = GEAR.find((g) => g.id === 'rod')!;
@@ -728,6 +728,8 @@ test.describe('Start again', () => {
     await page.keyboard.press('Enter');
     await page.getByRole('menuitem', { name: 'Pair a phone' }).focus();
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('menuitem', { name: 'Camera' })).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Go to bed' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Sleep through…' })).toBeFocused();
@@ -1335,12 +1337,197 @@ test.describe('the logbook', () => {
         await expect(page.locator('#postList li.answered b')).toContainText('Wendell Fisk');
         await expect(page.locator('#postList li.answered .reply')).toContainText('All six, and in order');
       } else {
-        await expect(page.locator('#postList li:not(.answered) b').last()).toHaveText('From Wendell Fisk');
+        await expect(page.locator('#postList li:not(.answered) b').nth(4)).toHaveText('From Wendell Fisk');
       }
       expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
       expect(problems).toEqual([]);
     });
   }
+});
+
+/**
+ * The camera and the still (`docs/photo.md`, part 3): the camera is a page that holds the game and hides the overlays
+ * while the lake draws on and a drag frames it; a photograph looked at is the lake drawn again at its camera, clock
+ * and weather with its grain held, and put back after. Seeded and paused, stepped through the test API.
+ */
+test.describe('the camera', () => {
+  const api = <T>(page: Page, f: () => T) => page.evaluate(f);
+  const position = (page: Page) => api(page, () => window.game!.camera().position);
+  const near = (a: number[], b: number[], within: number) => a.every((v, i) => Math.abs(v - b[i]) <= within);
+  const album = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      lake: 'duckpond',
+      day: 1,
+      time: 0.3,
+      weather: 'sunny' as const,
+      view: { x: 0, y: 0, z: 0, azimuth: 0.5 + i * 0.1, polar: 1.1, radius: 40 },
+      kinds: ['bream'],
+      lit: false,
+    }));
+
+  test('the camera holds the game, hides the overlays, is framed by a drag, takes a photograph, and the still is put back', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 2 } });
+    await set(page, STANDARD, 60);
+    await expect(page.locator('#pond')).toBeVisible();
+    const clock = () => api(page, () => window.game!.state().t);
+
+    await api(page, () => window.game!.openCamera());
+    expect(await api(page, () => window.game!.cameraOpen())).toBe(true);
+    await expect(page.locator('#camera')).toBeVisible();
+    await expect(page.locator('#pond')).toBeHidden();
+    await expect(page.locator('#hud')).toBeHidden();
+    await expect(page.locator('#menuButton')).toBeHidden();
+    await expect(page.locator('#cameraLine')).toHaveText(/^Day 1, .+, the Duck Pond$/);
+    expect(await api(page, () => window.game!.pagesOpen())).toBe(true);
+    const held = await clock();
+    await play(page, 60, 'a second under the camera');
+    expect(await clock(), 'the game holds under the camera').toBe(held);
+
+    // a drag on the canvas turns the view, though the page holds the game and its gestures
+    const before = await position(page);
+    const box = (await page.locator('#view').boundingBox())!;
+    const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x + 160, mid.y + 20, { steps: 8 });
+    await page.mouse.up();
+    await play(page, 30, 'the view framed');
+    const framed = await position(page);
+    expect(near(framed, before, 0.5), 'the drag moved the camera').toBe(false);
+
+    // Take keeps the photograph, as the page's camera sees it
+    const taken = await api(page, () => {
+      const g = window.game!;
+      const ok = g.photograph();
+      return { ok, at: g.camera().position, photos: g.photos() };
+    });
+    expect(taken.ok).toBe(true);
+    expect(taken.photos).toHaveLength(1);
+    expect(taken.photos[0]).toMatchObject({ lake: 'duckpond', day: 1, lit: false });
+    for (const k of taken.photos[0].kinds) expect(['bream', 'perch', 'pike']).toContain(k);
+    expect(taken.photos[0].weather).toBe('sunny');
+
+    await api(page, () => window.game!.openCamera(false));
+    expect(await api(page, () => window.game!.cameraOpen())).toBe(false);
+    await expect(page.locator('#camera')).toBeHidden();
+    await expect(page.locator('#pond')).toBeVisible();
+    await expect(page.locator('#menuButton')).toBeVisible();
+    expect(await api(page, () => window.game!.pagesOpen())).toBe(false);
+
+    // looked at from elsewhere, the still puts the camera back where it was at the take and holds the grain
+    await api(page, () => window.game!.look(30, 10, { azimuth: 2, polar: 0.6, radius: 60 }));
+    await api(page, () => window.game!.openJournal());
+    const away = await position(page);
+    expect(near(away, taken.at, 1)).toBe(false);
+    expect(await api(page, () => window.game!.lookAt(0))).toBe(true);
+    expect((await api(page, () => window.game!.still())).shown).toBe(true);
+    expect((await api(page, () => window.game!.still())).index).toBe(0);
+    await expect(page.locator('#still')).toBeVisible();
+    await expect(page.locator('#stillLine')).toContainText('Day 1');
+    await expect(page.locator('#journal')).toBeHidden();
+    expect(near(await position(page), taken.at, 0.01), 'the camera is the photograph’s').toBe(true);
+    for (let i = 0; i < 3; i++) {
+      await play(page, 30, 'a still drawn');
+      expect((await api(page, () => window.game!.still())).postClock).toBe(PHOTOS.grain);
+    }
+    expect(await api(page, () => window.game!.pagesOpen())).toBe(true);
+
+    await api(page, () => window.game!.lookAway());
+    expect((await api(page, () => window.game!.still())).shown).toBe(false);
+    await expect(page.locator('#still')).toBeHidden();
+    expect(near(await position(page), away, 0.01), 'the camera is put back').toBe(true);
+    await expect(page.locator('#journal')).toBeVisible();
+    expect(await api(page, () => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a photograph keeps the dusk and the rain, and looking at it shows them and puts the day back', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 2 } });
+    await set(page, { ...STANDARD, time: 'dusk', weather: 'rain' }, 30);
+    await api(page, () => window.game!.openCamera());
+    expect(await api(page, () => window.game!.photograph())).toBe(true);
+    await api(page, () => window.game!.openCamera(false));
+    const photo = (await api(page, () => window.game!.photos()))[0];
+    expect(photo.weather).toBe('rain');
+    expect(photo.time).toBeGreaterThan(0.625);
+    expect(photo.time).toBeLessThan(0.875);
+
+    await api(page, () => window.game!.weather(null));
+    await api(page, () => window.game!.time('day'));
+    const day = await api(page, () => ({ at: window.game!.state().timeOfDay, weather: window.game!.weather().name }));
+    expect(day.weather).not.toBe('rain');
+    expect(await api(page, () => window.game!.lookAt(0))).toBe(true);
+    expect(await api(page, () => window.game!.time())).toBe('dusk');
+    expect(await api(page, () => window.game!.state().timeOfDay)).toBeCloseTo(photo.time, 12);
+    expect(await api(page, () => window.game!.weather().name)).toBe('rain');
+    expect(await api(page, () => window.game!.weather().falling)).toBe('rain');
+    await play(page, 30, 'the dusk and rain drawn');
+
+    await api(page, () => window.game!.lookAway());
+    expect(await api(page, () => window.game!.time())).toBe('day');
+    expect(await api(page, () => window.game!.state().timeOfDay)).toBe(day.at);
+    expect(await api(page, () => window.game!.weather().name)).toBe(day.weather);
+    expect(await api(page, () => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a full album refuses a thirteenth with the line, and room made takes it', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 2, photos: album(PHOTOS.most) } });
+    await api(page, () => window.game!.openCamera());
+    expect(await api(page, () => window.game!.photograph())).toBe(false);
+    await expect(page.locator('#cameraLine')).toHaveText('The album is full.');
+    expect(await api(page, () => window.game!.photos())).toHaveLength(PHOTOS.most);
+    expect(await api(page, () => window.game!.discard(0))).toBe(true);
+    expect(await api(page, () => window.game!.photograph())).toBe(true);
+    expect(await api(page, () => window.game!.photos())).toHaveLength(PHOTOS.most);
+    expect(await api(page, () => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('the camera is refused with a fish on the line, and its menu item is greyed', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { cured: 2 } });
+    expect(await api(page, () => window.game!.fishTo('landed'))).toBe(true);
+    await expect(page.locator('#cameraButton')).toBeDisabled();
+    await api(page, () => window.game!.openCamera());
+    expect(await api(page, () => window.game!.cameraOpen())).toBe(false);
+    expect(problems).toEqual([]);
+  });
+
+  test('at the Reservoir at night an eel in frame is lit, and the postmistress’s letter is answered', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true, save: { lake: 'reservoir' } });
+    await set(page, { ...STANDARD, time: 'night' }, 30);
+    await api(page, () => window.game!.openCamera());
+    const eel = await api(page, () => {
+      const g = window.game!;
+      const i = g.fish().findIndex((f) => f.kind === 4 && !f.cured);
+      const f = g.fish().at(i);
+      return { found: i >= 0, x: f?.x ?? 0, y: f?.y ?? 0, z: -(f?.depth ?? 0) };
+    });
+    expect(eel.found).toBe(true);
+    await page.evaluate(([x, y, z]) => window.game!.frame(x, y, z), [eel.x, eel.y, eel.z] as const);
+    expect(await api(page, () => window.game!.photograph())).toBe(true);
+    const photo = (await api(page, () => window.game!.photos()))[0];
+    expect(photo.kinds).toContain('eel');
+    expect(photo.lit).toBe(true);
+    const saved = JSON.parse(await api(page, () => window.game!.save())) as { requests: string[] };
+    expect(saved.requests).toContain('window');
+    expect(await api(page, () => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
 });
 
 /**
@@ -2022,7 +2209,7 @@ test.describe('the post', () => {
   const clockOf = (page: Page) =>
     page.evaluate(() => ({ t: window.game!.state().t, at: window.game!.state().timeOfDay }));
 
-  test('the page lists five open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
+  test('the page lists six open letters from the menu, holds the clock, and Escape closes it', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 1, paused: true });
     await play(page, 60, 'a second before the post');
@@ -2037,6 +2224,7 @@ test.describe('the post', () => {
       'From Flo Keel',
       'From Marigold Bunn',
       'From Wendell Fisk',
+      'From Ida Penny',
     ]);
     await play(page, 120, 'two seconds with the post open');
     expect(await clockOf(page), 'game time holds').toEqual(before);
@@ -2073,6 +2261,7 @@ test.describe('the post', () => {
       'From Flo Keel',
       'From Marigold Bunn',
       'From Wendell Fisk',
+      'From Ida Penny',
       'Answered: from Ida Penny',
     ]);
     const answered = page.locator('#postList li.answered');

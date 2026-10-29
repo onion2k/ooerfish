@@ -5,7 +5,7 @@ import { fightFor, gearFor } from '../src/fight';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { Game } from '../src/game';
-import { KIND_INDEX } from '../src/lake';
+import { KIND_INDEX, PHOTOS } from '../src/lake';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -509,3 +509,79 @@ describe('the kinds’ rules', () => {
   });
 });
 const CLOCK_DAWN = 0.25;
+
+describe('the album', () => {
+  const photo = (over: object = {}) => ({
+    lake: HOME.id,
+    day: 1,
+    time: 0.5,
+    weather: 'sunny' as const,
+    view: { x: 0, y: 0, z: 0, azimuth: 0, polar: 1, radius: 30 },
+    kinds: [] as string[],
+    lit: false,
+    ...over,
+  });
+
+  it('holds of a fresh album and of one that is full', () => {
+    const { game } = newGame();
+    for (let i = 0; i < PHOTOS.most; i++) game.progress.save.photos.push(photo());
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports one photograph too many', () => {
+    const { game } = newGame();
+    for (let i = 0; i <= PHOTOS.most; i++) game.progress.save.photos.push(photo());
+    expect(checkInvariants(game).join('\n')).toMatch(/the album holds 13 photographs, of 12/);
+  });
+
+  it('reports a lake the game does not have, a day past today, a time outside the day and a repeated kind', () => {
+    const { game } = newGame();
+    game.progress.save.photos.push(
+      photo({ lake: 'nowhere' }),
+      photo({ day: 2 }),
+      photo({ time: 1 }),
+      photo({ kinds: ['bream', 'bream'] }),
+      photo({ weather: 'hail' }),
+      photo({ view: { x: NaN, y: 0, z: 0, azimuth: 0, polar: 1, radius: 30 } }),
+    );
+    const said = checkInvariants(game).join('\n');
+    expect(said).toMatch(/photograph 0 is of a lake, nowhere/);
+    expect(said).toMatch(/photograph 1 is of day 2, today being 1/);
+    expect(said).toMatch(/photograph 2 was taken at 1 of the day/);
+    expect(said).toMatch(/photograph 3 has the kind bream twice/);
+    expect(said).toMatch(/photograph 4 was taken in hail/);
+    expect(said).toMatch(/photograph 5 looks from a view with x NaN/);
+  });
+});
+
+describe('the still', () => {
+  const home = (over: object = {}) => ({
+    lake: HOME.id,
+    day: 1,
+    time: 0.6,
+    weather: 'rain' as const,
+    view: { x: 0, y: 0, z: 0, azimuth: 0, polar: 1, radius: 30 },
+    kinds: [] as string[],
+    lit: false,
+    ...over,
+  });
+
+  it('allows the photograph’s weather while it is looked at, with no lever set', () => {
+    const { game } = newGame();
+    game.progress.save.photos.push(home());
+    expect(game.lookAt(0)).toBe(true);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a still that names no photograph, one of another lake, and a time before outside the day', () => {
+    const { game } = newGame();
+    game.progress.save.photos.push(home({ lake: 'reservoir' }));
+    game.still = { index: 3, photo: home(), timeBefore: 0.2 };
+    expect(checkInvariants(game).join('\n')).toMatch(/the still is of photograph 3, of an album of 1/);
+    game.still = { index: 0, photo: home({ lake: 'reservoir' }), timeBefore: 0.2 };
+    expect(checkInvariants(game).join('\n')).toMatch(/the still is of photograph 0, taken at reservoir/);
+    game.progress.save.photos[0] = home();
+    game.still = { index: 0, photo: game.progress.save.photos[0], timeBefore: 1 };
+    expect(checkInvariants(game).join('\n')).toMatch(/the still remembers the clock at 1/);
+  });
+});

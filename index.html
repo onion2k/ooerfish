@@ -274,7 +274,8 @@
     font-size: 15px;
   }
   #journalFoundCount,
-  #journalLogbookCount {
+  #journalLogbookCount,
+  #journalAlbumCount {
     margin: 2px 0 8px;
   }
   #journalFound,
@@ -308,6 +309,46 @@
   #journalFound li:has(span),
   #journalLogbook li:has(span) {
     grid-column: 1 / -1;
+  }
+  /* the album: a row a photograph, its words and the small buttons that look at it and throw it away */
+  #journalAlbum {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+  #journalAlbum li {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 6px 8px;
+  }
+  #journalAlbum span {
+    grid-column: 1 / -1;
+    color: var(--dim);
+    font-size: 12px;
+    font-style: italic;
+  }
+  #journalAlbum button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    min-height: 32px;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #journalAlbum button:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  #journalAlbum button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
   }
   #journal .buttons {
     justify-content: center;
@@ -344,7 +385,8 @@
     font-size: 13px;
   }
   html[data-layout='sideways'] #journalFoundCount,
-  html[data-layout='sideways'] #journalLogbookCount {
+  html[data-layout='sideways'] #journalLogbookCount,
+  html[data-layout='sideways'] #journalAlbumCount {
     margin: 0 0 4px;
     font-size: 12px;
   }
@@ -661,6 +703,92 @@
   }
   html[data-layout='portrait'] #sleep .card {
     width: 100%;
+  }
+  /* the camera and the still (docs/photo.md): the lake draws on behind a thin frame inset from the screen's edge, with a
+     line and two buttons at its foot, and every overlay of the game's but the night's fade is hidden under it; only the
+     buttons take the pointer, so a drag anywhere else reaches the canvas and frames the view */
+  html[data-camera] #pond,
+  html[data-camera] #hud,
+  html[data-camera] #gauge,
+  html[data-camera] #catch,
+  html[data-camera] #bucket,
+  html[data-camera] #menu,
+  html[data-camera] #morning,
+  html[data-camera] #radio,
+  html[data-camera] #toast,
+  html[data-camera] #welcome,
+  html[data-camera] #castLine,
+  html[data-camera] #phoneStatus,
+  html[data-camera] #biteMark,
+  html[data-camera] #reelButton,
+  html[data-camera] #downButton,
+  html[data-camera] #elsewhereButton {
+    display: none !important;
+  }
+  #camera,
+  #still {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+  #camera[hidden],
+  #still[hidden] {
+    display: none;
+  }
+  #camera .frame,
+  #still .frame {
+    position: absolute;
+    inset: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+  }
+  #camera .foot,
+  #still .foot {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #cameraLine,
+  #stillLine {
+    padding: 6px 12px;
+    background: rgba(8, 7, 12, 0.6);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  #camera .buttons {
+    display: flex;
+    gap: 8px;
+  }
+  #camera button,
+  #still button {
+    pointer-events: auto;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 96px;
+    min-height: 44px;
+    padding: 0 16px;
+    background: rgba(8, 7, 12, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #camera button:hover,
+  #still button:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  #camera button:focus-visible,
+  #still button:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 3px;
   }
   /* the day's end: the cover that fades the screen to the night and back, its opacity the game's own fade written by the
      page as it changes (never a transition on the wall clock, so a picture holds still), over everything of the
@@ -1256,6 +1384,9 @@
     <h3 id="journalLogbookTitle">The logbook</h3>
     <p id="journalLogbookCount"></p>
     <ul id="journalLogbook" aria-labelledby="journalLogbookTitle"></ul>
+    <h3 id="journalAlbumTitle">Photographs</h3>
+    <p id="journalAlbumCount"></p>
+    <ul id="journalAlbum" aria-labelledby="journalAlbumTitle"></ul>
     <div class="buttons">
       <button type="button" id="journalClose">Close</button>
     </div>
@@ -1286,6 +1417,23 @@
     <div class="buttons">
       <button type="button" id="sleepClose">Close</button>
     </div>
+  </div>
+</div>
+<div id="camera" hidden>
+  <div class="frame"></div>
+  <div class="foot">
+    <span id="cameraLine"></span>
+    <div class="buttons">
+      <button type="button" id="cameraTake">Take</button>
+      <button type="button" id="cameraDone">Done</button>
+    </div>
+  </div>
+</div>
+<div id="still" hidden>
+  <div class="frame"></div>
+  <div class="foot">
+    <span id="stillLine"></span>
+    <button type="button" id="stillBack">Back</button>
   </div>
 </div>
 <div id="biteMark" aria-hidden="true" hidden>!</div>
@@ -1326,6 +1474,7 @@
     <button id="lakesButton" type="button" role="menuitem">Lakes</button>
     <button id="cabinButton" type="button" role="menuitem">Go to the cabin</button>
     <button id="pairButton" type="button" role="menuitem">Pair a phone</button>
+    <button id="cameraButton" type="button" role="menuitem">Camera</button>
     <button id="bedButton" type="button" role="menuitem">Go to bed</button>
     <button id="sleepButton" type="button" role="menuitem">Sleep through…</button>
     <button id="startAgainButton" type="button" role="menuitem">Start again</button>

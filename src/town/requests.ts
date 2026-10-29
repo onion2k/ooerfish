@@ -88,6 +88,17 @@ export const REQUESTS: readonly Request[] = [
       return logbookPages(lakes).every((p) => found.has(p.id));
     },
   },
+  {
+    id: 'window',
+    // headed as her first letter is, without the Mrs, since the two stand together on the page
+    from: 'Ida Penny',
+    role: 'postmistress',
+    asks: 'Dear neighbour, Something in the Reservoir lights my window of a night, green, and I have not once been awake to see it properly. Would you take its photograph? I will put it over the counter. Ida Penny, Postmistress.',
+    reply:
+      'Over the counter it goes, and everyone who comes in asks. I have told them it is an eel and they do not believe me. Thank you. Ida.',
+    // the eel lights the water only at night, so a photograph of it counts only when the look was night
+    met: (save) => save.photos.some((p) => p.lit && p.kinds.includes('eel')),
+  },
 ];
 
 /** The request with this id, or none. */

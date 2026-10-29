@@ -173,6 +173,18 @@ export function hashGame(game: Game): string {
   eat(game.progress.save.time);
   eat(['pond', 'cabin'].indexOf(game.progress.save.place));
   eat(game.progress.save.day);
+  // the album: how many, and what each says of when and where it was taken
+  const { photos } = game.progress.save;
+  eat(photos.length);
+  for (const photo of photos) {
+    eat(photo.day);
+    eat(photo.time);
+    eat(photo.lake.length);
+    eat(photo.kinds.length);
+    eat(photo.lit ? 1 : 0);
+  }
+  eat(game.still?.index ?? -1);
+  eat(game.still?.timeBefore ?? -1);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');
 }

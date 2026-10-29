@@ -44,6 +44,9 @@ export interface PondState {
   hauledUntil: number;
   /** Until when the line about a treasure kept is said, in game time: it is the last one's, kept and not counted. */
   foundUntil: number;
+  /** Until when the line about a photograph taken is said, and the line that the album is full, in game time. */
+  photographedUntil: number;
+  albumFullUntil: number;
   /**
    * The request last answered (its id), and the game time its line is said from and until. Its line waits for the
    * cure's or the haul's to end, as the gift's waits for it.
@@ -88,8 +91,15 @@ export function pondWords(s: PondState, lake: Lake = HOME): PondWords {
   const cureOn = s.t < s.toastUntil && s.toastCured > 0;
   const haulOn = s.t < s.hauledUntil && s.toastHauled > 0;
   const foundOn = s.t < s.foundUntil;
-  // the newest of the lines is the one said: a treasure kept, a drum hauled or a fish cured
-  if (foundOn && (!haulOn || s.foundUntil > s.hauledUntil) && (!cureOn || s.foundUntil > s.toastUntil)) {
+  const shotOn = s.t < s.photographedUntil;
+  const fullOn = s.t < s.albumFullUntil;
+  // the newest of the lines is the one said: a photograph, a treasure kept, a drum hauled or a fish cured; a photograph
+  // cleans nothing and is quickly done, so it takes the toast over the rest while it lasts
+  if (fullOn && (!shotOn || s.albumFullUntil >= s.photographedUntil)) {
+    toast = { lead: 'The album is full.', bold: 'Discard one from the journal first.' };
+  } else if (shotOn) {
+    toast = { lead: 'Photographed!', bold: "It's in the album." };
+  } else if (foundOn && (!haulOn || s.foundUntil > s.hauledUntil) && (!cureOn || s.foundUntil > s.toastUntil)) {
     toast = { lead: 'Found!', bold: "It's for the shelf." };
   } else if (haulOn && (!cureOn || s.hauledUntil >= s.toastUntil)) {
     if (clean) toast = { lead: `${TheLake(name)} is clean!`, bold: 'Every fish is cured and every drum hauled.' };
@@ -120,6 +130,8 @@ export class PondView {
   private toastHauled = 0;
   private hauledUntil = -Infinity;
   private foundUntil = -Infinity;
+  private photographedUntil = -Infinity;
+  private albumFullUntil = -Infinity;
   private answeredId: string | null = null;
   private answeredFrom = -Infinity;
   private answeredUntil = -Infinity;
@@ -156,6 +168,16 @@ export class PondView {
   /** A treasure was kept for the shelf: the line about it is said for a while, from now. It cleans nothing, so the gauge does not move. */
   found(_id: string) {
     this.foundUntil = this.game().t + this.heardFor;
+  }
+
+  /** A photograph was kept: the line about it is said for a while, from now. */
+  photographed() {
+    this.photographedUntil = this.game().t + this.heardFor;
+  }
+
+  /** A photograph was refused because the album holds its twelve: the line says so for a while, from now. */
+  albumFull() {
+    this.albumFullUntil = this.game().t + this.heardFor;
   }
 
   /**
@@ -200,6 +222,8 @@ export class PondView {
         toastHauled: this.toastHauled,
         hauledUntil: this.hauledUntil,
         foundUntil: this.foundUntil,
+        photographedUntil: this.photographedUntil,
+        albumFullUntil: this.albumFullUntil,
         answered: this.answeredId,
         answeredFrom: this.answeredFrom,
         answeredUntil: this.answeredUntil,

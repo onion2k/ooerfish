@@ -19,7 +19,9 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { GEAR, KINDS, MOON, WEATHER } from '../src/lake';
+import { GEAR, KINDS, MOON, PHOTOS, WEATHER } from '../src/lake';
+import { nearestTime } from '../src/look';
+import type { Photo } from '../src/photo';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
 import { REQUESTS } from '../src/town/requests';
@@ -199,7 +201,33 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       return prefix.filter((r) => r.met(met, LAKES)).map((r) => r.id);
     })();
     done['start requests'] = requestsAtStart.length;
-    let store = memoryStore(JSON.stringify({ ...startSave, requests: requestsAtStart }));
+    // the album a returning player holds, from a stream of its own again: half the seeds none, a quarter full and the
+    // rest part full, so a photograph is refused at the twelfth in some seeds and the album grows in the others
+    const photosAtStart: Photo[] = (() => {
+      const pick = seeded(seed * 47 + 3);
+      const u = pick();
+      if (u < 0.5) return [];
+      const count = u < 0.75 ? PHOTOS.most : 1 + Math.floor(pick() * (PHOTOS.most - 1));
+      const ids = lake.fishKinds.map((k) => KINDS[k].id);
+      return Array.from({ length: count }, () => ({
+        lake: lake.id,
+        day: 1 + Math.floor(pick() * dayAtStart),
+        time: pick() * 0.999,
+        weather: WEATHER.kinds[Math.floor(pick() * WEATHER.kinds.length)],
+        view: {
+          x: pick() * 10 - 5,
+          y: pick() * 10 - 5,
+          z: pick() * 4,
+          azimuth: pick() * 6,
+          polar: 0.4 + pick(),
+          radius: 20 + pick() * 40,
+        },
+        kinds: [...new Set(ids.filter(() => pick() < 0.3))],
+        lit: pick() < 0.3,
+      }));
+    })();
+    done['start photos'] = photosAtStart.length;
+    let store = memoryStore(JSON.stringify({ ...startSave, requests: requestsAtStart, photos: photosAtStart }));
     let game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed), events });
     // the lake starts as dirty as chance says, now and then a value no one should send (the test API's lever, which
     // the page hands on whatever it reads), and then only the cure lowers it: nothing raises it in play
@@ -232,6 +260,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       'treasure kept',
       'treasure snagged in a clean pond',
     ])
+      done[what] = 0;
+    for (const what of ['photograph', 'photograph refused', 'discard', 'discard refused', 'look at', 'look at refused'])
       done[what] = 0;
     for (const k of KINDS) done[`caught ${k.id}`] = 0;
     done['bites in a clean pond'] = 0;
@@ -524,13 +554,91 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       game.setWeather(u < WEATHER.kinds.length ? WEATHER.kinds[u] : null);
       did('weather lever');
     };
+    /**
+     * A photograph taken, or one discarded, from a stream of its own at a weight of a half like the walk in, so the seeds
+     * played before it play the same: the subjects are a view of finite numbers and kinds drawn at random from the lake's
+     * own ids, lit when the clock's look is night. A discard is of any index, or the one past the end, which is refused.
+     * A photograph refused at a full album must change nothing, and one taken must leave the album a place longer.
+     */
+    const snapping = seeded(seed * 43 + 19);
+    const snap = () => {
+      const was = JSON.stringify(game.progress.save.photos);
+      const length = game.progress.save.photos.length;
+      const ids = [...new Set(lake.fishKinds.map((k) => KINDS[k].id))];
+      const view = {
+        x: snapping() * 40 - 20,
+        y: snapping() * 40 - 20,
+        z: snapping() * 10,
+        azimuth: snapping() * 6.3,
+        polar: 0.3 + snapping(),
+        radius: 5 + snapping() * 80,
+      };
+      const kinds = ids.filter(() => snapping() < 0.4);
+      const lit = nearestTime(game.timeOfDay).name === 'night';
+      if (game.photograph({ view, kinds, lit })) {
+        done['photograph']++;
+        if (game.progress.save.photos.length !== length + 1) throw new Error('a photograph did not join the album');
+      } else {
+        done['photograph refused']++;
+        const away = game.place !== 'pond' && game.place !== 'cabin';
+        if ((length >= PHOTOS.most || away) && JSON.stringify(game.progress.save.photos) !== was)
+          throw new Error('a photograph refused changed the album');
+        if (length < PHOTOS.most && !away) throw new Error('a photograph was refused with room in the album');
+      }
+      did('photograph');
+    };
+    const discard = () => {
+      const length = game.progress.save.photos.length;
+      const index = Math.floor(snapping() * (length + 1));
+      if (game.discard(index)) {
+        done['discard']++;
+        if (game.progress.save.photos.length !== length - 1) throw new Error('a discard did not shorten the album');
+      } else {
+        done['discard refused']++;
+        if (index < length) throw new Error(`a discard of ${index} was refused in an album of ${length}`);
+        if (game.progress.save.photos.length !== length) throw new Error('a discard refused changed the album');
+      }
+      did('discard');
+    };
+    /**
+     * A photograph looked at and put down again in the one action, from a stream of its own so the seeds played before
+     * it play the same: of any index in the album or the one past its end. A look that is granted must leave the game
+     * holding (a few frames stepped, the game's time and the clock unchanged) and a look away must give back the
+     * clock; one refused must change neither the place, the time nor the clock.
+     */
+    const looking = seeded(seed * 59 + 23);
+    const lookAtOne = () => {
+      const index = Math.floor(looking() * (game.progress.save.photos.length + 1));
+      const was = { t: game.t, clock: game.timeOfDay, place: game.place, day: game.day };
+      if (game.lookAt(index)) {
+        done['look at']++;
+        if (game.still?.index !== index) throw new Error(`a look at ${index} left the still at ${game.still?.index}`);
+        const looked = game.timeOfDay;
+        for (let f = 0; f < 3; f++) game.step(DT);
+        if (game.t !== was.t || game.timeOfDay !== looked)
+          throw new Error('the game moved while a photograph was looked at');
+        if (!game.lookAway() || (game as { still: unknown }).still !== null)
+          throw new Error('a photograph looked at could not be put down');
+        if (game.timeOfDay !== was.clock || game.place !== was.place || game.day !== was.day)
+          throw new Error('looking at a photograph and away again changed the clock, the place or the day');
+      } else {
+        done['look at refused']++;
+        if (game.still) throw new Error('a look refused left a still');
+        if (game.t !== was.t || game.timeOfDay !== was.clock || game.place !== was.place)
+          throw new Error('a look refused changed the game');
+      }
+      did('look at');
+    };
     const walker = seeded(seed * 37 + 11);
+    const chooser = seeded(seed * 53 + 7);
     const pickWeather = seeded(seed * 41 + 17);
     const total = actions.reduce((n, [w]) => n + w, 0);
     const act = () => {
       let pick = random() * total;
       if (walker() < 0.5 / (total + 0.5)) return walkIn();
       if (pickWeather() < 0.5 / (total + 0.5)) return setWeather();
+      if (chooser() < 0.3 / (total + 0.3)) return snapping() < 0.7 ? snap() : discard();
+      if (looking() < 0.3 / (total + 0.3)) return lookAtOne();
       for (const [w, go] of actions) {
         if ((pick -= w) < 0) return go();
       }

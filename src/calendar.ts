@@ -93,3 +93,49 @@ export function nextWeather(day: number, kind: Weather): number | null {
   for (let n = 1; n <= MOON.days; n++) if (weatherOf(d + n) === kind) return n;
   return null;
 }
+
+/**
+ * The hour's word for each look of the clock, with the clock's place for it in the order the looks are chosen in
+ * (`TIMES` in `look.ts`, which this file cannot import): dawn is the morning, and the other looks are named for the
+ * day's parts.
+ */
+export const HOUR: Readonly<Record<string, string>> = {
+  dawn: 'morning',
+  day: 'afternoon',
+  dusk: 'evening',
+  night: 'night',
+};
+const HOUR_AT: readonly (readonly [number, string])[] = [
+  [0, 'night'],
+  [0.25, 'dawn'],
+  [0.5, 'day'],
+  [0.75, 'dusk'],
+];
+
+/** The look of the clock at `time`, the nearest of the four (the day wrapping round), as `nearestTime` finds it. */
+export function lookNameOf(time: number): string {
+  let best = HOUR_AT[0];
+  let least = Infinity;
+  for (const entry of HOUR_AT) {
+    const d = Math.abs(time - entry[0]) % 1;
+    const gap = Math.min(d, 1 - d);
+    if (gap < least) {
+      least = gap;
+      best = entry;
+    }
+  }
+  return best[1];
+}
+
+/** The hour's name at a time of the day, in lower case: "morning", "afternoon", "evening" or "night". */
+export function hourName(time: number): string {
+  return HOUR[lookNameOf(time)];
+}
+
+/** The weather's kinds that have a name to be said (sunny is the plain day, so none). */
+export const WEATHER_NAMES: Readonly<Partial<Record<Weather, string>>> = {
+  rain: 'rain',
+  fog: 'fog',
+  shower: 'sun-shower',
+  wind: 'wind',
+};

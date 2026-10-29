@@ -38,6 +38,7 @@ import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
 import { journalWords } from './journal';
 import { logbookWords } from './town/logbook';
+import { albumWords, inFrame, photoLine, photoWords } from './photo';
 import { postWords } from './town/post';
 import { REQUESTS } from './town/requests';
 import { YOU_ARE_HERE, lakesWords } from './lakes/page';
@@ -46,6 +47,7 @@ import {
   HEAL,
   KINDS,
   PARTICLE_POOL,
+  PHOTOS,
   PHONE,
   SPLASH_CAPACITY,
   type Season,
@@ -62,7 +64,7 @@ import { nextMode, orbits, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
-import { moonOf, seasonOf } from './calendar';
+import { hourName, moonOf, seasonOf } from './calendar';
 import { seasonGrass, seasonPalette, fogFor } from './season';
 import { Progress } from './progress';
 import { BOOT_MEASURE, rungAsked, rungFor, type Rung } from './rung';
@@ -190,6 +192,11 @@ async function main() {
       void showWater();
       pond.found(id);
     },
+    photographed: (index) => {
+      log(`photographed ${index}`);
+      pond.photographed();
+    },
+    discarded: (index) => log(`discarded ${index}`),
     yawned: () => {
       log('yawned');
       // the night is begun from look or from cast: an aim begun and a reel held are let go, and the page looks
@@ -429,7 +436,11 @@ async function main() {
     orbit.enabled = was;
   };
   /** Whether a drag turns the camera: in look mode at the pond, and never in the room, where the bed's pillow is the one place to look from, nor while the screen fades. */
-  const orbitOn = () => orbits(mode) && viewName !== 'cabin' && game.place === 'pond';
+  const orbitOn = () =>
+    !stillOpen &&
+    game.place === 'pond' &&
+    // the camera page frames the view whatever the mode, since a drag is all it asks of the player; the cabin's view holds
+    ((orbits(mode) && viewName !== 'cabin') || (cameraOpen && viewName !== 'cabin'));
   /** The page's look: the time it is lit as, the view the camera was last put at, and the contamination the water was handed over at. */
   let time: TimeOfDay = nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day), weatherDressed));
   let viewName: ViewName = 'shore';
@@ -735,11 +746,13 @@ async function main() {
     return cabinHit(((x - box.left) / box.width) * 2 - 1, 1 - ((y - box.top) / box.height) * 2, tapInverse, lake);
   };
   /**
-   * Whether a page holds the game still: the menu's list, the journal, the lakes page, the Start again question or the pairing card.
+   * Whether a page holds the game still: the menu's list, the journal, the camera, a photograph looked at, the lakes page, the Start again question or the pairing card.
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
    */
   const pagesOpen = () =>
     journalOpen ||
+    cameraOpen ||
+    stillOpen ||
     postOpen ||
     lakesOpen ||
     sleepOpen ||
@@ -949,7 +962,49 @@ async function main() {
   const journalLogbook = byId('journalLogbook');
   const journalLogbookCount = byId('journalLogbookCount');
   const journalClose = byId<HTMLButtonElement>('journalClose');
+  const journalAlbum = byId('journalAlbum');
   let journalOpen = false;
+  let cameraOpen = false;
+  let stillOpen = false;
+  let stillIndex = -1;
+  // a photograph looked at is the camera page's kind of page (`lookAtPhoto`, below), from the journal's Look button
+  const lookAt = (index: number): Promise<boolean> => lookAtPhoto(index);
+  // The album's rows, written from `albumWords`: Look only where `here`, Discard always. Discarding rewrites the rows
+  // and the count in place, so the page stays open for the next.
+  const writeAlbum = (album: ReturnType<typeof albumWords>) => {
+    byId('journalAlbumTitle').textContent = album.title;
+    byId('journalAlbumCount').textContent = album.count;
+    journalAlbum.replaceChildren(
+      ...album.rows.map((row) => {
+        const item = document.createElement('li');
+        const words = document.createElement('span');
+        words.textContent = row.words;
+        item.append(words);
+        if (row.here) {
+          const look = document.createElement('button');
+          look.type = 'button';
+          look.textContent = 'Look';
+          look.dataset.look = String(row.index);
+          item.append(look);
+        }
+        const discard = document.createElement('button');
+        discard.type = 'button';
+        discard.textContent = 'Discard';
+        discard.dataset.discard = String(row.index);
+        item.append(discard);
+        return item;
+      }),
+    );
+  };
+  journalAlbum.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest('button');
+    if (!button) return;
+    if (button.dataset.look !== undefined) void lookAt(Number(button.dataset.look));
+    else if (button.dataset.discard !== undefined) {
+      game.discard(Number(button.dataset.discard));
+      writeAlbum(albumWords(game.progress.save.photos, LAKES, lake.id, KINDS, hourName));
+    }
+  });
   const openJournal = () => {
     showMenu(false);
     const page = journalWords(
@@ -961,6 +1016,7 @@ async function main() {
       game.progress.entry(lake.id).found,
       lake === HOME ? null : lake.name,
       logbookWords(LAKES, game.progress.save),
+      albumWords(game.progress.save.photos, LAKES, lake.id, KINDS, hourName),
     );
     byId('journalTitle').textContent = page.title;
     byId('journalFoundTitle').textContent = page.foundTitle;
@@ -1012,6 +1068,7 @@ async function main() {
         return item;
       }),
     );
+    writeAlbum(page.album);
     journalPage.hidden = false;
     journalOpen = true;
     letGoOfReel();
@@ -1198,10 +1255,169 @@ async function main() {
     const nights = Number(go.dataset.nights);
     void closeSleep().then(() => game.sleepThrough(nights));
   });
+
+  // The camera is a page that holds the game and hides the overlays (`html[data-camera]`) under a viewfinder, while the
+  // lake keeps drawing. The orbit is driven by the canvas's own pointer events, which no page blocks, so a drag and the
+  // wheel frame the view; the gesture gate keeps a tap from dropping a pebble or striking. Done leaves the view as framed
+  // (the mode, the overlays and the orbit's flag are the page's again), and Take keeps the figures of what is in frame.
+  const cameraPage = byId('camera');
+  const cameraLine = byId('cameraLine');
+  const cameraButton = byId<HTMLButtonElement>('cameraButton');
+  const stillPage = byId('still');
+  const stillLine = byId('stillLine');
+  const stillBack = byId<HTMLButtonElement>('stillBack');
+  const fighting = () => game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+  /** The viewfinder's line: the day, the hour and the lake, or what the last Take said, until the view is moved. */
+  const writeCameraLine = (said?: string) => {
+    cameraLine.textContent = said ?? photoLine({ lake: lake.id, day: game.day, time: game.timeOfDay }, LAKES, hourName);
+  };
+  function openCamera(): Promise<void> {
+    showMenu(false);
+    if (cameraOpen || pagesOpen()) return Promise.resolve();
+    if ((game.place !== 'pond' && game.place !== 'cabin') || fighting()) return Promise.resolve();
+    letGoOfReel();
+    document.documentElement.dataset.camera = '';
+    writeCameraLine();
+    cameraPage.hidden = false;
+    cameraOpen = true;
+    orbit.enabled = orbitOn();
+    byId('cameraTake').focus();
+    return Promise.resolve();
+  }
+  function closeCamera(): Promise<void> {
+    if (!cameraOpen) return Promise.resolve();
+    delete document.documentElement.dataset.camera;
+    cameraPage.hidden = true;
+    cameraOpen = false;
+    orbit.enabled = orbitOn();
+    menuButton.focus();
+    return Promise.resolve();
+  }
+  /** The photograph of what is in frame now: the fish whose bodies the camera sees, and whether the look is night. */
+  function takePhoto(): boolean {
+    if (!cameraOpen) return false;
+    cam.update();
+    const { fish: school } = game;
+    const kinds: string[] = [];
+    for (let i = 0; i < school.count; i++) {
+      if (!inFrame(cam.viewProjection, cam.position, school.x[i], school.y[i], -school.depth[i], PHOTOS.reach))
+        continue;
+      const id = KINDS[school.kind[i]].id;
+      if (!kinds.includes(id)) kinds.push(id);
+    }
+    const view = {
+      x: cam.target[0],
+      y: cam.target[1],
+      z: cam.target[2],
+      azimuth: orbit.currentAzimuth,
+      polar: orbit.currentPolar,
+      radius: orbit.distance,
+    };
+    // the toast is hidden under the camera, so the viewfinder's own line says it, until the view is moved again
+    if (game.photograph({ view, kinds, lit: time.name === 'night' })) {
+      pond.photographed();
+      writeCameraLine('Photographed!');
+      return true;
+    }
+    pond.albumFull();
+    writeCameraLine('The album is full.');
+    return false;
+  }
+  cameraButton.addEventListener('click', () => void openCamera());
+  byId('cameraTake').addEventListener('click', () => void takePhoto());
+  byId('cameraDone').addEventListener('click', () => void closeCamera());
+  // a view moved, or a wheel turned, puts the line back to the day and the place
+  canvas.addEventListener('pointerdown', () => cameraOpen && writeCameraLine());
+  canvas.addEventListener('wheel', () => cameraOpen && writeCameraLine(), { passive: true });
+
+  // A photograph looked at is the lake drawn again at its camera, its hour and its weather, with the grain held at one
+  // moment so the still is the same frame whenever it is drawn (`draw` writes the renderer's clock each frame). What
+  // was there is kept to put back; the clock and the weather are put only at the pond, since the cabin's light is the
+  // lamp's and its clock holds.
+  let before: {
+    target: [number, number, number];
+    azimuth: number;
+    polar: number;
+    radius: number;
+    fov: number;
+    orbitEnabled: boolean;
+    postClock: number;
+    journal: boolean;
+  } | null = null;
+  const showClock = () =>
+    showLight(nearestTime(game.timeOfDay, timesFor(seasonNow(), moonOf(game.day), weatherDressed)));
+  async function lookAtPhoto(index: number): Promise<boolean> {
+    const photo = game.progress.save.photos.at(index);
+    if (!photo || stillOpen || cameraOpen) return false;
+    if (pagesOpen() && !journalOpen) return false;
+    if (!game.lookAt(index)) return false;
+    before = {
+      target: [cam.target[0], cam.target[1], cam.target[2]],
+      azimuth: orbit.currentAzimuth,
+      polar: orbit.currentPolar,
+      radius: orbit.distance,
+      fov: cam.fov,
+      orbitEnabled: orbit.enabled,
+      postClock: renderer.postClock,
+      journal: journalOpen,
+    };
+    await closeJournal();
+    letGoOfReel();
+    // held first, so nothing steps while the lake is dressed for the photograph
+    stillOpen = true;
+    stillIndex = index;
+    document.documentElement.dataset.camera = '';
+    stillLine.textContent = photoWords(photo, LAKES, KINDS, hourName);
+    stillPage.hidden = false;
+    const v = photo.view;
+    look(v.x, v.y, { z: v.z, azimuth: v.azimuth, polar: v.polar, radius: v.radius, fov: cam.fov });
+    orbit.enabled = false;
+    renderer.postClock = PHOTOS.grain;
+    // the game has put the weather and the clock to the photograph's; the page shows what it now says
+    if (game.place === 'pond') {
+      await showWeather();
+      await showClock();
+    }
+    stillBack.focus();
+    return true;
+  }
+  async function lookAway(): Promise<void> {
+    if (!stillOpen || !before) return;
+    const was = before;
+    before = null;
+    stillPage.hidden = true;
+    delete document.documentElement.dataset.camera;
+    renderer.postClock = was.postClock;
+    game.lookAway();
+    if (game.place === 'pond') {
+      await showWeather();
+      await showClock();
+    }
+    look(was.target[0], was.target[1], {
+      z: was.target[2],
+      azimuth: was.azimuth,
+      polar: was.polar,
+      radius: was.radius,
+      fov: was.fov,
+    });
+    stillOpen = false;
+    stillIndex = -1;
+    orbit.enabled = orbitOn() && was.orbitEnabled;
+    if (was.journal) await openJournal();
+  }
+  stillBack.addEventListener('click', () => void lookAway());
   document.addEventListener('pointerdown', (e) => {
     if (!menuList.hidden && e.target instanceof Node && !byId('menu').contains(e.target)) showMenu(false);
   });
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && stillOpen) {
+      void lookAway();
+      return;
+    }
+    if (e.key === 'Escape' && cameraOpen) {
+      void closeCamera();
+      return;
+    }
     if (e.key === 'Escape' && journalOpen) {
       void closeJournal();
       return;
@@ -1257,6 +1473,10 @@ async function main() {
     }
     if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       void setMode('toggle');
+      return;
+    }
+    if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
+      void openCamera();
       return;
     }
     if (e.code !== 'Space' || onControl(e)) return;
@@ -1327,6 +1547,7 @@ async function main() {
       down: byId('downButton'),
       elsewhere: byId('elsewhereButton'),
       bed: byId<HTMLButtonElement>('bedButton'),
+      camera: byId<HTMLButtonElement>('cameraButton'),
       sleep: byId<HTMLButtonElement>('sleepButton'),
       cabin: byId<HTMLButtonElement>('cabinButton'),
     },
@@ -1497,7 +1718,10 @@ async function main() {
     // the same frame
     renderer.time = waterClock(game.t, lake.waterPace);
     writeFrame();
+    // a photograph looked at holds the grain at one moment, set again after the frame since the frame runs it on
+    if (stillOpen) renderer.postClock = PHOTOS.grain;
     renderer.frame(ctx.context.getCurrentTexture().createView(), 'redraw', dt);
+    if (stillOpen) renderer.postClock = PHOTOS.grain;
   }
 
   // ---- the test API, and the frame loop ----
@@ -1566,6 +1790,15 @@ async function main() {
     openPost: (open) => (open ? openPost() : closePost()),
     openLakes: (open) => (open ? openLakes() : closeLakes()),
     openSleep: (open) => (open ? openSleep() : closeSleep()),
+    openCamera: (open) => (open ? openCamera() : closeCamera()),
+    cameraOpen: () => cameraOpen,
+    photograph: () => takePhoto(),
+    frameOn: (x, y, z) => {
+      if (cameraOpen) look(x, y, { z, azimuth: orbit.currentAzimuth, polar: 1, radius: 25, fov: cam.fov });
+    },
+    lookAt: (i) => lookAtPhoto(i),
+    lookAway,
+    still: () => ({ shown: stillOpen, index: stillIndex, postClock: renderer.postClock }),
     setSettings,
     setDirt,
     setTime,

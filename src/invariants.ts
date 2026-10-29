@@ -30,6 +30,7 @@ import {
   SWIM,
   type Kind,
   MOON,
+  PHOTOS,
   WEATHER,
   awake,
 } from './lake';
@@ -148,6 +149,38 @@ function requestRules(game: Game, out: string[]) {
   }
   for (const r of REQUESTS)
     if (!seen.has(r.id) && r.met(save, LAKES)) out.push(`request ${r.id} is met, but is not answered`);
+}
+
+/**
+ * The album (`docs/photo.md`): no longer than it may be, and every photograph one the game could have taken: at a lake it
+ * has, on a day from the first to today, at a time of the day, in a weather it has, from a view of finite numbers, of
+ * kinds it knows each once, and lit or not.
+ */
+function photoRules(game: Game, out: string[]) {
+  const { photos } = game.progress.save;
+  if (!Array.isArray(photos)) return void out.push('the album is not a list');
+  if (photos.length > PHOTOS.most) out.push(`the album holds ${photos.length} photographs, of ${PHOTOS.most}`);
+  const known: string[] = KINDS.map((k) => k.id);
+  photos.forEach((p, i) => {
+    const at = `photograph ${i}`;
+    if (!Object.hasOwn(LAKES, p.lake)) out.push(`${at} is of a lake, ${p.lake}, the game does not have`);
+    if (!Number.isSafeInteger(p.day) || p.day < 1 || p.day > game.day)
+      out.push(`${at} is of day ${p.day}, today being ${game.day}`);
+    if (!(p.time >= 0 && p.time < 1)) out.push(`${at} was taken at ${p.time} of the day`);
+    if (!(WEATHER.kinds as readonly string[]).includes(p.weather)) out.push(`${at} was taken in ${p.weather}`);
+    for (const [k, v] of Object.entries(p.view))
+      if (!Number.isFinite(v)) out.push(`${at} looks from a view with ${k} ${v}`);
+    if (Object.keys(p.view).length !== 6)
+      out.push(`${at} has a view of ${Object.keys(p.view).length} figures, not six`);
+    const seen = new Set<string>();
+    for (const id of p.kinds) {
+      if (!known.includes(id)) out.push(`${at} has a kind, ${id}, the game does not know`);
+      if (seen.has(id)) out.push(`${at} has the kind ${id} twice`);
+      seen.add(id);
+    }
+    const lit: unknown = p.lit;
+    if (typeof lit !== 'boolean') out.push(`${at} is lit ${String(lit)}`);
+  });
 }
 
 /** A fish's spine, posed to be checked: asked for only when the rules are, so it is made once here. */
@@ -283,8 +316,21 @@ export function checkInvariants(game: Game): string[] {
     out.push(`the water's dirt rose from ${was.waterDirt} to ${game.waterDirt}, and no lever was set`);
   // the weather is one of the kinds, and the day's own unless the lever set it
   if (!(WEATHER.kinds as readonly string[]).includes(game.weather)) out.push(`the weather is ${game.weather}`);
-  else if (game.levers === 0 && game.weather !== weatherOf(game.day))
+  else if (game.still && game.place === 'pond') {
+    if (game.weather !== game.still.photo.weather)
+      out.push(`the weather is ${game.weather}, but the photograph looked at was taken in ${game.still.photo.weather}`);
+  } else if (game.levers === 0 && game.weather !== weatherOf(game.day))
     out.push(`the weather is ${game.weather}, but day ${game.day} is ${weatherOf(game.day)}, and no lever was set`);
+  if (game.still) {
+    const { index, photo, timeBefore } = game.still;
+    const { photos } = game.progress.save;
+    if (!(index >= 0 && index < photos.length))
+      out.push(`the still is of photograph ${index}, of an album of ${photos.length}`);
+    else if (photos[index].lake !== game.lake.id)
+      out.push(`the still is of photograph ${index}, taken at ${photos[index].lake}, not ${game.lake.id}`);
+    else if (photos[index] !== photo) out.push(`the still shows a photograph that is not the album's ${index}`);
+    if (!(timeBefore >= 0 && timeBefore < 1)) out.push(`the still remembers the clock at ${timeBefore}`);
+  }
   out.push(...nightRules(game, was));
   const now = was ?? {
     contamination: 0,
@@ -333,6 +379,7 @@ export function checkInvariants(game: Game): string[] {
   journalRules(game, out);
   treasureRules(game, out);
   requestRules(game, out);
+  photoRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

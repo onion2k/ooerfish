@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { REQUESTS } from '../src/town/requests';
+import { PHOTOS } from '../src/lake';
 import { WATCH, grew, sizes, trouble } from '../scripts/leaks';
 import { crowd } from '../scripts/phonemonkey';
 import { HOME, LAKES } from '../src/lakes';
@@ -28,6 +29,7 @@ describe('what must stay bounded', () => {
       'drums hauled',
       'treasures found',
       'requests answered',
+      'photos',
       'particle window',
       'heap MB',
     ]) {
@@ -37,8 +39,9 @@ describe('what must stay bounded', () => {
     }
     expect(
       now['save bytes'],
-      'a fresh save is {"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":0.25,"place":"pond","requests":[]}, a hundred and thirty-five bytes: the lake and an entry for each lake the game has',
-    ).toBe(135);
+      'a fresh save is {"lake":"duckpond","lakes":{"duckpond":{"cured":0,"drums":0,"journal":{},"found":[]}},"day":1,"time":0.25,"place":"pond","requests":[],"photos":[]}, a hundred and forty-seven bytes: the lake and an entry for each lake the game has',
+    ).toBe(147);
+    expect(WATCH.photos!.ceiling).toBe(PHOTOS.most);
     expect(WATCH['requests answered']!.ceiling).toBe(REQUESTS.length);
     expect(WATCH['treasures found']!.ceiling).toBe(Math.max(...Object.values(LAKES).map((l) => l.treasures.count)));
     expect(WATCH['drums hauled']!.ceiling).toBe(Math.max(...Object.values(LAKES).map((l) => l.drums.count)));

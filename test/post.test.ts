@@ -6,10 +6,10 @@ import { postWords } from '../src/town/post';
 const save = (requests: string[]) => ({ requests });
 
 describe('the words of the post page', () => {
-  it('lists the five letters open, in order, with no reply, for an empty save', () => {
+  it('lists the six letters open, in order, with no reply, for an empty save', () => {
     const page = postWords(REQUESTS, save([]));
     expect(page.title).toBe('Post');
-    expect(page.letters.map((l) => l.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook']);
+    expect(page.letters.map((l) => l.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook', 'window']);
     for (const l of page.letters) expect(l.reply).toBeNull();
     expect(page.letters[0].heading).toBe('From Ida Penny');
     expect(page.letters[0].body).toBe(REQUESTS[0].asks);
@@ -18,8 +18,8 @@ describe('the words of the post page', () => {
 
   it('puts the answered letters after the open ones, with their replies and headings', () => {
     const page = postWords(REQUESTS, save(['ducks']));
-    expect(page.letters.map((l) => l.id)).toEqual(['rainbow', 'biggest', 'pink', 'logbook', 'ducks']);
-    const ducks = page.letters[4];
+    expect(page.letters.map((l) => l.id)).toEqual(['rainbow', 'biggest', 'pink', 'logbook', 'window', 'ducks']);
+    const ducks = page.letters[5];
     expect(ducks.heading).toBe('Answered: from Ida Penny');
     expect(ducks.reply).toBe(REQUESTS[0].reply);
     expect(ducks.body).toBe(REQUESTS[0].asks);
@@ -29,7 +29,7 @@ describe('the words of the post page', () => {
 
   it('keeps the answered ones in the order they were answered', () => {
     const page = postWords(REQUESTS, save(['biggest', 'ducks']));
-    expect(page.letters.map((l) => l.id)).toEqual(['rainbow', 'pink', 'logbook', 'biggest', 'ducks']);
+    expect(page.letters.map((l) => l.id)).toEqual(['rainbow', 'pink', 'logbook', 'window', 'biggest', 'ducks']);
   });
 
   it('is pure: the same save gives the same words and the save is untouched', () => {
@@ -41,6 +41,6 @@ describe('the words of the post page', () => {
   });
 
   it('ignores an id it does not know', () => {
-    expect(postWords(REQUESTS, save(['nobody'])).letters).toHaveLength(5);
+    expect(postWords(REQUESTS, save(['nobody'])).letters).toHaveLength(6);
   });
 });

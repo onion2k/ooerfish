@@ -14,6 +14,7 @@ const saveOf = (lakes: Record<string, LakeSave>): Save => ({
   time: 0.25,
   place: 'pond',
   requests: [],
+  photos: [],
 });
 const met = (id: string, save: Save) => requestNamed(id)!.met(save, LAKES);
 const caught = (best = 1) => ({ caught: 1, best, first: 1 });
@@ -38,8 +39,8 @@ describe('the town', () => {
 });
 
 describe('the requests', () => {
-  it('are the five, in order, each id once, each from a person of the town', () => {
-    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook']);
+  it('are the six, in order, each id once, each from a person of the town', () => {
+    expect(REQUESTS.map((r) => r.id)).toEqual(['ducks', 'rainbow', 'biggest', 'pink', 'logbook', 'window']);
     expect(new Set(REQUESTS.map((r) => r.id)).size).toBe(REQUESTS.length);
     expect(requestNamed('ducks')).toBe(REQUESTS[0]);
     expect(requestNamed('nope')).toBeUndefined();
@@ -49,8 +50,9 @@ describe('the requests', () => {
       'Flo Keel',
       'Marigold Bunn',
       'Wendell Fisk',
+      'Ida Penny',
     ]);
-    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker', 'engineer']);
+    expect(REQUESTS.map((r) => r.role)).toEqual(['ducks', 'club', 'rival', 'baker', 'engineer', 'postmistress']);
   });
 
   it('say the spec’s words, word for word', () => {
@@ -199,5 +201,41 @@ describe('the engineer’s letter is met by all six pages over the lakes', () =>
     expect(met('logbook', saveOf({ [HOME.id]: entry({ found: ['lure', 'duck'] }) }))).toBe(false);
     expect(met('logbook', saveOf({}))).toBe(false);
     expect(met('logbook', saveOf({ [HOME.id]: entry({ found: ids([1, 2, 3]) }) }))).toBe(false);
+  });
+});
+
+describe('the postmistress’s second letter, the window', () => {
+  const lit = (kinds: string[], on: boolean) => ({
+    lake: HOME.id,
+    day: 1,
+    time: 0.95,
+    weather: 'sunny' as const,
+    view: { x: 0, y: 0, z: 0, azimuth: 0, polar: 1, radius: 30 },
+    kinds,
+    lit: on,
+  });
+  const withPhotos = (...photos: ReturnType<typeof lit>[]): Save => ({ ...saveOf({}), photos });
+
+  it('says the spec’s words, word for word, from Ida Penny', () => {
+    const r = requestNamed('window')!;
+    expect(r.from).toBe('Ida Penny');
+    expect(r.role).toBe('postmistress');
+    expect(r.asks).toBe(
+      'Dear neighbour, Something in the Reservoir lights my window of a night, green, and I have not once been awake to see it properly. Would you take its photograph? I will put it over the counter. Ida Penny, Postmistress.',
+    );
+    expect(r.reply).toBe(
+      'Over the counter it goes, and everyone who comes in asks. I have told them it is an eel and they do not believe me. Thank you. Ida.',
+    );
+  });
+
+  it('is met by a photograph of an eel taken lit, among others', () => {
+    expect(met('window', withPhotos(lit(['pike'], false), lit(['pike', 'eel'], true)))).toBe(true);
+  });
+
+  it('is not met by an eel by day, a lit pike or an empty album', () => {
+    expect(met('window', withPhotos(lit(['eel'], false)))).toBe(false);
+    expect(met('window', withPhotos(lit(['pike'], true)))).toBe(false);
+    expect(met('window', withPhotos(lit([], true)))).toBe(false);
+    expect(met('window', withPhotos())).toBe(false);
   });
 });

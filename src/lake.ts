@@ -766,3 +766,10 @@ export const PHONE = {
   /** The weakest cast a flick makes, as a share of full power, for a flick at `flickMin`: a guess. */
   flickLeast: 0.25,
 } as const;
+
+/**
+ * The photograph (`docs/photo.md`): how many the album holds, how near a fish must be to the camera to count as in frame,
+ * and the fixed second the renderer's grain is held at when a photograph is looked at, so the still has the same grain
+ * whenever it is drawn. All three are the user's or first guesses.
+ */
+export const PHOTOS = { most: 12, reach: 60, grain: 7 } as const;
