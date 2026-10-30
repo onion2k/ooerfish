@@ -348,7 +348,7 @@ view moves (the boat moored there), the Reservoir's shore ones too (the beach mo
 
 Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'s C2 section (this spec copied in).
 
-- [ ] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
+- [x] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
 - [x] 1. `BOAT`, `Lake.boat` for both lakes, `src/boat.ts`, `Game.row`/`land`/`anglerAt`/`landing`, the readers
       moved off `lake.angler`/`landAt`, `rodTip(lake, at)`, the save field and corpus, the boat's body put, the
       invariants, the determinism hash, `game.boat()`/`row`/`land`/`anglerAt`. Check: `test/boat`, `test/game`,
@@ -757,6 +757,178 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
   moved, every one by the reeds alone (the builder measured each diff's clusters against where the beds project and
   opened seven), the four new looked at here.
 - **Not verified:** the snags in play on the live site; every `SNAG` figure is a first guess for the play-test.
+
+## C5. Lazy fishing
+
+### Context
+
+The sixth slice of Part C (`docs/boat.md`; C0 to C4 are in, dd991e0). `DESIGN.md`: "The rod propped on the jetty
+rail, the bobber left to sit, and a bell when something bites, while the player reads the journal or watches the
+sky"; the roadmap's C5: "the reel-held state with a timer and the strike's window widened". Decided with the user
+(30 Oct 2026): **the angler moves onto the jetty** (not a rod rest in the south bank: the design's rail is on the
+jetty, and the angler has stood on the south bank, `ANGLER` at (0, −33.5), since stage 1); **propped, a bite's
+strike window is `LAZY.window` and the journal, the menu and the sleep page no longer stop the clock, the bell on a
+bite closing whatever page is open**; **the bell is drawn**, a small bell at the rod's tip while propped, swung by the
+game's clock after the bite, with the words and the phone's buzz, D1's sound on the same event.
+
+The move is a slice of its own: it moves every cast, the standard scene, the pace gate, the fuzzer's unaimed casts,
+the reeds' placement rules and about 130 pictures, so it lands as **its own commit first** (C5a), and the lazy
+fishing (C5b) stands on it. Both are C5 in the roadmap.
+
+### Where it stands now (measured)
+
+- The angler stands at `ANGLER` (0, −33.5) on the south bank with the rod's tip 8 up and 4 out; `Stand` ashore has
+  no heading, and `castdraw.ts` holds the rod along the lake's middle for one without. The Shore view's camera orbits
+  (0, 4) at azimuth −1.57, radius 62, polar 1.3: the south bank at a player's eye; the `phone` framing the same at 105. The jetty runs 13 out from the north-east bank at angle 0.74, 2.6 wide, its deck 0.45 over the water, on
+  posts; the boat is moored off its lake end, beside the deck's line. The pace angler casts due north (`aim`) at
+  0.62 power, the fuzzer at π/2 ± 0.4 (hard-coded), the balance tool plays fights only.
+- A bite's strike window is `FISHING.window` 0.9 s, 1.26 with the bobber's gift; a page open (`pagesOpen` in
+  `main.ts`) stops `simulate` and every gesture but a let-go; the phone buzzes on the bite already.
+- The rod is `ROD_PIECES` pieces bent by the tension; nothing hangs from its tip but a landed fish.
+
+### What
+
+#### C5a. The angler on the jetty
+
+- **Content** (`src/lakes/duckpond.ts`): `ANGLER` becomes a `Stand` on the deck's middle line one unit back from
+  its lake end, with `heading` the deck's `inward`, `base` the deck's top, `tipHeight` and `tipReach` as they are; the
+  jetty gains a **rail** (`JETTY.rail`: height 0.9, posts at the deck's own, along both sides to the end, in the
+  wood's set, drawn with the deck wherever the jetty is built), the `Lake.jetty` dressing carrying it. `VIEWS.shore`
+  and `phone` stand over the deck's end behind the angler's eye looking down the deck's line toward the middle, at
+  the radius and polar they have so the lake fills the frame as it did; `boat` and `overhead` as they are. `landAt`
+  is in the water beside the deck's end on the lake side. `aim` is along the heading at the power that reaches the
+  middle. `BOAT_SPOT` two thirds of the way from the stand to the middle. The woodland's open band (`southBand`)
+  follows the bank the camera looks from, named by angle (`openBand: { angle, band }`). The reeds stay where they
+  are unless a measured cast now reaches one (`test/lakes.test.ts` says), when that bed moves. The Reservoir is
+  untouched: no jetty, the angler ashore as now.
+- **The code:** a `Stand` ashore may carry a heading, so `castdraw.ts`, `cast.ts`'s default directions and the
+  invariants' "ashore at the lake's place" read `lake.angler` with its heading and nothing assumes south; the
+  fuzzer's unaimed cast is `lake.aim.angle ± 0.4`; the grass keeps 4 from the angler as it does; the lure lying on the
+  deck is as it is. Nothing of the jetty's `inside` changes.
+- **Gates:** the pace baseline is expected to move (the landing beside the deck is a different distance from the
+  middle): measured on the gate's seeds and `/gate-moved`; the bite tests' measured frames away from the beds move
+  (a different lure place against the same school) and are measured again; `test/ashore.test.ts`'s hashes move and
+  are read before they are written. About 130 pictures move: `look:update` once, every diff clustered as C4's were,
+  a dozen opened across the views, the lakes and the pages.
+
+#### C5b. Lazy fishing
+
+- **Content.** `LAZY` in `src/lake.ts` (first guesses): `window` 3 (the strike window while propped, in place of
+  `windowFor`'s), `ring` 2 s (how long the bell swings), `swing` 0.35 rad and `swings` 6 Hz (its arc and rate, dying
+  out over `ring`), `angle` 0.45 rad (how steep the propped rod stands from the rail or gunwale), `bell` 0.12 (its
+  size). Where the rod rests: ashore at a lake with a jetty, the rail's lake end on the heading's side; aboard, the
+  gunwale ahead of the seat (`BOAT_REST` in `boatdraw.ts`'s figures); ashore at a lake without a jetty (the
+  Reservoir), a **forked rest** in the bank at the stand (`restFor(lake, stand)` in `src/lazy.ts`), a few primitives
+  drawn only while propped. My decision, said so it can be changed: the rest exists so the Reservoir can be fished
+  lazily too.
+- **The game.** `Game.propped: boolean`; `prop(on)` is refused unless the lure is `sinking`, no fish is hooked or
+  landed, the lure is not snagged, the boat is not rowing and the player is at the pond; told `GameEvents.propped(on)`.
+  Propping lets go of the reel. The rod is **taken up** (propped false, told) by `strike`, `reel(true)`, `cast`,
+  `reelIn`, `reelInForce` (the yawn, a row, a journey, the cabin), a snag and a landing; a strike while propped
+  takes the rod up and strikes in the same call, so a bite is hooked as it is in hand. While propped the bite's
+  window is `LAZY.window` (`Bite.step` reads a `propped` flag the game sets; `windowFor` unchanged for the hand) and
+  `Game.rang` is the time of the last bite while propped (−∞ for none); `bellSwing(t - rang)` in `src/lazy.ts` is
+  the bell's angle, pure: `swing · sin(2π·swings·age) · (1 − age/ring)`, 0 past `ring`. The fuzzer's `reelIn` and
+  the angler never prop.
+- **The drawing** (`castdraw.ts`): propped, the rod is drawn from the rest point at `LAZY.angle` up along the
+  heading, unbent; the bell hangs at its tip, a small cone and a clapper (`bellGroups` in `src/lazy.ts`, under 60
+  triangles) in `PALETTE.bell`, its matrix the tip's with `bellSwing` about the heading's across, scaled to nothing
+  in hand; the rest (`restGroups`) likewise, shown only propped at a lake without a jetty. The line hangs from the
+  propped tip as from the hand's.
+- **The page** (`main.ts`): the Prop button (`#propButton`, P, in `#modes` after Anchor, `propWording`: "Prop the
+  rod" / "Take the rod"), shown only while the lure is sinking at the pond; the soft pages (the journal, the post,
+  the lakes page, the sleep page and the menu's list) no longer hold the game still while `game.propped`
+  (`holdsStill()` is `pagesOpen()` unless propped and only soft pages are open; the camera, a still, Start again and
+  the pairing card always hold it); on `bitten` while propped the page **rings the bell**: `closePages()` shuts the
+  soft page that is open, the cast line reads "the bell! a bite: strike now", the phone buzzes as it does. The
+  gesture gate is unchanged: a key or tap under an open page still does nothing, so the bell closes the page first and
+  the next strike is heard. `castWords` gains `propped`: "rod propped: waiting for the bell…" and the bite's line
+  above; the heard line "the rod is propped" / "rod in hand" for `HEARD_FOR` on `propped`.
+- **The tools.** Invariants: `propped` only with the lure sinking and no fish hooked or landed, `rang` never ahead
+  of `t`, the reel not held while propped. Determinism hashes `propped` and `rang`. Leaks: nothing kept. The fuzzer
+  props and takes up at random, strikes inside the long window, and the coverage over seeds 1 to 24 counts
+  `propped`, `bell rang`, `hooked from the prop`, `prop refused`. `game.propped()`, `game.prop(on)`, `game.rang()`
+  are the API. The layout moment `propped` (the Prop button, the bell).
+- **Not in this slice:** the bell's sound (D1), the rod propped through the night (the yawn takes it up), a bite
+  struck by the bell itself, the cat (F4).
+
+### Acceptance criteria
+
+1. (C5a) The angler stands on the deck's middle line a unit from its end, heading inward, and the landing is on the
+   water beside it; a cast at the pace aim reaches the middle; every reed bed is clear of the measured casts:
+   `test/lakes.test.ts`.
+2. (C5a) The rod is drawn from the stand along its heading, ashore and aboard: `test/castdraw.test.ts`.
+3. (C5b) `prop(true)` is accepted only as the rules say, told, and taken up by each of the listed calls, told:
+   `test/game.test.ts` ("lazy fishing").
+4. A bite while propped has a window of `LAZY.window` and one in hand `windowFor`'s, the same seed, the same fish:
+   `test/bite.test.ts`.
+5. A strike while propped takes the rod up and hooks the fish in one call; `rang` is set by the bite while propped
+   and `bellSwing` dies to nothing by `ring`: `test/game.test.ts`, `test/lazy.test.ts`.
+6. The bell and the rest are built the same each time and under 60 and 40 triangles: `test/lazy.test.ts`.
+7. `propWording`, `castWords` for propped and the bell: `test/mode.test.ts`, `test/castwords.test.ts`.
+8. End to end (`smoke/progress.spec.ts` "lazy fishing"): a cast, the rod propped by the button, the journal opened,
+   the clock seen to run, a fish brought to bite (`fishTo('biting')`), the journal closed by the bell with the line
+   saying so, space striking and hooking; and with the rod in hand the journal still stops the clock.
+
+### Edge cases (from the checklist)
+
+- **save:** nothing saved; a load lands with the lure ready, unpropped.
+- **the mode:** the button and P in any mode; a drag in cast mode while propped aims nothing (the lure is out, as
+  now); a tap strikes, taking the rod up.
+- **the phone:** its tap strikes (taking up), its hold reels (taking up); the buzz on the bell as on any bite.
+- **the layout:** the `propped` moment on eight screens; the Prop button with Row and Anchor in `#modes`.
+- **the boat:** propped on the gunwale aboard; a row takes the rod up; adrift and propped, the bobber drifts as now.
+- **the day:** midnight while propped: the yawn takes the rod up and reels in; the cabin and a journey likewise.
+- **the lakes:** the Reservoir's rest; a journey takes the rod up.
+- **the snags:** a bobber drifting into reeds while propped is snagged and the rod taken up (the snag's own rule).
+- **the line:** propped with the lure on the bed; a drum or treasure snagged while propped has the long window too.
+- **the fish:** a two-headed fish's second window is the long one too; a bite missed while propped (the fish lets go
+  at `ring`'s end or later; the bell stops swinging by `ring`).
+- **the switches, the rung, the calendar:** the bell and the rest draw on both rungs and in every season.
+
+### Performance risk
+
+C5a: nothing per frame; the rail about 200 triangles static. C5b: a bell and a rest, under 100 triangles, two
+matrices a frame; `bellSwing` a sine. The download: the sums, the words and the button, about 2 kB gzipped, said
+exactly. The pace gate moves with C5a; the balance's cells do not (fights only).
+
+### Test plan
+
+- **Unit:** `test/lakes.test.ts`, `test/castdraw.test.ts`, `test/cast.test.ts`, `test/ashore.test.ts` (C5a);
+  `test/game.test.ts`, `test/bite.test.ts`, `test/lazy.test.ts`, `test/castwords.test.ts`, `test/mode.test.ts`,
+  `test/invariants.test.ts`, `test/fuzz.test.ts` (C5b).
+- **End to end:** the smoke stage, the layout moment, the API.
+- **Pictures:** C5a: every moved one, clustered and sampled; C5b: `propped`, `propped-bell` (the bell mid-swing, the
+  bobber dipping), `boat-propped`, `phone-propped`, `reservoir-propped` (the rest).
+- **Perf, pace and bench:** before and after each commit; `/gate-moved` for the pace and the download.
+
+### Parts
+
+Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'s C5 section (this spec copied in).
+
+- [x] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
+- [x] 1. C5a: the stand on the jetty with the rail, the views, the landing, the aim, the spot, the open band, the
+      fuzzer's angle, the invariants, the tests measured again, every picture moved and read, the pace `/gate-moved`.
+      Check: `npm run check`, `npm run fuzz -- --seeds 1-24`; **commit on its own.**
+- [ ] 2. C5b, the game: `LAZY`, `src/lazy.ts` (`bellSwing`, `restFor`), `Game.prop`, `propped`, `rang`, the
+      take-ups, the bite's window, the words, the invariants, the determinism hash, the test API. Check: `test/game`,
+      `test/bite`, `test/lazy`, `test/castwords`, `test/invariants`, `npm run determinism`.
+- [ ] 3. C5b, the page and the drawing: the propped rod, the bell and the rest in `castdraw.ts`, the Prop button,
+      the soft pages running, the bell closing them, the fuzzer's prop, the smoke stage, the layout moment, the
+      pictures. Check: `test/fuzz`, the smoke stage, `npm run look -- -g "propped"`.
+- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the window not widened while propped; the
+      bell closing nothing; a prop accepted mid-fight), `/gate-moved` for anything moved, the notes. Commit and push.
+
+### C5a's notes (built 30 Oct 2026)
+
+- Stand `(27.50, 18.60)` heading `-2.547`, base 0.45; landing `(25.05, 20.44)` on the side away from the boat; aim power 0.58
+  (lands 0.4 from the middle); spot `stand / 3`; Shore and phone views over the deck's root looking down its line (camera
+  ground at the root, 12 behind the stand), radius and polar as before; woodland `openBand` angle 0.74.
+- Not in the spec: the duck pond's current moved 11.5 to 13.5 east (the spot fell inside its strip); `surface.near` 40 to 18
+  (the camera moved; 54 520 triangles against 51 510); a fish's run is a fan about the stand's heading ashore and the boat's
+  aboard (it was due north, and the layout gate caught the boat's fish running off the right of the screen); `from`
+  (the bed's things) stays at the south bank, so one drum and four treasures lie past the deck's cast reach (the boat reaches them).
+- The cabin is behind the Shore view's camera: not tappable there (overhead or the menu).
 
 ## Verification, every slice
 

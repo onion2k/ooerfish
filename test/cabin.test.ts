@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { PAINT_STRIDE } from 'artshape-render/mesh/paint';
 import { cabinGroups, jettyGroups, postSpots } from '../src/cabin';
 import { HOME } from '../src/lakes';
+import { RESERVOIR } from '../src/lakes/reservoir';
 import { PALETTE } from '../src/palette';
 
 const SHADOW_BOX = HOME.shadowBox;
@@ -186,8 +187,8 @@ describe('the walls’ faces', () => {
 
 describe('the jetty as drawn', () => {
   const groups = jettyGroups(undefined, HOME);
-  it('is two groups: the deck and the posts, in their colours', () => {
-    expect(groups.map((g) => g.albedo)).toEqual([PALETTE.deck, PALETTE.post]);
+  it('is three groups: the deck, the posts and the rail, in their colours', () => {
+    expect(groups.map((g) => g.albedo)).toEqual([PALETTE.deck, PALETTE.post, PALETTE.post]);
   });
 
   it('has a deck that is the jetty’s rectangle, its top at the deck’s height and a plank thick', () => {
@@ -224,14 +225,85 @@ describe('the jetty as drawn', () => {
   });
 });
 
+describe('the jetty’s rail (`docs/boat.md`, C5a)', () => {
+  const rail = jettyGroups(undefined, HOME)[2];
+  const v = vertices(rail);
+  const across = v.map((p) => deckFrame(p[0], p[1]));
+  const RAIL = JETTY.rail;
+
+  it('stands on the deck’s top and rises the rail’s height over it, and no higher', () => {
+    expect(RAIL.high).toBe(0.9);
+    expect(Math.min(...v.map((p) => p[2]))).toBeCloseTo(JETTY.top, 6);
+    expect(Math.max(...v.map((p) => p[2]))).toBeCloseTo(JETTY.top + RAIL.high, 6);
+  });
+
+  it('runs along both sides of the deck, out to its edges and no further, and not across the middle of it', () => {
+    expect(Math.max(...across.map((f) => f[1]))).toBeCloseTo(JETTY.width / 2, 5);
+    expect(Math.min(...across.map((f) => f[1]))).toBeCloseTo(-JETTY.width / 2, 5);
+    // nothing of it is inside the post's width of the middle line: the deck between the sides is clear to walk and cast over
+    for (const [, side] of across)
+      expect(Math.abs(side), 'a rail stays at the deck’s edge').toBeGreaterThan(JETTY.width / 2 - RAIL.size - 1e-6);
+    // and it reaches the deck's start and its lake end, along it, but no further
+    expect(Math.min(...across.map((f) => f[0]))).toBeGreaterThanOrEqual(-1e-6);
+    expect(Math.max(...across.map((f) => f[0]))).toBeCloseTo(JETTY.length, 5);
+  });
+
+  it('leaves the lake end open, where the rod goes out: nothing at the end is across the deck', () => {
+    for (const [along, side] of across)
+      if (along > JETTY.length - RAIL.size) expect(Math.abs(side)).toBeGreaterThan(JETTY.width / 2 - RAIL.size - 1e-6);
+    // the angler stands on the deck's middle line a unit from the end: no rail is between them and the water ahead
+    const stand = HOME.angler;
+    const [a] = deckFrame(stand.x, stand.y);
+    expect(a).toBeCloseTo(JETTY.length - 1, 6);
+    for (const [along, side] of across) if (along > a) expect(Math.abs(side)).toBeGreaterThan(1);
+  });
+
+  it('has a post at each place the deck’s own posts stand, on both sides, from the deck’s top to the rail’s', () => {
+    for (const u of JETTY.posts.along)
+      for (const s of [-1, 1]) {
+        const near = across
+          .map((f, i) => [f, v[i]] as const)
+          .filter(
+            ([f]) =>
+              Math.abs(f[0] - u) < RAIL.size && Math.abs(f[1] - s * (JETTY.width / 2 - RAIL.size / 2)) < RAIL.size,
+          );
+        expect(near.length, `post at ${u}, side ${s}`).toBeGreaterThan(7);
+        expect(Math.min(...near.map(([, p]) => p[2]))).toBeCloseTo(JETTY.top, 6);
+        expect(Math.max(...near.map(([, p]) => p[2]))).toBeCloseTo(JETTY.top + RAIL.high, 6);
+      }
+  });
+
+  it('has a bar along the top of each side and one at the knee, in a few hundred triangles at the most, painted as timber', () => {
+    for (const s of [-1, 1])
+      for (const top of [JETTY.top + RAIL.high, JETTY.top + RAIL.high / 2]) {
+        const onBar = across
+          .map((f, i) => [f, v[i]] as const)
+          .filter(([f, p]) => Math.abs(p[2] - top) < 1e-6 && Math.sign(f[1]) === s);
+        const along = onBar.map(([f]) => f[0]);
+        // a bar the length of the deck: its vertices reach both ends
+        expect(Math.min(...along), `bar at ${top}, side ${s}`).toBeLessThan(1e-6);
+        expect(Math.max(...along)).toBeCloseTo(JETTY.length, 5);
+      }
+    const triangles = rail.mesh.indices.length / 3;
+    expect(triangles).toBeGreaterThan(100);
+    expect(triangles).toBeLessThan(250);
+    expect(rail.albedo).toEqual(PALETTE.post);
+    expect(rail.mesh.paint).toBeDefined();
+  });
+
+  it('is the lake’s alone: a lake with no jetty has none of it', () => {
+    expect(jettyGroups(undefined, RESERVOIR)).toEqual([]);
+  });
+});
+
 describe('the timber’s painted edge', () => {
   const cabin = cabinGroups(undefined, HOME),
     jetty = jettyGroups(undefined, HOME);
-  // the walls, roof, door, deck and posts are timber; the chimney is stone and the window is glass
-  const timber = [cabin[0], cabin[1], cabin[3], jetty[0], jetty[1]];
+  // the walls, roof, door, deck, posts and rail are timber; the chimney is stone and the window is glass
+  const timber = [cabin[0], cabin[1], cabin[3], jetty[0], jetty[1], jetty[2]];
   const plain = [cabin[2], cabin[4]];
 
-  it('is on the walls, the roof, the door, the deck and the posts, on set one by the gate, each vertex with its own', () => {
+  it('is on the walls, the roof, the door, the deck, the posts and the rail, on set one by the gate, each vertex with its own', () => {
     for (const g of timber) {
       expect(g.mesh.paint, 'carries paint').toBeDefined();
       const vertices = g.mesh.positions.length / 3;

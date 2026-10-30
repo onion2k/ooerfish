@@ -167,7 +167,9 @@ function nearestBoulder(x: number, y: number): (typeof BOULDERS)[number] {
  * toward the lake's middle, `width` across and standing `top` over the surface. Like a boulder it is a bit of bank in
  * the water: no fish swims under it, a cast landing on it lies there on the planks, and the foam rings it. The posts,
  * `size` square, stand under the deck at these distances along it, a pair at each, `side` either side of its middle, so
- * they need nothing of their own. The bed and the water run on under it as they were.
+ * they need nothing of their own. The bed and the water run on under it as they were. The rail (`docs/boat.md`, C5a)
+ * runs along both sides, on a post of its own at each of the deck's, and is drawn only: a player at the end of the deck
+ * fishes over its open lake end, and nothing in the rules knows it is there.
  */
 const JETTY = {
   angle: 0.74,
@@ -178,6 +180,7 @@ const JETTY = {
   // the deck is this thick, under its top
   thick: 0.3,
   posts: { along: [1.5, 5, 8.5, 12] as readonly number[], side: 1.1, size: 0.4 },
+  rail: { high: 0.9, size: 0.14, bar: 0.1, knee: true },
 } as const;
 
 /** The ring point `k` shore radii out at an angle, in the lake's stretched frame, and the unit directions there in toward the lake's middle and along the shore. */
@@ -192,6 +195,39 @@ function ringFrame(k: number, angle: number) {
 
 /** The jetty's deck worked out once: where it starts, the unit directions in toward the lake's middle and along the shore. */
 const DECK = ringFrame(JETTY.k, JETTY.angle);
+
+/** A point on the deck, `along` it from its start and `across` from its middle line (toward the shore's `along` direction), at the deck's top. */
+function deckPoint(along: number, across: number): [number, number] {
+  return [
+    DECK.x + DECK.inward[0] * along + DECK.along[0] * across,
+    DECK.y + DECK.inward[1] * along + DECK.along[1] * across,
+  ];
+}
+
+/** The way the angler faces: down the deck's line, in toward the lake's middle. */
+const HEADING = Math.atan2(DECK.inward[1], DECK.inward[0]);
+
+/**
+ * Where the angler stands (`docs/boat.md`, C5a): on the jetty's deck, on its middle line one unit back from its lake end,
+ * facing down it toward the middle, with the rod's tip held `tipHeight` over the deck's top (`base`, since the ground
+ * there is the planks' and the rod is held over them) and `tipReach` out in front. The player is the angler and is not
+ * drawn, so the cast comes from the middle of the Shore view. It stood on the south bank, at (0, -33.5), until C5.
+ */
+const ANGLER = {
+  x: deckPoint(JETTY.length - 1, 0)[0],
+  y: deckPoint(JETTY.length - 1, 0)[1],
+  tipHeight: 8,
+  tipReach: 4,
+  base: JETTY.top,
+  heading: HEADING,
+} as const;
+
+/**
+ * Where a fish is landed: in the water beside the deck's end, on the side away from the boat, `LANDING.beyond` past the
+ * deck's edge so the planks and the rail are clear of it, as the south bank's was in the shallows below the angler.
+ */
+const LANDING = { along: JETTY.length, beyond: 1.6 } as const;
+const LAND_AT = deckPoint(LANDING.along, -(JETTY.width / 2 + LANDING.beyond));
 
 /** How far a point is outside a rectangle `halfU` by `halfV` about its middle, in plan, below nought inside it. */
 function boxGap(u: number, v: number, halfU: number, halfV: number): number {
@@ -576,17 +612,33 @@ const WAKING_EYE = {
 const WAKING_GAZE: [number, number] = [CABIN_ROOM.window.along / 2, CABIN.body.across / 2 - CABIN_ROOM.inset];
 
 /**
- * Where the camera may stand: on the south bank at a player's eye, out in the
+ * A view that stands over the bank behind the jetty and looks down the deck's line toward the middle (`docs/boat.md`,
+ * C5a): its target is `ahead` along that line from the deck's root, and the camera is behind the target at the orbit's
+ * own reach, so the Shore view's, with its radius and polar as they were, stands right over the root, a dozen units behind
+ * the angler at the deck's end, with the whole deck leading out before it. `ahead` is how far past the root the target
+ * lies: the south bank's views looked at (0, 4) and (0, 6) from behind the angler there, which put the Shore view's target
+ * just past the middle and the phone's two units beyond it, and these are the same places on the deck's line.
+ */
+function overTheDeck(ahead: number, polar: number, radius: number): View {
+  const [x, y] = deckPoint(ahead, 0);
+  return { x, y, azimuth: HEADING + Math.PI, polar, radius };
+}
+
+/** How far the Shore view's camera stands from its target on the ground: the orbit's radius at its polar angle. */
+const SHORE_REACH = 62 * Math.sin(1.3);
+
+/**
+ * Where the camera may stand: over the bank behind the jetty looking down it, out in the
  * boat, high over the middle, the shore again framed for a phone held
  * upright, which needs to stand further back to see across, and, inside the
  * cabin, the bed's pillow looking at the door and the window, and the same
  * with a wider lens for a tall screen.
  */
 const VIEWS: Record<ViewName, View> = {
-  shore: { x: 0, y: 4, azimuth: -1.57, polar: 1.3, radius: 62 },
+  shore: overTheDeck(SHORE_REACH, 1.3, 62),
   boat: { x: 8, y: 6, azimuth: -0.9, polar: 1.42, radius: 18 },
   overhead: { x: 0, y: 0, azimuth: -1.57, polar: 0.35, radius: 110 },
-  phone: { x: 0, y: 6, azimuth: -1.57, polar: 1.2, radius: 105 },
+  phone: overTheDeck(SHORE_REACH + 2, 1.2, 105),
   cabin: roomView(WAKING_EYE, WAKING_GAZE, (10 * Math.PI) / 180, 60),
   cabinTall: roomView(WAKING_EYE, WAKING_GAZE, (10 * Math.PI) / 180, 85),
 };
@@ -596,11 +648,11 @@ const DRESSING = {
   trees: { broadleaf: [16, 29], conifer: [17, 32] } as Record<'broadleaf' | 'conifer', readonly [number, number]>,
   /**
    * The woodland round the lake: more trees than the twenty-six that stand by the water, in a band of shore radii
-   * (further out on the south bank, which the camera looks from, so the near bank stays open), denser outward by a
+   * (further out on the bank the camera looks from, the jetty's, so the near bank stays open), denser outward by a
    * square root. A tree is a few hundred triangles at most (the kit's were three to six thousand), so two hundred and
    * ten of them cost less than sixty of the kit's did.
    */
-  woodland: { count: 210, band: [1.3, 3.3] as const, southBand: [2.8, 4.2] as const },
+  woodland: { count: 210, band: [1.3, 3.3] as const, openBand: { angle: JETTY.angle, band: [2.8, 4.2] as const } },
   pebbles: { scale: [3, 6] as const, sunk: 0.3 },
   clumps: {
     count: 90,
@@ -769,13 +821,6 @@ const TREASURES = {
 const FISH_COUNT = 12;
 
 /**
- * Where the angler stands, in the middle of the south bank: the player is the angler, and is not drawn, so the cast
- * comes from the middle of the Shore view; how high the rod's tip is held over the ground there, and how far out in
- * front of them, toward the water.
- */
-const ANGLER = { x: 0, y: -33.5, tipHeight: 8, tipReach: 4 } as const;
-
-/**
  * Where the boat lies (`docs/boat.md`, C2): off the lake end of the jetty, `BOAT.keepOff` and a little more past the
  * deck's end so its middle is a legal anchorage (`inside` with that margin holds it) and half the deck's width across, so
  * it lies beside the line the deck runs on and not on it; it points inward, down the deck's line toward the middle. And
@@ -787,7 +832,7 @@ const MOORING = {
   y: DECK.y + DECK.inward[1] * (JETTY.length + BOAT.keepOff + 0.5) + DECK.along[1] * (JETTY.width / 2),
   heading: Math.atan2(DECK.inward[1], DECK.inward[0]),
 };
-const BOAT_SPOT = [0, ANGLER.y / 3] as const;
+const BOAT_SPOT = [ANGLER.x / 3, ANGLER.y / 3] as const;
 
 /** The sun's shadow is fitted to the lake and the banks round it, up to the tallest tree standing on the cliff's plateau, with a unit to spare. */
 const SHADOW_BOX = {
@@ -862,9 +907,10 @@ export const DUCK_POND: Lake = {
   },
   boat: { mooring: MOORING, spot: BOAT_SPOT },
   // down the pond's east side, south toward the middle from the eastern fall's water. Off the axis, beyond where the
-  // shore's casts land (to 8 east at the furthest) and the pace angler's boat casts do, so a game played from the shore
-  // and the pace gate's are as they were, and a cast has to be thrown to it
-  currents: [{ x: 11.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }],
+  // casts from the deck land (to 11 east at the furthest) and the pace angler's boat casts do, and clear of the boat's
+  // spot two thirds of the way out from the deck (9.2 east), so a cast has to be thrown to it. It lay at 11.5 east
+  // until C5a, when the spot moved to 9.2 and its strip (9 to 14) took it in
+  currents: [{ x: 13.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }],
   // three reed beds in the shallows (`docs/boat.md`, C4), first guesses: by the west bank, in the north-west shallows and
   // by the south-east bank. Each is on the water by its radius and half a unit, far from the mooring and the jetty on the
   // east, from the pace angler's casts down the middle and from the south shore's unaimed ones, and from the current, the
@@ -890,13 +936,15 @@ export const DUCK_POND: Lake = {
   fishShallowest: 0.4,
   fishAboveBed: 0.4,
   angler: ANGLER,
-  from: [ANGLER.x, ANGLER.y],
-  // where in the shallows below the angler a fish is landed
-  landAt: [0, -shoreRadius(-Math.PI / 2) + 2],
+  // the things on the bed are measured from the south bank, where the angler stood until C5: the bed and its drums and
+  // treasures lie where they always did, and so does every picture of them
+  from: [0, -33.5],
+  // where in the water beside the deck's end a fish is landed
+  landAt: LAND_AT,
   // how far a cast reaches at full power, over the water, in world units
   castReach: 45,
-  // the cast the pace angler aims: due north from the shore at about the power that reaches the middle, and how far it varies either
-  aim: { angle: Math.PI / 2, power: 0.62, spread: 0.25, powerSpread: 0.08 },
+  // the cast the pace angler aims: down the deck's line from the stand at about the power that reaches the middle, and how far it varies either
+  aim: { angle: HEADING, power: 0.58, spread: 0.25, powerSpread: 0.08 },
   /**
    * The water is drawn at this share of the game's clock, so a pond is calm: its swells, ripples, caustics, foam and
    * sparkles all move at it, and what floats on it (the bobber) is read at it too. It was 0.4, and filmed beside the
@@ -913,10 +961,14 @@ export const DUCK_POND: Lake = {
   /**
    * The water's surface as a mesh: rings out from the middle to a little past the shore and segments round, as coarse as
    * it is over most of the lake; the greatest distance in world units any two neighbouring corners may be apart within
-   * `near` of the Shore view's camera's place on the ground; and that reach. A reach of 40 is the water from the south
-   * shore to sixteen units in, and cost 0.3 ms (docs/crystal.md, part 12).
+   * `near` of the Shore view's camera's place on the ground; and that reach. The camera stood back over the south bank
+   * with the water 25 units from it, and a reach of 40 was the water from there to fifteen units in, which cost 0.3 ms
+   * (docs/crystal.md, part 12). It stands over the deck's root now, two units from the nearest water, so a reach of 18 is
+   * the same fifteen units in, along the deck and five past its end, for a little more than the same triangles (54 500
+   * against 51 500). The fine sheet is one block of rings and angles, and a reach of 22 or more takes in the east shore
+   * and wraps it all the way round the lake, five times the triangles, so this one stays well short of it.
    */
-  surface: { rings: 24, segments: 128, spacing: 0.5, near: 40 },
+  surface: { rings: 24, segments: 128, spacing: 0.5, near: 18 },
 
   toClean: FISH_COUNT,
   total: TOTAL,

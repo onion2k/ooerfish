@@ -683,8 +683,13 @@ export const SEASON_DRESSING: Record<Season, SeasonDressing> = {
  */
 export function framingFor(lake: Lake, name: ViewName, aspect: number, stand?: Stand): View {
   // aboard the boat the shore, phone and boat views are the seat's: centred on it, the camera behind looking along the
-  // heading, at the boat view's height and distance. A stand with no heading is the shore's own angler, and changes nothing.
-  if (stand?.heading !== undefined && (name === 'shore' || name === 'phone' || name === 'boat')) {
+  // heading, at the boat view's height and distance. The lake's own angler is not a seat, whether it has a heading (the
+  // jetty's) or none (the bank's): its views are the lake's own.
+  if (
+    stand?.heading !== undefined &&
+    stand !== lake.angler &&
+    (name === 'shore' || name === 'phone' || name === 'boat')
+  ) {
     const { polar, radius } = lake.views.boat;
     return { x: stand.x, y: stand.y, azimuth: stand.heading + Math.PI, polar, radius };
   }

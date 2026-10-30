@@ -37,6 +37,9 @@ import { TREE_COLOUR, TREE_ROUGHNESS, VARIANTS, treeFor } from '../src/trees';
 import { surface } from '../src/water/surface';
 import { newGame } from './helpers';
 
+/** Whether a ring angle is on the bank the camera looks from, as the scenery keeps it: by the open band's angle, within the same turn. */
+const onTheCamerasBank = (angle: number) => Math.cos(angle - HOME.scenery.woodland.openBand.angle) > 0.55;
+
 const SHADOW_BOX = HOME.shadowBox;
 
 const ANGLER = HOME.angler;
@@ -100,7 +103,7 @@ const BANKS = BANDS + N_BOULDERS + 2;
 describe('a scene without the kit', () => {
   it('is the scene as it was before the kit, every group, matrix and mesh (its colours those of the calm palette)', () => {
     // the hash holds the albedo, so it moved on 11 October 2026 with the palette's dark greens and greys, and again the same day with the bed, rocks and weed under the see-through water, and a third time with the bank painted the colour its blades average to (`PALETTE.grass`), and not with any shape; then on 13 October 2026 the boulders and the cliff's lumps became faceted painted meshes of their own, a group each (38 groups then), whose positions, normals and matrices it holds (the paint is held by test/rocks.test.ts); and on 13 October 2026 the boulders' and the cliff's albedo went darker, with no shape moved; and on 14 October 2026 the bed's one slate sheet became six bands from the slate to the sand (43 groups now), on the rings it had and one more at each cut; and on 15 October 2026 the sand reached under the whole lake (docs/crystal-2.md, part 4), so the bands were cut evenly from the middle and coloured from the sand to a darkened sand, and not the slate
-    expect(hashGroups(new Scene().static())).toBe('43:1d2fc54');
+    expect(hashGroups(new Scene().static())).toBe('43:450fb7bd');
   });
 });
 
@@ -262,20 +265,21 @@ const ROCK_TRIANGLES = (N_BOULDERS + N_LUMPS) * 64;
 /** The bed's bands: the one sheet's 28 rings of 160 segments, and a ring more at each of the five cuts between six bands. */
 const BED_TRIANGLES = (28 + BANDS - 1) * 160 * 2;
 /**
- * The water's surface: the old coarse 24 rings by 128 segments, fine within reach of the Shore view's camera (85 rings by
- * 303 angles in all), built from `SURFACE` by `surfaceLayout`.
+ * The water's surface: the old coarse 24 rings by 128 segments, fine within reach of the Shore view's camera (94 rings by
+ * 290 angles in all; 85 by 303 while the camera stood behind the south bank), built from `SURFACE` by `surfaceLayout`.
  */
-const SURFACE_TRIANGLES = 85 * 303 * 2;
+const SURFACE_TRIANGLES = 94 * 290 * 2;
 /**
  * The most triangles the water's surface may take. Fine all over it was 528,000 and cost 0.9 ms a frame; fine near the
- * camera it is 51,510 and cost 0.3 ms, and the ceiling is set a little over that, where a reach grown or a spacing made
+ * camera it was 51,510 and cost 0.3 ms (54,520 from the jetty's side), and the ceiling is set a little over that, where a reach grown or a spacing made
  * finer would pass it and have its cost timed again.
  */
 const SURFACE_CEILING = 60_000;
 const FIGURES = {
   models: 30,
   placements: 396 + N_BOULDERS + N_LUMPS,
-  triangles: 90951 + ROCK_TRIANGLES + BED_TRIANGLES + SURFACE_TRIANGLES,
+  // 90951 while the woodland's open bank was the south one; the trees on the jetty's side changed kind a little
+  triangles: 89740 + ROCK_TRIANGLES + BED_TRIANGLES + SURFACE_TRIANGLES,
   cards: 10,
 };
 
@@ -331,11 +335,13 @@ describe('the banks', () => {
       .map((p) => [p.model.name, p.kind, p.x, p.y, p.z, p.yaw, p.scale]);
     // 121 as they were, less the two clumps the cabin turned away onto the plateau and the three pebbles near the deck
     // (two of them slid along the shore off its end): the dump of every placement before and after differs in those four
-    // and no other
-    expect(rows).toHaveLength(116);
+    // and no other. At C5a the angler moved onto the deck, and the clump that was kept off the old spot on the south bank
+    // stands there now (one more row, and the clumps drawn after it shift): the same dump with the angler put back on the
+    // south bank is the hash this test held before, 2639ff53..., at 116 rows
+    expect(rows).toHaveLength(117);
     // pinned (sha256 of the JSON)
     expect(createHash('sha256').update(JSON.stringify(rows)).digest('hex')).toBe(
-      '2639ff5385daea430551a48a9a7f1423114dc75c7adb2ae51ebd874ed1211958',
+      '9db060bcd7fa3c5204e789d05174f330ba649698cedc91eedb4587f90c7a4cca',
     );
   });
 
@@ -344,9 +350,11 @@ describe('the banks', () => {
     const rows = trees
       .filter((p) => Math.abs(Math.atan2(p.y, p.x / STRETCH) - CLIFF.middle) > 1)
       .map((p) => [p.tree, p.variant, p.x, p.y, p.z, p.yaw, p.height]);
-    expect(rows).toHaveLength(158);
+    // 158 and 89d0e164... until C5a, which moved the angler (the clump that shifts the woodland's draws) and the open
+    // bank (the radii of the trees drawn on it); with both put back, the dump is that one again
+    expect(rows).toHaveLength(157);
     expect(createHash('sha256').update(JSON.stringify(rows)).digest('hex')).toBe(
-      '89d0e1646716d200d480c6e3a88522258a8ae05672eb9e74502aa88181cb5c56',
+      '34643145789121dc2700e538583380a56770b79e57f149876759056f16b22ba9',
     );
   });
 
@@ -434,14 +442,16 @@ describe('the banks', () => {
     }
   });
 
-  it('have no tree on the near south bank, where the camera stands', () => {
-    for (const p of trees) {
+  it('have no tree on the near bank, where the camera stands (the jetty’s), save those the cliff stands on its plateau', () => {
+    // the open bank and the cliff's sector overlap a little on the north side, and a tree the cliff turns away from its
+    // face is put on the plateau from a stream of the cliff's own, at any radius the plateau allows
+    const open = (p: Placement) => onTheCamerasBank(Math.atan2(p.y, p.x / STRETCH)) && !underCliff(p.x, p.y);
+    for (const p of trees.filter(open)) {
       const angle = Math.atan2(p.y, p.x / STRETCH);
-      if (Math.sin(angle) < -0.55)
-        expect(Math.hypot(p.x / STRETCH, p.y) / shoreRadius(angle), label(p)).toBeGreaterThanOrEqual(2.6);
+      expect(Math.hypot(p.x / STRETCH, p.y) / shoreRadius(angle), label(p)).toBeGreaterThanOrEqual(2.6);
     }
-    // and there are some far trees to the south, so the rule was reached
-    expect(trees.some((p) => Math.sin(Math.atan2(p.y, p.x / STRETCH)) < -0.55)).toBe(true);
+    // and there are some far trees on it, so the rule was reached
+    expect(trees.some(open)).toBe(true);
   });
 
   it('are denser near the water than far from it', () => {
@@ -576,7 +586,7 @@ describe('the woodland', () => {
     const a = Math.atan2(p.y, p.x / STRETCH);
     return Math.hypot(p.x / STRETCH, p.y) / shoreRadius(a);
   };
-  const south = (p: Placement) => Math.sin(Math.atan2(p.y, p.x / STRETCH)) < -0.55;
+  const south = (p: Placement) => onTheCamerasBank(Math.atan2(p.y, p.x / STRETCH)) && !underCliff(p.x, p.y);
 
   it('is the two hundred and ten trees content says, all trees, added after everything else', () => {
     expect(woodland).toHaveLength(SCENERY.woodland.count);
@@ -590,10 +600,15 @@ describe('the woodland', () => {
     expect(placements).toHaveLength(26 + 70 + 90 + SCENERY.woodland.count);
   });
 
-  it('stands in its band of shore radii, further out on the south bank', () => {
-    const { band, southBand } = SCENERY.woodland;
+  it('stands in its band of shore radii, further out on the bank the camera looks from', () => {
+    const { band, openBand } = SCENERY.woodland;
     for (const p of woodland) {
-      const [lo, hi] = south(p) ? southBand : band;
+      // a tree stood on the plateau is in the cliff's sector and may have been drawn for either bank
+      const [lo, hi] = underCliff(p.x, p.y)
+        ? [Math.min(band[0], openBand.band[0]), Math.max(band[1], openBand.band[1])]
+        : south(p)
+          ? openBand.band
+          : band;
       expect(k(p), label(p)).toBeGreaterThanOrEqual(lo - 1e-9);
       expect(k(p), label(p)).toBeLessThanOrEqual(hi + 1e-9);
     }
@@ -845,12 +860,12 @@ describe('a scene of the home lake handed in', () => {
   it('is the scene the builders drew before they took a lake: every group, matrix and mesh, and the figures the smoke holds', () => {
     // the hash is of the groups as they were made at the commit before the builders took the lake (84 groups with the kit)
     const groups = new Scene(HOME).static(kit);
-    expect(hashGroups(groups)).toBe('84:252b7a8f');
-    expect(hashGroups(new Scene(HOME).static())).toBe('43:1d2fc54');
+    expect(hashGroups(groups)).toBe('84:72221e2b');
+    expect(hashGroups(new Scene(HOME).static())).toBe('43:450fb7bd');
     expect(sceneryFigures(new Scene(HOME).placements(kit), HOME)).toEqual({
       models: 30,
       placements: 426,
-      triangles: 154941,
+      triangles: 156740,
       cards: 10,
     });
   });

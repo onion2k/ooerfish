@@ -53,6 +53,18 @@ export interface FuzzResult {
   happened: Record<string, number>;
 }
 
+/**
+ * A save as JSON with every object's keys in order, so two saves of the same things are the same string whichever order
+ * a journal's kinds were first caught in (the game keeps them as they came and a load reads them in the dictionary's order).
+ */
+function canonical(save: unknown): string {
+  return JSON.stringify(save, (_key, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : value,
+  );
+}
+
 /** Play `frames` frames of the game at random from `seed`, in the lake `lakeId` names or, by default, the one the seed draws from a stream of its own. */
 export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult {
   // the monkey's own chance, apart from the game's, so what it decides does not shift what the game does
@@ -658,11 +670,11 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
         () => {
           // saved, and loaded again into a new lake as a reload would: what was saved must be kept
           game.persist();
-          const was = JSON.stringify(game.progress.save);
+          const was = canonical(game.progress.save);
           const written = { place: game.progress.save.place, time: game.progress.save.time };
           store = memoryStore(store.json);
           game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed + frame), events });
-          const now = JSON.stringify(game.progress.save);
+          const now = canonical(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and
           // time by design
@@ -865,7 +877,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
             castToBed();
             done['lie on the bed']++;
           } else if (reedy && reeding() < 0.1) castToSnag();
-          else cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+          else cast(lake.aim.angle + between(-0.4, 0.4), between(0.45, 0.8));
         }
       } else if (busy > 0) busy--;
       else {

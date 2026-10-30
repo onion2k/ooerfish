@@ -1,29 +1,27 @@
 /** The contests' tally (`docs/contests.md`, part 1): what the game counts as it is played, and when a run is broken. */
 import { describe, expect, it } from 'vitest';
-import { flight } from '../src/cast';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
+import { HOME } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
 import { DT, castAtDrum, cureAll, newGame } from './helpers';
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 
-/** The power that lands a cast to the north nearest the middle of the pond, where the fish are. */
+/**
+ * The power of a cast down the deck that lands where the fish are. Measured again at C5a: from the deck the middle of the
+ * pond is deeper water than the fish keep to, and four casts in a row there were once five minutes without a bite, while
+ * at half power every one of five seeds was bitten four times, none after more than three minutes.
+ */
 function middle(): number {
-  let best = 0,
-    gap = Infinity;
-  for (let p = 1; p <= 200; p++) {
-    const f = flight(NORTH, p / 200);
-    const g = Math.hypot(f.landing[0], f.landing[1]);
-    if (g < gap) [best, gap] = [p / 200, g];
-  }
-  return best;
+  return 0.5;
 }
 
 /** A cast to the middle, stepped until a fish bites, and struck. */
 function hook(game: Game) {
-  expect(game.cast(NORTH, middle())).toBe(true);
+  expect(game.cast(OUT, middle())).toBe(true);
   for (let f = 0; f < 60 * 300 && game.bite.phase !== 'biting'; f++) game.step(DT);
   expect(game.strike()).toBe('hooked');
 }
@@ -63,7 +61,7 @@ describe('the tally of the contests', () => {
   it('is nought at the start, and the first cast of a game wastes nothing', () => {
     const { game } = newGame(1);
     expect(tally(game)).toEqual({ rain: 0, run: 0, best: 0 });
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     expect(tally(game)).toEqual({ rain: 0, run: 0, best: 0 });
     clean(game);
   });
@@ -95,10 +93,10 @@ describe('the tally of the contests', () => {
     const { game } = newGame(1);
     catchOne(game);
     catchOne(game);
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     game.reelIn();
     expect(tally(game), 'nothing changes until the next cast').toMatchObject({ run: 2, best: 2 });
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     expect(tally(game)).toMatchObject({ run: 0, best: 2 });
     clean(game);
   });
@@ -108,7 +106,7 @@ describe('the tally of the contests', () => {
     catchOne(game);
     slip(game);
     expect(tally(game)).toMatchObject({ run: 1, best: 1 });
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     expect(tally(game)).toMatchObject({ run: 0, best: 1 });
     clean(game);
   });
@@ -128,16 +126,16 @@ describe('the tally of the contests', () => {
     }
     expect(game.haul()).toBe(true);
     expect(tally(game)).toMatchObject({ run: 1, best: 1 });
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     expect(tally(game)).toMatchObject({ run: 0, best: 1 });
   });
 
   it('puts the run to nought at the cast after a cast onto the bank, reeled in', () => {
     const { game } = newGame(1);
     catchOne(game);
-    expect(game.cast(-NORTH, 0.5)).toBe(true);
+    expect(game.cast(-OUT, 0.5)).toBe(true);
     game.reelIn();
-    expect(game.cast(NORTH, middle())).toBe(true);
+    expect(game.cast(OUT, middle())).toBe(true);
     expect(tally(game)).toMatchObject({ run: 0, best: 1 });
     clean(game);
   });
@@ -146,7 +144,7 @@ describe('the tally of the contests', () => {
     const { game } = newGame(1);
     catchOne(game);
     hook(game);
-    expect(game.cast(NORTH, middle()), 'refused with a fish on').toBe(false);
+    expect(game.cast(OUT, middle()), 'refused with a fish on').toBe(false);
     expect(tally(game)).toMatchObject({ run: 1, best: 1 });
     land(game);
     expect(game.stow()).toBe(true);

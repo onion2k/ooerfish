@@ -8,7 +8,6 @@ import { HOME } from '../src/lakes';
 import { shoreCamera, surface, surfaceLayout } from '../src/water/surface';
 
 const SURFACE = HOME.surface;
-const VIEWS = HOME.views;
 
 /** The old sheet's widest edge, 24 rings by 128 segments evenly round: the far east and west shore's diagonals. */
 const OLD_WIDEST = 4.296;
@@ -55,13 +54,17 @@ describe("the water's surface", () => {
     expect(widestEdge(mesh.positions, mesh.indices)).toBeLessThanOrEqual(OLD_WIDEST);
   });
 
-  it('reaches the near water of the Shore view: from the middle of the south shore to sixteen units in, short of the middle', () => {
-    // the camera stands back on the bank, south of the middle, and the reach is counted from where it stands
-    expect(cx).toBeCloseTo(VIEWS.shore.x, 1);
-    expect(cy).toBeLessThan(-50);
+  it('reaches the near water of the Shore view: the water beside the deck and as far out along it, short of the middle', () => {
+    // the camera stands back over the bank behind the jetty, and the reach is counted from where it stands
+    expect(HOME.inShore(cx, cy)).toBe(false);
     expect(Math.hypot(0 - cx, 0 - cy)).toBeGreaterThan(SURFACE.near);
-    expect(Math.hypot(0 - cx, -16 - cy)).toBeLessThan(SURFACE.near);
-    expect(Math.hypot(0 - cx, -14 - cy)).toBeGreaterThan(SURFACE.near);
+    // the nearest water is well within it, the deck's end is, and the middle and the water a good way past the deck are not
+    const deck = HOME.jetty!.deck;
+    const end = [deck.x + deck.inward[0] * HOME.jetty!.spec.length, deck.y + deck.inward[1] * HOME.jetty!.spec.length];
+    expect(Math.hypot(end[0] - cx, end[1] - cy)).toBeLessThan(SURFACE.near);
+    const beyond = [end[0] + deck.inward[0] * 10, end[1] + deck.inward[1] * 10];
+    expect(HOME.inside(beyond[0], beyond[1])).toBe(true);
+    expect(Math.hypot(beyond[0] - cx, beyond[1] - cy)).toBeGreaterThan(SURFACE.near);
   });
 
   it('is the rings and angles its layout says, built once', () => {
@@ -86,6 +89,9 @@ describe("the water's surface", () => {
     expect(all.rings[0]).toBe(0);
     expect(all.angles.at(-1)).toBeCloseTo(Math.PI * 2, 12);
     expect(all.angles.length - 1).toBeGreaterThan(SURFACE.segments * 4);
-    expect(() => surfaceLayout(HOME, { ...SURFACE, near: 1 })).toThrow(/a near of 1 reaches none of the water/);
+    // and a camera so far from the water that the reach finds none of it is refused by name (the Shore view's stands over the
+    // deck's root, two units from the water, so a reach of one finds some; the camera is put far off the lake to test it)
+    const far = { ...HOME, views: { ...HOME.views, shore: { ...HOME.views.shore, x: 400, y: 400 } } };
+    expect(() => surfaceLayout(far, { ...SURFACE, near: 1 })).toThrow(/a near of 1 reaches none of the water/);
   });
 });

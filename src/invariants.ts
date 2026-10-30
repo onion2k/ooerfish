@@ -223,12 +223,17 @@ function boatRules(game: Game, out: string[]) {
     const seat = seatOf(boat);
     if (at.x !== seat[0] || at.y !== seat[1]) out.push('the angler is aboard but not at the seat');
   } else if (at !== lake.angler) out.push('the angler is ashore but not at the lake’s place');
-  // a cast out was thrown from where the angler stands now, since a row reels it in first; aboard, the seat may have
-  // drifted on since the throw, and dropping anchor where it got to is no fault, so only the height of the rod's tip
-  // is held there
+  // a cast out was thrown from where the angler stands now, since a row reels it in first, and facing the way they face
+  // (the tip is out in front of the heading); aboard, the seat may have drifted on since the throw, and dropping anchor
+  // where it got to is no fault, so only the height of the rod's tip is held there
   if (
     lure.phase !== 'ready' &&
-    (lure.stand.tipHeight !== at.tipHeight || (!boat.aboard && (lure.stand.x !== at.x || lure.stand.y !== at.y)))
+    (lure.stand.tipHeight !== at.tipHeight ||
+      (!boat.aboard &&
+        (lure.stand.x !== at.x ||
+          lure.stand.y !== at.y ||
+          lure.stand.heading !== at.heading ||
+          lure.stand.base !== at.base)))
   )
     out.push(`the lure was thrown from ${lure.stand.x.toFixed(1)},${lure.stand.y.toFixed(1)}, not where the angler is`);
   // the anchor is up only aboard and not rowing

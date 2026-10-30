@@ -260,6 +260,10 @@ test('a phone with motion tilts to aim and flicks to cast, is told to strike, ho
   await expect(phone.locator('#padHelp')).toContainText('flick to cast');
   await expect.poll(() => page.evaluate(() => window.game!.phone().motion)).toBe(true);
   const game = <T>(f: () => T) => page.evaluate(f);
+  // how far to the camera's right a point lies of the deck's line, which runs from the stand through the middle: the
+  // camera looks down it, so right is the side a tilt to the right casts to
+  const heading = HOME.angler.heading!;
+  const side = (p: { x: number; y: number }) => p.x * Math.sin(heading) - p.y * Math.cos(heading);
 
   // a flick with no thumb down casts nothing
   await flick(phone, 40);
@@ -271,16 +275,16 @@ test('a phone with motion tilts to aim and flicks to cast, is told to strike, ho
   await tilt(phone, 0);
   await tilt(phone, 30);
   await expect.poll(() => game(() => window.game!.preview() !== null)).toBe(true);
-  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeGreaterThan(0.5);
+  await expect.poll(async () => side((await game(() => window.game!.preview()))!)).toBeGreaterThan(0.5);
   const right = (await game(() => window.game!.preview()))!;
   await tilt(phone, -30);
-  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeLessThan(-0.5);
+  await expect.poll(async () => side((await game(() => window.game!.preview()))!)).toBeLessThan(-0.5);
   const left = (await game(() => window.game!.preview()))!;
-  expect(right.x).toBeGreaterThan(left.x);
+  expect(side(right)).toBeGreaterThan(side(left));
 
   // a weak flick (the phone's rest swallows a second flick sent too soon, so it is sent again until the cast is out)
   await tilt(phone, 30);
-  await expect.poll(async () => (await game(() => window.game!.preview()))!.x).toBeGreaterThan(0.5);
+  await expect.poll(async () => side((await game(() => window.game!.preview()))!)).toBeGreaterThan(0.5);
   await expect
     .poll(async () => {
       await flick(phone, 20);
@@ -289,7 +293,7 @@ test('a phone with motion tilts to aim and flicks to cast, is told to strike, ho
     .not.toBe('ready');
   await game(() => window.game!.step(120));
   const weak = await game(() => window.game!.lure());
-  expect(weak.x).toBeGreaterThan(0.5);
+  expect(side(weak)).toBeGreaterThan(0.5);
   // letting go after a flick casts nothing more
   await thumbUp(phone);
   await expect.poll(() => game(() => window.game!.phone().lastKind)).toBe('up');

@@ -13,7 +13,7 @@ import { RESERVOIR } from '../src/lakes/reservoir';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { HOME, LAKES, lakeNamed } from '../src/lakes';
 import { fallsOf } from '../src/falls';
-import { flight } from '../src/cast';
+import { flight, rodTip } from '../src/cast';
 import { landingAboard, newBoat } from '../src/boat';
 import { BOAT, DRIFT, SNAG } from '../src/lake';
 import { places } from '../src/bedfinds';
@@ -133,11 +133,12 @@ function points(p: Probe): [number, number][] {
   const out: [number, number][] = [];
   for (let x = -60; x <= 60; x += 2) for (let y = -45; y <= 45; y += 2) out.push([x, y]);
   const c = p.constants as {
-    ANGLER: { x: number; y: number };
     CABIN_AT: { x: number; y: number };
     DECK: { x: number; y: number };
   };
-  out.push([c.ANGLER.x, c.ANGLER.y], [c.CABIN_AT.x, c.CABIN_AT.y], [c.DECK.x, c.DECK.y]);
+  // the south bank, where the angler stood until C5a (now on the deck): kept as a point so the grid is the one it always
+  // was and every geometry call is still held to the bit
+  out.push([0, -33.5], [c.CABIN_AT.x, c.CABIN_AT.y], [c.DECK.x, c.DECK.y]);
   // the deck's middle and its far end, and each boulder's centre and edge
   const deck = p.constants.DECK as { x: number; y: number; inward: [number, number] };
   out.push(
@@ -234,7 +235,8 @@ describe('the Duck Pond as a Lake', () => {
   it('stands in for the seams the builders already take', () => {
     const bed: BedWorld = DUCK_POND;
     const falling: FallingWorld = DUCK_POND;
-    expect(bed.from).toEqual([DUCK_POND.angler.x, DUCK_POND.angler.y]);
+    // the bed's things are measured from the south bank, where the angler stood until C5a, and lie where they always did
+    expect(bed.from).toEqual([0, -33.5]);
     expect(falling.radius).toBe(DUCK_POND.radius);
     expect(falling.level).toBe(lake.WATER_LEVEL);
   });
@@ -289,7 +291,7 @@ describe('the currents of the lakes (`docs/boat.md`, C3)', () => {
 
   it('has the figures the doc names', () => {
     expect(DRIFT).toEqual({ wind: { bobber: 4, boat: 2.5 }, bank: 0.5, sleepDrift: 0.05 });
-    expect(DUCK_POND.currents).toEqual([{ x: 11.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }]);
+    expect(DUCK_POND.currents).toEqual([{ x: 13.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }]);
     expect(RESERVOIR.currents).toEqual([{ x: 0, y: 16, heading: Math.PI / 2, length: 24, width: 8, speed: 0.5 }]);
   });
 
@@ -395,10 +397,10 @@ describe('the snags of the lakes (`docs/boat.md`, C4)', () => {
           ['cast from the shore', cast[0], cast[1]],
           ['cast from the boat', castFromBoat[0], castFromBoat[1]],
         ];
-        // the fuzzer's unaimed casts: due north of the shore, a third of a radian either way, at the powers it throws
+        // the fuzzer's unaimed casts: along the lake's aim, four tenths of a radian either way, at the powers it throws
         for (let a = -0.4; a <= 0.4001; a += 0.1)
           for (let p = 0.45; p <= 0.8001; p += 0.05) {
-            const f = flight(Math.PI / 2 + a, p, l, [0, 0], l.angler).landing;
+            const f = flight(l.aim.angle + a, p, l, [0, 0], l.angler).landing;
             spots.push([`unaimed cast ${a.toFixed(1)},${p.toFixed(2)}`, f[0], f[1]]);
           }
         // a lure there is noticed no faster for the reeds either, which the lure's reach says
@@ -416,4 +418,132 @@ describe('the snags of the lakes (`docs/boat.md`, C4)', () => {
         }
       });
     });
+});
+
+describe('the angler on the jetty (`docs/boat.md`, C5a)', () => {
+  const L = DUCK_POND;
+  const { spec: JETTY, deck: DECK } = L.jetty!;
+  const stand = L.angler;
+  const heading = Math.atan2(DECK.inward[1], DECK.inward[0]);
+
+  it('stands on the deck’s middle line, a unit back from its lake end, facing down it, over the deck’s top', () => {
+    const [along, across] = L.jetty!.frame(stand.x, stand.y);
+    expect(along).toBeCloseTo(JETTY.length - 1, 9);
+    expect(across).toBeCloseTo(0, 9);
+    expect(L.jetty!.gap(stand.x, stand.y), 'on the planks, a unit from the nearest edge, the end').toBeCloseTo(-1, 9);
+    expect(stand.heading).toBeCloseTo(heading, 12);
+    expect(stand.base).toBe(JETTY.top);
+    expect([stand.tipHeight, stand.tipReach], 'the rod is held as it always was').toEqual([8, 4]);
+  });
+
+  it('holds the rod out over the water, past the deck’s open end', () => {
+    const tip = rodTip(L);
+    const [along, across] = L.jetty!.frame(tip[0], tip[1]);
+    expect(along).toBeCloseTo(JETTY.length + 3, 9);
+    expect(across).toBeCloseTo(0, 9);
+    expect(tip[2]).toBeCloseTo(JETTY.top + 8, 9);
+    expect(L.inside(tip[0], tip[1], 1), 'over the water').toBe(true);
+  });
+
+  it('lands a fish on the water beside the deck’s end, on the side away from the boat, clear of the planks', () => {
+    const [along, across] = L.jetty!.frame(L.landAt[0], L.landAt[1]);
+    expect(L.inside(L.landAt[0], L.landAt[1], lake.RELEASE.margin)).toBe(true);
+    expect(L.jetty!.gap(L.landAt[0], L.landAt[1])).toBeGreaterThanOrEqual(1.5);
+    expect(Math.abs(along - JETTY.length), 'level with the deck’s end').toBeLessThan(1);
+    const [, boatSide] = L.jetty!.frame(L.boat!.mooring.x, L.boat!.mooring.y);
+    expect(Math.sign(across), 'the boat lies on the other side').toBe(-Math.sign(boatSide));
+    // near enough to the stand for the line to be played to it
+    expect(Math.hypot(L.landAt[0] - stand.x, L.landAt[1] - stand.y)).toBeLessThan(8);
+  });
+
+  it('casts along the heading at a power that reaches the middle, over the water at every cast the pace angler spreads to', () => {
+    expect(L.aim.angle).toBeCloseTo(heading, 12);
+    const middle = flight(L.aim.angle, L.aim.power, L, [0, 0], stand).landing;
+    expect(
+      Math.hypot(middle[0], middle[1]),
+      'the aimed cast lands within a unit and a half of the middle',
+    ).toBeLessThan(1.5);
+    for (const da of [-1, 0, 1])
+      for (const dp of [-1, 0, 1]) {
+        const f = flight(L.aim.angle + da * L.aim.spread, L.aim.power + dp * L.aim.powerSpread, L, [0, 0], stand);
+        expect(f.onWater, `${da},${dp}`).toBe(true);
+        expect(L.inside(f.landing[0], f.landing[1], 1), `${da},${dp}`).toBe(true);
+      }
+  });
+
+  it('keeps the boat’s spot two thirds of the way from the stand to the middle, on the open water', () => {
+    expect(L.boat!.spot[0]).toBeCloseTo(stand.x / 3, 12);
+    expect(L.boat!.spot[1]).toBeCloseTo(stand.y / 3, 12);
+    expect(L.inside(L.boat!.spot[0], L.boat!.spot[1], BOAT.keepOff)).toBe(true);
+  });
+
+  it('puts the Shore and phone views behind the stand over the deck’s line looking down it, at the radius and polar they had', () => {
+    for (const [name, polar, radius] of [
+      ['shore', 1.3, 62],
+      ['phone', 1.2, 105],
+    ] as const) {
+      const v = L.views[name];
+      expect(v.polar, name).toBe(polar);
+      expect(v.radius, name).toBe(radius);
+      expect(v.azimuth, name).toBeCloseTo(heading + Math.PI, 12);
+      // the target is on the deck's line, ahead of the stand and short of the far shore...
+      const ahead = (v.x - stand.x) * Math.cos(heading) + (v.y - stand.y) * Math.sin(heading);
+      const aside = -(v.x - stand.x) * Math.sin(heading) + (v.y - stand.y) * Math.cos(heading);
+      expect(ahead, name).toBeGreaterThan(30);
+      expect(aside, name).toBeCloseTo(0, 9);
+      // ...and the camera is over the bank behind the stand, on the same line, high up
+      const cam = [
+        v.x + radius * Math.sin(polar) * Math.cos(v.azimuth),
+        v.y + radius * Math.sin(polar) * Math.sin(v.azimuth),
+      ];
+      const back = (stand.x - cam[0]) * Math.cos(heading) + (stand.y - cam[1]) * Math.sin(heading);
+      const off = -(cam[0] - stand.x) * Math.sin(heading) + (cam[1] - stand.y) * Math.cos(heading);
+      expect(back, `${name}: the camera stands behind the angler`).toBeGreaterThan(10);
+      expect(off, name).toBeCloseTo(0, 9);
+      expect(L.inShore(cam[0], cam[1]), `${name}: on the bank, not the water`).toBe(false);
+      expect(radius * Math.cos(polar), `${name}: and high`).toBeGreaterThan(10);
+    }
+    // the boat and overhead views are as they were
+    expect(L.views.boat).toEqual({ x: 8, y: 6, azimuth: -0.9, polar: 1.42, radius: 18 });
+    expect(L.views.overhead).toEqual({ x: 0, y: 0, azimuth: -1.57, polar: 0.35, radius: 110 });
+  });
+
+  it('keeps the woodland’s open band on the bank the camera looks from, named by its angle, and the Reservoir’s on the south', () => {
+    expect(L.scenery.woodland.openBand.angle).toBe(JETTY.angle);
+    expect(L.scenery.woodland.openBand.band).toEqual([2.8, 4.2]);
+    expect(RESERVOIR.scenery.woodland.openBand).toEqual({ angle: -Math.PI / 2, band: [2.3, 3.6] });
+  });
+
+  it('is the Duck Pond’s alone: the Reservoir’s angler is on its south bank facing nothing in particular, as it was', () => {
+    const r = RESERVOIR.angler;
+    expect(r.heading).toBeUndefined();
+    expect(r.base).toBeUndefined();
+    expect(r.x).toBe(0);
+    expect(r.y).toBeLessThan(-RESERVOIR.shoreRadius(-Math.PI / 2));
+    expect(RESERVOIR.jetty).toBeNull();
+  });
+
+  it('keeps every reed bed clear of the casts the pace angler throws and the fuzzer’s unaimed ones, from the stand and the boat’s spot', () => {
+    const spot = L.boat!.spot;
+    for (const from of [stand, { ...stand, x: spot[0], y: spot[1] }])
+      for (let da = -1; da <= 1.0001; da += 0.25)
+        for (let dp = -1; dp <= 1.0001; dp += 0.25) {
+          // the pace angler's spread, and the fuzzer's wider one over its powers
+          const pace = flight(
+            L.aim.angle + da * L.aim.spread,
+            L.aim.power + dp * L.aim.powerSpread,
+            L,
+            [0, 0],
+            from,
+          ).landing;
+          const wide = flight(L.aim.angle + da * 0.4, 0.625 + dp * 0.175, L, [0, 0], from).landing;
+          for (const [what, f] of [
+            ['pace', pace],
+            ['fuzzer', wide],
+          ] as const)
+            expect(snagGap(L, f[0], f[1]), `${what} cast at ${f[0].toFixed(1)},${f[1].toFixed(1)}`).toBeGreaterThan(
+              SNAG.lureReach,
+            );
+        }
+  });
 });

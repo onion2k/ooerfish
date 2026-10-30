@@ -15,14 +15,15 @@ import { DT, castAtDrum, cureAll, lieByDrum, lieByTreasure } from './helpers';
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 
 /** How hard a cast due north lands nearest the middle of the lake, from the flight's own sums. */
 function powerToMiddle(): number {
   let best = 0,
     gap = Infinity;
   for (let p = 1; p <= 200; p++) {
-    const f = flight(NORTH, p / 200);
+    const f = flight(OUT, p / 200);
     const g = Math.hypot(f.landing[0], f.landing[1]);
     if (g < gap) [best, gap] = [p / 200, g];
   }
@@ -57,7 +58,7 @@ function until(game: Game, done: () => boolean, seconds: number): number {
 /** A lake with the lure sunk and every fish moved out of reach, so a test places the few it means to. */
 function sunk(seed = 1) {
   const { game } = lake(seed);
-  game.cast(NORTH, MIDDLE);
+  game.cast(OUT, MIDDLE);
   for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
   for (let f = 0; f < 120; f++) game.step(DT);
   expect(game.lure.phase).toBe('sinking');
@@ -183,7 +184,7 @@ describe('a fish and the lure', () => {
   it('comes, nibbles and bites a lure sunk in the middle of the lake within a minute, on every seed', () => {
     for (let seed = 1; seed <= 12; seed++) {
       const { game, told } = lake(seed);
-      game.cast(NORTH, MIDDLE);
+      game.cast(OUT, MIDDLE);
       const took = until(game, () => game.bite.phase === 'biting', 60);
       expect(took, `seed ${seed}: a bite within a minute`).toBeGreaterThanOrEqual(0);
       // it came first, then nibbled once to three times, then bit
@@ -204,7 +205,7 @@ describe('a fish and the lure', () => {
       until(game, () => game.bite.phase !== 'none', 30),
       'on the rod',
     ).toBe(-1);
-    game.cast(-NORTH, 0.6);
+    game.cast(-OUT, 0.6);
     expect(
       until(game, () => game.bite.phase !== 'none', 60),
       'on the bank',
@@ -214,7 +215,7 @@ describe('a fish and the lure', () => {
 
   it('lets one fish come at a time, however many are near, and the rest swim on', () => {
     const { game } = lake(3);
-    game.cast(NORTH, MIDDLE);
+    game.cast(OUT, MIDDLE);
     until(game, () => game.lure.phase === 'sinking', 5);
     // every fish put right by the lure
     for (let i = 0; i < game.fish.count; i++) {
@@ -235,14 +236,14 @@ describe('a fish and the lure', () => {
 
   it('opens a window of its length to the frame, hooked by a strike inside it', () => {
     const { game, told } = lake(4);
-    game.cast(NORTH, MIDDLE);
+    game.cast(OUT, MIDDLE);
     until(game, () => game.bite.phase === 'biting', 60);
     const frames = until(game, () => game.bite.phase !== 'biting', 5);
     expect(frames).toBe(Math.round(FISHING.window / DT));
     expect(told.at(-1), 'let go once the window shut').toBe('missed');
     // and a fresh bite struck just before its window shuts is hooked
     const again = lake(4);
-    again.game.cast(NORTH, MIDDLE);
+    again.game.cast(OUT, MIDDLE);
     until(again.game, () => again.game.bite.phase === 'biting', 60);
     for (let f = 0; f < Math.round(FISHING.window / DT) - 2; f++) again.game.step(DT);
     expect(again.game.strike()).toBe('hooked');
@@ -252,7 +253,7 @@ describe('a fish and the lure', () => {
 
   it('is not hooked by a strike while it only nibbles: it lets go, wary, and swims off', () => {
     const { game, told } = lake(5);
-    game.cast(NORTH, MIDDLE);
+    game.cast(OUT, MIDDLE);
     until(game, () => game.bite.phase === 'nibbling', 60);
     const i = game.bite.fish;
     expect(game.strike()).toBe('spooked');
@@ -266,7 +267,7 @@ describe('a fish and the lure', () => {
   it('lets go when the lure is reeled in or a pebble splashes by it', () => {
     for (const how of ['reel', 'pebble'] as const) {
       const { game } = lake(6);
-      game.cast(NORTH, MIDDLE);
+      game.cast(OUT, MIDDLE);
       until(game, () => game.bite.phase === 'coming', 60);
       if (how === 'reel') game.reelIn();
       else game.drop(game.lure.bobber[0] + 1, game.lure.bobber[1]);
@@ -281,7 +282,7 @@ describe('a fish and the lure', () => {
       let n = 0;
       for (let seed = 1; seed <= 100; seed++) {
         const { game } = lake(seed);
-        game.cast(NORTH, MIDDLE);
+        game.cast(OUT, MIDDLE);
         until(game, () => game.lure.phase === 'sinking', 5);
         if (twitching) expect(game.strike()).toBe('twitch');
         if (until(game, () => game.bite.phase !== 'none', 0.5) >= 0) n++;
@@ -297,7 +298,7 @@ describe('a fish and the lure', () => {
   it('does nothing to a strike with the lure out of the water', () => {
     const { game } = lake(7);
     expect(game.strike()).toBe('none');
-    game.cast(-NORTH, 0.6);
+    game.cast(-OUT, 0.6);
     until(game, () => game.lure.phase === 'lying', 5);
     expect(game.strike()).toBe('none');
   });
@@ -305,7 +306,7 @@ describe('a fish and the lure', () => {
   it('is the same from the same seed', () => {
     const run = () => {
       const { game, told } = lake(8);
-      game.cast(NORTH, MIDDLE);
+      game.cast(OUT, MIDDLE);
       until(game, () => game.bite.phase === 'biting', 60);
       return told.join('|');
     };
@@ -319,7 +320,7 @@ describe('a fish that cannot find its way', () => {
     // reached the lure, which held the lure from every other fish for minutes; the steering draws no chance, so it loops
     // the same from here every time
     const { game, told } = lake(1);
-    game.cast(NORTH, MIDDLE);
+    game.cast(OUT, MIDDLE);
     for (let f = 0; f < 120; f++) game.step(DT);
     expect(game.lure.phase).toBe('sinking');
     const i = 4;
@@ -368,7 +369,7 @@ describe('the bite, seen', () => {
   it('rings the water at the bobber at each nibble, and bigger at the bite, without scaring the fish off', () => {
     for (let seed = 1; seed <= 6; seed++) {
       const { game, told } = telling(seed);
-      game.cast(NORTH, MIDDLE);
+      game.cast(OUT, MIDDLE);
       for (let f = 0; f < 60 / DT && game.bite.phase !== 'biting'; f++) game.step(DT);
       expect(game.bite.phase, `seed ${seed}`).toBe('biting');
       const at = `${game.lure.bobber[0].toFixed(3)} ${game.lure.bobber[1].toFixed(3)}`;
@@ -391,7 +392,7 @@ describe('the bite, seen', () => {
     const { game, told } = telling(3);
     // the moment with no fish there is made, not hoped for: all but one fish cured, and that one kept far from the lure
     game.fish.cured.fill(1, 0, game.fish.count);
-    game.cast(NORTH, MIDDLE);
+    game.cast(OUT, MIDDLE);
     // long enough for the lure to reach the line's depth, where the fish are then put
     for (let f = 0; f < 480; f++) game.step(DT);
     expect(game.bite.phase).toBe('none');
@@ -733,7 +734,7 @@ function reservoir(time: number, seed = 1) {
       missed: () => told.push('missed'),
     },
   });
-  game.cast(NORTH, 0.5);
+  game.cast(RESERVOIR.aim.angle, 0.5);
   for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
   expect(game.lure.phase).toBe('sinking');
   game.bite.stowed(game.fish);

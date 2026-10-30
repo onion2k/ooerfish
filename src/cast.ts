@@ -224,7 +224,8 @@ export function pathPoints(
 ): boolean {
   const time = landingTime(angle, power, lake, wind, stand);
   for (let k = 0; k < n; k++) {
-    flightAt(angle, power, (time * k) / (n - 1), at, lake, wind, stand);
+    // the last point is the landing's own time and not a share of it, which a multiply and divide may miss by a bit
+    flightAt(angle, power, k === n - 1 ? time : (time * k) / (n - 1), at, lake, wind, stand);
     out[k * 3] = at[0];
     out[k * 3 + 1] = at[1];
     out[k * 3 + 2] = at[2];

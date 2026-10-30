@@ -345,7 +345,9 @@ async function reach(page: Page, moment: Moment) {
                     moment === 'still'
                     ? { save: { cured: 3, photos: [pondPhoto] } }
                     : { save: { cured: 3 } };
-  await start(page, { seed: 7, paused: true, ...save });
+  // seed 6: at seed 7 the first fish the jetty's cast finds is landed or slipped inside two seconds, which the fight's
+  // alternating hold cannot look at six times; at 6 every screen's fight and aboard fight is looked at twelve times
+  await start(page, { seed: 6, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(
     async ([m, spot, frames]) => {

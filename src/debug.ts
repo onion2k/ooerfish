@@ -849,8 +849,16 @@ export function createApi(host: DebugHost): GameApi {
         return false;
       };
       if (quarry === 'drum') {
-        // the lure thrown to the first drum still on the bed and left to lie there, where it is snagged
-        const i = game.drums.found.indexOf(0);
+        // the lure thrown to the first drum still on the bed that a cast from the stand reaches (the deck's reach falls a
+        // little short of the first drum, which lies where the south bank always reached it), or else the first on the bed,
+        // and left to lie there, where it is snagged
+        const unfound = Array.from({ length: game.drums.count }, (_, k) => k).filter((k) => game.drums.found[k] === 0);
+        const reaches = (k: number) => {
+          const { angle, power } = aimAt(game.drums.x[k], game.drums.y[k], game.lake, game.wind, game.anglerAt());
+          const landed = flight(angle, power, game.lake, game.wind, game.anglerAt()).landing;
+          return Math.hypot(landed[0] - game.drums.x[k], landed[1] - game.drums.y[k]) < 1;
+        };
+        const i = unfound.length > 0 ? (unfound.find(reaches) ?? unfound[0]) : -1;
         if (i < 0) return false;
         const { angle, power } = aimAt(game.drums.x[i], game.drums.y[i], game.lake, game.wind, game.anglerAt());
         if (!game.cast(angle, power)) return false;
@@ -872,7 +880,7 @@ export function createApi(host: DebugHost): GameApi {
       } else {
         // the middle of the lake first, as it always was; and, with a bite never coming in the water that is in the
         // band, where the nearest uncured fish lies, since the fish keep to depths and a cast to the middle may find none
-        game.cast(Math.PI / 2 + 0.15, 0.55);
+        game.cast(game.lake.aim.angle + 0.15, 0.55);
         for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) frame();
         if (game.bite.phase !== 'biting') {
           game.reelIn();

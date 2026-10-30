@@ -73,7 +73,7 @@ describe('the angler', () => {
     const run = () => {
       const game = new Game(new Progress(memoryStore()), { random: seeded(4) });
       const angler = new Angler(game, seeded(7));
-      game.cast(-Math.PI / 2, 0.6);
+      game.cast(game.lake.aim.angle + Math.PI, 0.6);
       for (let f = 0; f < 240; f++) angler.step(DT);
       expect(game.lure.phase, 'off the bank and cast again').not.toBe('lying');
       for (let f = 0; f < 60 / DT; f++) angler.step(DT);
@@ -130,8 +130,9 @@ describe('the angler and a drum on the bed', () => {
   it('does not strike at a drum’s heavy dip: it reels in and casts again, and never hooks one', () => {
     const game = new Game(new Progress(memoryStore('{"cured": 12}')), { random: seeded(1) });
     const angler = new Angler(game, seeded(101));
-    // the lure lying on the bed by a drum, in a pond with no fish left to take the bait
-    const { angle, power } = aimAt(game.drums.x[0], game.drums.y[0]);
+    // the lure lying on the bed by a drum, in a pond with no fish left to take the bait (the second drum, which the deck's
+    // cast reaches; the first lies a little past it)
+    const { angle, power } = aimAt(game.drums.x[1], game.drums.y[1]);
     game.cast(angle, power);
     for (let f = 0; f < 60 * 30 && !game.lure.onBed; f++) game.step(DT);
     expect(game.lure.onBed).toBe(true);

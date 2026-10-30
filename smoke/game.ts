@@ -6,6 +6,7 @@
  */
 import { expect, type Page } from '@playwright/test';
 import type { GameApi } from '../src/debug';
+import { HOME } from '../src/lakes';
 import type { SaveSaid } from '../src/progress';
 import type { Weather } from '../src/lake';
 
@@ -175,6 +176,12 @@ export const PICTURES: [string, Scene][] = [
 ];
 
 /**
+ * Which way a cast goes out over the water from the angler on the jetty (`docs/boat.md`, C5a): down the deck's line, the
+ * lake's own aim. It was due north from the south bank, and the specs that threw casts due north pass this instead.
+ */
+export const OUT = HOME.aim.angle;
+
+/**
  * The cast the look pictures and the film throw from the shore by day: the lake a little dirty, settled this many
  * frames, the cast's angle and power (into the water ahead and a little left), and the frames until it is landed and
  * sinking under its bobber.
@@ -182,7 +189,7 @@ export const PICTURES: [string, Scene][] = [
 export const CAST_SHOT = {
   scene: { dirt: 0.2, time: 'day', view: 'shore' } as Scene,
   settle: 60,
-  angle: Math.PI / 2 + 0.2,
+  angle: OUT + 0.2,
   power: 0.7,
   sinking: 175,
 } as const;

@@ -20,7 +20,7 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
-import { CABIN_DAWN, STANDARD, set, start, watch } from './game';
+import { CABIN_DAWN, OUT, STANDARD, set, start, watch } from './game';
 import { moved as hasMoved, type Figures } from './judging';
 
 const BASELINE = 'smoke/perf-baseline.json';
@@ -171,13 +171,13 @@ test('draws the water, at every time of day, splashing, within the frame budget'
     await set(page, { ...STANDARD, time, dirt: 1 }, 60);
     // twelve splashes live, the most a lake holds, their rings spreading and their droplets in the air; and a cast
     // in the air with its line, and another being aimed, its preview drawn
-    await page.evaluate(() => {
+    await page.evaluate((out) => {
       const g = window.game!;
       for (let k = 0; k < 12; k++) g.dropNear();
-      g.cast(Math.PI / 2 + 0.2, 0.8);
-      g.aim({ angle: Math.PI / 2 - 0.2, power: 0.6 });
+      g.cast(out + 0.2, 0.8);
+      g.aim({ angle: out - 0.2, power: 0.6 });
       g.step(15);
-    });
+    }, OUT);
     // the first measured keeps the GPU drawing a quarter of a second; the rest follow on from it
     const ms = await page.evaluate((warm) => window.game!.measureFrame(warm), first ? undefined : 60);
     first = false;

@@ -9,13 +9,14 @@ import { DT, newGame } from './helpers';
 
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 const MIDDLE = 0.55;
 
 /** A game cast out and run to the bite's window. */
 function biting(seed = 1): Game {
   const { game } = newGame(seed);
-  game.cast(NORTH + 0.15, MIDDLE);
+  game.cast(OUT, MIDDLE);
   for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
   expect(game.bite.phase).toBe('biting');
   return game;
@@ -102,7 +103,7 @@ describe('fightPicture', () => {
 
   it('keeps the Strike/Reel button while the lure sinks, and drops it once landed', () => {
     const { game } = newGame(1);
-    game.cast(NORTH + 0.15, MIDDLE);
+    game.cast(OUT, MIDDLE);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     expect(fightPicture(game).button).toBe('Strike');
     const done = landed();

@@ -124,13 +124,20 @@ export class CastDraw {
   /** The lake it draws the cast over: where its angler stands and holds the rod, and what its casts land on. */
   constructor(private readonly lake: Lake = HOME) {
     const { angler } = lake;
-    const z = lake.ground(angler.x, angler.y);
-    this.shoreHand = [angler.x + 0.6, angler.y + 0.5, z + 5];
+    const z = angler.base ?? lake.ground(angler.x, angler.y);
+    // the hand is held half a unit ahead of the angler and six tenths to their right, whichever way they face (due north
+    // when the stand has no heading, which is how the Reservoir's angler stands)
+    const facing = angler.heading ?? Math.PI / 2;
+    this.shoreHand = [
+      angler.x + Math.cos(facing) * 0.5 + Math.sin(facing) * 0.6,
+      angler.y + Math.sin(facing) * 0.5 - Math.cos(facing) * 0.6,
+      z + 5,
+    ];
     this.hand = [...this.shoreHand];
   }
 
   /**
-   * The hand worked out from where the game has the angler: the shore's, to the bit, ashore; aboard, just ahead of the
+   * The hand worked out from where the game has the angler: the shore's, ashore, held from the stand's own heading; aboard, just ahead of the
    * seat and a little over the thwart, since the rod rises from the lap toward its tip. Written into the hand, never made.
    */
   private holdAt(at: Stand) {

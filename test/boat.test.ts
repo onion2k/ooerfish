@@ -62,7 +62,7 @@ describe('where each lake moors it', () => {
 
   it('the pond: the spot is two thirds of the way from the angler to the middle', () => {
     const [x, y] = boatOf(HOME).spot;
-    expect(x).toBe(0);
+    expect(x).toBeCloseTo(HOME.angler.x / 3, 9);
     expect(y).toBeCloseTo(HOME.angler.y / 3, 9);
   });
 

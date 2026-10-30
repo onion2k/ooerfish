@@ -1,6 +1,7 @@
 /** The weather as the game holds it: the day's, and the lever that overrides it for the tests (`docs/weather.md`). */
 import { describe, expect, it } from 'vitest';
 import { weatherOf } from '../src/calendar';
+import { flight } from '../src/cast';
 import { FISHING, WEATHER } from '../src/lake';
 import { depthRange } from '../src/fish';
 import { BREEZE } from '../src/grass';
@@ -97,13 +98,15 @@ describe('Game.wind', () => {
   it('is on a cast, fixed at the throw: a weather change in the air changes nothing', () => {
     const { game } = newGame();
     game.setWeather('wind');
-    game.cast(Math.PI / 2, 1);
+    game.cast(game.lake.aim.angle, 1);
     expect(Array.from(game.lure.wind)).toEqual(Array.from(game.wind));
     const flies = game.lure.flies;
     game.setWeather('sunny');
     for (let f = 0; f < Math.ceil(flies / DT) + 2; f++) game.step(DT);
     expect(game.lure.wind[0]).toBe(WEATHER.wind.vector[0]);
-    expect(game.lure.at[0], 'bent off the line it was cast along').toBeGreaterThan(1);
+    // the wind took it off the line it was cast along: it lies well away from where the calm flight would have landed it
+    const calm = flight(game.lake.aim.angle, 1, game.lake).landing;
+    expect(Math.hypot(game.lure.at[0] - calm[0], game.lure.at[1] - calm[1]), 'bent off the line').toBeGreaterThan(1);
   });
 
   it("holds the breeze's direction, as the grass is blown", () => {

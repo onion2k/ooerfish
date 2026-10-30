@@ -5,10 +5,15 @@ import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
 import { ROPE, WEATHER } from '../src/lake';
-import { HOME } from '../src/lakes';
+import { Game } from '../src/game';
+import { HOME, LAKES } from '../src/lakes';
+import type { Lake } from '../src/lakes/lake';
+import { Progress, memoryStore } from '../src/progress';
+import { seeded } from '../src/random';
 import { DT, newGame, settle } from './helpers';
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 
 /** The game's line worked out again for a clock or tension a test has set by hand, since the draw reads what the step made. */
 function again(game: unknown) {
@@ -55,7 +60,7 @@ describe('a piece between two ends', () => {
 describe('the cast, drawn', () => {
   it('has a line from the rod tip that sags below the straight way to the lure', () => {
     const { game } = newGame();
-    game.cast(NORTH, 0.7);
+    game.cast(OUT, 0.7);
     settle(game, 20);
     const draw = new CastDraw();
     draw.write(game, null);
@@ -79,12 +84,12 @@ describe('the cast, drawn', () => {
     let n = draw.write(game, null);
     expect(n.dots).toBe(0);
     expect(n.ringWater + n.ringBank).toBe(0);
-    n = draw.write(game, { angle: NORTH, power: 0.6 });
+    n = draw.write(game, { angle: OUT, power: 0.6 });
     expect(n.dots).toBe(PREVIEW_DOTS);
     expect(n.ringWater).toBeGreaterThan(0);
     expect(n.ringBank).toBe(0);
     // its last dot is where the cast would land
-    const landing = flight(NORTH, 0.6).landing;
+    const landing = flight(OUT, 0.6).landing;
     const last = carried(draw.dots, PREVIEW_DOTS - 1, 0, 0, 0);
     for (let k = 0; k < 3; k++) expect(last[k]).toBeCloseTo(landing[k], 4);
     // the ring that is drawn is the water's, round where it lands
@@ -92,10 +97,10 @@ describe('the cast, drawn', () => {
     expect(Math.hypot(piece0[0] - landing[0], piece0[1] - landing[1]), 'the water ring round the landing').toBeLessThan(
       2,
     );
-    n = draw.write(game, { angle: -NORTH, power: 0.6 });
+    n = draw.write(game, { angle: -OUT, power: 0.6 });
     expect(n.ringBank).toBeGreaterThan(0);
     expect(n.ringWater).toBe(0);
-    const bank = flight(-NORTH, 0.6).landing;
+    const bank = flight(-OUT, 0.6).landing;
     const piece1 = carried(draw.ringBank, 0, 0, 0, 0);
     expect(Math.hypot(piece1[0] - bank[0], piece1[1] - bank[1]), 'the bank ring round the landing').toBeLessThan(2);
   });
@@ -104,7 +109,7 @@ describe('the cast, drawn', () => {
     const { game } = newGame();
     const draw = new CastDraw();
     expect(draw.write(game, null).bobber).toBe(0);
-    game.cast(NORTH, 0.6);
+    game.cast(OUT, 0.6);
     settle(game, 120);
     expect(game.lure.phase).toBe('sinking');
     expect(draw.write(game, null).bobber).toBe(1);
@@ -132,7 +137,7 @@ describe('the cast, drawn', () => {
 /** A lake with a fish on the line, from a seed. */
 function onTheLine(seed = 1) {
   const { game } = newGame(seed);
-  game.cast(NORTH, 0.62);
+  game.cast(OUT, 0.62);
   for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
   expect(game.strike()).toBe('hooked');
   game.step(DT);
@@ -203,7 +208,7 @@ describe('the fight, drawn', () => {
 
   it('shakes the bobber from side to side while the strike’s window is open, and only then, the same each run', () => {
     const { game } = newGame(1);
-    game.cast(NORTH, 0.62);
+    game.cast(OUT, 0.62);
     const draw = new CastDraw();
     // how far the drawn bobber stands from where the lure's bobber is, sideways, over a second of game time
     const swing = () => {
@@ -229,7 +234,7 @@ describe('the fight, drawn', () => {
 
   it('dips the bobber under on a bite, and twitches it on a nibble', () => {
     const { game } = newGame(1);
-    game.cast(NORTH, 0.62);
+    game.cast(OUT, 0.62);
     const draw = new CastDraw();
     const bobberZ = () => (again(game), draw.write(game, null), draw.bobber[14]);
     for (let f = 0; f < 3600 && game.bite.phase !== 'nibbling'; f++) game.step(DT);
@@ -292,12 +297,12 @@ describe('the preview in a wind', () => {
   it('is the bent flight: its last dot is where the cast lands in the wind, and downwind of where it lands in none', () => {
     const { game } = newGame();
     const draw = new CastDraw();
-    draw.write(game, { angle: NORTH, power: 0.6 });
+    draw.write(game, { angle: OUT, power: 0.6 });
     const calm = carried(draw.dots, PREVIEW_DOTS - 1, 0, 0, 0);
     game.setWeather('wind');
-    draw.write(game, { angle: NORTH, power: 0.6 });
+    draw.write(game, { angle: OUT, power: 0.6 });
     const bent = carried(draw.dots, PREVIEW_DOTS - 1, 0, 0, 0);
-    const landing = flight(NORTH, 0.6, game.lake, WEATHER.wind.vector).landing;
+    const landing = flight(OUT, 0.6, game.lake, WEATHER.wind.vector).landing;
     for (let k = 0; k < 3; k++) expect(bent[k]).toBeCloseTo(landing[k], 4);
     expect(bent[0] - calm[0], 'downwind').toBeGreaterThan(1);
   });
@@ -330,7 +335,7 @@ describe('the line, drawn as the rope', () => {
     const lines = drawn.lines;
     for (let f = 0; f < 5; f++) {
       game.step(DT);
-      expect(draw.write(game, { angle: NORTH, power: 0.5 })).toBe(drawn);
+      expect(draw.write(game, { angle: OUT, power: 0.5 })).toBe(drawn);
     }
     expect(drawn.lines).toBe(lines);
     expect([...draw.lines, draw.rod, draw.lure, draw.bobber, draw.dots, draw.ringWater, draw.ringBank]).toEqual(before);
@@ -362,14 +367,57 @@ describe('the rod aboard the boat', () => {
     for (let k = 0; k < 3; k++) expect(dot0[k]).toBeCloseTo(want[k], 3);
   });
 
-  it('is exactly the shore’s ashore: the hand is where it was built to be', () => {
+  it('is held ashore from the stand’s own heading: the hand ahead and to the right of it, over the deck, the tip out in front', () => {
     const { game } = newGame(1);
     const draw = new CastDraw();
     draw.write(game, null);
     const a = HOME.angler;
+    const h = a.heading!;
+    const butt = carried(draw.rod, 0, -0.5, 0, 0);
+    // half a unit ahead and six tenths to the right of the heading, five over the deck's top (the stand's base)
+    expect(butt[0]).toBeCloseTo(a.x + Math.cos(h) * 0.5 + Math.sin(h) * 0.6, 4);
+    expect(butt[1]).toBeCloseTo(a.y + Math.sin(h) * 0.5 - Math.cos(h) * 0.6, 4);
+    expect(butt[2]).toBeCloseTo(a.base! + 5, 4);
+    // the tip is out in front along the heading, and the rod runs that way from the hand
+    const tip = carried(draw.rod, ROD_PIECES - 1, 0.5, 0, 0);
+    const want = rodTip(HOME, a);
+    for (let k = 0; k < 3; k++) expect(tip[k]).toBeCloseTo(want[k], 4);
+    expect((tip[0] - a.x) * Math.cos(h) + (tip[1] - a.y) * Math.sin(h)).toBeCloseTo(a.tipReach, 4);
+    expect(-(tip[0] - a.x) * Math.sin(h) + (tip[1] - a.y) * Math.cos(h)).toBeCloseTo(0, 4);
+    expect((tip[0] - butt[0]) * Math.cos(h) + (tip[1] - butt[1]) * Math.sin(h)).toBeGreaterThan(3);
+  });
+
+  it('turns with the heading, whichever way the stand faces', () => {
+    for (const heading of [0, 0.7, Math.PI / 2, 3, -2.5]) {
+      const lake: Lake = { ...HOME, id: 'facing', angler: { ...HOME.angler, heading } };
+      const game = new Game(new Progress(memoryStore(), { [lake.id]: lake }), { lake, random: seeded(1) });
+      const draw = new CastDraw(lake);
+      draw.write(game, null);
+      const a = lake.angler;
+      const butt = carried(draw.rod, 0, -0.5, 0, 0);
+      const tip = carried(draw.rod, ROD_PIECES - 1, 0.5, 0, 0);
+      // in the stand's own frame, forward along the heading and right across it, the hand and the tip are where they are
+      const frame = (p: number[]) => [
+        (p[0] - a.x) * Math.cos(heading) + (p[1] - a.y) * Math.sin(heading),
+        (p[0] - a.x) * Math.sin(heading) - (p[1] - a.y) * Math.cos(heading),
+      ];
+      expect(frame(butt)[0], `hand ahead at ${heading}`).toBeCloseTo(0.5, 4);
+      expect(frame(butt)[1], `hand right at ${heading}`).toBeCloseTo(0.6, 4);
+      expect(frame(tip)[0], `tip ahead at ${heading}`).toBeCloseTo(a.tipReach, 4);
+      expect(frame(tip)[1], `tip across at ${heading}`).toBeCloseTo(0, 4);
+    }
+  });
+
+  it('is exactly the Reservoir’s as it was, a stand with no heading facing north: the hand is where it was built to be', () => {
+    const lake = LAKES.reservoir;
+    const game = new Game(new Progress(memoryStore(), LAKES), { lake, random: seeded(1) });
+    const draw = new CastDraw(lake);
+    draw.write(game, null);
+    const a = lake.angler;
+    expect(a.heading).toBeUndefined();
     const butt = carried(draw.rod, 0, -0.5, 0, 0);
     expect(butt[0]).toBeCloseTo(a.x + 0.6, 4);
     expect(butt[1]).toBeCloseTo(a.y + 0.5, 4);
-    expect(butt[2]).toBeCloseTo(HOME.ground(a.x, a.y) + 5, 4);
+    expect(butt[2]).toBeCloseTo(lake.ground(a.x, a.y) + 5, 4);
   });
 });

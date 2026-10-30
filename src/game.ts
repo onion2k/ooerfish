@@ -109,7 +109,7 @@ export interface GameEvents {
   freed?(i: number): void;
 }
 
-/** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
+/** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of straight ahead of the angler its bearing may be. */
 const HOOKED = { speed: 6, sway: 0.35, swayRate: 0.9, wide: 1.1 } as const;
 
 /**
@@ -967,15 +967,36 @@ export class Game {
     this.drop(x, y, RELEASE.splash);
   }
 
+  /**
+   * Which way is ahead of the angler for a fight: the way the boat points aboard, the lake's angler's heading ashore (down
+   * the jetty's deck), and due north from a stand with none (the Reservoir's bank).
+   */
+  private ahead(): number {
+    return this.boat.aboard ? this.boat.heading : (this.lake.angler.heading ?? Math.PI / 2);
+  }
+
+  /**
+   * The fish's bearing from the landing, kept within `HOOKED.wide` either side of `ahead`. Due north is clamped on the
+   * raw bearing, as it always was, so a game played from a north-facing bank keeps its sums to the bit; any other way is
+   * clamped on the bearing's turn from it, so a bearing either side of the compass's seam is not thrown across to the
+   * far limit.
+   */
+  private fanned(ahead: number): number {
+    if (ahead === Math.PI / 2) return Math.min(ahead + HOOKED.wide, Math.max(ahead - HOOKED.wide, this.bearing));
+    let off = Math.atan2(Math.sin(this.bearing - ahead), Math.cos(this.bearing - ahead));
+    off = Math.min(HOOKED.wide, Math.max(-HOOKED.wide, off));
+    return ahead + off;
+  }
+
   /** The fight on by `dt`: the zone and the meter, and the fish swimming to keep to it along its bearing, swaying, with the lure in its mouth. */
   private fight(dt: number) {
     if (this.catchDrum || this.catchTreasure >= 0) return this.fightFind(dt);
     const i = this.bite.fish;
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
     const [lx, ly] = this.landing();
-    const north = Math.PI / 2;
+    const ahead = this.ahead();
     const sway = HOOKED.sway * Math.sin((this.t - this.hookedAt) * HOOKED.swayRate);
-    const b = Math.min(north + HOOKED.wide, Math.max(north - HOOKED.wide, this.bearing)) + sway;
+    const b = this.fanned(ahead) + sway;
     const depth = Math.min(2.5, 0.3 + this.line.out * 0.08);
     steerTo(this.fish, i, lx + Math.cos(b) * this.line.out, ly + Math.sin(b) * this.line.out, depth, HOOKED.speed, dt);
     this.lure.at[0] = this.fish.x[i];
@@ -999,7 +1020,7 @@ export class Game {
   private fightFind(dt: number) {
     const was = this.line.step(dt, this.reeling, this.contamination, this.random);
     const [lx, ly] = this.landing();
-    const b = Math.min(Math.PI / 2 + HOOKED.wide, Math.max(Math.PI / 2 - HOOKED.wide, this.bearing));
+    const b = this.fanned(this.ahead());
     const [x, y] = [lx + Math.cos(b) * this.line.out, ly + Math.sin(b) * this.line.out];
     this.lure.at[0] = x;
     this.lure.at[1] = y;

@@ -432,15 +432,24 @@ describe('the jetty out over the water', () => {
     expect(bedDepth(...onDeck(8, 0))).toBeGreaterThan(0.5);
   });
 
-  it('is out of reach of the angler, so no cast of theirs or a test’s lands on it', async () => {
+  it('keeps a cast thrown out over the water off it: none within a quarter turn of the heading lands near the deck, and one thrown back over it lies on the planks', async () => {
     const { flight } = await import('../src/cast');
-    let nearest = Infinity;
-    for (let a = 0; a < 360; a++)
+    const { angler } = HOME;
+    let forward = Infinity,
+      backward = Infinity;
+    for (let a = -90; a <= 90; a++)
       for (let p = 1; p <= 40; p++) {
-        const f = flight((a / 360) * Math.PI * 2, p / 40);
-        nearest = Math.min(nearest, jettyGap(f.landing[0], f.landing[1]));
+        const f = flight(angler.heading! + (a / 180) * Math.PI, p / 40);
+        forward = Math.min(forward, jettyGap(f.landing[0], f.landing[1]));
       }
-    expect(nearest, 'the nearest any cast lands to the deck').toBeGreaterThan(5);
+    // the rod's tip stands out over the water past the deck's end, so even the shortest cast clears it by a good way
+    expect(forward, 'the nearest a forward cast lands to the deck').toBeGreaterThan(1.5);
+    for (let a = -45; a <= 45; a++)
+      for (let p = 1; p <= 40; p++) {
+        const f = flight(angler.heading! + Math.PI + (a / 180) * Math.PI, p / 40);
+        backward = Math.min(backward, jettyGap(f.landing[0], f.landing[1]));
+      }
+    expect(backward, 'a cast thrown back along the deck lands on it').toBeLessThan(0);
   });
 });
 

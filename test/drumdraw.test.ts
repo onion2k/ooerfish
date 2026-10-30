@@ -6,7 +6,8 @@ import { HOME } from '../src/lakes';
 import { DRUM_RULES } from '../src/rules';
 import { PALETTE } from '../src/palette';
 
-const ANGLER = HOME.angler;
+/** The bank the bed's things are measured from (the angler stood there until C5; now it is the lake's own `from`). */
+const FROM = { x: HOME.from[0], y: HOME.from[1] };
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const CABIN = HOME.cabin!.spec;
 const bareGround = HOME.bareGround;
@@ -15,7 +16,7 @@ const cabinGap = HOME.cabin!.gap;
 const inside = HOME.inside;
 const jettyGap = HOME.jetty!.gap;
 
-const drums = () => new BedFinds(places(DRUMS, { inside, bedDepth, from: [ANGLER.x, ANGLER.y] }));
+const drums = () => new BedFinds(places(DRUMS, { inside, bedDepth, from: [FROM.x, FROM.y] }));
 
 describe('the drum’s parts', () => {
   it('is painted on the body, a few dozen triangles in all, standing on the ground it is placed at', () => {

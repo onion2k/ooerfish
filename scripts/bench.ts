@@ -103,7 +103,7 @@ const SCENARIOS: Scenario[] = [
       return {
         game,
         frame: () => {
-          if (f++ % 240 === 0) game.cast(Math.PI / 2 + ((f % 7) - 3) * 0.08, 0.4 + (f % 5) * 0.1);
+          if (f++ % 240 === 0) game.cast(game.lake.aim.angle + ((f % 7) - 3) * 0.08, 0.4 + (f % 5) * 0.1);
           game.step(DT);
         },
         busy: fishing(game),
@@ -115,11 +115,12 @@ const SCENARIOS: Scenario[] = [
     // a cast to the middle, struck on the bite, played by the bar, landed, stowed and cast again, over and over; a
     // lure that has waited five seconds with nothing coming is reeled in and cast a little further, since a fish
     // now comes only to a lure near its own depth, and the casts in turn reach the shallows, the middle and the deep
+    // (the powers are about the lake's aim, which reaches the middle from the deck; the old 0.75 carried past it)
     frames: 20000,
     busy: [0.6, 1],
     setup: () => {
       const game = settled(1);
-      const POWERS = [0.62, 0.5, 0.75, 0.68];
+      const POWERS = [0.58, 0.5, 0.65, 0.62];
       let cast = 0,
         waited = 0;
       return {
@@ -131,7 +132,7 @@ const SCENARIOS: Scenario[] = [
             game.reelIn();
             waited = 0;
           }
-          if (game.lure.phase === 'ready') game.cast(Math.PI / 2, POWERS[cast++ % POWERS.length]);
+          if (game.lure.phase === 'ready') game.cast(game.lake.aim.angle, POWERS[cast++ % POWERS.length]);
           if (phase === 'biting') game.strike();
           game.reel(
             phase === 'hooked' &&

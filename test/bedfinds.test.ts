@@ -4,7 +4,8 @@ import { BedFinds, apartOf, places as bedPlaces, type BedSpec } from '../src/bed
 import { HOME, LAKES } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 
-const ANGLER = HOME.angler;
+/** The bank the bed's things are measured from (the angler stood there until C5; now it is the lake's own `from`). */
+const FROM = { x: HOME.from[0], y: HOME.from[1] };
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
 const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 const MAX_DEPTH = HOME.maxDepth;
@@ -13,7 +14,7 @@ const boulderGap = HOME.boulderGap;
 const inside = HOME.inside;
 const BOULDERS = HOME.boulders;
 
-const world = { inside, bedDepth, from: [ANGLER.x, ANGLER.y] as const };
+const world = { inside, bedDepth, from: [FROM.x, FROM.y] as const };
 const places = () => bedPlaces(DRUMS, world);
 
 describe('where the drums lie', () => {
@@ -43,10 +44,10 @@ describe('where the drums lie', () => {
 
   it('lies within a cast of the angler, toward the middle', () => {
     for (const [x, y] of places()) {
-      const d = Math.hypot(x - ANGLER.x, y - ANGLER.y);
+      const d = Math.hypot(x - FROM.x, y - FROM.y);
       expect(d).toBeGreaterThanOrEqual(DRUMS.where.distance[0]);
       expect(d).toBeLessThanOrEqual(DRUMS.where.distance[1]);
-      expect(y).toBeGreaterThan(ANGLER.y);
+      expect(y).toBeGreaterThan(FROM.y);
     }
   });
 

@@ -64,8 +64,9 @@ describe('the cure', () => {
         day: 1,
         time: expect.any(Number) as unknown,
         place: 'pond',
-        // three fish on three casts is the rival's second contest, answered at the third
-        requests: k >= 3 ? ['casts'] : [],
+        // three fish on three casts is the rival's second contest, answered at the third cast that lands one after two; the
+        // angler's own casts decide whether a run of three comes with the third fish, so the save is held to its tally
+        requests: game.progress.save.tally.best >= 3 ? ['casts'] : [],
         photos: [],
         tally: expect.any(Object) as unknown,
       });

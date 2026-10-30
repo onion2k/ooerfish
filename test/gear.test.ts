@@ -169,7 +169,7 @@ describe('the bite with the gifts', () => {
   /** A game with the lure sunk and one fish set at it; the bite's gear given. */
   function lake(gear: ReturnType<typeof gearFor>) {
     const game = new Game(new Progress(memoryStore()), { random: seeded(3) });
-    game.cast(Math.PI / 2, 0.62);
+    game.cast(game.lake.aim.angle, 0.62);
     for (let f = 0; f < 900 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     for (let f = 0; f < 120; f++) game.step(DT);
     game.bite.stowed(game.fish);

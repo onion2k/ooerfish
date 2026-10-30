@@ -239,7 +239,7 @@ function onWall(x: number, y: number): boolean {
 /** The year-round dressing of the banks: more trees than the pond's, round a lake that is bigger. */
 const DRESSING = {
   trees: { broadleaf: [16, 29], conifer: [17, 32] } as Record<'broadleaf' | 'conifer', readonly [number, number]>,
-  woodland: { count: 330, band: [1.25, 3.1] as const, southBand: [2.3, 3.6] as const },
+  woodland: { count: 330, band: [1.25, 3.1] as const, openBand: { angle: -Math.PI / 2, band: [2.3, 3.6] as const } },
   pebbles: { scale: [3, 6] as const, sunk: 0.3 },
   clumps: {
     count: 130,

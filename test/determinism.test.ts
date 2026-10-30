@@ -130,7 +130,7 @@ describe('the same seed gives the same game', () => {
     one.drop(1, 1);
     expect(hashGame(one), 'a splash').not.toBe(was);
     const before = hashGame(one);
-    one.cast(Math.PI / 2, 0.5);
+    one.cast(one.lake.aim.angle, 0.5);
     expect(hashGame(one), 'a cast').not.toBe(before);
   });
 

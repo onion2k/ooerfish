@@ -24,7 +24,7 @@ describe('the angler given a snagged lure', () => {
     const angler = new Angler(game, seeded(101));
     // a lure sinking beside the first bed, then caught as the game would catch it
     const s = game.lake.snags[0];
-    game.cast(Math.PI / 2, 0.5);
+    game.cast(game.lake.aim.angle, 0.5);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     game.lure.snag(0, s.x + s.radius + SNAG.reach / 2, s.y);
     game.bodies.take();

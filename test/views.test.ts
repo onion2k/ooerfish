@@ -33,6 +33,17 @@ describe('the framings aboard the boat', () => {
     expect(framingFor(HOME, 'boat', 1.6)).toBe(HOME.views.boat);
   });
 
+  it('keep the lake’s own views for the lake’s own angler, which has a heading on the jetty and is not a seat', () => {
+    for (const lake of Object.values(LAKES))
+      for (const aspect of [1.6, 0.45]) {
+        expect(framingFor(lake, 'shore', aspect, lake.angler), `${lake.id} ${aspect}`).toBe(
+          aspect < 1 ? lake.views.phone : lake.views.shore,
+        );
+        expect(framingFor(lake, 'boat', aspect, lake.angler)).toBe(lake.views.boat);
+      }
+    expect(HOME.angler.heading).toBeDefined();
+  });
+
   it('keep the shore framing for a stand with no heading, which is the shore angler', () => {
     const shore = { x: 1, y: 2, tipHeight: 1, tipReach: 1 };
     expect(framingFor(HOME, 'shore', 1.6, shore)).toBe(HOME.views.shore);

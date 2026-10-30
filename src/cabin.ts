@@ -189,7 +189,31 @@ export function postSpots(lake: Lake): PostSpot[] {
   return spots;
 }
 
-/** The jetty's drawn parts: the deck of planks, and the posts it stands on, all in one mesh, both painted as timber. */
+/**
+ * The jetty's rail (`docs/boat.md`, C5a): on each side of the deck a post at every place the deck's own posts stand, a
+ * bar along the tops of them from the deck's start to its lake end, and a second bar at half the height when the rail
+ * has a knee. The lake end is open, where the rod goes out. Each post stands on the deck's top, `size` square, at the
+ * deck's edge and just inside it.
+ */
+function railMesh(lake: Lake): Mesh {
+  const { spec: JETTY, deck: DECK } = lake.jetty!;
+  const { rail } = JETTY;
+  const half = rail.size / 2;
+  const side = JETTY.width / 2 - half;
+  const place = placeAt(DECK);
+  return built((b) => {
+    for (const s of [-1, 1]) {
+      for (const u of JETTY.posts.along)
+        block(b, place, u - half, u + half, s * side - half, s * side + half, JETTY.top, JETTY.top + rail.high);
+      const bar = (top: number) =>
+        block(b, place, 0, JETTY.length, s * side - rail.bar / 2, s * side + rail.bar / 2, top - rail.bar, top);
+      bar(JETTY.top + rail.high);
+      if (rail.knee) bar(JETTY.top + rail.high / 2);
+    }
+  });
+}
+
+/** The jetty's drawn parts: the deck of planks, the posts it stands on, and the rail along its sides, each in one mesh, all painted as timber. */
 export function jettyGroups(palette: Palette = PALETTE, lake: Lake): GameGroup[] {
   if (!lake.jetty) return [];
   const { spec: JETTY, deck: DECK } = lake.jetty;
@@ -205,5 +229,6 @@ export function jettyGroups(palette: Palette = PALETTE, lake: Lake): GameGroup[]
   return [
     { mesh: timber(deck), matrices: ONE, albedo: palette.deck, roughness: 0.9 },
     { mesh: timber(posts), matrices: ONE, albedo: palette.post, roughness: 0.9 },
+    { mesh: timber(railMesh(lake)), matrices: ONE, albedo: palette.post, roughness: 0.9 },
   ];
 }

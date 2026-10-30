@@ -67,7 +67,7 @@ describe('what must always hold', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/the bobber's body is free while the lure is ready/);
     game.bodies.take();
     // and off the bobber while it sinks
-    game.cast(Math.PI / 2, 0.6);
+    game.cast(game.lake.aim.angle, 0.6);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(1 / 60);
     expect(checkInvariants(game)).toEqual([]);
     game.bodies.put(game.bodies.x + 0.5, game.bodies.y);
@@ -88,7 +88,7 @@ describe('what must always hold', () => {
     // a lake with a fish just hooked, the lure in its mouth
     const hookedLake = () => {
       const { game } = newGame(1);
-      game.cast(Math.PI / 2, 0.62);
+      game.cast(game.lake.aim.angle, 0.62);
       for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(1 / 60);
       expect(game.strike()).toBe('hooked');
       game.step(1 / 60);
@@ -652,7 +652,7 @@ describe('the boat', () => {
       expect(checkInvariants(game)).toEqual([]);
     }
     expect(game.boat.rowing).toBe(false);
-    expect(game.cast(Math.PI / 2, 0.5)).toBe(true);
+    expect(game.cast(game.lake.aim.angle, 0.5)).toBe(true);
     settle(game, 120);
     expect(checkInvariants(game)).toEqual([]);
   });
@@ -669,7 +669,7 @@ describe('the boat', () => {
 
   it('reports an aboard angler whose place is not the seat, and a cast thrown from elsewhere', () => {
     const game = aboard();
-    game.cast(Math.PI / 2, 0.5);
+    game.cast(game.lake.aim.angle, 0.5);
     expect(checkInvariants(game)).toEqual([]);
     // the lure was thrown from the shore's angler, not the boat’s seat
     game.lure.stand = HOME.angler;
@@ -682,7 +682,7 @@ describe('the boat', () => {
 
   it('lets a cast thrown from a seat that has since drifted stand, but not one thrown from another height', () => {
     const game = aboard();
-    game.cast(Math.PI / 2 + 0.5, 0.5);
+    game.cast(game.lake.aim.angle + 0.5, 0.5);
     game.anchor(false);
     game.setWeather('wind');
     settle(game, 120);
@@ -709,7 +709,7 @@ describe('the boat', () => {
     const game = aboard();
     expect(game.anchor(false)).toBe(true);
     game.setWeather('wind');
-    expect(game.cast(Math.PI / 2, 0.5)).toBe(true);
+    expect(game.cast(game.lake.aim.angle, 0.5)).toBe(true);
     for (let f = 0; f < 600; f++) game.step(1 / 60);
     expect(game.lure.phase).toBe('sinking');
     // the seat has drifted from where the cast was thrown; dropping anchor there is no fault
@@ -718,10 +718,21 @@ describe('the boat', () => {
     expect(checkInvariants(game)).toEqual([]);
     // ashore the stand is the lake's, and a cast from anywhere else is reported
     const { game: shore } = newGame(1);
-    expect(shore.cast(Math.PI / 2, 0.5)).toBe(true);
+    expect(shore.cast(shore.lake.aim.angle, 0.5)).toBe(true);
     shore.step(1 / 60);
     shore.lure.stand = { ...shore.lure.stand, x: shore.lure.stand.x + 1 };
     expect(checkInvariants(shore).join('\n')).toMatch(/the lure was thrown from/);
+    // and so is one thrown from the same place facing another way, or standing over another height (the rod's tip is out
+    // in front of the heading, over the base), which the deck's stand has and the bank's has not
+    const { game: deck } = newGame(1);
+    expect(deck.lake.angler.heading).toBeDefined();
+    expect(deck.cast(deck.lake.aim.angle, 0.5)).toBe(true);
+    deck.step(1 / 60);
+    expect(checkInvariants(deck)).toEqual([]);
+    deck.lure.stand = { ...deck.lure.stand, heading: deck.lure.stand.heading! + 0.5 };
+    expect(checkInvariants(deck).join('\n')).toMatch(/the lure was thrown from/);
+    deck.lure.stand = { ...deck.lake.angler, base: deck.lake.angler.base! + 1 };
+    expect(checkInvariants(deck).join('\n')).toMatch(/the lure was thrown from/);
   });
 
   it('holds of a boat adrift, and reports an anchor up with the body held, a free body with the anchor down, or one off the water', () => {
@@ -802,7 +813,7 @@ describe('what must always hold of the snags (`docs/boat.md`, C4)', () => {
   /** A game with the lure snagged on bed 2, as the game itself would leave it. */
   function snagged() {
     const { game } = newGame();
-    game.cast(Math.PI / 2, 0.5);
+    game.cast(game.lake.aim.angle, 0.5);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(1 / 60);
     const s = game.lake.snags[2];
     game.lure.snag(2, s.x - s.radius - SNAG.reach / 2, s.y);

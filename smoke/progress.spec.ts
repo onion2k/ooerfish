@@ -9,13 +9,14 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { quantised } from '../src/heal';
+import { aimAt } from '../src/cast';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES } from '../src/rules';
 import { BOAT, FIGHT, GEAR, HEAL, KINDS, PHOTOS } from '../src/lake';
 
 /** The rod's gift, as content says it, so the test reads the figure and does not say it again. */
 const ROD = GEAR.find((g) => g.id === 'rod')!;
-import { STANDARD, ready, set, start, watch } from './game';
+import { OUT, STANDARD, ready, set, start, watch } from './game';
 
 /** A save as the page writes it, read as one lake's entry with the player's own fields beside it, which is the shape these stages assert on. */
 function flat(json: string) {
@@ -49,7 +50,7 @@ test('the scenery is loaded at ready, and the banks wear the kit as content says
   await start(page, { seed: 1, paused: true });
   // the figures are worked out in node by test/scene.test.ts from the files on disk, and held equal here from the page
   const scenery = await page.evaluate(() => window.game!.scenery());
-  expect(scenery).toEqual({ models: 30, placements: 426, triangles: 154941, cards: 10 });
+  expect(scenery).toEqual({ models: 30, placements: 426, triangles: 156740, cards: 10 });
   expect(scenery.cards).toBeGreaterThan(0);
   await play(page, 60, 'a second with the banks dressed');
   expect(problems).toEqual([]);
@@ -231,7 +232,7 @@ test('a cast onto the bank lies there and hands the water no ripples; one onto t
   expect((await page.evaluate(() => window.game!.lure())).phase).toBe('lying');
   expect(await page.evaluate(() => window.game!.ripples()), 'no ripples from the bank').toEqual([]);
   await page.evaluate(() => window.game!.reelIn());
-  expect(await page.evaluate(() => window.game!.cast(Math.PI / 2 + 0.2, 0.7))).toBe(true);
+  expect(await page.evaluate((out) => window.game!.cast(out + 0.2, 0.7), OUT)).toBe(true);
   await play(page, 180, 'the cast flown out and sinking');
   expect(await page.evaluate(() => window.game!.ripples()), "the water's ripples").toHaveLength(1);
   expect(problems).toEqual([]);
@@ -272,11 +273,11 @@ test('what a strike did is said: nothing biting yet, too soon at a nibble, and t
   const problems = watch(page);
   await start(page, { seed: 7, paused: true });
   const said = page.locator('#castLine');
-  await page.evaluate(() => {
+  await page.evaluate((out) => {
     const g = window.game!;
-    g.cast(Math.PI / 2, 0.62);
+    g.cast(out, 0.62);
     for (let f = 0; f < 600 && g.lure().phase !== 'sinking'; f++) g.step(1);
-  });
+  }, OUT);
   await expect(said).toHaveText('waiting for a fish…');
   // struck with nothing there, on the button: the lure twitches, and that is said
   await page.locator('#reelButton').click();
@@ -309,11 +310,11 @@ test('a fish bites, is struck by space, played on the bar by the Reel button and
   const problems = watch(page);
   await start(page, { seed: 1, paused: true });
   // cast to the middle of the lake through the API, and step until a fish bites
-  await page.evaluate(() => {
+  await page.evaluate((out) => {
     const g = window.game!;
-    g.cast(Math.PI / 2, 0.62);
+    g.cast(out, 0.62);
     for (let f = 0; f < 3600 && g.fishing().phase !== 'biting'; f++) g.step(1);
-  });
+  }, OUT);
   expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('biting');
   await expect(page.locator('#castLine')).toHaveText('BITE! strike now');
   await expect(page.locator('#reelButton')).toHaveText('Strike');
@@ -491,7 +492,7 @@ test('the twelfth fish cleans the pond and says so, and after it no fish is left
   expect(fish.length).toBe(12);
   expect(fish.filter((f) => f.cured).length, 'every fish cured').toBe(12);
   await api(() => window.game!.reelIn());
-  expect(await api(() => window.game!.cast(Math.PI / 2, 0.62))).toBe(true);
+  expect(await page.evaluate((out) => window.game!.cast(out, 0.62), OUT)).toBe(true);
   await api(() => window.game!.step(1200));
   await expect(page.locator('#castLine')).toHaveText('the pond is clean: nothing takes this bait');
   expect(await api(() => window.game!.fishing().phase), 'nothing came in twenty seconds').toBe('none');
@@ -2599,8 +2600,11 @@ test.describe('the cabin by day', () => {
     await page.mouse.click(water.x, water.y);
     expect(await page.evaluate(() => window.game!.splashes()), 'a pebble').toHaveLength(1);
     expect((await where(page)).place).toBe('pond');
+    // the Shore view looks down the jetty from over the bank, away from the cabin standing behind the camera, so the cabin
+    // is tapped from overhead, where both are in the frame
+    await page.evaluate(() => window.game!.view('overhead'));
     const at = (await page.evaluate(() => window.game!.cabinOnScreen()))!;
-    expect(at, 'the cabin is on the screen from the shore').not.toBeNull();
+    expect(at, 'the cabin is on the screen from overhead').not.toBeNull();
     await page.mouse.click(at.x, at.y);
     expect(await where(page)).toMatchObject({ place: 'cabin', fade: 1 });
     expect(await page.evaluate(() => window.game!.splashes()), 'no pebble for the cabin').toHaveLength(1);
@@ -2612,8 +2616,12 @@ test.describe('the cabin by day', () => {
     const problems = watch(page);
     await start(page, { seed: 3, paused: true, save: SAVE });
     await page.evaluate(() => window.game!.mode('cast'));
-    const at = (await page.evaluate(() => window.game!.cabinOnScreen()))!;
-    await page.mouse.click(at.x, at.y);
+    // cast mode puts the camera at the Shore view, which looks down the jetty away from the cabin standing behind it, so
+    // the cabin is out of the frame and no tap can reach it; a tap in the middle of the frame, where it would have been
+    // on the south bank's view, strikes or does nothing, and does not walk in
+    expect(await page.evaluate(() => window.game!.cabinOnScreen()), 'the cabin is behind the camera').toBeNull();
+    const box = (await page.locator('#view').boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     expect((await where(page)).place).toBe('pond');
     expect(problems).toEqual([]);
   });
@@ -2727,15 +2735,15 @@ test.describe('the weather', () => {
     const problems = watch(page);
     await start(page, { seed: 3, paused: true });
     const landing = () =>
-      page.evaluate(() => {
+      page.evaluate((out) => {
         const g = window.game!;
-        g.cast(Math.PI / 2, 1);
+        g.cast(out, 1);
         for (let f = 0; f < 240 && g.lure().phase === 'flying'; f++) g.step(1);
         const at = g.lure();
         g.reelIn();
         g.step(30);
         return { x: at.x, y: at.y, phase: at.phase };
-      });
+      }, OUT);
     await page.evaluate(() => window.game!.weather('sunny'));
     const calm = await landing();
     await page.evaluate(() => window.game!.weather('wind'));
@@ -3168,7 +3176,7 @@ test.describe('the boat adrift', () => {
     expect(Math.hypot(after.x - before.x, after.y - before.y), 'the boat drifted').toBeGreaterThan(1);
 
     // a cast from the seat toward the middle lands, and its bobber is carried downwind
-    expect(await page.evaluate(() => window.game!.cast(0, 0.6))).toBe(true);
+    expect(await page.evaluate((out) => window.game!.cast(out, 0.6), OUT)).toBe(true);
     await play(page, 120, 'the cast landed');
     const landed = (await page.evaluate(() => window.game!.lure())).bobber;
     await play(page, 300, 'five seconds on the wind');
@@ -3234,10 +3242,11 @@ test.describe('the snags', () => {
     await expect(page.locator('#modeButton')).toBeEnabled();
     await expect(page.locator('#help')).not.toHaveText('snagged: hold to tug, let go to free it');
 
-    // a real cast aimed at the south-east bed from the shore snags there
+    // a real cast aimed at the south-east bed from the deck snags there
     await page.evaluate(() => window.game!.reelIn());
     await play(page, 2, 'reeled in');
-    expect(await page.evaluate(() => window.game!.cast(0.525, 0.58))).toBe(true);
+    const reeds = aimAt(HOME.snags[2].x, HOME.snags[2].y, HOME, [0, 0], HOME.angler);
+    expect(await page.evaluate((a) => window.game!.cast(a.angle, a.power), reeds)).toBe(true);
     await play(page, 240, 'the cast lands in the reeds');
     const caught = await lure(page);
     expect(caught.phase).toBe('snagged');

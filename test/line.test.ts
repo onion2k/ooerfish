@@ -11,12 +11,13 @@ import { seeded } from '../src/random';
 import { DT } from './helpers';
 import { HOME } from '../src/lakes';
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 let MIDDLE = 0;
 {
   let gap = Infinity;
   for (let p = 1; p <= 200; p++) {
-    const f = flight(NORTH, p / 200);
+    const f = flight(OUT, p / 200);
     const g = Math.hypot(f.landing[0], f.landing[1]);
     if (g < gap) [MIDDLE, gap] = [p / 200, g];
   }
@@ -226,7 +227,7 @@ function hooked(seed = 1) {
       landed: (kind, weight, temper) => told.push(`landed ${kind} ${weight} ${temper}`),
     },
   });
-  game.cast(NORTH, MIDDLE);
+  game.cast(OUT, MIDDLE);
   for (let f = 0; f < 60 / DT && game.bite.phase !== 'biting'; f++) game.step(DT);
   expect(game.strike()).toBe('hooked');
   // everything holds from the moment of the strike, before any step
@@ -304,12 +305,12 @@ describe('the fight', () => {
 
   it('refuses a cast and does nothing to a reel-in while a fish is on, or waits to be stowed', () => {
     const { game } = hooked(3);
-    expect(game.cast(NORTH, 0.5)).toBe(false);
+    expect(game.cast(OUT, 0.5)).toBe(false);
     game.reelIn();
     expect(game.bite.phase).toBe('hooked');
     play(game);
     expect(game.bite.phase).toBe('landed');
-    expect(game.cast(NORTH, 0.5)).toBe(false);
+    expect(game.cast(OUT, 0.5)).toBe(false);
     game.reelIn();
     expect(game.bite.phase).toBe('landed');
   });

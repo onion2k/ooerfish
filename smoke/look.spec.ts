@@ -21,7 +21,19 @@ import { expect, test, type Page } from '@playwright/test';
 import { HOME } from '../src/lakes';
 import { BOAT, HEAL } from '../src/lake';
 import type { SaveSaid } from '../src/progress';
-import { CABIN_DAWN, CAST_SHOT, PICTURES, STANDARD, hideOverlays, ready, set, splashing, start, watch } from './game';
+import {
+  CABIN_DAWN,
+  CAST_SHOT,
+  OUT,
+  PICTURES,
+  STANDARD,
+  hideOverlays,
+  ready,
+  set,
+  splashing,
+  start,
+  watch,
+} from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 import { connect, openPhone, pairingFromOverlay } from './phoneside';
 
@@ -1441,12 +1453,15 @@ test.describe('the weather', () => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
     await set(page, { ...CAST_SHOT.scene, weather: 'wind' }, CAST_SHOT.settle);
-    await page.evaluate((c) => {
-      const g = window.game!;
-      g.aim({ angle: Math.PI / 2, power: 1 });
-      g.step(1);
-      return c;
-    }, CAST_SHOT);
+    await page.evaluate(
+      ([c, out]) => {
+        const g = window.game!;
+        g.aim({ angle: out, power: 1 });
+        g.step(1);
+        return c;
+      },
+      [CAST_SHOT, OUT] as const,
+    );
     await hideOverlays(page);
     await expect(page.locator('#view')).toHaveScreenshot('cast-wind-preview.png', TOLERANCE);
     expect(problems).toEqual([]);
@@ -1570,7 +1585,8 @@ test.describe('the boat', () => {
     await anchored(page);
     // thrown a little to the left of the way the boat points, which is the way the camera looks
     await page.evaluate((c) => {
-      window.game!.cast(window.game!.boat().heading + 0.2, c.power);
+      // at half the shore cast's power: the boat lies two thirds of the way out, and the full one carries past the far bank
+      window.game!.cast(window.game!.boat().heading + 0.2, c.power - 0.25);
       window.game!.step(c.sinking);
     }, CAST_SHOT);
     expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('none');
@@ -1613,15 +1629,15 @@ test.describe('the boat', () => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true, save: { cured: 8 } });
     await set(page, STANDARD, 60);
-    const landed = await page.evaluate(async () => {
+    const landed = await page.evaluate(async (out) => {
       const g = window.game!;
       await g.weather('wind');
-      g.cast(Math.PI / 2, 0.6);
+      g.cast(out, 0.6);
       g.step(60);
       const at = g.lure().bobber.slice();
       g.step(720);
       return { at, now: g.lure().bobber.slice() };
-    });
+    }, OUT);
     // the bobber lies downwind of where the first second left it
     expect(Math.hypot(landed.now[0] - landed.at[0], landed.now[1] - landed.at[1])).toBeGreaterThan(0.5);
     await hideOverlays(page);

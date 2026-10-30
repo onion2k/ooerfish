@@ -100,7 +100,7 @@ export interface CliffSpec {
   >;
 }
 
-/** The jetty as content: where it starts, how long and wide it is, how high it stands, and its posts. */
+/** The jetty as content: where it starts, how long and wide it is, how high it stands, its posts and its rail. */
 export interface JettySpec {
   angle: number;
   k: number;
@@ -109,6 +109,12 @@ export interface JettySpec {
   top: number;
   thick: number;
   posts: { along: readonly number[]; side: number; size: number };
+  /**
+   * The rail along both sides of the deck, to the lake end (which is left open, where the rod goes out): its top stands
+   * `high` over the deck, its posts are `size` square and stand at the deck's own places along it (`posts.along`), and a
+   * rail `bar` thick runs along their tops and, when `knee` is set, a second at half the height.
+   */
+  rail: { high: number; size: number; bar: number; knee: boolean };
 }
 
 /** The cabin as content: where it stands, its body, roof, chimney, door and window, and how far the scenery keeps back. */
@@ -222,7 +228,12 @@ export interface TreasureContent extends BedSpec {
 /** The banks, the woodland and the clumps: counts, scales and kinds of what dresses the banks. */
 export interface Dressing {
   trees: Record<'broadleaf' | 'conifer', readonly [number, number]>;
-  woodland: { count: number; band: readonly [number, number]; southBand: readonly [number, number] };
+  woodland: {
+    count: number;
+    band: readonly [number, number];
+    /** The bank the camera looks from, kept open: a sector round `angle` (the lake's own polar angle, round from east) in which the trees stand in `band` instead, further out. */
+    openBand: { angle: number; band: readonly [number, number] };
+  };
   pebbles: { scale: readonly [number, number]; sunk: number };
   clumps: {
     count: number;
@@ -334,9 +345,10 @@ export interface Cabin {
 
 /**
  * Where an angler stands and how the rod is held: the point, how high the rod's tip is held over `base` (the ground there
- * unless given, since a boat's seat is on the water and the ground under it is the bed), how far out in front of them it
- * reaches, and which way is front (due north unless given, which is how the shore's angler faces and keeps its sums to
- * the bit). The shore's is the lake's `angler`; the boat's is worked from the boat's state (`src/boat.ts`).
+ * unless given, since a boat's seat is on the water and the ground under it is the bed, and a deck's top is not the
+ * bank's), how far out in front of them it reaches, and which way is front (due north unless given, which is how the
+ * Reservoir's angler faces and keeps its sums to the bit; the Duck Pond's faces down its jetty's deck). The shore's is the
+ * lake's `angler`, told from a seat by being that very object; the boat's is worked from the boat's state (`src/boat.ts`).
  */
 export interface Stand {
   x: number;
@@ -474,7 +486,7 @@ export interface Lake {
   fishAboveBed: number;
   /** Where the angler stands, how high the rod's tip is held, and how far out in front. */
   angler: Stand;
-  /** Where the angler stands, as the places on the bed are measured from. */
+  /** The place the things on the bed are measured from: the angler's bank, whatever the angler stands on. */
   from: readonly [number, number];
   /** Where in the shallows below the angler a fish is landed. */
   landAt: readonly [number, number];

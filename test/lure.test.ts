@@ -4,7 +4,8 @@ import { flightAt } from '../src/cast';
 import { HOME } from '../src/lakes';
 import { Lure } from '../src/lure';
 
-const NORTH = Math.PI / 2;
+/** Down the jetty’s deck, toward the water: where a cast goes that lands on it, which the compass’s north no longer does. */
+const NORTH = HOME.aim.angle;
 
 describe('the lure in the wind', () => {
   it('flies the bent arc it was thrown on, sampled by the very sums of the flight', () => {

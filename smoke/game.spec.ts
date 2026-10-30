@@ -7,7 +7,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { PNG } from 'pngjs';
-import { ready, set, start, touchDrag, watch } from './game';
+import { HOME } from '../src/lakes';
+import { OUT, ready, set, start, touchDrag, watch } from './game';
 import { GRASS_WOBBLE, pixelsApart } from './judging';
 
 /** How many frames the page draws in a second. */
@@ -280,7 +281,12 @@ test('casts by a drag back in cast mode, to where its preview said, and not othe
   const preview = (await page.evaluate(() => window.game!.preview()))!;
   expect(preview, 'the preview while aiming').not.toBe(null);
   expect(preview.onWater).toBe(true);
-  expect(preview.x, 'a drag to the left casts to the right').toBeGreaterThan(0);
+  // right of the camera, which looks down the deck's line from behind the angler (due east when it looked north)
+  const heading = HOME.angler.heading!;
+  expect(
+    preview.x * Math.sin(heading) - preview.y * Math.cos(heading),
+    'a drag to the left casts to the right',
+  ).toBeGreaterThan(0);
   expect((await lure()).phase, 'nothing cast until let go').toBe('ready');
   await page.mouse.up();
   expect(await page.evaluate(() => window.game!.preview()), 'no preview once let go').toBe(null);
@@ -334,11 +340,11 @@ test('strikes by a tap and reels by a hold in cast mode, and by the button from 
   const on = { x: box.x + box.width / 2, y: box.y + box.height * 0.45 };
   const fishing = () => page.evaluate(() => window.game!.fishing());
   const toBite = () =>
-    page.evaluate(() => {
+    page.evaluate((out) => {
       const g = window.game!;
-      g.cast(Math.PI / 2, 0.62);
+      g.cast(out, 0.62);
       for (let f = 0; f < 3600 && g.fishing().phase !== 'biting'; f++) g.step(1);
-    });
+    }, OUT);
 
   // with the lure in the water, a tap strikes, and drops no pebble: on a bite, it hooks the fish
   await toBite();
@@ -561,7 +567,8 @@ test.describe('on a tall screen', () => {
     // the start is the Shore view, framed for a phone: the phone's distance and where it looks
     const first = await away(page);
     expect(first.distance, 'the phone framing at the start').toBeCloseTo(105, 0);
-    expect(first.target[1]).toBeCloseTo(6, 1);
+    expect(first.target[0]).toBeCloseTo(HOME.views.phone.x, 1);
+    expect(first.target[1]).toBeCloseTo(HOME.views.phone.y, 1);
     expect(await page.evaluate(() => window.game!.view()), 'still called the Shore view').toBe('shore');
 
     // cast mode puts the camera at the shore, which is the phone framing here

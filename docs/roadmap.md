@@ -74,8 +74,10 @@ drift shows the line needs to bend) or becomes the design's rope of sixteen to t
 - [x] **C4. Snags** (`docs/boat.md`, landed 30 Oct 2026: reed beds in the shallows as the physics' posts, a tug and a
       give to free a snagged lure, a lure by the reeds noticed sooner; rooftop boxes wait for the Flooded Town). Reeds, rocks and rooftops as static bodies and boxes in the lake's content; a lure cast onto
       one catches, freed by a give of line; fish hide behind them. The Flooded Town and the Marsh need them.
-- [ ] **C5. Lazy fishing.** The rod propped on the rail or the boat's gunwale, the bobber left, a bell on the bite:
-      the reel-held state with a timer and the strike's window widened.
+- [ ] **C5. Lazy fishing** (`docs/boat.md`, in build 30 Oct 2026: the angler onto the jetty with a rail, its own commit
+      first; the rod propped on the rail or the gunwale, a longer strike window, the journal read with the clock running,
+      a bell at the tip that swings on the bite). The rod propped on the rail or the boat's gunwale, the bobber left, a
+      bell on the bite: the reel-held state with a timer and the strike's window widened.
 
 ## Part D: sound (stage 10)
 

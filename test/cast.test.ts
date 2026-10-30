@@ -6,6 +6,7 @@ import { Lure } from '../src/lure';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { HOME } from '../src/lakes';
+import { RESERVOIR } from '../src/lakes/reservoir';
 import { CAST, WEATHER } from '../src/lake';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -17,7 +18,8 @@ const boulderGap = HOME.boulderGap;
 const ground = HOME.ground;
 const inside = HOME.inside;
 
-const NORTH = Math.PI / 2;
+/** Which way a cast goes to land on the water: down the jetty's deck from where the angler stands. */
+const OUT = HOME.aim.angle;
 
 function lake(seed = 1) {
   const told: string[] = [];
@@ -32,17 +34,17 @@ describe('the flight of a cast', () => {
   it('starts at the rod tip and lands where its path first meets the water or the bank', () => {
     const tip = rodTip();
     const at = new Float64Array(3);
-    flightAt(NORTH, 0.6, 0, at);
+    flightAt(OUT, 0.6, 0, at);
     expect([...at]).toEqual(tip);
-    const f = flight(NORTH, 0.6);
+    const f = flight(OUT, 0.6);
     expect(f.time).toBeGreaterThan(0);
-    flightAt(NORTH, 0.6, f.time, at);
+    flightAt(OUT, 0.6, f.time, at);
     for (let k = 0; k < 3; k++) expect(at[k]).toBeCloseTo(f.landing[k], 4);
     expect(f.onWater).toBe(inside(f.landing[0], f.landing[1]));
     // on the water it lands on the surface; and nowhere along the way is it under what it lands on
     expect(f.landing[2]).toBeCloseTo(f.onWater ? 0 : ground(f.landing[0], f.landing[1]), 3);
     for (let k = 1; k < 40; k++) {
-      flightAt(NORTH, 0.6, (f.time * k) / 40, at);
+      flightAt(OUT, 0.6, (f.time * k) / 40, at);
       const under = inside(at[0], at[1]) ? 0 : ground(at[0], at[1]);
       expect(at[2], `at ${k}/40 of the way`).toBeGreaterThan(under - 1e-6);
     }
@@ -50,7 +52,7 @@ describe('the flight of a cast', () => {
 
   it('reaches further the harder it is cast, up to its full reach', () => {
     const reach = (p: number) => {
-      const f = flight(NORTH, p);
+      const f = flight(OUT, p);
       return Math.hypot(f.landing[0] - rodTip()[0], f.landing[1] - rodTip()[1]);
     };
     let was = 0;
@@ -63,16 +65,16 @@ describe('the flight of a cast', () => {
   });
 
   it('lands on the bank when cast back over it, and on the water when cast across the pond', () => {
-    expect(flight(NORTH, 0.6).onWater).toBe(true);
-    expect(flight(-NORTH, 0.6).onWater, 'cast back over the angler').toBe(false);
+    expect(flight(OUT, 0.6).onWater).toBe(true);
+    expect(flight(-OUT, 0.6).onWater, 'cast back over the angler').toBe(false);
   });
 
   it("has a preview whose last point is the cast's own landing, to the bit", () => {
     const out = new Float64Array(24 * 3);
     for (const [a, p] of [
-      [NORTH, 0.5],
-      [NORTH + 0.4, 0.9],
-      [-NORTH, 0.3],
+      [OUT, 0.5],
+      [OUT + 0.4, 0.9],
+      [-OUT, 0.3],
     ]) {
       pathPoints(a, p, 24, out);
       const f = flight(a, p);
@@ -85,9 +87,9 @@ describe('the lure', () => {
   it('flies, lands on the water with a small splash, sinks under its bobber, and stops at the line', () => {
     const { game, told } = lake();
     expect(game.lure.phase).toBe('ready');
-    expect(game.cast(NORTH, 0.6)).toBe(true);
+    expect(game.cast(OUT, 0.6)).toBe(true);
     expect(game.lure.phase).toBe('flying');
-    const f = flight(NORTH, 0.6);
+    const f = flight(OUT, 0.6);
     for (let k = 0; k < Math.ceil(f.time / DT) + 2; k++) game.step(DT);
     expect(game.lure.phase).toBe('sinking');
     expect(told.length, 'one splash').toBe(1);
@@ -105,7 +107,7 @@ describe('the lure', () => {
 
   it('lies on the bank with no splash when cast there, until it is reeled in', () => {
     const { game, told } = lake();
-    game.cast(-NORTH, 0.6);
+    game.cast(-OUT, 0.6);
     settle(game, 240);
     expect(game.lure.phase).toBe('lying');
     expect(told).toEqual([]);
@@ -141,25 +143,25 @@ describe('the lure', () => {
 
   it('is reeled in first when cast again while it is out', () => {
     const { game } = lake();
-    game.cast(NORTH, 0.4);
+    game.cast(OUT, 0.4);
     settle(game, 30);
-    expect(game.cast(NORTH + 0.3, 0.8)).toBe(true);
+    expect(game.cast(OUT + 0.3, 0.8)).toBe(true);
     expect(game.lure.phase).toBe('flying');
-    expect(game.lure.angle).toBeCloseTo(NORTH + 0.3, 10);
+    expect(game.lure.angle).toBeCloseTo(OUT + 0.3, 10);
   });
 
   it('refuses a cast of no number, and holds a power past full to full', () => {
     const { game } = lake();
     expect(game.cast(Number.NaN, 0.5)).toBe(false);
-    expect(game.cast(NORTH, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(game.cast(OUT, Number.POSITIVE_INFINITY)).toBe(false);
     expect(game.lure.phase).toBe('ready');
-    expect(game.cast(NORTH, 7)).toBe(true);
+    expect(game.cast(OUT, 7)).toBe(true);
     expect(game.lure.power).toBe(1);
   });
 
   it('is held to what must always hold', () => {
     const { game } = lake();
-    game.cast(NORTH, 0.6);
+    game.cast(OUT, 0.6);
     settle(game, 300);
     game.lure.depth = 500;
     expect(checkInvariants(game).join('\n')).toMatch(/the lure is under the bed/);
@@ -195,7 +197,7 @@ describe('the wind on a cast', () => {
     WEATHER.wind.push * WEATHER.wind.direction[0],
     WEATHER.wind.push * WEATHER.wind.direction[1],
   ];
-  const ANGLES = [0, 0.4, 1, NORTH, 2, 3, 4.5, 6];
+  const ANGLES = [0, 0.4, 1, OUT, 2, 3, 4.5, 6];
   const POWERS = [0.1, 0.35, 0.6, 0.85, 1];
 
   it('is unchanged to the bit with no wind, over a grid of angles and powers', () => {
@@ -213,8 +215,8 @@ describe('the wind on a cast', () => {
   });
 
   it('lands downwind of the same cast without it, a few units off at full power', () => {
-    const calm = flight(NORTH, 1, HOME),
-      blown = flight(NORTH, 1, HOME, PUSH);
+    const calm = flight(OUT, 1, HOME),
+      blown = flight(OUT, 1, HOME, PUSH);
     const along =
       (blown.landing[0] - calm.landing[0]) * WEATHER.wind.direction[0] +
       (blown.landing[1] - calm.landing[1]) * WEATHER.wind.direction[1];
@@ -266,20 +268,32 @@ describe('a cast from the boat’s seat (`docs/boat.md`, C2)', () => {
     // the shore's angler, given or not, is the very same sums
     expect(rodTip(HOME, HOME.angler)).toEqual(rodTip(HOME));
     const a = HOME.angler;
-    expect(rodTip(HOME)).toEqual([a.x, a.y + a.tipReach, HOME.ground(a.x, a.y) + a.tipHeight]);
+    // ashore the tip is out in front along the stand's heading, over the stand's base (the deck's top)
+    expect(rodTip(HOME)).toEqual([
+      a.x + Math.cos(a.heading!) * a.tipReach,
+      a.y + Math.sin(a.heading!) * a.tipReach,
+      a.base! + a.tipHeight,
+    ]);
+    // and a stand with no heading, the Reservoir's, keeps the sums it always had: due north, over the ground
+    const r = RESERVOIR.angler;
+    expect(r.heading).toBeUndefined();
+    expect(rodTip(RESERVOIR)).toEqual([r.x, r.y + r.tipReach, RESERVOIR.ground(r.x, r.y) + r.tipHeight]);
   });
 
   it('starts at that tip and lands where its path first meets the water, from the seat', () => {
     const at = new Float64Array(3);
-    flightAt(NORTH, 0.6, 0, at, HOME, [0, 0], seat);
+    flightAt(OUT, 0.6, 0, at, HOME, [0, 0], seat);
     expect([...at]).toEqual(rodTip(HOME, seat));
-    const f = flight(NORTH, 0.6, HOME, [0, 0], seat);
+    const f = flight(OUT, 0.6, HOME, [0, 0], seat);
     expect(f.onWater).toBe(true);
-    expect(f.landing[1]).toBeGreaterThan(seat.y);
-    expect(f.landing[0]).toBeCloseTo(rodTip(HOME, seat)[0], 6);
-    expect(f.time).toBe(landingTime(NORTH, 0.6, HOME, [0, 0], seat));
+    // out along the cast's own line from the tip, straight and no further round
+    const tip = rodTip(HOME, seat);
+    const [dx, dy] = [f.landing[0] - tip[0], f.landing[1] - tip[1]];
+    expect(dx * Math.cos(OUT) + dy * Math.sin(OUT)).toBeGreaterThan(5);
+    expect(-dx * Math.sin(OUT) + dy * Math.cos(OUT)).toBeCloseTo(0, 6);
+    expect(f.time).toBe(landingTime(OUT, 0.6, HOME, [0, 0], seat));
     // from the shore's tip it is another flight altogether
-    expect(f.landing).not.toEqual(flight(NORTH, 0.6).landing);
+    expect(f.landing).not.toEqual(flight(OUT, 0.6).landing);
   });
 
   it('is thrown the full speed its own tip’s height gives, which reaches the lake’s reach over flat water', () => {
@@ -290,8 +304,8 @@ describe('a cast from the boat’s seat (`docs/boat.md`, C2)', () => {
 
   it('the preview is the flight, the aim lands on its target, and the bent tip bends from the seat', () => {
     const out = new Float64Array(3 * 8);
-    pathPoints(NORTH, 0.5, 8, out, HOME, [0, 0], seat);
-    const f = flight(NORTH, 0.5, HOME, [0, 0], seat);
+    pathPoints(OUT, 0.5, 8, out, HOME, [0, 0], seat);
+    const f = flight(OUT, 0.5, HOME, [0, 0], seat);
     expect([out[21], out[22], out[23]]).toEqual(f.landing);
     expect([out[0], out[1], out[2]]).toEqual(rodTip(HOME, seat));
     const { angle, power } = aimAt(10, 8, HOME, [0, 0], seat);
@@ -304,17 +318,17 @@ describe('a cast from the boat’s seat (`docs/boat.md`, C2)', () => {
   it('is kept by the lure, so a boat that moves after the cast moves nothing of the flight', () => {
     const lure = new Lure(HOME);
     const mover = { ...seat };
-    lure.cast(NORTH, 0.5, 0, [0, 0], mover);
+    lure.cast(OUT, 0.5, 0, [0, 0], mover);
     const first = [...lure.at];
     mover.x += 30;
     mover.y += 30;
     lure.step(0, 0.01);
     const want = new Float64Array(3);
-    flightAt(NORTH, 0.5, 0, want, HOME, [0, 0], seat);
+    flightAt(OUT, 0.5, 0, want, HOME, [0, 0], seat);
     expect(first).toEqual([...want]);
     expect([...lure.at]).toEqual([...want]);
     lure.step(lure.flies / 2, 0.01);
-    flightAt(NORTH, 0.5, lure.flies / 2, want, HOME, [0, 0], seat);
+    flightAt(OUT, 0.5, lure.flies / 2, want, HOME, [0, 0], seat);
     expect([...lure.at]).toEqual([...want]);
   });
 });

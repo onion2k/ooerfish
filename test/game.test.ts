@@ -137,16 +137,20 @@ describe('a cured fish goes back into the pond', () => {
   it('releases it on the water, out from the angler toward the middle, facing away from the shore, with a splash', () => {
     for (let seed = 1; seed <= 6; seed++) {
       const { game, splashed } = landedGame(seed);
-      game.fish.x[0] = ANGLER.x + 20;
-      game.fish.y[0] = ANGLER.y + 30;
+      game.fish.x[0] = 0;
+      game.fish.y[0] = 0;
       game.stow();
       const { x, y } = { x: game.fish.x[0], y: game.fish.y[0] };
       expect(inside(x, y, RELEASE.margin), `seed ${seed}`).toBe(true);
       const out = Math.hypot(x - ANGLER.x, y - ANGLER.y);
-      expect(out, `seed ${seed}`).toBeGreaterThanOrEqual(RELEASE.distance);
+      // a bit under the figure is the rounding of the sum: the stand faces off along the deck, and the fish goes the same way
+      expect(out, `seed ${seed}`).toBeGreaterThanOrEqual(RELEASE.distance - 1e-9);
       expect(out, `seed ${seed}`).toBeLessThanOrEqual(RELEASE.distance + RELEASE.steps * RELEASE.step + 1e-9);
-      expect(y, 'toward the middle').toBeGreaterThan(ANGLER.y);
-      expect(Math.sin(game.fish.heading[0]), 'facing away from the shore').toBeGreaterThan(0.9);
+      expect(Math.hypot(x, y), 'toward the middle').toBeLessThan(Math.hypot(ANGLER.x, ANGLER.y));
+      // it faces away from the angler's shore: along the way from the angler to the middle
+      const to = Math.hypot(ANGLER.x, ANGLER.y);
+      const facing = (Math.cos(game.fish.heading[0]) * -ANGLER.x + Math.sin(game.fish.heading[0]) * -ANGLER.y) / to;
+      expect(facing, 'facing away from the shore').toBeGreaterThan(0.9);
       expect(splashed.at(-1), `seed ${seed}`).toEqual([x, y, RELEASE.splash]);
     }
   });
@@ -195,7 +199,7 @@ function hookedGame(seed: number) {
     random: seeded(seed),
     events: { landed: (kind, weight, temper) => landed.push([kind, weight, temper]) },
   });
-  const north = Math.PI / 2;
+  const north = HOME.aim.angle;
   let middle = 0,
     gap = Infinity;
   for (let p = 1; p <= 200; p++) {
@@ -208,6 +212,59 @@ function hookedGame(seed: number) {
   expect(game.strike()).toBe('hooked');
   return { game, landed };
 }
+
+describe('a hooked fish’s run (`docs/boat.md`, C5a)', () => {
+  /** How far round, either way, the fish lies from straight ahead of the angler's heading, the whole of a fight, once the line is out. */
+  function widest(game: Game, ahead: number): number {
+    const [lx, ly] = game.landing();
+    let worst = 0;
+    const phase = (): string => game.bite.phase;
+    for (let f = 0; f < 60 * 120 && phase() === 'hooked'; f++) {
+      const l = game.line;
+      game.reel(careful(l.zone, l.zoneSpeed, l.fishAt, l.figures.width));
+      game.step(DT);
+      if (phase() !== 'hooked' || l.out < 4) continue;
+      const b = Math.atan2(game.fish.y[game.bite.fish] - ly, game.fish.x[game.bite.fish] - lx);
+      worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(b - ahead), Math.cos(b - ahead))));
+    }
+    return worst;
+  }
+
+  it('runs ahead of the angler, whichever way that is: within the fan either side of the heading the jetty’s stand faces', () => {
+    const heading = HOME.angler.heading!;
+    for (let seed = 1; seed <= 4; seed++) {
+      const { game } = hookedGame(seed);
+      // the fan is HOOKED.wide (1.1) and its sway (0.35) wide, and the fish swims to its mark with a little lag
+      expect(widest(game, heading), `seed ${seed}`).toBeLessThan(1.1 + 0.35 + 0.3);
+    }
+  });
+
+  it('runs ahead of the boat, whichever way it points, from the seat: within the fan either side of its heading', () => {
+    let tried = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const game = new Game(new Progress(memoryStore('{"cured": 6}')), { random: seeded(seed) });
+      expect(game.row(...HOME.boat!.spot)).toBe(true);
+      for (let f = 0; f < 60 * 60 && (game.boat.rowing || !game.boat.aboard); f++) game.step(DT);
+      expect(game.boat.aboard && !game.boat.rowing).toBe(true);
+      // the boat points along its row, from the mooring toward the spot, which is not due north
+      expect(Math.abs(game.boat.heading - Math.PI / 2)).toBeGreaterThan(1.5);
+      game.cast(game.boat.heading, 0.35);
+      for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+      if (game.bite.phase !== 'biting' || game.strike() !== 'hooked') continue;
+      tried++;
+      expect(widest(game, game.boat.heading), `seed ${seed}`).toBeLessThan(1.1 + 0.35 + 0.3);
+    }
+    expect(tried, 'a fish was played from the boat').toBeGreaterThan(0);
+  });
+
+  it('runs due north from a stand with no heading, the Reservoir’s, as it always did', () => {
+    const game = new Game(new Progress(memoryStore(), LAKES), { lake: RESERVOIR, random: seeded(2) });
+    game.cast(RESERVOIR.aim.angle, RESERVOIR.aim.power);
+    for (let f = 0; f < 3600 && game.bite.phase !== 'biting'; f++) game.step(DT);
+    expect(game.strike()).toBe('hooked');
+    expect(widest(game, Math.PI / 2)).toBeLessThan(1.1 + 0.35 + 0.3);
+  });
+});
 
 describe('a hooked fish’s temper', () => {
   it('is drawn on the hook, and the line is started with the figures for its size and temper', () => {
@@ -954,7 +1011,7 @@ describe('a treasure on the bed', () => {
   it('is refused a keep with nothing landed, a fish landed, a drum landed, and twice', () => {
     expect(newGame().game.keep()).toBe(false);
     const { game: fish } = newGame();
-    fish.cast(Math.PI / 2 + 0.15, 0.55);
+    fish.cast(HOME.aim.angle + 0.15, 0.55);
     for (let f = 0; f < 3600 && fish.bite.phase !== 'biting'; f++) fish.step(DT);
     fish.strike();
     for (let f = 0; f < 7200 && fish.bite.phase === 'hooked'; f++) {
@@ -1200,7 +1257,7 @@ describe('the game in a lake it is handed', () => {
   it('keeps the rules with fish swimming and a lure cast, in a lake with no jetty', () => {
     const lake = small();
     const game = new Game(new Progress(memoryStore(), { [lake.id]: lake }), { lake, random: seeded(3) });
-    game.cast(Math.PI / 2, 0.6);
+    game.cast(lake.aim.angle, 0.6);
     for (let f = 0; f < 300; f++) {
       game.step(DT);
       expect(checkInvariants(game), `frame ${f}`).toEqual([]);
@@ -1253,7 +1310,7 @@ describe('the bobber’s body', () => {
   /** A cast that lands on the water, thrown and stepped until it is sinking. */
   function sunk(seed = 1) {
     const { game } = newGame(seed);
-    const north = Math.PI / 2;
+    const north = HOME.aim.angle;
     game.cast(north, 0.6);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     expect(game.lure.phase).toBe('sinking');
@@ -1263,7 +1320,7 @@ describe('the bobber’s body', () => {
   it('is carried at the start, and while the lure is in the air', () => {
     const { game } = newGame();
     expect(game.bodies.held).toBe(true);
-    game.cast(Math.PI / 2, 0.6);
+    game.cast(HOME.aim.angle, 0.6);
     expect(game.bodies.held).toBe(true);
   });
 
@@ -1281,7 +1338,7 @@ describe('the bobber’s body', () => {
     const game = sunk();
     game.reelIn();
     expect(game.bodies.held).toBe(true);
-    game.cast(Math.PI / 2, 0.4);
+    game.cast(HOME.aim.angle, 0.4);
     expect(game.bodies.held).toBe(true);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     expect(game.bodies.held).toBe(false);
@@ -1290,7 +1347,7 @@ describe('the bobber’s body', () => {
 
   it('is taken by a cast thrown while the lure is out', () => {
     const game = sunk();
-    game.cast(Math.PI / 2, 0.3);
+    game.cast(HOME.aim.angle, 0.3);
     expect(game.lure.phase).toBe('flying');
     expect(game.bodies.held).toBe(true);
   });
@@ -1499,7 +1556,7 @@ describe('the boat (`docs/boat.md`, C2)', () => {
   describe('a row', () => {
     it('boards the player, reels the lure in and lets the reel go', () => {
       const { game, told } = boatGame();
-      game.cast(NORTH, 0.5);
+      game.cast(HOME.aim.angle, 0.5);
       settle(game, 120);
       expect(game.lure.phase).toBe('sinking');
       game.reel(true);
@@ -1514,7 +1571,7 @@ describe('the boat (`docs/boat.md`, C2)', () => {
     it('lets a coming fish go, as the yawn does', () => {
       for (let seed = 1; seed <= 8; seed++) {
         const { game } = boatGame(seed);
-        game.cast(NORTH, 0.6);
+        game.cast(HOME.aim.angle, 0.6);
         for (let f = 0; f < 3600 && game.bite.phase === 'none'; f++) game.step(DT);
         if (game.bite.phase === 'none') continue;
         expect(['coming', 'nibbling', 'biting']).toContain(game.bite.phase);
@@ -1890,7 +1947,7 @@ describe('the boat adrift (`docs/boat.md`, C3)', () => {
   const saved = (store: { json: string | null }) => (JSON.parse(store.json!) as Save).lakes[HOME.id].boat;
 
   /** A cast from the game's stand that lands on the water, stepped until it sinks. */
-  function sinking(game: Game, angle = NORTH + 0.5, power = 0.5) {
+  function sinking(game: Game, angle = game.boat.aboard ? NORTH + 0.5 : HOME.aim.angle - 0.5, power = 0.5) {
     expect(game.cast(angle, power)).toBe(true);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     expect(game.lure.phase).toBe('sinking');
@@ -2302,7 +2359,7 @@ describe('the snags (`docs/boat.md`, C4)', () => {
 
   /** The bobber put on the water at (x, y), free and sinking, as a drift would leave it. */
   function bobberAt(game: Game, x: number, y: number) {
-    game.cast(NORTH + 0.5, 0.5);
+    game.cast(game.boat.aboard ? NORTH + 0.5 : game.lake.aim.angle, 0.5);
     for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
     expect(game.lure.phase).toBe('sinking');
     game.lure.bobber[0] = x;
@@ -2339,7 +2396,7 @@ describe('the snags (`docs/boat.md`, C4)', () => {
 
     it('is not snagged on a cast that lands clear of every bed', () => {
       const { game, told } = reeded();
-      game.cast(NORTH, 0.62);
+      game.cast(HOME.aim.angle, 0.58);
       land(game);
       expect(game.lure.phase).toBe('sinking');
       expect(told).toEqual([]);

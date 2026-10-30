@@ -349,7 +349,7 @@ describe('the pond view', () => {
   it('takes the welcome away at the first cast, and keeps it away', () => {
     const { game, el, pond } = view();
     pond.show();
-    game.cast(Math.PI / 2, 0.6);
+    game.cast(game.lake.aim.angle, 0.6);
     pond.show();
     expect(el.welcome.hidden).toBe(true);
     game.reelIn();

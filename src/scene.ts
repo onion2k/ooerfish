@@ -282,6 +282,14 @@ const PALETTE_KEYS = new Map<Colour, keyof Palette>(
   (Object.keys(PALETTE) as (keyof Palette)[]).map((k) => [PALETTE[k], k]),
 );
 
+/** How near round the lake an angle must be to the open band's (as the cosine of the turn between them) to be on the bank the camera looks from. */
+const OPEN_BANK = 0.55;
+
+/** Whether a ring angle is on the bank the camera looks from, which the lake's scenery keeps open: the south bank at the Reservoir, the jetty's at the Duck Pond. */
+function onOpenBank(lake: Lake, angle: number): boolean {
+  return Math.cos(angle - lake.scenery.woodland.openBand.angle) > OPEN_BANK;
+}
+
 /** Stands for no kit as a key of the memo. */
 const NO_KIT = {};
 
@@ -318,8 +326,8 @@ export class Scene {
     const treeSpots: Spot[] = [];
     for (let i = 0; i < TREES; i++) {
       const angle = ((i + random() * 0.8) / TREES) * Math.PI * 2;
-      // none on the near bank the camera stands on, south of the middle
-      const along = Math.sin(angle) < -0.55 ? 2.6 + random() * 1.5 : 1.3 + random() * 0.9;
+      // none on the near bank the camera stands on (the woodland's open bank), which is kept to the outer rings
+      const along = onOpenBank(lake, angle) ? 2.6 + random() * 1.5 : 1.3 + random() * 0.9;
       const [x, y] = ring(along, angle);
       const z = bareGround(x, y);
       const tall = 3 + random() * 3;
@@ -472,14 +480,14 @@ export class Scene {
       made++;
     }
 
-    // the woodland: more trees in a band out from the banks, denser further out by a square root, the near south bank
-    // kept clear; the top held under the sun's shadow as the spot trees' are
-    const { count, band, southBand } = scenery.woodland;
+    // the woodland: more trees in a band out from the banks, denser further out by a square root, the bank the camera
+    // looks from (`openBand`) kept clear; the top held under the sun's shadow as the spot trees' are
+    const { count, band, openBand } = scenery.woodland;
     for (let i = 0; i < count; i++) {
       const draw = random();
       const angle = random() * Math.PI * 2;
       const u = Math.sqrt(random());
-      const [lo, hi] = Math.sin(angle) < -0.55 ? southBand : band;
+      const [lo, hi] = onOpenBank(lake, angle) ? openBand.band : band;
       const [x, y] = ring(lo + (hi - lo) * u, angle);
       const turn = random();
       const size = random();

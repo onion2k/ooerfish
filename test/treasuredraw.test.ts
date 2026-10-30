@@ -6,7 +6,8 @@ import { HOME } from '../src/lakes';
 import { PALETTE } from '../src/palette';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 
-const ANGLER = HOME.angler;
+/** The bank the bed's things are measured from (the angler stood there until C5; now it is the lake's own `from`). */
+const FROM = { x: HOME.from[0], y: HOME.from[1] };
 const CABIN = HOME.cabin!.spec;
 const CABIN_AT = HOME.cabin!.at;
 const CABIN_FLOOR = HOME.cabin!.floor;
@@ -16,7 +17,7 @@ const TREASURES = { ...TREASURE_RULES, ...HOME.treasures };
 const bedDepth = HOME.bedDepth;
 const inside = HOME.inside;
 
-const world = { inside, bedDepth, from: [ANGLER.x, ANGLER.y] as const };
+const world = { inside, bedDepth, from: [FROM.x, FROM.y] as const };
 const treasures = () => new BedFinds(places(TREASURES, world, places(DRUMS, world)));
 const triangles = (m: { indices: ArrayLike<number> }) => m.indices.length / 3;
 const zs = (m: { positions: ArrayLike<number> }) =>
