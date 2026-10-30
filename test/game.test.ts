@@ -2670,3 +2670,246 @@ describe('the snags (`docs/boat.md`, C4)', () => {
     });
   });
 });
+
+describe('lazy fishing (`docs/boat.md`, C5)', () => {
+  /** A game at the pond with what it tells of the rod and the bite kept in order. */
+  function lazy(seed = 1, lake: Lake = HOME) {
+    const told: string[] = [];
+    const game = new Game(new Progress(memoryStore(), LAKES), {
+      lake,
+      random: seeded(seed),
+      events: {
+        propped: (on) => told.push(on ? 'propped' : 'taken up'),
+        bitten: () => told.push('bitten'),
+        hooked: () => told.push('hooked'),
+        missed: () => told.push('missed'),
+        snagged: () => told.push('snagged'),
+      },
+    });
+    return { game, told };
+  }
+
+  /** A cast to the middle, stepped until the lure sinks. */
+  function sinking(seed = 1) {
+    const made = lazy(seed);
+    expect(made.game.cast(HOME.aim.angle, 0.58)).toBe(true);
+    for (let f = 0; f < 600 && made.game.lure.phase !== 'sinking'; f++) made.game.step(DT);
+    expect(made.game.lure.phase).toBe('sinking');
+    return made;
+  }
+
+  /** Stepped until a bite opens its window, at most two minutes. */
+  function untilBiting(game: Game) {
+    for (let f = 0; f < 60 * 120 && game.bite.phase !== 'biting'; f++) game.step(DT);
+    expect(game.bite.phase).toBe('biting');
+  }
+
+  /** A game with the rod propped on a sinking lure. */
+  function propped(seed = 1) {
+    const made = sinking(seed);
+    expect(made.game.prop(true)).toBe(true);
+    made.told.length = 0;
+    return made;
+  }
+
+  describe('propping the rod', () => {
+    it('is accepted with the lure sinking: propped, the reel let go, the bite told of it, and told', () => {
+      const { game, told } = sinking();
+      game.reel(true);
+      expect(game.prop(true)).toBe(true);
+      expect(game.propped).toBe(true);
+      expect(game.bite.propped).toBe(true);
+      expect(game.reeling).toBe(false);
+      expect(told).toEqual(['propped']);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is refused with no lure sinking: ready, flying or lying', () => {
+      const { game, told } = lazy();
+      expect(game.prop(true)).toBe(false);
+      game.cast(HOME.aim.angle, 0.58);
+      expect(game.lure.phase).toBe('flying');
+      expect(game.prop(true)).toBe(false);
+      game.lure.phase = 'lying';
+      expect(game.prop(true)).toBe(false);
+      expect(game.propped).toBe(false);
+      expect(told).toEqual([]);
+    });
+
+    it('is refused with a fish hooked or landed', () => {
+      for (const phase of ['hooked', 'landed'] as const) {
+        const { game, told } = sinking();
+        game.bite.phase = phase;
+        expect(game.prop(true), phase).toBe(false);
+        expect(game.propped).toBe(false);
+        expect(told).toEqual([]);
+      }
+    });
+
+    it('is refused with the lure snagged in the reeds', () => {
+      const { game, told } = lazy();
+      expect(game.snagAt(2)).toBe(true);
+      told.length = 0;
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.prop(true)).toBe(false);
+      expect(told).toEqual([]);
+    });
+
+    it('is refused while the boat is rowed, and away from the pond', () => {
+      const rowing = sinking();
+      rowing.game.boat.rowing = true;
+      expect(rowing.game.prop(true)).toBe(false);
+      const away = sinking();
+      away.game.place = 'cabin';
+      expect(away.game.prop(true)).toBe(false);
+      expect(away.game.propped).toBe(false);
+      expect(rowing.told.concat(away.told)).toEqual([]);
+    });
+
+    it('is refused when it is already so, and taking up an unpropped rod is refused too', () => {
+      const { game, told } = propped();
+      expect(game.prop(true)).toBe(false);
+      expect(told).toEqual([]);
+      expect(game.prop(false)).toBe(true);
+      expect(game.propped).toBe(false);
+      expect(game.bite.propped).toBe(false);
+      expect(game.prop(false)).toBe(false);
+      expect(told).toEqual(['taken up']);
+    });
+
+    it('is refused for what is not a boolean', () => {
+      const { game } = sinking();
+      expect(game.prop(1 as unknown as boolean)).toBe(false);
+      expect(game.propped).toBe(false);
+    });
+  });
+
+  describe('taking the rod up', () => {
+    it('is done by a reel held, told once, and the reel is then held', () => {
+      const { game, told } = propped();
+      game.reel(true);
+      expect(game.propped).toBe(false);
+      expect(game.reeling).toBe(true);
+      expect(told).toEqual(['taken up']);
+    });
+
+    it('is not done by the reel let go', () => {
+      const { game, told } = propped();
+      game.reel(false);
+      expect(game.propped).toBe(true);
+      expect(told).toEqual([]);
+    });
+
+    it('is done by a strike, which twitches the lure with no fish there', () => {
+      const { game, told } = propped();
+      expect(game.strike()).toBe('twitch');
+      expect(game.propped).toBe(false);
+      expect(told).toEqual(['taken up']);
+    });
+
+    it('is done by a cast, which sends the lure out again', () => {
+      const { game, told } = propped();
+      expect(game.cast(HOME.aim.angle, 0.5)).toBe(true);
+      expect(game.propped).toBe(false);
+      expect(game.bite.propped).toBe(false);
+      expect(told).toEqual(['taken up']);
+    });
+
+    it('is done by reeling the lure in', () => {
+      const { game, told } = propped();
+      expect(game.reelIn()).toBe(true);
+      expect(game.propped).toBe(false);
+      expect(told).toEqual(['taken up']);
+    });
+
+    it('is done by what reels in by force: the cabin, bed, a journey, a row', () => {
+      const cabin = propped();
+      expect(cabin.game.enter()).toBe(true);
+      expect(cabin.game.propped).toBe(false);
+      expect(cabin.told).toEqual(['taken up']);
+      const row = propped();
+      expect(row.game.row(...HOME.boat!.spot)).toBe(true);
+      expect(row.game.propped).toBe(false);
+      expect(row.told).toEqual(['taken up']);
+      const bed = propped();
+      expect(bed.game.sleep()).toBe(true);
+      expect(bed.game.propped).toBe(false);
+      expect(bed.told).toEqual(['taken up']);
+    });
+
+    it('is done by a snag: a bobber drifting into the reeds takes the rod up as the lure is caught', () => {
+      const { game, told } = propped();
+      const s = game.lake.snags[2];
+      const [x, y] = [s.x + s.radius + SNAG.reach / 2, s.y];
+      game.lure.bobber[0] = x;
+      game.lure.bobber[1] = y;
+      game.bodies.drop(x, y);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.propped).toBe(false);
+      expect(game.bite.propped).toBe(false);
+      expect(told).toContain('taken up');
+      expect(told.indexOf('taken up')).toBeLessThan(told.indexOf('snagged'));
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is done by a landing: a fish struck from the prop is landed with the rod in hand', () => {
+      const { game } = propped();
+      untilBiting(game);
+      expect(game.strike()).toBe('hooked');
+      for (let f = 0; f < 60 * 120 && game.bite.phase === 'hooked'; f++) {
+        const l = game.line;
+        game.reel(careful(l.zone, l.zoneSpeed, l.fishAt, l.figures.width));
+        game.step(DT);
+        expect(game.propped).toBe(false);
+      }
+      expect(game.propped).toBe(false);
+      expect(game.prop(true)).toBe(false);
+    });
+  });
+
+  describe('the bell', () => {
+    it('is not rung before a bite, and rings at the time of a bite while propped', () => {
+      const { game, told } = propped();
+      expect(game.rang).toBe(-Infinity);
+      untilBiting(game);
+      expect(told).toEqual(['bitten']);
+      expect(game.rang).toBeLessThanOrEqual(game.t);
+      expect(game.t - game.rang).toBeLessThan(2 * DT);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is not rung by a bite with the rod in hand', () => {
+      const { game } = sinking();
+      untilBiting(game);
+      expect(game.rang).toBe(-Infinity);
+    });
+
+    it('a strike while propped takes the rod up and hooks the fish in the one call', () => {
+      const { game, told } = propped();
+      untilBiting(game);
+      told.length = 0;
+      expect(game.strike()).toBe('hooked');
+      expect(game.propped).toBe(false);
+      expect(game.bite.phase).toBe('hooked');
+      expect(told).toEqual(['taken up', 'hooked']);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('keeps the time of the last ring when the rod is taken up', () => {
+      const { game } = propped();
+      untilBiting(game);
+      const at = game.rang;
+      game.prop(false);
+      expect(game.rang).toBe(at);
+    });
+  });
+
+  it('props at a lake without a jetty too', () => {
+    const { game } = lazy(1, RESERVOIR);
+    expect(game.cast(RESERVOIR.aim.angle, 0.5)).toBe(true);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    expect(game.prop(true)).toBe(true);
+  });
+});

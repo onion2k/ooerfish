@@ -217,6 +217,21 @@ describe('the fuzzer', () => {
     expect(done['bite by the reeds'], 'a bite by the reeds').toBeGreaterThan(0);
   });
 
+  it('reaches the lazy fishing: across seeds 1 to 24 the rod is propped and taken up, a bell rings, a fish is hooked from the prop, a prop is refused, and a strike is left to the long window', () => {
+    const done: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 8000, 'duckpond');
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+    }
+    expect(done['propped'], 'the rod propped').toBeGreaterThan(0);
+    expect(done['taken up'], 'the rod taken up').toBeGreaterThan(0);
+    expect(done['bell rang'], 'the bell rang').toBeGreaterThan(0);
+    expect(done['hooked from the prop'], 'a fish hooked from the prop').toBeGreaterThan(0);
+    expect(done['prop refused'], 'a prop refused').toBeGreaterThan(0);
+    expect(done['strike in the long window'], 'a strike in the long window').toBeGreaterThan(0);
+  });
+
   it('plays the same way twice from a seed', () => {
     expect(fuzz(2, 600)).toEqual(fuzz(2, 600));
   });

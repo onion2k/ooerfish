@@ -35,6 +35,7 @@ import {
 import { weatherOf } from './calendar';
 import { rainSpot } from './rain';
 import { NO_WIND, bentTip, rodTip } from './cast';
+import { proppedTip, restInto, type Rest } from './lazy';
 import { Rope } from './rope';
 import { Bodies, KIND, newWorld } from './physics';
 import type { Lake, Stand } from './lakes/lake';
@@ -107,6 +108,8 @@ export interface GameEvents {
   snagged?(i: number): void;
   /** A give after a tug freed the lure from bed `i`: it sinks on from beside the reeds. */
   freed?(i: number): void;
+  /** The rod was propped (`on`) or taken up (`docs/boat.md`, C5): told once for each change, whichever call made it. */
+  propped?(on: boolean): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of straight ahead of the angler its bearing may be. */
@@ -179,6 +182,8 @@ export class Game {
   /** Where the rope is pinned: the rod's tip, bent by the fight's tension, and what is on the line's end. */
   readonly lineStart = new Float64Array(3);
   readonly lineEnd = new Float64Array(3);
+  /** Where the propped rod rests, written each step it is asked: a scratch, so nothing is made. */
+  private readonly restAt: Rest = { x: 0, y: 0, z: 0, heading: 0 };
   /** The height of the water at a point and a time, which the bobber rides: the page hands in the water's own; still until then. */
   surface: (x: number, y: number, t: number) => number = () => 0;
   /** The lowest a point of the rope may be at an x and y: the ground off the water, the bed on it, and a little over; made once. */
@@ -190,6 +195,13 @@ export class Game {
    * shorter tug is forgotten (`docs/boat.md`, C4). Nought unless the lure is snagged and the reel is held.
    */
   tugging = 0;
+  /**
+   * The rod is propped (`docs/boat.md`, C5): the lure sinking, the reel let go, the player left to read or look about.
+   * Only `prop` sets it, and anything that takes the lure or the fish in hand takes it up again (`takeUp`).
+   */
+  propped = false;
+  /** The game time of the last bite while the rod was propped, or minus infinity for none: the bell swings from it. */
+  rang = -Infinity;
   /** How many fish have been landed and stowed this session; the count cured, which the save keeps for each lake, is `progress.entry(lake.id).cured`. */
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
@@ -318,6 +330,7 @@ export class Game {
           this.ring(FISHING.nibbleRing);
         },
         bitten: (heavy, quarry) => {
+          if (this.propped) this.rang = this.t;
           e.bitten?.(heavy, quarry);
           this.ring(
             quarry === 'drum' ? DRUM_RULES.ring : quarry === 'treasure' ? TREASURE_RULES.ring : FISHING.biteRing,
@@ -461,6 +474,7 @@ export class Game {
    */
   private snagLure(i: number) {
     const { lure, bite } = this;
+    this.takeUp();
     if (bite.phase !== 'none') bite.letGo(this.t, this.fish, lure);
     lure.snag(i, lure.bobber[0], lure.bobber[1]);
     this.bodies.take();
@@ -545,7 +559,9 @@ export class Game {
       lineEnd[1] = lure.bobber[1];
       lineEnd[2] = z;
     } else lineEnd.set(lure.at);
-    bentTip(this.lake, tension, lineEnd, this.lineStart, this.anglerAt());
+    // propped, the line hangs from the rest's rod, unbent (a propped rod holds no fish); in hand it is the tip bent by the tension
+    if (this.propped) proppedTip(restInto(this.lake, this.anglerAt(), this.restAt), this.lineStart);
+    else bentTip(this.lake, tension, lineEnd, this.lineStart, this.anglerAt());
     return tension;
   }
 
@@ -740,6 +756,8 @@ export class Game {
     if (this.boat.rowing) return 'none';
     // a lure snagged in the reeds is tugged and given, not struck
     if (this.lure.phase === 'snagged') return 'none';
+    // a strike takes the rod up and strikes in the one call, so a fish biting is hooked as it is in the hand
+    this.takeUp();
     const did = this.bite.strike(this.t, this.fish, this.lure);
     if (did !== 'none') this.events.struck?.(did);
     if (did === 'hooked' && this.bite.drum >= 0) this.hookDrum();
@@ -814,6 +832,7 @@ export class Game {
   /** The reel held, or let go. */
   reel(on: boolean) {
     const was = this.reeling;
+    if (on === true) this.takeUp();
     this.reeling = on === true;
     if (was && !this.reeling && this.lure.phase === 'snagged') this.give();
   }
@@ -1206,11 +1225,40 @@ export class Game {
    * is lost by it. A fish hooked or landed is still the fight's, and the lure stays in its mouth.
    */
   private reelInForce() {
+    this.takeUp();
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return;
     if (this.bite.phase !== 'none') this.bite.letGo(this.t, this.fish, this.lure);
     this.lure.reelIn();
     this.bodies.take();
     this.tugging = 0;
+  }
+
+  /**
+   * The rod propped on its rest, or taken up again (`docs/boat.md`, C5): propped, the bobber is left to sit, the reel is let
+   * go and a bite waits `LAZY.window` for the strike, with the bell to say so. Refused (false, nothing changed) unless the
+   * lure is sinking, with no fish hooked or landed and the boat not being rowed, at the pond, and when the rod is already
+   * so. Told as `propped`.
+   */
+  prop(on: boolean): boolean {
+    if (typeof on !== 'boolean' || on === this.propped) return false;
+    if (!on) {
+      this.takeUp();
+      return true;
+    }
+    if (this.place !== 'pond' || this.boat.rowing || this.lure.phase !== 'sinking' || this.fighting) return false;
+    this.reeling = false;
+    this.propped = true;
+    this.bite.propped = true;
+    this.events.propped?.(true);
+    return true;
+  }
+
+  /** The rod taken up, if it was propped: told once, and the bite's window is the hand's again. Every call that handles the lure or the fish does this first. */
+  private takeUp() {
+    if (!this.propped) return;
+    this.propped = false;
+    this.bite.propped = false;
+    this.events.propped?.(false);
   }
 
   /** The save written now. */

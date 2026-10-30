@@ -82,7 +82,7 @@
     color: var(--dim);
     font-size: 13px;
   }
-  /* the mode buttons side by side: Cast, Row beside it (docs/boat.md, C2) and, aboard, Anchor (C3) */
+  /* the mode buttons side by side: Cast, Row beside it (docs/boat.md, C2) and, aboard, Anchor (C3), and Prop while the lure sinks (C5) */
   #modes {
     display: flex;
     gap: 8px;
@@ -92,7 +92,8 @@
   }
   #modeButton,
   #rowButton,
-  #anchorButton {
+  #anchorButton,
+  #propButton {
     pointer-events: auto;
     cursor: pointer;
     font: inherit;
@@ -105,14 +106,16 @@
   }
   #modeButton:focus-visible,
   #rowButton:focus-visible,
-  #anchorButton:focus-visible {
+  #anchorButton:focus-visible,
+  #propButton:focus-visible {
     outline: 3px solid #9fd0ff;
     outline-offset: 3px;
   }
   /* greyed while the boat is rowed, and for a lake with none: dimmer, not gone, with the word still said */
   #modeButton:disabled,
   #rowButton:disabled,
-  #anchorButton:disabled {
+  #anchorButton:disabled,
+  #propButton:disabled {
     opacity: 0.5;
     cursor: default;
   }
@@ -1190,7 +1193,8 @@
      words do: a little smaller, the height of a thumb's reach kept */
   html[data-layout='portrait'] #modeButton,
   html[data-layout='portrait'] #rowButton,
-  html[data-layout='portrait'] #anchorButton {
+  html[data-layout='portrait'] #anchorButton,
+  html[data-layout='portrait'] #propButton {
     min-width: 0;
     padding: 10px;
     font-size: 13px;
@@ -1315,6 +1319,15 @@
     font-size: 12px;
     line-height: 1.3;
     padding: 6px 10px;
+  }
+  /* aboard, Anchor and then Prop (while the lure sinks) stand in the row too, and the hint gives up their width, down
+     to its floor, so a short desk window's row still ends before the bucket and the menu */
+  html[data-layout='sideways'] #hud:has(#anchorButton:not([hidden])) #help,
+  html[data-layout='sideways'] #hud:has(#propButton:not([hidden])) #help {
+    max-width: max(120px, calc(100vw - 820px));
+  }
+  html[data-layout='sideways'] #hud:has(#anchorButton:not([hidden])):has(#propButton:not([hidden])) #help {
+    max-width: max(120px, calc(100vw - 944px));
   }
   /* and the phone's line, which stands beside Cast on a touch screen, goes under the menu where the hint cannot reach */
   @media (hover: hover) {
@@ -1525,6 +1538,7 @@
     <button class="panel" id="modeButton" type="button" hidden>Cast</button>
     <button class="panel" id="rowButton" type="button" hidden>Row</button>
     <button class="panel" id="anchorButton" type="button" hidden>Weigh anchor</button>
+    <button class="panel" id="propButton" type="button" hidden>Prop the rod</button>
   </div>
   <div class="panel" id="help" hidden>drag to look round, wheel to zoom, C to cast</div>
 </div>

@@ -3256,3 +3256,76 @@ test.describe('the snags', () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe('lazy fishing', () => {
+  test('lazy fishing: the rod propped by the button lets the journal run the clock, the bell shuts the journal on a bite, and space strikes and hooks', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 1, paused: true });
+    const said = page.locator('#castLine');
+    const prop = page.locator('#propButton');
+    const clock = () => page.evaluate(() => window.game!.state().timeOfDay);
+    const journal = (open: boolean) => page.evaluate((o) => window.game!.openJournal(o), open);
+
+    // no lure in the water, nothing to prop
+    await expect(prop).toBeHidden();
+    await page.evaluate((out) => {
+      const g = window.game!;
+      g.cast(out, 0.62);
+      for (let f = 0; f < 600 && g.lure().phase !== 'sinking'; f++) g.step(1);
+    }, OUT);
+    await play(page, 1, 'sinking');
+    await expect(prop).toBeVisible();
+    await expect(prop).toHaveText('Prop the rod');
+
+    // with the rod in hand the journal still stops the clock
+    await journal(true);
+    const held = await clock();
+    await page.evaluate(() => window.game!.step(60));
+    expect(await clock(), 'the clock held under the journal, the rod in hand').toBe(held);
+    await journal(false);
+
+    // propped by the button: said, and the button says what it does next
+    await prop.click();
+    expect(await page.evaluate(() => window.game!.propped())).toBe(true);
+    await play(page, 1, 'propped');
+    await expect(said).toHaveText('the rod is propped');
+    await expect(prop).toHaveText('Take the rod');
+    await play(page, 130, 'the words over');
+    await expect(said).toHaveText('rod propped: waiting for the bell…');
+
+    // and now the journal lets the clock run
+    await journal(true);
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(true);
+    const running = await clock();
+    await play(page, 60, 'a second under the journal, propped');
+    expect(await clock(), 'the clock ran under the journal, the rod propped').toBeGreaterThan(running);
+    await expect(page.locator('#journal')).toBeVisible();
+
+    // a fish brought to bite under the journal: the bell closes it, the line says so, and the cast is still out
+    const rung = await page.evaluate(() => {
+      const g = window.game!;
+      for (let f = 0; f < 7200 && g.fishing().phase !== 'biting'; f++) g.step(1);
+      return g.rang();
+    });
+    expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('biting');
+    expect(Number.isFinite(rung), 'the bell rang').toBe(true);
+    expect(await page.evaluate(() => window.game!.pagesOpen())).toBe(false);
+    await expect(page.locator('#journal')).toBeHidden();
+    await expect(said).toHaveText('the bell! a bite: strike now');
+
+    // space strikes: the rod is taken up and the fish hooked in the one press
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await page.keyboard.press('Space');
+    expect((await page.evaluate(() => window.game!.fishing())).phase).toBe('hooked');
+    expect(await page.evaluate(() => window.game!.propped())).toBe(false);
+    await play(page, 1, 'hooked from the prop');
+    await expect(prop).toBeHidden();
+    await expect(page.locator('#gauge')).toBeVisible();
+    expect(await page.evaluate(() => window.game!.events())).toEqual(expect.arrayContaining(['propped', 'taken up']));
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});

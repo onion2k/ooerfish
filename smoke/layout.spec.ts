@@ -117,6 +117,7 @@ type Moment =
   | 'aboard fight'
   | 'adrift'
   | 'snagged'
+  | 'propped'
   | 'drum card'
   | 'bottle card'
   | 'start again'
@@ -144,6 +145,7 @@ const MOMENTS: Moment[] = [
   'aboard fight',
   'adrift',
   'snagged',
+  'propped',
   'drum card',
   'bottle card',
   'start again',
@@ -176,6 +178,8 @@ const AT_LEAST: Record<Moment, number> = {
   adrift: 6,
   // the cast's three and the Tug button: the lure snagged in the south-east bed with the reel held, the line saying so
   snagged: 4,
+  // the bell rung under a rod propped: the cast's three, the Strike button and the bite's mark over the bobber, with the Prop button in the hud
+  propped: 5,
   'drum card': 4,
   'bottle card': 4,
   'start again': 1,
@@ -350,7 +354,7 @@ async function reach(page: Page, moment: Moment) {
   await start(page, { seed: 6, paused: true, ...save });
   await page.evaluate(() => window.game!.step(30));
   const ok = await page.evaluate(
-    async ([m, spot, frames]) => {
+    async ([m, spot, frames, out]) => {
       const g = window.game!;
       if (m === 'look' || m === 'welcome') return true;
       if (m === 'start again') {
@@ -404,6 +408,17 @@ async function reach(page: Page, moment: Moment) {
         g.step(30);
         return true;
       }
+      // the rod propped with the lure sinking, the journal opened under it, and stepped until a fish bites: the bell shuts the
+      // journal, the line says so, and the Prop button reads Take the rod beside the pair
+      if (m === 'propped') {
+        await g.mode('cast');
+        if (!g.cast(out, 0.62)) return false;
+        for (let f = 0; f < 600 && g.lure().phase !== 'sinking'; f++) g.step(1);
+        if (!g.prop(true)) return false;
+        await g.openJournal(true);
+        for (let f = 0; f < 7200 && g.fishing().phase !== 'biting'; f++) g.step(1);
+        return g.propped() && g.fishing().phase === 'biting' && !g.pagesOpen();
+      }
       // the boat rowed half way to the pond's spot, the Row and Cast buttons greyed
       if (m === 'rowing') {
         if (!g.row(spot[0], spot[1])) return false;
@@ -446,7 +461,7 @@ async function reach(page: Page, moment: Moment) {
       if (!g.fishTo('landed')) return false;
       return true;
     },
-    [moment, SPOT, ROW_FRAMES] as const,
+    [moment, SPOT, ROW_FRAMES, HOME.aim.angle] as const,
   );
   expect(ok, `the page reached ${moment}`).toBe(true);
   if (moment === 'cured') {
@@ -511,11 +526,17 @@ for (const bp of BREAKPOINTS) {
               failures.add(`${still}: ${show(b)} is outside the ${bp.width}x${bp.height} screen`);
 
           // while a fish is on or biting, nothing stands over the bobber, the line's end or the fish
-          if (moment === 'bite' || moment === 'fight' || moment === 'aboard' || moment === 'aboard fight') {
+          if (
+            moment === 'bite' ||
+            moment === 'propped' ||
+            moment === 'fight' ||
+            moment === 'aboard' ||
+            moment === 'aboard fight'
+          ) {
             const points = await page.evaluate(() => window.game!.onScreen());
             // a hooked fish drags the bobber under, so in the fight there is no bobber to cover; the line and the fish remain
             const named: [string, { x: number; y: number } | null][] = [['line end', points.line]];
-            if (moment === 'bite' || moment === 'aboard') named.push(['bobber', points.bobber]);
+            if (moment === 'bite' || moment === 'propped' || moment === 'aboard') named.push(['bobber', points.bobber]);
             if (moment === 'fight' || moment === 'aboard fight') named.push(['hooked fish', points.fish]);
             for (const [what, at] of named) {
               expect(at, `${what} is on the screen at ${label}`).not.toBeNull();

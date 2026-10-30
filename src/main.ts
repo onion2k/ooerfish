@@ -34,7 +34,7 @@ import { EelLights } from './eellight';
 import { FishDraw } from './fishdraw';
 import { frameCost } from './frame-cost';
 import { quantised } from './heal';
-import { castWords } from './castwords';
+import { castWords, propWords } from './castwords';
 import { Game, type GameEvents } from './game';
 import { HOME, LAKES, lakeNamed } from './lakes';
 import type { Lake } from './lakes/lake';
@@ -62,7 +62,17 @@ import {
   type Weather,
 } from './lake';
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
-import { anchorWording, nextMode, orbits, rowWording, SNAGGED_HINT, wording, type Mode, type ModeEvent } from './mode';
+import {
+  anchorWording,
+  nextMode,
+  orbits,
+  propWording,
+  rowWording,
+  SNAGGED_HINT,
+  wording,
+  type Mode,
+  type ModeEvent,
+} from './mode';
 import { NightView } from './nightview';
 import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
@@ -109,6 +119,7 @@ const phoneStatus = document.getElementById('phoneStatus')!;
 const modeButton = document.getElementById('modeButton') as HTMLButtonElement;
 const rowButton = document.getElementById('rowButton') as HTMLButtonElement;
 const anchorButton = document.getElementById('anchorButton') as HTMLButtonElement;
+const propButton = document.getElementById('propButton') as HTMLButtonElement;
 const byId = <T extends Element = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 main().catch((err: unknown) => {
@@ -164,6 +175,13 @@ async function main() {
       log(heavy ? 'bitten (a drum)' : quarry === 'treasure' ? 'bitten (a treasure)' : 'bitten');
       // a phone that can vibrate is asked to, once, as the strike's window opens
       overlay?.buzz();
+      // propped, the bell rings: whatever soft page is open is shut, so the player is back at the lake with the strike to make
+      if (game.propped) closePages();
+    },
+    propped: (on) => {
+      log(on ? 'propped' : 'taken up');
+      hear(propWords(on));
+      showProp();
     },
     hooked: () => log('hooked'),
     missed: () => {
@@ -236,6 +254,8 @@ async function main() {
       // the night is begun from look or from cast: an aim begun and a reel held are let go, and the page looks
       showMode('look');
       aim = null;
+      // the clock ran under a page while the rod was propped, so a page may be open as the night comes: it is shut
+      closePages();
     },
     left: (id) => {
       log(`left for ${id}`);
@@ -764,6 +784,7 @@ async function main() {
             heard: game.t < heard.until ? heard.text : null,
             clean: game.pondClean,
             second: game.bite.second,
+            propped: game.propped,
           });
     if (text === castText) return;
     castText = text;
@@ -801,16 +822,21 @@ async function main() {
    * Whether a page holds the game still: the menu's list, the journal, the camera, a photograph looked at, the lakes page, the Start again question or the pairing card.
    * While one is open the clock does not run and no key, tap, button or phone gesture reaches the game, only letting go.
    */
-  const pagesOpen = () =>
-    journalOpen ||
-    cameraOpen ||
-    stillOpen ||
-    postOpen ||
-    lakesOpen ||
-    sleepOpen ||
-    !menuList.hidden ||
-    !startAgain.hidden ||
-    !byId('pairing').hidden;
+  const pagesOpen = () => softPagesOpen() || hardPagesOpen();
+  /** The pages a propped rod lets the clock run under (`docs/boat.md`, C5): the journal, the post, the lakes page, the sleep page and the menu's list. */
+  const softPagesOpen = () => journalOpen || postOpen || lakesOpen || sleepOpen || !menuList.hidden;
+  /** The pages that hold the game still whatever the rod is doing: the camera, a still, Start again and the pairing card. */
+  const hardPagesOpen = () => cameraOpen || stillOpen || !startAgain.hidden || !byId('pairing').hidden;
+  /** Whether the clock stops: a page is open, unless the rod is propped and only soft ones are. The gestures keep to `pagesOpen`. */
+  const holdsStill = () => hardPagesOpen() || (softPagesOpen() && !game.propped);
+  /** The bell rings: the soft pages are shut, each by its own close, so the focus and the clock are as that page leaves them. */
+  function closePages() {
+    void closeJournal();
+    void closePost();
+    void closeLakes();
+    void closeSleep();
+    showMenu(false);
+  }
   /** What a page open still lets through: a hold ending is always heard, or a reel would stay held under it. */
   const LETTING_GO: ReadonlySet<string> = new Set(['up', 'cancel', 'release', 'blur', 'left-cast', 'gone']);
   /** Every way of playing comes in here, so one gate keeps them all out while a page is open. */
@@ -1533,7 +1559,7 @@ async function main() {
     pagesOpen() ||
     (e.target instanceof HTMLElement &&
       e.target.closest(
-        '#catch, #modeButton, #rowButton, #anchorButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu',
+        '#catch, #modeButton, #rowButton, #anchorButton, #propButton, #downButton, #elsewhereButton, #pairing, #startAgain, #menu',
       ) !== null);
   window.addEventListener('keydown', (e) => {
     // Enter brings the player down from the cabin, as the button does
@@ -1551,6 +1577,10 @@ async function main() {
     }
     if (e.code === 'KeyA' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
       toggleAnchor();
+      return;
+    }
+    if (e.code === 'KeyL' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
+      toggleProp();
       return;
     }
     if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl(e)) {
@@ -1676,6 +1706,30 @@ async function main() {
     showAnchor();
   }
   anchorButton.addEventListener('click', toggleAnchor);
+  /** What the Prop button shows and says as written, so a frame writes only where they change. */
+  let propShown = false;
+  let propSaid = '';
+  /** The rod propped or taken up, as the Prop button and the L key ask (P is the camera's); the game refuses what it must. */
+  function toggleProp() {
+    if (!atPond() || pagesOpen()) return;
+    game.prop(!game.propped);
+    showProp();
+  }
+  propButton.addEventListener('click', toggleProp);
+  /** The Prop button from the game's state: shown only while the lure sinks at the pond (or the rod is propped), worded for what it does next; each written on change only. */
+  function showProp() {
+    const fishOn = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+    const shown = atPond() && (game.propped || (game.lure.phase === 'sinking' && !fishOn));
+    if (shown !== propShown) {
+      propShown = shown;
+      propButton.hidden = !shown;
+    }
+    const words = propWording(game.propped);
+    if (words !== propSaid) {
+      propSaid = words;
+      propButton.textContent = words;
+    }
+  }
   /** The Anchor button from the game's state: shown only aboard, greyed while rowing, worded for what it does next; each written on change only. */
   function showAnchor() {
     const aboard = !!lake.boat && game.boat.aboard;
@@ -1714,7 +1768,9 @@ async function main() {
     renderer.move(g++, casting.bobber, drawn.bobber);
     renderer.move(g++, casting.dots, drawn.dots);
     renderer.move(g++, casting.ringWater, drawn.ringWater);
-    renderer.move(g, casting.ringBank, drawn.ringBank);
+    renderer.move(g++, casting.ringBank, drawn.ringBank);
+    renderer.move(g++, casting.bell, drawn.bell);
+    renderer.move(g, casting.restAt, drawn.rest);
     // the boat where the game has it, rocking by the game's clock: each of its parts has a matrix of one
     if (boatSlot >= 0 && boatDraw.matrices.length) {
       boatDraw.write(game, game.t);
@@ -1738,6 +1794,7 @@ async function main() {
     const noRow = rowing || !lake.boat;
     if (rowButton.disabled !== noRow) rowButton.disabled = noRow;
     showAnchor();
+    showProp();
     const away = !atPond();
     if (away !== hudAway) {
       hudAway = away;
@@ -1809,8 +1866,9 @@ async function main() {
 
   let frames = 0;
   function simulate(dt: number) {
-    // a page open holds the game still: no time, no fish, no light moving, for a frame or a step asked for
-    if (pagesOpen()) return;
+    // a page open holds the game still: no time, no fish, no light moving, for a frame or a step asked for; a propped rod
+    // lets the soft pages run on, so the bell can ring under them
+    if (holdsStill()) return;
     frames++;
     game.step(dt);
     gestures.sync();

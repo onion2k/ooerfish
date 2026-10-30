@@ -808,6 +808,16 @@ export const BOAT = {
 } as const;
 
 /**
+ * Lazy fishing (`docs/boat.md`, C5), first guesses to be tuned by playing. `window` is how long a bite waits for the strike
+ * while the rod is propped, in place of the bobber's, since the player is reading and not watching; `ring` is how long the
+ * bell swings after a bite, in seconds, `swing` how far in radians at the first swing and `swings` how many a second, the
+ * arc dying away over the ring; `angle` is how steeply the propped rod stands from its rest, in radians; `bell` is the
+ * bell's size as a share of the model's (`BELL_UNIT` across, so 0.12 is about a unit wide); `rod` is the propped rod's length
+ * in world units, about the hand-held one's.
+ */
+export const LAZY = { window: 3, ring: 2, swing: 0.35, swings: 6, angle: 0.45, bell: 0.12, rod: 5 } as const;
+
+/**
  * Drift (`docs/boat.md`, C3), first guesses to be tuned by watching it. `wind` is the push in world units a second each
  * second on a free bobber and on a boat with its anchor weighed, along `WEATHER.wind.direction` in the wind weather and
  * nothing in any other. What slows a body on the water is the package's floor drag of 5.5 and, at these slow speeds, its

@@ -19,7 +19,7 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { GEAR, KINDS, MOON, PHOTOS, SNAG, WEATHER } from '../src/lake';
+import { FISHING, GEAR, KINDS, MOON, PHOTOS, SNAG, WEATHER } from '../src/lake';
 import { nearestTime } from '../src/look';
 import type { Photo } from '../src/photo';
 import { LAKES, lakeNamed } from '../src/lakes';
@@ -100,16 +100,24 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
   const boatAboard = { now: false };
   // where the bobber was as the frame began, kept by the loop for the same reason, to tell a bite by the reeds
   const bobberNow = [0, 0];
+  // whether the rod is propped, kept by its own event (the game is made after these events, and made anew by a reload)
+  const rod = { propped: false };
   const events: GameEvents = {
     splashed: count('splashed'),
     nibbled: count('nibbled'),
     bitten: (heavy, quarry) => {
       happened.bitten++;
+      if (rod.propped) done['bell rang'] = (done['bell rang'] ?? 0) + 1;
       // a fish's bite, not a drum's or a treasure's, with the bobber by a bed of reeds, where the lure is noticed faster
       if (!heavy && !quarry && snagNear(lake, bobberNow[0], bobberNow[1], SNAG.lureReach) >= 0)
         done['bite by the reeds'] = (done['bite by the reeds'] ?? 0) + 1;
     },
     hooked: count('hooked'),
+    // the rod propped (not taken up), and the bell: a bite while it was propped
+    propped: (on) => {
+      rod.propped = on;
+      if (on) done['propped'] = (done['propped'] ?? 0) + 1;
+    },
     missed: count('missed'),
     slipped: count('slipped'),
     landed: () => {
@@ -362,6 +370,16 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       'bite by the reeds',
     ])
       done[what] = 0;
+    // the rod propped, from nought as the rest are
+    for (const what of [
+      'propped',
+      'bell rang',
+      'hooked from the prop',
+      'prop refused',
+      'taken up',
+      'strike in the long window',
+    ])
+      done[what] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
     for (const what of [
       'woke at midnight',
@@ -431,6 +449,46 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       const { angle, power } = aimAt(s.x - (s.x / m) * out, s.y - (s.y / m) * out, lake, game.wind, game.anglerAt());
       const thrown = game.cast(angle, power);
       if (thrown) done['cast at the reeds']++;
+    };
+    // the rod propped and taken up, and a strike left to the long window, from a stream of its own and on only some seeds,
+    // so the rest play as they did
+    const lazing = seeded(seed * 83 + 5);
+    const lazy = seeded(seed * 89 + 3)() < 0.5;
+    // asked afresh by a call, since a type checker that has seen the rod in hand takes it for in hand still
+    const proppedNow = () => game.propped;
+    /**
+     * The player's side of the rest, one frame at a time: the rod propped now and then while the lure sinks, and now and then
+     * tried where the game must refuse it (nothing changed); taken up again now and then; and a bite on a propped rod left
+     * for a moment, past the hand's window as often as not, then struck.
+     */
+    const lounging = () => {
+      const u = lazing(),
+        v = lazing(),
+        w = lazing();
+      if (!lazy) return;
+      if (!game.propped) {
+        const sinking = game.lure.phase === 'sinking' && game.place === 'pond';
+        if (u >= (sinking ? 1 / 150 : 1 / 400)) return;
+        const fighting = game.bite.phase === 'hooked' || game.bite.phase === 'landed';
+        const was = nightState(game);
+        const propped = game.prop(true);
+        if (propped) {
+          if (!sinking || fighting) throw new Error('the rod was propped where it must be refused');
+        } else {
+          done['prop refused']++;
+          if (proppedNow() || nightState(game) !== was) throw new Error('a refused prop changed the game');
+        }
+        return;
+      }
+      if (game.bite.phase === 'biting') {
+        if (v < 1 / 100) {
+          if (game.t - game.rang > FISHING.window) done['strike in the long window']++;
+          game.strike();
+        }
+      } else if (w < 1 / 500) {
+        if (game.prop(false)) done['taken up']++;
+        else throw new Error('a propped rod could not be taken up');
+      }
     };
     // a snagged lure's tug: how many frames the reel is still to be held (nought for none planned), whether the tug is
     // one long enough to free it, and the frame the refusals are tried on
@@ -674,6 +732,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
           const written = { place: game.progress.save.place, time: game.progress.save.time };
           store = memoryStore(store.json);
           game = new Game(new Progress(store, LAKES), { lake, random: seeded(seed + frame), events });
+          rod.propped = false;
           const now = canonical(game.progress.save);
           if (now !== was) throw new Error(`the save was ${was} and loaded as ${now}`);
           // the lake opens where the save said, not where the game was: a reload mid-yawn gives the earlier place and
@@ -859,6 +918,10 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
 
     for (frame = 1; frame <= frames; frame++) {
       let acted = false;
+      // a fish struck at from the prop is hooked in the same call, whoever made it: the frame that began with a bite on a
+      // propped rod and ended with a fish hooked is counted
+      const fromProp = game.propped && game.bite.phase === 'biting';
+      const hookedBefore = happened.hooked;
       if (page.watching > 0) {
         page.watching--;
         if (game.bite.phase === 'biting') game.strike();
@@ -886,6 +949,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       }
       phone.tick(frame);
       tugging();
+      lounging();
       // the player does not stay in the cabin for the rest of the game: after a moment the door is tried
       if (game.place === 'cabin') {
         done['frames in the cabin']++;
@@ -904,6 +968,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       bobberNow[1] = bobberWas[1];
       const wasSinking = game.lure.phase === 'sinking';
       game.step(page.paused ? 0 : DT);
+      if (fromProp && happened.hooked > hookedBefore) done['hooked from the prop']++;
       if (wasAdrift && (game.boat.x !== boatWas[0] || game.boat.y !== boatWas[1])) done['drifted'] = 1;
       if (
         wasSinking &&

@@ -1,6 +1,6 @@
 /** The cast line's words: what the lure is doing, and in a clean pond that nothing will take the bait. */
 import { describe, expect, it } from 'vitest';
-import { CLEAN_WORDS, castWords, type CastState } from '../src/castwords';
+import { CLEAN_WORDS, castWords, propWords, type CastState } from '../src/castwords';
 
 const state = (over: Partial<CastState> = {}): CastState => ({
   bite: 'none',
@@ -56,5 +56,32 @@ describe('the cast line while snagged (`docs/boat.md`, C4)', () => {
 
   it('does not say it of a lure that is not snagged, whatever tugging says', () => {
     expect(castWords(state({ lure: 'sinking', tugging: true }))).toBe('waiting for a fish…');
+  });
+});
+
+describe('the cast line while the rod is propped (`docs/boat.md`, C5)', () => {
+  it('waits for the bell, not for a fish, and says the bell on a bite', () => {
+    expect(castWords(state({ propped: true }))).toBe('rod propped: waiting for the bell…');
+    expect(castWords(state({ propped: true, clean: true }))).toBe('rod propped: waiting for the bell…');
+    expect(castWords(state({ propped: true, bite: 'biting' }))).toBe('the bell! a bite: strike now');
+  });
+
+  it('is as it was with the rod in hand, said or not', () => {
+    expect(castWords(state({ propped: false }))).toBe('waiting for a fish…');
+    expect(castWords(state({ propped: false, bite: 'biting' }))).toBe('BITE! strike now');
+    expect(castWords(state({ bite: 'biting' }))).toBe('BITE! strike now');
+  });
+
+  it('keeps a heard line, a nibble and the fight over the waiting', () => {
+    expect(castWords(state({ propped: true, heard: 'missed' }))).toBe('missed');
+    expect(castWords(state({ propped: true, bite: 'nibbling' }))).toBe('nibble… wait for the dip');
+    expect(castWords(state({ propped: true, bite: 'hooked' }))).toBe(
+      'a fish on! hold to lift the zone, keep the fish in it',
+    );
+  });
+
+  it('says what a prop and a take-up did, to be heard for a while', () => {
+    expect(propWords(true)).toBe('the rod is propped');
+    expect(propWords(false)).toBe('rod in hand');
   });
 });

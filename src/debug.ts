@@ -223,6 +223,12 @@ export interface GameApi {
   snag(i: number): boolean;
   /** How long the reel has been held on the snagged lure, in seconds; nought when it is not snagged and reeling. */
   tugging(): number;
+  /** Whether the rod is propped (`docs/boat.md`, C5). */
+  propped(): boolean;
+  /** The rod propped (true) or taken up (false); false, and nothing changed, when refused (see `Game.prop`). */
+  prop(on: boolean): boolean;
+  /** The game time of the last bite while the rod was propped, or minus infinity for none. */
+  rang(): number;
   /** Every splash in the pool, live or over. */
   splashes(): Splash[];
   /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
@@ -726,6 +732,9 @@ export function createApi(host: DebugHost): GameApi {
     },
     snag: (i) => game.snagAt(i),
     tugging: () => game.tugging,
+    propped: () => game.propped,
+    prop: (on) => game.prop(on),
+    rang: () => game.rang,
     treasures() {
       const { treasures } = game;
       return game.lake.treasures.list.map((t, i) => ({

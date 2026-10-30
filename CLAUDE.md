@@ -378,8 +378,8 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   `Scene.static(kit)` in `src/scene.ts` places the kit's pebbles and clumps and
   the trees from a dressing seed of its own, so the game's seed does not move
   them; the bed, weed and boulders are as they were, and with no kit the old
-  hand-made banks are built. Placement keeps off the water and the near south
-  bank, and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
+  hand-made banks are built. Placement keeps off the water and the open bank the
+  camera looks from (`openBand`), and no top passes `SHADOW_BOX`. `SCENERY` in `lake.ts` is the content
   (counts, scales, layers); the roles map to the palette in `scenery.ts`.
   `game.scenery()` counts what was handed over. **The trees** are not the kit's
   but the package's low-poly generators (`artshape-render/parts/lowpoly`, as
@@ -578,6 +578,23 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   reeds, tugs long and short and tries the refusals on about two seeds in five (`reedy`, from a stream of its own, so
   the other seeds play as they did); `game.snags()`, `snag(i)` and `tugging()` are the API. The figures are `SNAG` in
   `lake.ts`, first guesses.
+- **Lazy fishing** (`docs/boat.md`, C5): the angler fishes from the jetty (`ANGLER` in `src/lakes/duckpond.ts`, a `Stand`
+  on the deck's middle line a unit back from its end, heading inward, over the deck's top, behind `JETTY.rail`; the Shore
+  and phone views stand at the deck's root looking along it; a stand ashore may carry a heading, which the rod, a hooked
+  fish's run and the invariants read; the pace angler, the bench, the fuzzer and the phone monkey cast along `lake.aim`;
+  the woodland's open band is `openBand` by angle). `Game.prop(on)` props the rod (refused unless the lure is sinking with
+  no fish on, not snagged, not rowing, at the pond; told `GameEvents.propped`), and it is taken up by `strike`, `reel(true)`,
+  `cast`, `reelInForce` and a snag, a strike while propped hooking in the same call. Propped, `Bite.step` opens the long
+  window `LAZY.window` instead of `windowFor`'s, and `Game.rang` is the time of the last bite; `bellSwing(t - rang)` in
+  `src/lazy.ts` is the bell's angle, pure, dying out over `LAZY.ring`; `restFor(lake, stand)` is where the rod rests (the
+  rail's lake end, the boat's gunwale, a forked rest at a lake without a jetty), `bellGroups` and `restGroups` the models
+  (under 60 and 40 triangles), and `castdraw.ts` draws the propped rod from the rest at `LAZY.angle` with the bell at the
+  tip, the rest shown only propped without a jetty. The page's Prop button (`#propButton`, L, since P is the camera;
+  `propWording`) shows while the lure sinks at the pond; the soft pages (the journal, the post, the lakes and sleep pages,
+  the menu's list) run the clock while propped (`holdsStill()` in `main.ts`; the camera, a still, Start again and pairing
+  always hold it; the gesture gate is still `pagesOpen()`), and the bell on `bitten` closes them (`closePages()`, which the
+  yawn calls too) with the line "the bell! a bite: strike now". `LAZY` in `lake.ts` is first guesses; the fuzzer lounges on
+  half the seeds; `game.propped()`, `prop(on)` and `rang()` are the API.
 - **The physics** (`docs/boat.md`, C1): `src/physics.ts` is the one door to artshape-physics, and nothing else in `src/`
   imports it. Its floor is the water's surface (the package refuses the bed as terrain), its rock the shore on a grid of
   `PHYSICS.tile`, a world a game (`newWorld(lake)`; `worldFor(lake)` the memoised grid for readers), and `Bodies` the

@@ -893,3 +893,61 @@ describe('what must always hold of the snags (`docs/boat.md`, C4)', () => {
     );
   });
 });
+
+describe('what must always hold of the propped rod (`docs/boat.md`, C5)', () => {
+  /** A game with the rod propped on a sinking lure, as the game itself would leave it. */
+  function propped() {
+    const { game } = newGame();
+    game.cast(HOME.aim.angle, 0.58);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(1 / 60);
+    expect(game.prop(true)).toBe(true);
+    return game;
+  }
+
+  it('holds of a rod propped and played a while, and of one taken up', () => {
+    const game = propped();
+    expect(checkInvariants(game)).toEqual([]);
+    for (let f = 0; f < 60 * 20; f++) {
+      game.step(1 / 60);
+      if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+    }
+    game.prop(false);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a rod propped with the lure not sinking', () => {
+    const game = propped();
+    game.lure.phase = 'lying';
+    expect(checkInvariants(game).join('\n')).toMatch(/the rod is propped with the lure lying/);
+  });
+
+  it('reports a rod propped with a fish hooked or landed', () => {
+    for (const phase of ['hooked', 'landed'] as const) {
+      const game = propped();
+      game.bite.phase = phase;
+      expect(checkInvariants(game).join('\n')).toMatch(new RegExp(`the rod is propped with a fish ${phase}`));
+    }
+  });
+
+  it('reports the reel held while the rod is propped', () => {
+    const game = propped();
+    game.reeling = true;
+    expect(checkInvariants(game).join('\n')).toMatch(/the reel is held with the rod propped/);
+  });
+
+  it('reports a bell rung ahead of the time, and one that is not a time', () => {
+    const game = propped();
+    game.rang = game.t + 1;
+    expect(checkInvariants(game).join('\n')).toMatch(/the bell rang at .*, ahead of the time/);
+    game.rang = Number.NaN;
+    expect(checkInvariants(game).join('\n')).toMatch(/the bell rang at NaN/);
+    game.rang = -Infinity;
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports the bite and the game disagreeing on whether the rod is propped', () => {
+    const game = propped();
+    game.bite.propped = false;
+    expect(checkInvariants(game).join('\n')).toMatch(/disagree on whether the rod is propped/);
+  });
+});

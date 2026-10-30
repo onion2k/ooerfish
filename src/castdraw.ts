@@ -13,7 +13,8 @@ import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
 import type { Lake, Stand } from './lakes/lake';
 import { HOME } from './lakes';
-import { LINE_DRAW, ROPE, SNAG } from './lake';
+import { LAZY, LINE_DRAW, ROPE, SNAG } from './lake';
+import { bellGroups, bellMatrix, bellSwing, proppedTip, restGroups, restInto, type Rest } from './lazy';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
@@ -87,6 +88,9 @@ export interface Drawn {
   ringBank: number;
   bobber: number;
   lure: number;
+  /** Whether the propped rod's bell hangs from its tip, and whether the forked rest stands in the bank. */
+  bell: number;
+  rest: number;
 }
 
 export class CastDraw {
@@ -98,6 +102,10 @@ export class CastDraw {
   readonly dots = new Float32Array(PREVIEW_DOTS * 16);
   readonly ringWater = new Float32Array(RING_PIECES * 16);
   readonly ringBank = new Float32Array(RING_PIECES * 16);
+  /** The propped rod's bell and the bank's forked rest: a placement each, scaled to nothing when not shown. */
+  readonly bell = new Float32Array(16);
+  readonly restAt = new Float32Array(16);
+  private readonly rest: Rest = { x: 0, y: 0, z: 0, heading: 0 };
   private readonly path = new Float32Array(PREVIEW_DOTS * 3);
   private readonly a = new Float64Array(3);
   private readonly b = new Float64Array(3);
@@ -119,6 +127,8 @@ export class CastDraw {
     ringBank: 0,
     bobber: 0,
     lure: 1,
+    bell: 0,
+    rest: 0,
   };
 
   /** The lake it draws the cast over: where its angler stands and holds the rod, and what its casts land on. */
@@ -174,6 +184,23 @@ export class CastDraw {
     }
   }
 
+  /** The rod propped: straight from the rest to its tip, which is written into `tip`. */
+  private writeProppedRod(rest: Rest) {
+    proppedTip(rest, this.tip);
+    const t = this.tip;
+    for (let k = 0; k < ROD_PIECES; k++) {
+      const u0 = k / ROD_PIECES,
+        u1 = (k + 1) / ROD_PIECES;
+      this.a[0] = rest.x + (t[0] - rest.x) * u0;
+      this.a[1] = rest.y + (t[1] - rest.y) * u0;
+      this.a[2] = rest.z + (t[2] - rest.z) * u0;
+      this.c[0] = rest.x + (t[0] - rest.x) * u1;
+      this.c[1] = rest.y + (t[1] - rest.y) * u1;
+      this.c[2] = rest.z + (t[2] - rest.z) * u1;
+      piece(this.rod, k, this.a, this.c, 0.16 - 0.06 * u0);
+    }
+  }
+
   /** The groups, handed to the renderer once, in this order; `write` says how many of each are live. */
   groups(): GameGroup[] {
     const g = (
@@ -199,6 +226,9 @@ export class CastDraw {
       g(ball(0.22, 3, 6), this.dots, PALETTE.aim, 0),
       g(unit, this.ringWater, PALETTE.aimWater, 0),
       g(unit, this.ringBank, PALETTE.aimBank, 0),
+      // the bell and the rest last, so the slots of everything ahead of them are as they were
+      ...bellGroups(this.bell),
+      ...restGroups(this.restAt),
     ];
   }
 
@@ -230,7 +260,21 @@ export class CastDraw {
       }
     } else this.end.set(lure.at);
     place(this.lure, 0, this.end[0], this.end[1], this.end[2]);
-    this.writeRod(tension, this.end, stand);
+    // propped, the rod lies on its rest unbent with the bell at its tip, swinging for `LAZY.ring` after a bite; in hand the
+    // bell is scaled to nothing, and so is the rest, which is shown only propped at a lake with no jetty to rest it on
+    out.bell = out.rest = 0;
+    if (game.propped) {
+      const rest = restInto(this.lake, stand, this.rest);
+      this.writeProppedRod(rest);
+      bellMatrix(this.bell, this.tip, rest.heading, bellSwing(game.t - game.rang), LAZY.bell);
+      out.bell = 1;
+      if (!this.lake.jetty && stand === this.lake.angler) {
+        place(this.restAt, 0, rest.x, rest.y, rest.z, rest.heading);
+        out.rest = 1;
+      }
+    } else this.writeRod(tension, this.end, stand);
+    if (!out.bell) this.bell.fill(0);
+    if (!out.rest) this.restAt.fill(0);
     out.rod = ROD_PIECES;
 
     // with the lure in the water the line ends at the bobber, and runs on down from it to the lure; with a fish on, the

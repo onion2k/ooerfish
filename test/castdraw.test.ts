@@ -4,7 +4,8 @@ import { careful } from '../src/angler';
 import { flight, rodTip } from '../src/cast';
 import { CastDraw, HANG, LINE_COLOURS, LINE_PIECES, PREVIEW_DOTS, ROD_PIECES, piece } from '../src/castdraw';
 import { FISH_BODY } from '../src/fishdraw';
-import { ROPE, WEATHER } from '../src/lake';
+import { LAZY, ROPE, WEATHER } from '../src/lake';
+import { bellSwing, proppedTip, restFor } from '../src/lazy';
 import { Game } from '../src/game';
 import { HOME, LAKES } from '../src/lakes';
 import type { Lake } from '../src/lakes/lake';
@@ -419,5 +420,93 @@ describe('the rod aboard the boat', () => {
     expect(butt[0]).toBeCloseTo(a.x + 0.6, 4);
     expect(butt[1]).toBeCloseTo(a.y + 0.5, 4);
     expect(butt[2]).toBeCloseTo(lake.ground(a.x, a.y) + 5, 4);
+  });
+});
+
+describe('the rod propped (`docs/boat.md`, C5)', () => {
+  /** A game with the lure sinking at the pond, the rod propped or not. */
+  function sinking(on: boolean) {
+    const { game } = newGame(1);
+    expect(game.cast(OUT, 0.58)).toBe(true);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    if (on) expect(game.prop(true)).toBe(true);
+    settle(game, 5);
+    return game;
+  }
+
+  it('hangs the line from the propped tip, which is the rest’s and not the hand’s', () => {
+    const game = sinking(true);
+    const want = proppedTip(restFor(HOME, game.anglerAt()), new Float64Array(3));
+    for (let k = 0; k < 3; k++) expect(game.lineStart[k]).toBeCloseTo(want[k], 9);
+    const hand = rodTip(HOME, game.anglerAt());
+    expect(Math.hypot(want[0] - hand[0], want[1] - hand[1], want[2] - hand[2])).toBeGreaterThan(0.5);
+  });
+
+  it('hangs the line from the hand’s tip again when the rod is taken up', () => {
+    const game = sinking(true);
+    expect(game.prop(false)).toBe(true);
+    settle(game, 5);
+    const want = rodTip(HOME, game.anglerAt());
+    for (let k = 0; k < 3; k++) expect(game.lineStart[k]).toBeCloseTo(want[k], 9);
+  });
+
+  it('draws the rod straight from the rest to that tip, with the bell at the tip and the rest only at a lake without a jetty', () => {
+    const game = sinking(true);
+    const draw = new CastDraw();
+    const drawn = draw.write(game, null);
+    const r = restFor(HOME, game.anglerAt());
+    const tip = proppedTip(r, new Float64Array(3));
+    const butt = carried(draw.rod, 0, -0.5, 0, 0);
+    const end = carried(draw.rod, ROD_PIECES - 1, 0.5, 0, 0);
+    for (let k = 0; k < 3; k++) {
+      expect(butt[k]).toBeCloseTo([r.x, r.y, r.z][k], 4);
+      expect(end[k]).toBeCloseTo(tip[k], 4);
+    }
+    // the bell hangs from the tip, at the bell's size; a jetty is its own rest, so nothing is planted
+    expect(drawn.bell).toBe(1);
+    expect(Array.from(draw.bell.slice(12, 15))).toEqual(Array.from(new Float32Array(tip)));
+    expect(draw.bell[0]).toBeCloseTo(LAZY.bell, 6);
+    expect(drawn.rest).toBe(0);
+  });
+
+  it('plants the rest in the bank at the Reservoir, and swings the bell from the time of the bite', () => {
+    const lake = LAKES.reservoir;
+    const game = new Game(new Progress(memoryStore(), LAKES), { lake, random: seeded(1) });
+    expect(game.cast(lake.aim.angle, lake.aim.power)).toBe(true);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.prop(true)).toBe(true);
+    const draw = new CastDraw(lake);
+    expect(draw.write(game, null).rest).toBe(1);
+    const r = restFor(lake, game.anglerAt());
+    expect(Array.from(draw.restAt.slice(12, 15))).toEqual(Array.from(new Float32Array([r.x, r.y, r.z])));
+    // rung a quarter of a swing ago: the bell is turned off the vertical, and by the swing's own figure
+    game.rang = game.t - 0.02;
+    draw.write(game, null);
+    const hung = draw.bell[10];
+    expect(hung).toBeCloseTo(LAZY.bell * Math.cos(bellSwing(0.02)), 5);
+    // and long after the ring it hangs straight again
+    game.rang = game.t - LAZY.ring - 1;
+    draw.write(game, null);
+    expect(draw.bell[10]).toBeCloseTo(LAZY.bell, 6);
+  });
+
+  it('scales the bell and the rest to nothing in hand', () => {
+    const game = sinking(false);
+    const draw = new CastDraw();
+    const drawn = draw.write(game, null);
+    expect(drawn.bell).toBe(0);
+    expect(drawn.rest).toBe(0);
+    expect(Array.from(draw.bell.slice(0, 11))).toEqual(new Array(11).fill(0));
+    expect(Array.from(draw.restAt.slice(0, 11))).toEqual(new Array(11).fill(0));
+  });
+
+  it('makes nothing each frame: the same pools after any number of writes', () => {
+    const game = sinking(true);
+    const draw = new CastDraw();
+    const [bell, rest] = [draw.bell, draw.restAt];
+    for (let f = 0; f < 30; f++) draw.write(game, null);
+    expect(draw.bell).toBe(bell);
+    expect(draw.restAt).toBe(rest);
   });
 });

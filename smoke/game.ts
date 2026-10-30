@@ -147,6 +147,7 @@ export async function hideOverlays(page: Page) {
       'modeButton',
       'rowButton',
       'anchorButton',
+      'propButton',
       'pond',
       'welcome',
       'toast',

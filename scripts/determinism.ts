@@ -129,6 +129,9 @@ export function hashGame(game: Game): string {
   // the bed of reeds it is caught in, and how long the reel has tugged it (`docs/boat.md`, C4)
   eat(lure.snagged);
   eat(game.tugging);
+  // the rod propped and when the bell last rang (`docs/boat.md`, C5); minus infinity, none yet, is eaten as -1
+  eat(game.propped ? 1 : 0);
+  eat(Number.isFinite(game.rang) ? game.rang : -1);
   for (const n of [
     lure.angle,
     lure.power,

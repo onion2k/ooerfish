@@ -103,6 +103,8 @@ export const PALETTE = {
   sickSplash: [0.86, 1, 0.68] as Colour,
   /** The rod and its line. */
   rod: [0.42, 0.26, 0.14] as Colour,
+  /** The bell hung from the propped rod's tip: brass. */
+  bell: [0.95, 0.72, 0.2] as Colour,
   line: [0.9, 0.9, 0.85] as Colour,
   /** The line as it tightens on a fish, from its own white through warm and orange to red, in four steps. */
   lineWarm: [1, 0.85, 0.55] as Colour,

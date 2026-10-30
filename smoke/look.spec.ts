@@ -1753,3 +1753,111 @@ test.describe('the snags', () => {
     });
   });
 });
+
+// lazy fishing (`docs/boat.md`, C5): the rod propped on the jetty's rail with its bell at the tip, the bell mid-swing
+// just after a bite with the bobber dipping, the same from the boat's gunwale and on a phone, and the Reservoir's forked rest
+/** The rod propped over a cast that has landed and sunk; the bite, when asked, waited for under the prop and then stepped `after` frames. */
+async function propped(
+  page: Page,
+  bite: { after: number } | null,
+  camera: { azimuth: number; polar: number; radius: number } | null = { azimuth: 0.6, polar: 1.2, radius: 16 },
+  cast: { angle: number; power: number } = { angle: CAST_SHOT.angle, power: CAST_SHOT.power },
+) {
+  await page.evaluate(
+    ([c, b, shot]) => {
+      const g = window.game!;
+      g.cast(c.angle, c.power);
+      g.step(shot.sinking);
+      g.prop(true);
+      if (b) {
+        for (let f = 0; f < 7200 && g.fishing().phase !== 'biting'; f++) g.step(1);
+        g.step(b.after);
+      } else g.step(30);
+      // the camera brought in to the rod's tip, where the Shore view's frame cuts it off at the foot: look mode, from the
+      // side the deck and the rest can be seen from
+      if (c.camera) {
+        const [x, y] = g.rope().points[0];
+        g.look(x, y, c.camera);
+        g.step(2);
+      }
+    },
+    [{ ...cast, camera }, bite, CAST_SHOT] as const,
+  );
+  expect(await page.evaluate(() => window.game!.propped())).toBe(true);
+  // the quiet picture is taken before any bite, so the bell hangs still; the bell's is taken at one
+  const phase = (await page.evaluate(() => window.game!.fishing())).phase;
+  if (bite) expect(phase).toBe('biting');
+  else expect(phase).not.toBe('biting');
+  if (!bite) expect(await page.evaluate(() => window.game!.rang())).toBe(-Infinity);
+}
+
+test.describe('lazy fishing', () => {
+  test('propped', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, CAST_SHOT.scene, CAST_SHOT.settle);
+    await propped(page, null);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('propped.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('propped-bell', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, CAST_SHOT.scene, CAST_SHOT.settle);
+    // twelve frames after the bite, a fifth of a second: the bell near the top of its first swing
+    await propped(page, { after: 12 });
+    expect(await page.evaluate(() => window.game!.rang())).toBeGreaterThan(0);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('propped-bell.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('boat-propped', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, { ...STANDARD, dirt: 0.2 }, 60);
+    await anchored(page);
+    // thrown as the boat's cast is, and left on the gunwale
+    await page.evaluate((c) => {
+      const g = window.game!;
+      g.cast(g.boat().heading + 0.2, c.power - 0.25);
+      g.step(c.sinking);
+      g.prop(true);
+      g.step(30);
+      const [x, y] = g.rope().points[0];
+      g.look(x, y, { azimuth: g.boat().heading + 2.2, polar: 1.2, radius: 14 });
+      g.step(2);
+    }, CAST_SHOT);
+    expect(await page.evaluate(() => window.game!.propped())).toBe(true);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('boat-propped.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('reservoir-propped', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+    await set(page, CAST_SHOT.scene, CAST_SHOT.settle);
+    await propped(page, null, { azimuth: 0.6, polar: 1.2, radius: 16 }, { angle: Math.PI / 2, power: 0.6 });
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('reservoir-propped.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('phone-propped', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+      await set(page, { ...CAST_SHOT.scene, view: 'phone' }, CAST_SHOT.settle);
+      await propped(page, null, null);
+      await expect(page.locator('#propButton')).toHaveText('Take the rod');
+      await expect(page).toHaveScreenshot('phone-propped.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});

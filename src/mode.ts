@@ -69,3 +69,8 @@ export function anchorWording(anchored: boolean): string {
 export function rowWording(mode: Mode): { button: string } {
   return { button: mode === 'row' ? 'Look round' : 'Row' };
 }
+
+/** The Prop button's words (`docs/boat.md`, C5): what it does next, so "Take the rod" while the rod is propped. */
+export function propWording(propped: boolean): string {
+  return propped ? 'Take the rod' : 'Prop the rod';
+}

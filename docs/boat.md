@@ -358,7 +358,7 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
       `test/mode`, `test/boatdraw`, the smoke stage.
 - [x] 3. The tools: the pace angler aboard on a third of seeds, the fuzzer's actions and coverage test, the layout
       moments, the pictures. Check: `test/fuzz`, `npm run look -- -g boat`.
-- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (a row across the jetty allowed; the landing
+- [x] 4. The pass: check, fuzz 1-24, perf before and after, mutations (a row across the jetty allowed; the landing
       not beside the boat; the save's boat not read), `/gate-moved` for the pace and the pictures, the notes.
       Commit and push.
 
@@ -521,7 +521,7 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
       stage, `npm run smoke -- layout.spec.ts`.
 - [x] 3. The tools: the fuzzer's actions and coverage, the layout moment, the pictures. Check: `test/fuzz`,
       `npm run look -- -g "drift|adrift"`.
-- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the keep-off dropped: a bobber blown onto
+- [x] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the keep-off dropped: a bobber blown onto
       the bank; the wind's push on the boat zeroed; `anchored` not read from the save), `/gate-moved` for anything
       moved, the notes. Commit and push.
 
@@ -910,13 +910,13 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
 - [x] 1. C5a: the stand on the jetty with the rail, the views, the landing, the aim, the spot, the open band, the
       fuzzer's angle, the invariants, the tests measured again, every picture moved and read, the pace `/gate-moved`.
       Check: `npm run check`, `npm run fuzz -- --seeds 1-24`; **commit on its own.**
-- [ ] 2. C5b, the game: `LAZY`, `src/lazy.ts` (`bellSwing`, `restFor`), `Game.prop`, `propped`, `rang`, the
+- [x] 2. C5b, the game: `LAZY`, `src/lazy.ts` (`bellSwing`, `restFor`), `Game.prop`, `propped`, `rang`, the
       take-ups, the bite's window, the words, the invariants, the determinism hash, the test API. Check: `test/game`,
       `test/bite`, `test/lazy`, `test/castwords`, `test/invariants`, `npm run determinism`.
-- [ ] 3. C5b, the page and the drawing: the propped rod, the bell and the rest in `castdraw.ts`, the Prop button,
+- [x] 3. C5b, the page and the drawing: the propped rod, the bell and the rest in `castdraw.ts`, the Prop button,
       the soft pages running, the bell closing them, the fuzzer's prop, the smoke stage, the layout moment, the
       pictures. Check: `test/fuzz`, the smoke stage, `npm run look -- -g "propped"`.
-- [ ] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the window not widened while propped; the
+- [x] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the window not widened while propped; the
       bell closing nothing; a prop accepted mid-fight), `/gate-moved` for anything moved, the notes. Commit and push.
 
 ### C5a's notes (built 30 Oct 2026)
@@ -929,6 +929,31 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
   aboard (it was due north, and the layout gate caught the boat's fish running off the right of the screen); `from`
   (the bed's things) stays at the south bank, so one drum and four treasures lie past the deck's cast reach (the boat reaches them).
 - The cabin is behind the Shore view's camera: not tappable there (overhead or the menu).
+
+### C5's notes (built 30 Oct 2026)
+
+- **C5a landed on its own as 8f14fe2.** The pace gate read 2.2 to 2.46 minutes on its eight seeds and 2.90 to 2.85 over
+  sixty-four, so the swing was noise and the baseline holds. The pond's current moved from 11.5 to 13.5 east so the boat's
+  spot is clear of it, and the water's fine sheet reaches 18 from the camera instead of 40, which from the new camera
+  wrapped the whole lake into 256,250 triangles. The bench's fight scenario fell to 48% busy, since its 0.75 power carried
+  past the middle from the deck; its powers are now 0.58, 0.5, 0.65 and 0.62 and it is 72% busy.
+- **Open from C5a:** one drum and four treasures lie short of the deck's cast reach and are fished from the boat; the desk
+  Shore view, standing at the deck's root, does not show the deck or the rail (the phone and tablet framings do); the
+  cabin stands behind the Shore view and is tapped from overhead; the dawn, dusk and night pictures changed in tone with
+  the sun, the moon and the cliff behind the camera.
+- **The Prop key is L**, since P is the camera.
+- **`fishTo('biting')` is not used by the smoke, the layout or the pictures:** `fishTo` casts, which takes the rod up, so
+  each casts, props and steps to the natural bite under the prop; `propped-bell` takes 27 s.
+- **The bell reads large** at the propped pictures' camera and the propped rod stands near upright: `LAZY.bell` and
+  `LAZY.angle` are first guesses, left for play-testing.
+- **The yawn closes the soft pages**, since the clock now runs under one while propped and midnight can come.
+- **The sideways hint gives up its width** to Anchor and Prop (`:has` on the hidden attribute), since a short desk window
+  aboard with the lure out ran the top row into the menu.
+- **Figures:** perf before (8f14fe2) boot 829 ms, frame 4.19 ms, download 249,362 bytes; after boot 835 ms, frame 4.27 ms,
+  download 250,887 bytes (+1,525 for the bell, the rest, the words and the button), written by hand. The bench's four
+  scenarios within tolerance (−0% to −11%), balance's 60 cells unmoved. Mutations caught: the window not widened while
+  propped (3 bite tests), a prop accepted mid-fight (a game test), the bell closing nothing (the smoke stage). Five new
+  pictures, five moved by the Prop button appearing beside Row with the lure out, each read.
 
 ## Verification, every slice
 

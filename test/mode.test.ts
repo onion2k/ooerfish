@@ -1,6 +1,15 @@
 /** The page's mode, look or cast: what each event does to it and to the camera, and what the page says of it. */
 import { describe, expect, it } from 'vitest';
-import { anchorWording, nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from '../src/mode';
+import {
+  anchorWording,
+  nextMode,
+  orbits,
+  propWording,
+  rowWording,
+  wording,
+  type Mode,
+  type ModeEvent,
+} from '../src/mode';
 
 describe('the mode of the page', () => {
   it('switches by the button or the key, to cast with the camera put at the shore, and back with it left where it is', () => {
@@ -76,5 +85,10 @@ describe('the mode of the page', () => {
     // each tells of the key that switches
     expect(wording('look').hint).toMatch(/C /);
     expect(wording('cast').hint).toMatch(/C /);
+  });
+
+  it('says on the Prop button what it does next: prop the rod when it is in hand, take it when it is propped', () => {
+    expect(propWording(false)).toBe('Prop the rod');
+    expect(propWording(true)).toBe('Take the rod');
   });
 });

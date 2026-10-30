@@ -13,7 +13,7 @@
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
 import type { BedFinds } from './bedfinds';
-import { CLOCK, FISHING, FISH_CAPACITY, KINDS, SNAG, awake, type Kind } from './lake';
+import { CLOCK, FISHING, FISH_CAPACITY, KINDS, LAZY, SNAG, awake, type Kind } from './lake';
 import type { Lake } from './lakes/lake';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import type { Lure } from './lure';
@@ -71,6 +71,8 @@ export class Bite {
   readonly wary = new Float64Array(FISH_CAPACITY);
   /** The gifts held, which the game hands over when it has them: the bobber's window and the bait's notice. */
   gear: Gear = NO_GEAR;
+  /** The rod is propped (`docs/boat.md`, C5), which the game sets: the next window to open is the long one, `LAZY.window`, and not the bobber's. */
+  propped = false;
 
   /** The bite's rules are the game's; how many drums and treasures lie on the bed is the lake's, so it is the lake that is handed in. */
   constructor(
@@ -143,7 +145,7 @@ export class Bite {
           if (drum) this.drum = d;
           else this.treasure = k;
           this.phase = 'biting';
-          this.timer = windowFor(this.gear);
+          this.timer = this.window();
           if (drum) this.events.bitten?.(true, 'drum');
           else this.events.bitten?.(false, 'treasure');
         }
@@ -190,7 +192,7 @@ export class Bite {
         return;
       }
       this.phase = 'biting';
-      this.timer = windowFor(this.gear);
+      this.timer = this.window();
       // the first window of a fish that bites more than once says how many windows it has still to give
       if (!this.second) this.bitesLeft = (KINDS[school.kind[this.fish]] as Kind).bites ?? 1;
       this.events.bitten?.();
@@ -208,6 +210,11 @@ export class Bite {
       return;
     }
     this.letGo(t, school, lure);
+  }
+
+  /** How long a window stays open: the long one while the rod is propped, the gear's while it is in hand. */
+  private window(): number {
+    return this.propped ? LAZY.window : windowFor(this.gear);
   }
 
   /** The player strikes at the time `t`. */

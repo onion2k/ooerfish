@@ -5,11 +5,12 @@ import { Game } from '../src/game';
 import { Bite } from '../src/bite';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, FISHING, KIND_INDEX, SNAG } from '../src/lake';
+import { CLOCK, FISHING, KIND_INDEX, LAZY, SNAG } from '../src/lake';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { LAKES } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
+import { windowFor } from '../src/fight';
 import { DT, castAtDrum, cureAll, lieByDrum, lieByTreasure } from './helpers';
 
 const DRUMS = { ...DRUM_RULES, ...HOME.drums };
@@ -311,6 +312,68 @@ describe('a fish and the lure', () => {
       return told.join('|');
     };
     expect(run()).toBe(run());
+  });
+});
+
+describe('the window while the rod is propped (`docs/boat.md`, C5)', () => {
+  /** The same seed, the same cast and the same fish, the rod propped or not once the lure sinks; the frames the first window stayed open. */
+  function windowFrames(seed: number, prop: boolean): { frames: number; told: string[] } {
+    const { game, told } = lake(seed);
+    game.cast(OUT, MIDDLE);
+    until(game, () => game.lure.phase === 'sinking', 5);
+    if (prop) expect(game.prop(true)).toBe(true);
+    until(game, () => game.bite.phase === 'biting', 60);
+    const frames = until(game, () => game.bite.phase !== 'biting', 10);
+    expect(told.at(-1)).toBe('missed');
+    return { frames, told };
+  }
+
+  it('is LAZY.window long propped and the gear’s in hand, for the same seed and fish', () => {
+    expect(LAZY.window).toBeGreaterThan(FISHING.window);
+    for (const seed of [4, 7]) {
+      const hand = windowFrames(seed, false);
+      const lazy = windowFrames(seed, true);
+      expect(hand.frames, `seed ${seed} in hand`).toBe(Math.round(windowFor(lake(seed).game.gear) / DT));
+      expect(lazy.frames, `seed ${seed} propped`).toBe(Math.round(LAZY.window / DT));
+      // the rod makes no draw: the bite comes at the very same time either way
+      expect(lazy.told.filter((l) => l.startsWith('bitten'))).toEqual(hand.told.filter((l) => l.startsWith('bitten')));
+    }
+  });
+
+  it('is hooked by a strike late in the long window, which would have missed in hand', () => {
+    const { game } = lake(4);
+    game.cast(OUT, MIDDLE);
+    until(game, () => game.lure.phase === 'sinking', 5);
+    game.prop(true);
+    until(game, () => game.bite.phase === 'biting', 60);
+    for (let f = 0; f < Math.round(LAZY.window / DT) - 2; f++) game.step(DT);
+    expect(game.bite.phase).toBe('biting');
+    expect(game.strike()).toBe('hooked');
+  });
+
+  it('is the hand’s again once the rod is taken up, for a window that opens after', () => {
+    const { game } = lake(4);
+    game.cast(OUT, MIDDLE);
+    until(game, () => game.lure.phase === 'sinking', 5);
+    game.prop(true);
+    game.prop(false);
+    until(game, () => game.bite.phase === 'biting', 60);
+    expect(until(game, () => game.bite.phase !== 'biting', 10)).toBe(Math.round(windowFor(game.gear) / DT));
+  });
+
+  it('is read by the bite itself when the window opens: the flag decides the timer', () => {
+    for (const propped of [true, false]) {
+      const game = sunk();
+      game.bite.propped = propped;
+      put(game, 0, 0);
+      let t = game.t;
+      for (let f = 0; f < 60 * 30 && game.bite.phase !== 'biting'; f++) {
+        t += DT;
+        game.bite.step(t, DT, game.fish, game.lure, () => 0);
+      }
+      expect(game.bite.phase).toBe('biting');
+      expect(game.bite.timer).toBe(propped ? LAZY.window : windowFor(game.gear));
+    }
   });
 });
 

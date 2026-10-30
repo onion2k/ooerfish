@@ -426,6 +426,17 @@ export function checkInvariants(game: Game): string[] {
       `the lure has been tugged ${game.tugging} s, with ${lure.phase === 'snagged' ? 'the reel not held' : `the lure ${lure.phase}`}`,
     );
 
+  // the rod propped (`docs/boat.md`, C5): only with the lure sinking and no fish hooked or landed, the reel not held, and
+  // the bell never rung from the future
+  if (game.propped) {
+    if (lure.phase !== 'sinking') out.push(`the rod is propped with the lure ${lure.phase}`);
+    if (game.bite.phase === 'hooked' || game.bite.phase === 'landed')
+      out.push(`the rod is propped with a fish ${game.bite.phase}`);
+    if (game.reeling) out.push('the reel is held with the rod propped');
+  }
+  if (game.bite.propped !== game.propped) out.push('the bite and the game disagree on whether the rod is propped');
+  if (!(game.rang <= game.t)) out.push(`the bell rang at ${game.rang}, ahead of the time ${game.t.toFixed(2)}`);
+
   // the line's rope: every point a number, the ends where the line is pinned, and none under the ground or the bed
   {
     const { points } = game.rope;
