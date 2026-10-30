@@ -5,7 +5,7 @@ import { Game } from '../src/game';
 import { Bite } from '../src/bite';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { CLOCK, FISHING, KIND_INDEX } from '../src/lake';
+import { CLOCK, FISHING, KIND_INDEX, SNAG } from '../src/lake';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { LAKES } from '../src/lakes';
 import { Progress, memoryStore } from '../src/progress';
@@ -918,5 +918,78 @@ describe('the two-headed trout and the second window', () => {
     expect(told.filter((x) => x === 'missed')).toHaveLength(1);
     expect(seconds2.every((s) => !s)).toBe(true);
     expect(game.bite.second).toBe(false);
+  });
+});
+
+describe('a lure by the reeds (`docs/boat.md`, C4)', () => {
+  /**
+   * The frames a lure one deep at (x, y) takes to be noticed by the one fish two units from it, on a stream of `seed`, and
+   * the draws it made in them: the fish is the only one in reach, so it draws once a frame.
+   */
+  function noticed(seed: number, x: number, y: number, frames = 60 * 600): { took: number; draws: number } {
+    const game = sunk(1);
+    game.lure.bobber[0] = x;
+    game.lure.bobber[1] = y;
+    game.lure.at[0] = x;
+    game.lure.at[1] = y;
+    game.lure.depth = 1;
+    put(game, 0, 2);
+    const random = seeded(seed);
+    let draws = 0;
+    const counted = () => (draws++, random());
+    for (let f = 1; f <= frames; f++) {
+      game.bite.step(game.t + f * DT, DT, game.fish, game.lure, counted);
+      if (game.bite.phase !== 'none') return { took: f, draws };
+    }
+    return { took: -1, draws };
+  }
+
+  const bed = HOME.snags[2];
+  const near: [number, number] = [bed.x - bed.radius - 2, bed.y];
+  const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+  const AWAY = [140, 108, 18, 148, 138, 357, 34, 393];
+
+  it('has the notice’s multiple and reach the doc names', () => {
+    expect(SNAG.notice).toBe(2.5);
+    expect(SNAG.lureReach).toBe(4);
+  });
+
+  it('is noticed sooner than the same lure away from every bed, on every seed, and about notice-fold on the whole', () => {
+    let nearTotal = 0,
+      awayTotal = 0;
+    for (const seed of SEEDS) {
+      const by = noticed(seed, ...near).took,
+        away = noticed(seed, 0, 0).took;
+      expect(by, `seed ${seed}`).toBeGreaterThan(0);
+      expect(by, `seed ${seed}: never later than away`).toBeLessThanOrEqual(away);
+      nearTotal += by;
+      awayTotal += away;
+    }
+    expect(nearTotal, 'sooner on the whole').toBeLessThan(awayTotal * 0.6);
+    expect(nearTotal, 'and not by more than the multiple says').toBeGreaterThan((awayTotal / SNAG.notice) * 0.4);
+  });
+
+  it('is noticed exactly as before, to the frame, away from the beds', () => {
+    // the frames to a notice on these seeds, measured before the reeds were put in the bite
+    expect(SEEDS.map((seed) => noticed(seed, 0, 0).took)).toEqual(AWAY);
+  });
+
+  it('is noticed no faster beyond the lure’s reach of a bed’s edge, and faster just within it', () => {
+    const beyond: [number, number] = [bed.x - bed.radius - SNAG.lureReach - 0.3, bed.y];
+    const within: [number, number] = [bed.x - bed.radius - SNAG.lureReach + 0.3, bed.y];
+    for (const seed of SEEDS.slice(0, 4)) {
+      expect(noticed(seed, ...beyond).took, `seed ${seed} beyond`).toBe(noticed(seed, 0, 0).took);
+      expect(noticed(seed, ...within).took, `seed ${seed} within`).toBeLessThanOrEqual(noticed(seed, 0, 0).took);
+    }
+  });
+
+  it('draws the same chance with the reeds there or not, so no other draw moves', () => {
+    for (const seed of SEEDS.slice(0, 4)) {
+      for (const [x, y] of [near, [0, 0]] as const) {
+        const { took, draws } = noticed(seed, x, y, 120);
+        // one fish in reach, so one draw a frame until it is noticed, and none after
+        expect(draws, `seed ${seed} at ${x},${y}`).toBe(took === -1 ? 120 : took);
+      }
+    }
   });
 });

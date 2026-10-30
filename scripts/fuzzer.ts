@@ -19,11 +19,12 @@ import { checkInvariants } from '../src/invariants';
 import { Progress, memoryStore } from '../src/progress';
 import { aimAt } from '../src/cast';
 import { seasonOf } from '../src/calendar';
-import { GEAR, KINDS, MOON, PHOTOS, WEATHER } from '../src/lake';
+import { GEAR, KINDS, MOON, PHOTOS, SNAG, WEATHER } from '../src/lake';
 import { nearestTime } from '../src/look';
 import type { Photo } from '../src/photo';
 import { LAKES, lakeNamed } from '../src/lakes';
 import { seeded } from '../src/random';
+import { snagNear } from '../src/snags';
 import { REQUESTS } from '../src/town/requests';
 import { newCounts, phoneMonkey, type PhoneMonkey } from './phonemonkey';
 
@@ -75,6 +76,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     anchored: 0,
     ashore: 0,
     adrift: 0,
+    snagged: 0,
+    freed: 0,
   };
   // whether the player has gone to bed by choice and not yet woken, to tell a waking by bed from one at midnight
   const bed = { chosen: false };
@@ -83,10 +86,17 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
   };
   // whether the player was aboard as the frame began, kept by the loop since the game is made after these events
   const boatAboard = { now: false };
+  // where the bobber was as the frame began, kept by the loop for the same reason, to tell a bite by the reeds
+  const bobberNow = [0, 0];
   const events: GameEvents = {
     splashed: count('splashed'),
     nibbled: count('nibbled'),
-    bitten: count('bitten'),
+    bitten: (heavy, quarry) => {
+      happened.bitten++;
+      // a fish's bite, not a drum's or a treasure's, with the bobber by a bed of reeds, where the lure is noticed faster
+      if (!heavy && !quarry && snagNear(lake, bobberNow[0], bobberNow[1], SNAG.lureReach) >= 0)
+        done['bite by the reeds'] = (done['bite by the reeds'] ?? 0) + 1;
+    },
     hooked: count('hooked'),
     missed: count('missed'),
     slipped: count('slipped'),
@@ -105,6 +115,9 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
     ashore: count('ashore'),
     // the anchor weighed, the boat free to drift
     adrift: count('adrift'),
+    // the lure caught in a bed of reeds, and freed again by a tug and a give
+    snagged: count('snagged'),
+    freed: count('freed'),
     // a request answered in play, counted by its id, so the contests' two are seen to be answered
     answered: (id: string) => {
       done[`answered ${id}`] = (done[`answered ${id}`] ?? 0) + 1;
@@ -326,6 +339,17 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       'bobber drifted',
     ])
       done[what] = 0;
+    // the reeds, from nought as the rest are
+    for (const what of [
+      'cast at the reeds',
+      'tug and give',
+      'tug too short',
+      'strike while snagged',
+      'cast while snagged',
+      'reelIn while snagged',
+      'bite by the reeds',
+    ])
+      done[what] = 0;
     // the night, from nought so a monkey that never reached it shows as nought and not as missing
     for (const what of [
       'woke at midnight',
@@ -377,6 +401,69 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       if (set === game.treasures) done['lie by a treasure']++;
       const { angle, power } = aimAt(set.x[i] + between(-1, 1), set.y[i] + between(-1, 1));
       cast(angle, power);
+    };
+    // the reeds are aimed at, and a snagged lure tugged and given, from a stream of its own, so the monkey's chance and the
+    // boat's are drawn as they were before there were snags
+    const reeding = seeded(seed * 73 + 37);
+    // only some seeds visit the reeds, so the rest play as they did and the older coverage is not all moved by a snag
+    const reedy = seeded(seed * 79 + 7)() < 0.4;
+    /**
+     * A cast aimed at a bed of reeds, at a point half the snag's reach out from its edge toward the lake's middle, from the
+     * shore or the boat's seat wherever the angler is, so the lure lands where it is caught.
+     */
+    const castToSnag = () => {
+      if (!reedy || lake.snags.length === 0) return;
+      const s = lake.snags[Math.floor(reeding() * lake.snags.length)];
+      const m = Math.hypot(s.x, s.y) || 1;
+      const out = s.radius + SNAG.reach / 2;
+      const { angle, power } = aimAt(s.x - (s.x / m) * out, s.y - (s.y / m) * out, lake, game.wind, game.anglerAt());
+      const thrown = game.cast(angle, power);
+      if (thrown) done['cast at the reeds']++;
+    };
+    // a snagged lure's tug: how many frames the reel is still to be held (nought for none planned), whether the tug is
+    // one long enough to free it, and the frame the refusals are tried on
+    const stuck = () => game.lure.phase === 'snagged';
+    const tug = { left: 0, long: false, tries: -1 };
+    /**
+     * The player's side of a snag, one frame at a time: a tug begun at once (so a snag never stalls a seed), half the
+     * time held past `SNAG.tug` and half the time not, then let go; and, now and then while it is held, the strike, the
+     * cast and the reel-in tried, which a snagged lure refuses and which must change nothing.
+     */
+    const tugging = () => {
+      if (game.lure.phase !== 'snagged') {
+        // the lure brought in by force (a row, the yawn) with the reel still held for a tug: let it go, as a hand would
+        if (tug.left > 0) game.reel(false);
+        tug.left = 0;
+        tug.tries = -1;
+        return;
+      }
+      if (tug.left === 0) {
+        tug.long = reeding() < 0.5;
+        const seconds = tug.long ? SNAG.tug + 0.1 + reeding() * 1.2 : 0.05 + reeding() * (SNAG.tug - 0.2);
+        tug.left = Math.ceil(seconds * 60);
+        tug.tries = reeding() < 0.7 ? Math.floor(reeding() * tug.left) : -1;
+        game.reel(true);
+      }
+      if (tug.left === tug.tries) {
+        const was = nightState(game);
+        if (game.strike() === 'none') done['strike while snagged']++;
+        else throw new Error('a strike was taken with the lure snagged');
+        if (!game.cast(reeding() * Math.PI * 2 - Math.PI, 0.6)) done['cast while snagged']++;
+        else throw new Error('a cast was thrown with the lure snagged');
+        if (!game.reelIn()) done['reelIn while snagged']++;
+        else throw new Error('a reel-in was done with the lure snagged');
+        if (nightState(game) !== was)
+          throw new Error(`a refusal while snagged changed the game: ${was} then ${nightState(game)}`);
+      }
+      if (--tug.left > 0) return;
+      tug.left = 0;
+      // the frame's step comes after, so the tug is counted as the hold stood when it was let go
+      if (game.reeling) {
+        const long = game.tugging >= SNAG.tug;
+        game.reel(false);
+        if (long && stuck()) throw new Error('a tug and a give left the lure snagged');
+        done[long ? 'tug and give' : 'tug too short']++;
+      }
     };
     /** What is landed taken in: a fish stowed, counted by its kind, or a drum hauled; false when nothing was landed. */
     const land = (): boolean => {
@@ -748,6 +835,11 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       if (chooser() < 0.3 / (total + 0.3)) return snapping() < 0.7 ? snap() : discard();
       if (looking() < 0.3 / (total + 0.3)) return lookAtOne();
       if (boatman() < 2 / (total + 2)) return boatAct();
+      if (reedy && reeding() < 1 / (total + 1)) {
+        castToSnag();
+        busy = 120 + Math.floor(reeding() * 480);
+        return did('aim at the reeds');
+      }
       for (const [w, go] of actions) {
         if ((pick -= w) < 0) return go();
       }
@@ -772,7 +864,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
           if (random() < 0.3) {
             castToBed();
             done['lie on the bed']++;
-          } else cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
+          } else if (reedy && reeding() < 0.1) castToSnag();
+          else cast(Math.PI / 2 + between(-0.4, 0.4), between(0.45, 0.8));
         }
       } else if (busy > 0) busy--;
       else {
@@ -780,6 +873,7 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
         acted = true;
       }
       phone.tick(frame);
+      tugging();
       // the player does not stay in the cabin for the rest of the game: after a moment the door is tried
       if (game.place === 'cabin') {
         done['frames in the cabin']++;
@@ -794,6 +888,8 @@ export function fuzz(seed: number, frames: number, lakeId?: string): FuzzResult 
       const wasAdrift = game.boat.aboard && !game.boat.anchored && !game.boat.rowing;
       const boatWas = [game.boat.x, game.boat.y];
       const bobberWas = [game.lure.bobber[0], game.lure.bobber[1]];
+      bobberNow[0] = bobberWas[0];
+      bobberNow[1] = bobberWas[1];
       const wasSinking = game.lure.phase === 'sinking';
       game.step(page.paused ? 0 : DT);
       if (wasAdrift && (game.boat.x !== boatWas[0] || game.boat.y !== boatWas[1])) done['drifted'] = 1;

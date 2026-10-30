@@ -1,13 +1,14 @@
 /**
  * The lure: ready on the rod, flying a cast's arc, then sinking under its bobber on the water or lying on the bank,
- * until it is reeled in; or in a hooked fish's mouth, where the game puts it. Its flight is the cast's sums (`cast.ts`), so where it is in the air is a time since the
+ * until it is reeled in; or in a hooked fish's mouth, where the game puts it; or snagged in a bed of reeds, held at the
+ * surface under its bobber until a tug and a give free it (`docs/boat.md`, C4). Its flight is the cast's sums (`cast.ts`), so where it is in the air is a time since the
  * cast and nothing kept; on the water it sinks by the step until the line or the bed stops it.
  */
 import { NO_WIND, flightAt, landingTime } from './cast';
 import { CAST } from './lake';
 import type { Lake, Stand } from './lakes/lake';
 
-export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying' | 'hooked';
+export type LurePhase = 'ready' | 'flying' | 'sinking' | 'lying' | 'hooked' | 'snagged';
 
 export class Lure {
   phase: LurePhase = 'ready';
@@ -31,6 +32,8 @@ export class Lure {
   /** How far under the bobber it has sunk, and for how long it has been sinking. */
   depth = 0;
   sunk = 0;
+  /** The bed of reeds it is snagged in, or minus one for none (`docs/boat.md`, C4). */
+  snagged = -1;
 
   /** The lake it is cast over: its rod's tip, its water and its bed. */
   constructor(private readonly lake: Lake) {
@@ -73,6 +76,22 @@ export class Lure {
     this.phase = 'ready';
     this.depth = 0;
     this.sunk = 0;
+    this.snagged = -1;
+  }
+
+  /**
+   * Caught in bed `i` with its bobber at (x, y) on the surface, as it floats there: the lure comes up to it and stays,
+   * since the line is held fast below, and it is on no bed.
+   */
+  snag(i: number, x: number, y: number) {
+    this.phase = 'snagged';
+    this.snagged = i;
+    this.bobber[0] = x;
+    this.bobber[1] = y;
+    this.at[0] = x;
+    this.at[1] = y;
+    this.at[2] = 0;
+    this.depth = 0;
   }
 
   /** On to the time `t`, `dt` after the last; says where it landed this step, if it landed on the water. */
@@ -100,6 +119,7 @@ export class Lure {
   /** A fish that slipped off lets it go at (x, y), as deep as it was: it sinks on from there under its bobber. */
   freed(x: number, y: number, depth: number) {
     this.phase = 'sinking';
+    this.snagged = -1;
     this.bobber[0] = x;
     this.bobber[1] = y;
     this.depth = Math.max(0, depth);

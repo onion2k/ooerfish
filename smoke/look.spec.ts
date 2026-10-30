@@ -1681,3 +1681,59 @@ test.describe('the boat', () => {
     });
   });
 });
+
+// the reed beds (`docs/boat.md`, C4): standing out of the shallows, a lure caught in the south-east one with the rod bent
+// and the line tugging, the same on a phone, and the Reservoir's
+async function snagged(page: Page, view: 'shore' | 'phone') {
+  await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+  await set(page, { ...STANDARD, view }, 60);
+  await page.evaluate(async () => {
+    const g = window.game!;
+    await g.mode('cast');
+    g.snag(2);
+    g.reel(true);
+    g.step(30);
+  });
+  expect(await page.evaluate(() => window.game!.lure().phase)).toBe('snagged');
+  await expect(page.locator('#castLine')).toHaveText('tugging…');
+  await expect(page.locator('#reelButton')).toHaveText('Tug');
+}
+
+test.describe('the snags', () => {
+  test('reeds', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: { cured: 8 } });
+    await set(page, STANDARD, 60);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('reeds.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('snagged', async ({ page }) => {
+    const problems = watch(page);
+    await snagged(page, 'shore');
+    await expect(page).toHaveScreenshot('snagged.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('reservoir-reeds', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true, save: RESERVOIR_SAVE });
+    expect(await page.evaluate(() => window.game!.lake())).toMatchObject({ id: 'reservoir' });
+    await set(page, { ...STANDARD, view: 'overhead' }, 180);
+    await hideOverlays(page);
+    await expect(page.locator('#view')).toHaveScreenshot('reservoir-reeds.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: PIXEL_7A, hasTouch: true, isMobile: true });
+
+    test('phone-snagged', async ({ page }) => {
+      const problems = watch(page);
+      await snagged(page, 'phone');
+      await expect(page).toHaveScreenshot('phone-snagged.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
+  });
+});

@@ -57,6 +57,9 @@ export function wording(mode: Mode): { button: string; hint: string } {
     : { button: 'Look round', hint: 'drag back to cast, tap to strike, hold to reel, C to look round' };
 }
 
+/** The hint under the greyed Cast button while the lure is snagged (`docs/boat.md`, C4): the line is held until it is freed. */
+export const SNAGGED_HINT = 'snagged: hold to tug, let go to free it';
+
 /** The Anchor button's words: what it does next, so "Weigh anchor" while the anchor is down (`docs/boat.md`, C3). */
 export function anchorWording(anchored: boolean): string {
   return anchored ? 'Weigh anchor' : 'Drop anchor';

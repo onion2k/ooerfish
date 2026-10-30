@@ -13,7 +13,7 @@ import type { Game } from './game';
 import { FISH_BODY } from './fishdraw';
 import type { Lake, Stand } from './lakes/lake';
 import { HOME } from './lakes';
-import { LINE_DRAW, ROPE } from './lake';
+import { LINE_DRAW, ROPE, SNAG } from './lake';
 import { place } from './matrix';
 import { ball, box } from './meshes';
 import { PALETTE } from './palette';
@@ -205,12 +205,14 @@ export class CastDraw {
     out.dots = out.ringWater = out.ringBank = out.bobber = out.hung = 0;
     out.lure = 1;
     out.lines.fill(0);
-    const on = bite.phase === 'hooked' || bite.phase === 'landed';
-    const tension = bite.phase === 'hooked' ? line.tension : 0;
+    // a snagged lure tugged at bends the rod and warms the line as a fish would, by the figure the game reads
+    const tugged = lure.phase === 'snagged' && game.reeling;
+    const on = bite.phase === 'hooked' || bite.phase === 'landed' || tugged;
+    const tension = bite.phase === 'hooked' ? line.tension : tugged ? SNAG.tension : 0;
     // where the lure is: the line's end when it hangs from the tip, is landed, or is in the air or fish's mouth; the
     // game worked the end out, and the rope runs to it
     const end = game.lineEnd;
-    if (lure.phase !== 'sinking') {
+    if (lure.phase !== 'sinking' && lure.phase !== 'snagged') {
       this.end.set(end);
       if (bite.phase === 'landed') {
         // landed, it is lifted out and hangs from the tip by a short line, swaying, the lure at its mouth
@@ -226,7 +228,7 @@ export class CastDraw {
 
     // with the lure in the water the line ends at the bobber, and runs on down from it to the lure; with a fish on, the
     // bobber is dragged under and gone
-    if (lure.phase === 'sinking') {
+    if (lure.phase === 'sinking' || lure.phase === 'snagged') {
       // shaken while the window is open, so the bite is seen from the shore and not only read
       const shake = bite.phase === 'biting' ? LINE_DRAW.shake.reach * Math.sin(game.t * LINE_DRAW.shake.rate) : 0;
       place(this.bobber, 0, lure.bobber[0] + shake, lure.bobber[1], end[2]);
@@ -247,7 +249,7 @@ export class CastDraw {
       piece(pool, k, this.a, this.c, width);
     }
     out.lines[colour] = LINE_PIECES;
-    if (lure.phase === 'sinking') {
+    if (lure.phase === 'sinking' || lure.phase === 'snagged') {
       this.b.set(end);
       piece(pool, LINE_PIECES, this.b, lure.at, LINE_WIDTH);
       out.lines[colour]++;

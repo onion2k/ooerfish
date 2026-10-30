@@ -15,7 +15,9 @@ import { HOME, LAKES, lakeNamed } from '../src/lakes';
 import { fallsOf } from '../src/falls';
 import { flight } from '../src/cast';
 import { landingAboard, newBoat } from '../src/boat';
-import { BOAT, DRIFT } from '../src/lake';
+import { BOAT, DRIFT, SNAG } from '../src/lake';
+import { places } from '../src/bedfinds';
+import { snagGap } from '../src/snags';
 import type { BedWorld } from '../src/bedfinds';
 import type { Current } from '../src/lakes/lake';
 import type { FallingWorld } from '../src/falling';
@@ -327,6 +329,91 @@ describe('the currents of the lakes (`docs/boat.md`, C3)', () => {
           for (const [what, x, y] of spots)
             expect(within(c, x, y), `${what} at ${x.toFixed(1)},${y.toFixed(1)}`).toBe(false);
         expect(BOAT.keepOff).toBeGreaterThan(0);
+      });
+    });
+});
+
+describe('the snags of the lakes (`docs/boat.md`, C4)', () => {
+  /** Whether a disc of `pad` more than a bed's own radius around (x, y) touches a current's strip. */
+  const touches = (c: Current, x: number, y: number, pad: number) => {
+    const along = (x - c.x) * Math.cos(c.heading) + (y - c.y) * Math.sin(c.heading);
+    const across = -(x - c.x) * Math.sin(c.heading) + (y - c.y) * Math.cos(c.heading);
+    return Math.abs(along) <= c.length / 2 + pad && Math.abs(across) <= c.width / 2 + pad;
+  };
+
+  it('has the figures the doc names: three beds in the pond, two in the reservoir, each a first guess', () => {
+    expect(DUCK_POND.snags.map((s) => [s.radius, s.height, s.kind])).toEqual([
+      [1.4, 1.6, 'reeds'],
+      [1.4, 1.6, 'reeds'],
+      [1.4, 1.6, 'reeds'],
+    ]);
+    expect(RESERVOIR.snags).toHaveLength(2);
+    for (const s of RESERVOIR.snags) expect(s.kind).toBe('reeds');
+  });
+
+  for (const l of Object.values(LAKES))
+    describe(l.id, () => {
+      it('has beds, each well formed', () => {
+        expect(l.snags.length).toBeGreaterThan(0);
+        for (const s of l.snags) {
+          for (const n of [s.x, s.y, s.radius, s.height]) expect(Number.isFinite(n)).toBe(true);
+          expect(Math.min(s.radius, s.height)).toBeGreaterThan(0);
+        }
+      });
+
+      it('lies on the water by its radius and half a unit, the shore, every boulder and the jetty counted', () => {
+        for (const s of l.snags) expect(l.inside(s.x, s.y, s.radius + 0.5), `${s.x},${s.y}`).toBe(true);
+      });
+
+      it('is clear of the mooring, the spot and the jetty by the boat’s keep-off from its edge', () => {
+        const boat = l.boat!;
+        for (const s of l.snags) {
+          for (const [what, x, y] of [
+            ['mooring', boat.mooring.x, boat.mooring.y],
+            ['spot', boat.spot[0], boat.spot[1]],
+          ] as const)
+            expect(Math.hypot(x - s.x, y - s.y) - s.radius, `${what} from ${s.x},${s.y}`).toBeGreaterThanOrEqual(
+              BOAT.keepOff,
+            );
+          if (l.jetty) expect(l.jetty.gap(s.x, s.y) - s.radius).toBeGreaterThanOrEqual(BOAT.keepOff);
+        }
+      });
+
+      it('is clear of the shore’s landing, the pace angler’s cast and landing from the shore and the boat, and its fuzzer’s', () => {
+        const boat = l.boat!;
+        const seated = { ...newBoat(l), x: boat.spot[0], y: boat.spot[1], heading: boat.mooring.heading, aboard: true };
+        const landing = landingAboard(seated) as [number, number];
+        const cast = flight(l.aim.angle, l.aim.power, l, [0, 0], l.angler).landing;
+        const castFromBoat = flight(l.aim.angle, l.aim.power, l, [0, 0], {
+          ...l.angler,
+          x: boat.spot[0],
+          y: boat.spot[1],
+        }).landing;
+        const spots: [string, number, number][] = [
+          ['shore landing', l.landAt[0], l.landAt[1]],
+          ['boat landing', landing[0], landing[1]],
+          ['cast from the shore', cast[0], cast[1]],
+          ['cast from the boat', castFromBoat[0], castFromBoat[1]],
+        ];
+        // the fuzzer's unaimed casts: due north of the shore, a third of a radian either way, at the powers it throws
+        for (let a = -0.4; a <= 0.4001; a += 0.1)
+          for (let p = 0.45; p <= 0.8001; p += 0.05) {
+            const f = flight(Math.PI / 2 + a, p, l, [0, 0], l.angler).landing;
+            spots.push([`unaimed cast ${a.toFixed(1)},${p.toFixed(2)}`, f[0], f[1]]);
+          }
+        // a lure there is noticed no faster for the reeds either, which the lure's reach says
+        for (const [what, x, y] of spots)
+          expect(snagGap(l, x, y), `${what} at ${x.toFixed(1)},${y.toFixed(1)}`).toBeGreaterThan(SNAG.lureReach);
+      });
+
+      it('is clear of the currents, and of every drum and treasure by the drum’s reach and the bed’s radius', () => {
+        const drums = places(l.drums, l);
+        const treasures = places(l.treasures, l, drums);
+        for (const s of l.snags) {
+          for (const c of l.currents) expect(touches(c, s.x, s.y, s.radius), `${s.x},${s.y}`).toBe(false);
+          for (const [x, y] of [...drums, ...treasures])
+            expect(Math.hypot(x - s.x, y - s.y)).toBeGreaterThanOrEqual(DRUM_RULES.reach + s.radius);
+        }
       });
     });
 });

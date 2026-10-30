@@ -7,6 +7,7 @@
  */
 import { BOAT } from './lake';
 import type { Lake, Stand } from './lakes/lake';
+import { snagGap } from './snags';
 import { WATER_LEVEL } from './rules';
 
 /** How far apart the points of a row are looked at, in world units. */
@@ -52,16 +53,23 @@ export function newBoat(lake: Lake): BoatState {
 
 /**
  * Whether the boat can be rowed straight from one point to another: every point of the line, every half unit from the
- * start to the end and the end itself, is on the water `BOAT.keepOff` in from the shore, every boulder and the jetty.
+ * start to the end and the end itself, is on the water `BOAT.keepOff` in from the shore, every boulder and the jetty, and
+ * that far from every bed of reeds.
  * A line that is not a line of finite numbers is not rowable.
  */
 export function rowPath(lake: Lake, fromX: number, fromY: number, toX: number, toY: number): boolean {
   if (![fromX, fromY, toX, toY].every(Number.isFinite)) return false;
   const length = Math.hypot(toX - fromX, toY - fromY);
   const n = Math.max(1, Math.ceil(length / SAMPLE));
+  // a bed of reeds is kept off by the keep-off from its edge too (`docs/boat.md`, C4). A boat adrift is stopped by the post
+  // at the hull's radius, nearer than that, and must be able to row away: so a start nearer a bed than the keep-off may go
+  // no nearer to it than it is, which lets it leave and never go in
+  const floor = Math.min(BOAT.keepOff, snagGap(lake, fromX, fromY));
   for (let k = 0; k <= n; k++) {
     const u = k / n;
-    if (!lake.inside(fromX + (toX - fromX) * u, fromY + (toY - fromY) * u, BOAT.keepOff)) return false;
+    const x = fromX + (toX - fromX) * u,
+      y = fromY + (toY - fromY) * u;
+    if (!lake.inside(x, y, BOAT.keepOff) || snagGap(lake, x, y) < floor) return false;
   }
   return true;
 }

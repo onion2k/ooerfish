@@ -124,6 +124,11 @@ export class Gesture {
     private readonly phone: PhoneTuning,
   ) {}
 
+  /** Whether a hold reels now: with a fish hooked it plays the fight, and with the lure snagged it tugs (`docs/boat.md`, C4). */
+  private reels(): boolean {
+    return this.target.bitePhase() === 'hooked' || this.target.lurePhase() === 'snagged';
+  }
+
   /**
    * Keeps the reel true to the holds after the game stopped reeling by itself (a fish landed or slipped, which the
    * holds know nothing of): the page calls it each frame. A hold still down when the next fish is hooked reels again;
@@ -131,7 +136,7 @@ export class Gesture {
    */
   sync() {
     if (!this.holds.size) return;
-    if (this.target.bitePhase() !== 'hooked') this.sent = false;
+    if (!this.reels()) this.sent = false;
     else if (!this.sent) this.reelOn();
   }
 
@@ -145,7 +150,7 @@ export class Gesture {
     switch (e.type) {
       case 'down':
         // with a fish on, a hold on the water from the shore reels, for as long as it is held
-        if (t.mode() === 'cast' && t.bitePhase() === 'hooked') {
+        if (t.mode() === 'cast' && this.reels()) {
           this.hold('screen');
           return;
         }
@@ -164,15 +169,15 @@ export class Gesture {
         return;
       case 'press':
         if (e.source === 'key') {
-          if (t.bitePhase() === 'hooked') this.hold('key');
+          if (this.reels()) this.hold('key');
           else if (!e.repeat) t.strike();
         } else {
-          if (t.bitePhase() !== 'hooked') t.strike();
-          if (t.bitePhase() === 'hooked') this.hold('button');
+          if (!this.reels()) t.strike();
+          if (this.reels()) this.hold('button');
         }
         return;
       case 'activate':
-        if (t.bitePhase() !== 'hooked') t.strike();
+        if (!this.reels()) t.strike();
         return;
       case 'release':
         this.release(e.source);
@@ -237,7 +242,7 @@ export class Gesture {
       case 'down':
         if (t.mode() !== 'cast') t.wantCast();
         // with a fish on, the thumb reels; otherwise it raises the rod, or begins a drag
-        if (t.bitePhase() === 'hooked') {
+        if (this.reels()) {
           this.hold('phone');
           return;
         }

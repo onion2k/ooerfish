@@ -557,6 +557,207 @@ Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'
   each looked at.
 - **Not verified:** the drift in play on the live site; every drift figure is a first guess for the play-test.
 
+## C4. Snags
+
+### Context
+
+The fifth slice of Part C (`docs/boat.md`; C0 to C3 are in, 74acab9). `DESIGN.md`: "Reeds, rocks and rooftops snag a
+lure, and fish hide behind them"; the roadmap's C4: "static bodies and boxes in the lake's content; a lure cast onto
+one catches, freed by a give of line; fish hide behind them. The Flooded Town and the Marsh need them." Decided with
+the user (29 Oct 2026): **the Duck Pond's snags are reed beds in the shallows** (three; the Reservoir two), posts in
+the physics, the Flooded Town's rooftop boxes waiting for that lake; **a snagged lure is freed by a tug, then a
+give**: hold the reel and the rod bends and the line pulls taut, let go after the tug and the lure comes free and
+drops beside the reeds, sinking on; and **fish hide behind snags as a bite rule**: a lure within a bed's reach is
+noticed at a higher rate, so the reeds are the better water at the risk of a snag, and no draw moves away from them.
+Nothing stands in the pond's water today: the dark posts in the pictures are the weed clumps under the surface.
+
+### Where it stands now (measured)
+
+- A fish in `FISHING.reach` (18) and within `band` of the lure's depth notices it at `notice` 0.4 a second (the
+  bait's gift raises it); a bite comes in 11.7 s at the median on a cast to the middle. The pace angler and the
+  bench cast to the middle, and the fuzzer at `π/2 ± 0.4` from the south shore, so beds placed in the shallows
+  by the east and west banks and the north-west are off every measured cast; the fuzzer's longest wander of a
+  cast reaches |x| of about 12, so a bed at |x| over 18 is reached only by an aimed cast.
+- The physics' post (`Bumper`: x, y, radius, top, restitution) keeps a ball out of its side, top and edge; a post
+  wakes nothing, and only an awake ball is looked at: a sleeping bobber beside a bed costs nothing.
+- A reed of six sides is about 24 triangles; a bed of 24 reeds and a few seed heads about 700; five beds 3,500,
+  static, against a scene of tens of thousands. The frame should not move.
+
+### What
+
+- **Content.** `Snag` in `src/lakes/lake.ts`: `{ x, y, radius, height, kind: 'reeds' }` (the kind for the Marsh's
+  and the Town's later), `Lake.snags: readonly Snag[]`. The pond's three (first guesses): by the west bank, the
+  north-west shallows and the south-east bank, each radius 1.4, height 1.6 over the water, every one on the water by
+  its radius and half a unit (`inside(x, y, radius + 0.5)`), clear of the mooring and the jetty, the pace spot and
+  the pace angler's landings from shore and boat, the current, every drum and treasure place by `DRUMS.reach`, and
+  the fuzzer's unaimed casts (|x| over 18 or y under −20 from the shore's reach); the Reservoir's two by its east and
+  west sides. `test/lakes.test.ts` holds all of it for every lake. `SNAG` in `src/lake.ts` (the rules, first
+  guesses): `reach` 0.6 (how far past a bed's edge a bobber is caught), `tug` 0.8 s (how long the reel is held
+  before a give frees it), `tension` 0.8 (what the rod bends and the line warms to while tugging, on the fight's
+  scale), `drop` 0.8 (how far out from the bed's edge the freed lure sinks on from), `notice` 2.5 (how many times the
+  notice rate a lure within `lureReach` of a bed's edge gets), `lureReach` 4, `restitution` 0.1 (the post's),
+  `BOAT keepOff` as the boat's own from a bed's edge.
+- **The snags as sums** (`src/snags.ts`, pure, over `lake.snags`): `snagNear(lake, x, y, reach)` the index of the
+  nearest bed whose edge is within `reach` of the point, or −1; `snagGap(lake, x, y)` the distance to the nearest
+  edge; `freedPoint(lake, i, x, y, out)` the point `SNAG.drop` out from bed `i`'s edge along the line from its
+  middle through the lure, moved inward (toward the lake's middle) until `lake.inside(x, y, 0.5)` holds; `posts(lake)`
+  the beds as the physics' posts, once (a `WeakMap`), set on the world in `newWorld`.
+- **The lure** (`src/lure.ts`): `LurePhase` gains `'snagged'`; `snag(x, y)` puts it snagged with the bobber there on
+  the surface, `depth` 0, `at` the bobber; `onBed` is false while snagged. `Lure.snagged: number` is the bed (−1
+  for none), on the lure since the lure is what is caught.
+- **The game.** Each step after the lure's own step and before the bite: a lure `sinking` (just landed, drifting or
+  freed) whose bobber is within `SNAG.reach` of a bed's edge is snagged there (`snagLure(i)`: `lure.snag` at the
+  bobber, the bobber's body taken, any fish coming, nibbling or biting let go as the yawn lets go, `tugging` 0,
+  `GameEvents.snagged(i)`). While snagged: `reel(true)` is a tug, `tugging += dt` while the reel is held (the line's
+  tension read by `lineEnds` is `SNAG.tension` while tugging so the rod bends and the line warms, `FIGHT.calm`
+  otherwise); `reel(false)` after `tugging >= SNAG.tug` frees it: `lure.freed` at `freedPoint`, the body dropped
+  there, a splash of the lure's size, `GameEvents.freed(i)`; let go sooner, `tugging` goes to 0 and nothing
+  happens. `strike()` while snagged is `'none'`. `cast` is refused while snagged (the line is held; the page's Cast
+  button is greyed with the hint "snagged: hold to tug, let go to free it"), and so is the public `reelIn()`; the
+  internal reel-in the yawn, a row, a journey, the cabin and a wake make takes a `force` and frees everything as it
+  does today (nothing is lost). The bite's `step` does nothing with a snagged lure (it acts on a `sinking` one), and
+  while the lure sinks within `SNAG.lureReach` of a bed's edge each fish's notice rate is `SNAG.notice` times
+  (`Bite.step` reads `lake.snags` through `snagNear`; the draw count is unchanged, so away from the reeds the chance
+  moves nowhere). `rowPath` keeps the boat's line `BOAT.keepOff` from every bed's edge; a boat adrift is kept off by
+  the post itself (the invariant allows its middle no nearer than the hull's radius and the bed's, less a hair).
+- **The rope and the drawing.** `lineEnds` treats `snagged` as `sinking` (the end at the bobber on the surface,
+  bobbing as it does), with the tug's tension; `castdraw.ts` draws the bobber for `snagged` as for `sinking` and
+  bends the rod by the tension it is handed. `src/snagdraw.ts`: a reed bed built once per bed from a seed of the
+  bed's own (never the game's chance): 24 six-sided tapered rods of heights 0.6 to 1 of `height` over the water,
+  leaning a little, in `PALETTE.reed`, with eight seed heads (`PALETTE.reedHead`) on the tallest, standing from the
+  bed under them (`lake.groundUnder`) so none floats; one static group a lake (`snagGroups(palette, lake)`), taken
+  into the static set in `main.ts` beside the cabin's; the paint not needed (thin rods). Under 800 triangles a bed,
+  held by a test. The season's palette leaves them (summer's, said).
+- **The words.** `castWords`: `snagged` reads "snagged in the reeds: hold to tug, let go to free it", and while
+  tugging "tugging…"; the `heard` line says "free!" for `HEARD_FOR` on `freed`. The page greys Cast while snagged.
+- **The tools.** The pace angler: snagged, it tugs for `SNAG.tug + 0.25` and lets go (it never reaches a bed from
+  its casts, so the gate holds; the rule is there so it cannot stall). The fuzzer: a cast aimed at a bed
+  (`castToSnag`, from the boat's own stream so the older coverage holds), a tug of random length and a give,
+  `strike` and `cast` tried while snagged (refused, counted), and the coverage over seeds 1 to 24: snagged, freed,
+  a give too short, a bite within a bed's reach. Invariants: a snagged lure's bobber within `SNAG.reach` of its
+  bed's edge and on the water, its body carried, the bite `none`, `tugging` 0 unless snagged and reeling, `snagged`
+  −1 unless the phase is snagged, every bed on the water, the boat's middle off every bed by the hull's radius and
+  its own. Determinism hashes the phase, `snagged` and `tugging`. Leaks: nothing kept. `game.snags()` reads the
+  beds and the posts, `game.snag(i)` puts the lure snagged on bed `i` for the pictures (through the lure's own
+  `snag`, as `fishTo` does), `game.tugging()` reads it.
+- **Not in this slice:** rooftop boxes (the Flooded Town), stumps, fish wandering to the reeds, a snag mid-fight
+  (the fight is on a bar and the fish never swims into reeds), the reeds in winter's frost.
+
+### Acceptance criteria
+
+1. A cast landing within `SNAG.reach` of a bed, and a sinking lure drifting into one, is snagged there, told, the
+   body taken, a coming fish let go, and the bite does nothing with it: `test/game.test.ts` ("the snags").
+2. A tug of `SNAG.tug` then a give frees it `SNAG.drop` out from the edge on the water, sinking on, told, with a
+   splash; a shorter tug does not; `strike`, `cast` and `reelIn` are refused meanwhile and a row, the yawn and a
+   journey reel it in: `test/game.test.ts`, `test/lure.test.ts`.
+3. The tension read by the rope is `SNAG.tension` while tugging and calm otherwise: `test/game.test.ts`.
+4. A fish within reach notices a lure by the reeds `SNAG.notice` times as fast, and away from them exactly as before
+   (the same seed, the same bite time to the bit): `test/bite.test.ts`.
+5. Each lake's beds lie on the water clear of everything listed: `test/lakes.test.ts`; the pond's geometry snapshot
+   holds (`inside` is untouched).
+6. The posts keep the bobber and the boat out; `rowPath` refuses a line through a bed: `test/physics.test.ts`,
+   `test/boat.test.ts`.
+7. A bed is built the same each time, stands from the bed under it, under 800 triangles: `test/snagdraw.test.ts`.
+8. End to end, `smoke/progress.spec.ts` "the snags": a cast aimed at a bed through the API, snagged (the line says
+   so, Cast greyed), the reel held (`game.reel(true)`) a second and let go, freed, the line sinking on, a fish then
+   hooked from there (`fishTo`); the layout spec's `snagged` moment.
+
+### Edge cases (from the checklist)
+
+- **save:** nothing saved; a load with a lure out is a load with the lure ready, as now.
+- **the mode:** a hold in cast mode tugs (the reel's hold), a tap does nothing; space and the Reel button tug in any
+  mode; the Cast button greyed while snagged, the key refused.
+- **the phone:** its hold is a tug, as its hold is a reel; nothing else.
+- **the layout:** the `snagged` moment on eight screens (the words, Reel, the bobber in the reeds).
+- **the boat:** a cast from the boat into reeds; a row refused through a bed; a drifting boat stopped by one; the
+  bobber drifting into reeds from the boat (snagged).
+- **the day:** midnight while snagged (the yawn reels in by force; nothing lost); the cabin and a journey likewise.
+- **the lakes:** the Reservoir's two beds; travel with a lure snagged (reeled in by force).
+- **the water:** a bed at the shallows' edge (its drop point moved inward until it is on the water); a freed lure
+  over the bed's shallows (the lure's depth follows the bed).
+- **the line:** cast into reeds, drifted into reeds on a current or the wind, freed, cast again; a cured fish let
+  go beside the reeds (the release margin counts the shore, not the reeds: it may swim through them).
+- **the fish:** a fish coming when the lure snags (lets go, wary); a nibble by the reeds (faster); hooked by the
+  reeds (the fight is the same; the fish never meets the post, since the game steers it).
+- **the contamination, the calendar, the rung, the switches:** the reeds are drawn on both rungs; the paint off
+  draws them the same (unpainted); the weather changes nothing; a photograph of them holds.
+- **snags:** reeds caught on and freed; rocks and rooftops not reachable.
+
+### Decisions (mine, said so they can be changed)
+
+- **Cast is refused while snagged,** or a snag would be nothing: a new cast reels in today, and the give is the
+  only way out short of the yawn.
+- **Reeds are not land:** `inside` is unchanged, so fish, splashes and the pond's snapshot are as they were, and
+  the reeds are water the fish may be in. The physics' posts and the game's own rules keep the bobber and the boat
+  off.
+- **Nothing is lost on a snag;** the house's rule from the fight.
+- **The reeds are summer's colour in every season;** winter's frost on them is a dressing for later.
+
+### Performance risk
+
+A `snagNear` over five beds each step while the lure sinks: well under 0.1 µs. Five static groups of under 800
+triangles: the frame unchanged within its tolerance. The download: the sums, the draw and the words, about 2 kB
+gzipped, said exactly. Pictures: every pond and Reservoir picture with a bed in view moves (the shore view sees the
+south-east and west beds).
+
+### Test plan
+
+- **Unit:** `test/snags.test.ts` (`snagNear`, `snagGap`, `freedPoint` on the water, `posts`), `test/lure.test.ts`,
+  `test/game.test.ts` (criteria 1 to 3), `test/bite.test.ts` (4), `test/lakes.test.ts` (5), `test/physics.test.ts`
+  and `test/boat.test.ts` (6), `test/snagdraw.test.ts` (7), `test/castwords.test.ts`, `test/invariants.test.ts`,
+  `test/angler.test.ts` (the tug), `test/fuzz.test.ts` (coverage).
+- **End to end:** the smoke stage, the layout moment, `game.snags()`, `game.snag(i)`, `game.tugging()`.
+- **Pictures:** new `reeds` (the standard scene: the beds in view), `snagged` (the lure in the south-east bed from the
+  shore, the rod bent mid-tug), `phone-snagged`, `reservoir-reeds`; every moved one looked at.
+- **Perf and bench:** before and after; `/gate-moved` for anything that moves.
+
+### Parts
+
+Built on `sonnet` by the `builder` agent, a part at a time, from `docs/boat.md`'s C4 section (this spec copied in).
+
+- [x] 0. The spec into `docs/boat.md`; the roadmap; `DESIGN.md`'s note. Check: Prettier.
+- [x] 1. `SNAG`, `Snag`/`Lake.snags` for both lakes, `src/snags.ts`, the posts in `physics.ts`, the lure's phase,
+      the game's snag, tug and give, the refusals and the forced reel-in, the bite's notice, `rowPath`, the words,
+      the invariants, the determinism hash, the angler's tug, the test API. Check: `test/snags`, `test/lure`,
+      `test/game`, `test/bite`, `test/lakes`, `test/physics`, `test/boat`, `test/castwords`, `test/invariants`,
+      `test/angler`, `npm run determinism`, `npm run pace:check`.
+- [x] 2. The page and the drawing: `src/snagdraw.ts` into the static set, the bobber and the rod while snagged, Cast
+      greyed and the hint, the heard line. Check: `test/snagdraw`, the smoke stage.
+- [x] 3. The tools: the fuzzer's aimed cast, tug and give and coverage, the layout moment, the pictures. Check:
+      `test/fuzz`, `npm run look -- -g "reeds|snagged"`.
+- [x] 4. The pass: check, fuzz 1-24, perf before and after, mutations (the snag check dropped: a cast into reeds
+      sinks; the give freeing without a tug; the notice bonus zeroed), `/gate-moved` for anything moved, the notes.
+      Commit and push.
+
+### C4's notes (built 30 Oct 2026)
+
+- **Built as specified,** with these found in the build: the give is resolved at the let-go itself, in `reel(false)`,
+  and not on the next step, so no frame holds a tug with the reel let go and the invariant reads clean between
+  steps; the forced reel-in is `reelInForce`, which the yawn, a row, a journey, the cabin and the wake call, and the
+  public `reelIn` is refused while snagged; `rowPath` keeps the boat's line off a bed by the lesser of `BOAT.keepOff`
+  and the gap at its start, so a boat already close to a bed can still row away from it; the fuzzer casts at the
+  reeds and tugs on about two seeds in five (`reedy`, from a stream of its own) and the other seeds play as they did,
+  since a tug on every seed moved every rare coverage count over 24 seeds; the bite tests' figures away from the beds
+  are unchanged to the frame on seeds 1 to 8.
+- **Changed from the spec:** `game.snagAt(i)` is public, for the tests; the `Post` shape is `snags.ts`'s own and
+  not the package's; the Reservoir's picture is the overhead view, since the shore view's reeds were already in
+  `reservoir-day`.
+- **Bugs found in the build:** the fuzzer's `reelIn`, refused while snagged, stalled the boat's coverage until the
+  tug was in; the `tugging` invariant read false between a let-go and the next step until the give moved to the
+  let-go.
+- **Noticed and left:** the shore view frames none of the pond's beds well: the north-west bed is a tuft at the far
+  shore and the south-east one is cut at the frame's right edge, so `snagged` and `reeds` prove the drawing and the
+  words more than the reeds, and a view that looks at a bed would make better pictures; the coverage counts across
+  `test/fuzz.test.ts` have thin margins over 24 seeds, so a later change to the monkey is likely to flip one; a
+  non-reedy seed that snags by drifting diverges from its old run once freed, which is the tug's doing.
+- **The cost:** the bench within tolerance on every scenario in the full suite (casting and sinking +5%, the rest
+  -2% to -5%); the pace 2.2 to 2.07 min as C2 left it; the balance's sixty cells unmoved; boot 849 ms and frame
+  4.1 ms in the full suite, 830 and 4.11 alone, against a baseline of 805 and 4.02, within tolerance; the download
+  grew by 2,130 bytes gzipped, 246,667 to 248,797, the sums, the drawing and the words. Pictures: four new and 111
+  moved, every one by the reeds alone (the builder measured each diff's clusters against where the beds project and
+  opened seven), the four new looked at here.
+- **Not verified:** the snags in play on the live site; every `SNAG` figure is a first guess for the play-test.
+
 ## Verification, every slice
 
 `npm run check` green; `npm run fuzz -- --seeds 1-24` clean; `npm run perf` alone, before and after; the bench's

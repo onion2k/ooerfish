@@ -13,10 +13,11 @@
 import { steerTo, type School } from './fish';
 import { NO_GEAR, noticeFor, windowFor, type Gear } from './fight';
 import type { BedFinds } from './bedfinds';
-import { CLOCK, FISHING, FISH_CAPACITY, KINDS, awake, type Kind } from './lake';
+import { CLOCK, FISHING, FISH_CAPACITY, KINDS, SNAG, awake, type Kind } from './lake';
 import type { Lake } from './lakes/lake';
 import { DRUM_RULES, TREASURE_RULES } from './rules';
 import type { Lure } from './lure';
+import { snagNear } from './snags';
 import type { Random } from './random';
 
 export type BitePhase = 'none' | 'coming' | 'nibbling' | 'biting' | 'hooked' | 'landed';
@@ -74,7 +75,7 @@ export class Bite {
   /** The bite's rules are the game's; how many drums and treasures lie on the bed is the lake's, so it is the lake that is handed in. */
   constructor(
     private readonly events: BiteEvents = {},
-    lake: Lake,
+    private readonly lake: Lake,
   ) {
     this.drumWary = new Float64Array(lake.drums.count);
     this.treasureWary = new Float64Array(lake.treasures.count);
@@ -105,7 +106,11 @@ export class Bite {
     }
     const [bx, by] = [lure.bobber[0], lure.bobber[1]];
     if (this.phase === 'none') {
-      const rate = noticeFor(this.gear) * (t < this.twitchUntil ? FISHING.twitchBoost : 1);
+      // a lure by the reeds is noticed by more fish sooner (`docs/boat.md`, C4): the multiple scales the rate and no draw is added
+      const rate =
+        noticeFor(this.gear) *
+        (t < this.twitchUntil ? FISHING.twitchBoost : 1) *
+        (snagNear(this.lake, bx, by, SNAG.lureReach) >= 0 ? SNAG.notice : 1);
       let chosen = -1,
         nearest = Infinity;
       for (let i = 0; i < school.count; i++) {

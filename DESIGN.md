@@ -311,7 +311,8 @@ Each stage is a feature, built and verified before the next, every gate green at
    (the user's choice over a tension number alone), and the physics' floor is the water's surface, since it refuses the
    bed as terrain; the bobber is its first body, the boat the next. The boat is rowed to a tap anywhere on the water,
    the camera following, through a Row mode beside Cast. A row ends anchored; weighed (a third button, aboard only)
-   the boat drifts on the wind weather and a lake's currents, which carry the bobber too._
+   the boat drifts on the wind weather and a lake's currents, which carry the bobber too. Reed beds in the shallows
+   snag a lure, freed by a tug and a give, and a lure by them is noticed sooner._
 9. **The shop, the boat's dressing, the shore's planting.**
 10. **Sound.**
 11. **The lakes after the first,** and each one's big fish.

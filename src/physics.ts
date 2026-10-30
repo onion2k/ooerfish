@@ -10,6 +10,7 @@
 import { World, type Belt } from 'artshape-physics/world';
 import { DRIFT, PHYSICS } from './lake';
 import type { Lake } from './lakes/lake';
+import { posts } from './snags';
 
 /** The kinds of body, by index in the world's radii. */
 export const KIND = { bobber: 0, boat: 1 } as const;
@@ -113,6 +114,8 @@ export function newWorld(lake: Lake): World {
     tuning: { sleepDrift: DRIFT.sleepDrift },
   });
   world.belts = currentsOf(lake);
+  // the reed beds are posts the bobber and the boat cannot enter (`docs/boat.md`, C4)
+  world.bumpers = posts(lake);
   return world;
 }
 

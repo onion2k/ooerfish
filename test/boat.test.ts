@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { anglerAboard, landingAboard, newBoat, rowAt, rowDuration, rowPath, seatOf, type BoatState } from '../src/boat';
 import { BOAT } from '../src/lake';
+import { snagGap } from '../src/snags';
 import { HOME } from '../src/lakes';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import type { Lake } from '../src/lakes/lake';
@@ -122,6 +123,66 @@ describe('rowPath', () => {
     expect(HOME.inside(a[0], a[1], BOAT.keepOff), 'start is clear').toBe(true);
     expect(HOME.inside(z[0], z[1], BOAT.keepOff), 'end is clear').toBe(true);
     expect(rowPath(HOME, a[0], a[1], z[0], z[1])).toBe(false);
+  });
+});
+
+describe('rowPath and the reeds (`docs/boat.md`, C4)', () => {
+  for (const lake of LAKES) {
+    it(`${lake.id}: is false across a bed, from clear water to clear water, and true to its side`, () => {
+      let across = 0,
+        beside = 0;
+      lake.snags.forEach((s, i) => {
+        // through the bed's middle from the lake's middle outward and back, ends well clear of it
+        for (let k = 0; k < 8; k++) {
+          const [c, d] = [Math.cos((k * Math.PI) / 4), Math.sin((k * Math.PI) / 4)];
+          const reach = s.radius + BOAT.keepOff + 3;
+          const [ax, ay, zx, zy] = [s.x - c * reach, s.y - d * reach, s.x + c * reach, s.y + d * reach];
+          if (!lake.inside(ax, ay, BOAT.keepOff) || !lake.inside(zx, zy, BOAT.keepOff)) continue;
+          if (snagGap(lake, ax, ay) < BOAT.keepOff || snagGap(lake, zx, zy) < BOAT.keepOff) continue;
+          across++;
+          expect(rowPath(lake, ax, ay, zx, zy), `bed ${i} direction ${k}`).toBe(false);
+          // and a line parallel to it that passes the keep-off and a hair clear of the edge is rowable, if the water allows
+          const off = s.radius + BOAT.keepOff + 0.3;
+          const [px, py] = [-d * off, c * off];
+          const [bx, by, ex, ey] = [ax + px, ay + py, zx + px, zy + py];
+          if (
+            lake.inside(bx, by, BOAT.keepOff) &&
+            lake.inside(ex, ey, BOAT.keepOff) &&
+            lake.inside(s.x + px, s.y + py, BOAT.keepOff)
+          ) {
+            beside++;
+            expect(rowPath(lake, bx, by, ex, ey), `bed ${i} direction ${k} beside`).toBe(true);
+          }
+        }
+      });
+      expect(across, 'some line across a bed has clear ends').toBeGreaterThan(0);
+      expect(beside, 'some line beside one is rowable').toBeGreaterThan(0);
+    });
+
+    it(`${lake.id}: refuses a line that passes within the keep-off of a bed’s edge, and allows one just outside`, () => {
+      const s = lake.snags[0];
+      // a line along the x axis past the bed, offset from its middle
+      for (const [gap, want] of [
+        [BOAT.keepOff - 0.4, false],
+        [BOAT.keepOff + 0.4, true],
+      ] as const) {
+        const y = s.y + s.radius + gap;
+        const a: [number, number] = [s.x - 6, y],
+          z: [number, number] = [s.x + 6, y];
+        if (!lake.inside(a[0], a[1], BOAT.keepOff) || !lake.inside(z[0], z[1], BOAT.keepOff)) continue;
+        expect(rowPath(lake, ...a, ...z), `gap ${gap}`).toBe(want);
+      }
+    });
+  }
+
+  it('lets a boat held up against a bed by the post row away from it, and not back into it', () => {
+    const lake = HOME;
+    const s = lake.snags[2];
+    // the post holds the boat's middle a hull's radius from the edge, which is nearer than the keep-off
+    const at: [number, number] = [s.x - s.radius - 1.6, s.y];
+    expect(snagGap(lake, ...at)).toBeLessThan(BOAT.keepOff);
+    expect(rowPath(lake, ...at, at[0], at[1] + 8)).toBe(true);
+    expect(rowPath(lake, ...at, at[0] + 4, at[1])).toBe(false);
   });
 });
 

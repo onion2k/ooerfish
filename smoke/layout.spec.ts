@@ -116,6 +116,7 @@ type Moment =
   | 'aboard'
   | 'aboard fight'
   | 'adrift'
+  | 'snagged'
   | 'drum card'
   | 'bottle card'
   | 'start again'
@@ -142,6 +143,7 @@ const MOMENTS: Moment[] = [
   'aboard',
   'aboard fight',
   'adrift',
+  'snagged',
   'drum card',
   'bottle card',
   'start again',
@@ -172,6 +174,8 @@ const AT_LEAST: Record<Moment, number> = {
   'aboard fight': 7,
   // aboard's five, and the anchor button beside the pair
   adrift: 6,
+  // the cast's three and the Tug button: the lure snagged in the south-east bed with the reel held, the line saying so
+  snagged: 4,
   'drum card': 4,
   'bottle card': 4,
   'start again': 1,
@@ -384,6 +388,14 @@ async function reach(page: Page, moment: Moment) {
         await g.sleep();
         g.step(m === 'yawn' ? 45 : 160);
         return g.place() === (m === 'yawn' ? 'yawning' : 'cabin');
+      }
+      // the lure caught in a bed of reeds from the shore, the reel held so the line reads tugging and the button Tug
+      if (m === 'snagged') {
+        await g.mode('cast');
+        if (!g.snag(2)) return false;
+        g.reel(true);
+        g.step(30);
+        return g.lure().phase === 'snagged' && g.tugging() > 0;
       }
       if (m === 'cast') {
         await g.mode('cast');

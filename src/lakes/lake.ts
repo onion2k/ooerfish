@@ -371,6 +371,19 @@ export interface Current {
   speed: number;
 }
 
+/**
+ * A snag (`docs/boat.md`, C4): a bed of `kind` standing in the water, centred at (x, y), `radius` across and `height`
+ * over the water. It catches a lure that sinks beside it, and the physics keeps the bobber and the boat out of it as a
+ * post. The kind is there for the marsh's and the flooded town's, which will not be reeds.
+ */
+export interface Snag {
+  x: number;
+  y: number;
+  radius: number;
+  height: number;
+  kind: 'reeds';
+}
+
 /** A lake. */
 export interface Lake {
   /** What the save calls it. */
@@ -438,6 +451,11 @@ export interface Lake {
   boat: LakeBoat | null;
   /** The currents in its water (`docs/boat.md`, C3), each lying on the water clear of the mooring and the spot. */
   currents: readonly Current[];
+  /**
+   * The snags in its water (`docs/boat.md`, C4), each on the water by its radius and half a unit, clear of the mooring,
+   * the jetty, the pace angler's casts and landings, the currents and every drum and treasure.
+   */
+  snags: readonly Snag[];
   /** A straight dam in place of a cliff (`src/dam.ts` draws it as a painted solid); optional, so a lake without one need not say so. */
   dam?: Dam | null;
   scenery: Scenery;

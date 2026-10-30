@@ -8,7 +8,8 @@ import { depthRange } from '../src/fish';
 import { Game } from '../src/game';
 import { checkInvariants } from '../src/invariants';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
-import { BOAT, CLOCK, DRIFT, KINDS, RELEASE, ROPE, WEATHER } from '../src/lake';
+import { BOAT, CLOCK, DRIFT, KINDS, RELEASE, ROPE, SNAG, WEATHER } from '../src/lake';
+import { snagGap } from '../src/snags';
 import { Progress, memoryStore, type Save } from '../src/progress';
 import { seeded } from '../src/random';
 import { nearestTime } from '../src/look';
@@ -2234,6 +2235,381 @@ describe('the boat adrift (`docs/boat.md`, C3)', () => {
         expect(checkInvariants(game)).toEqual([]);
       }
       expect(tried, 'some seed hooked a fish').toBeGreaterThan(0);
+    });
+  });
+});
+
+describe('the snags (`docs/boat.md`, C4)', () => {
+  /** The south-east bed, the one the shore's view sees. */
+  const SE = 2;
+  const NORTH = Math.PI / 2;
+  /** Every fish cured, so nothing bites and a test of the reeds is about the reeds alone. */
+  const CLEAN = JSON.stringify({
+    cured: 12,
+    journal: {
+      bream: { caught: 4, best: 0.85, first: 1 },
+      perch: { caught: 5, best: 1.9, first: 1 },
+      pike: { caught: 3, best: 3.1, first: 1 },
+    },
+  });
+
+  /** A game at the pond with what it tells of the snags kept in order. */
+  function reeded(seed = 1, json: string | null = CLEAN, lake: Lake = HOME) {
+    const told: string[] = [];
+    const game = new Game(new Progress(memoryStore(json), LAKES), {
+      lake,
+      random: seeded(seed),
+      events: {
+        snagged: (i) => told.push(`snagged ${i}`),
+        freed: (i) => told.push(`freed ${i}`),
+        missed: () => told.push('missed'),
+      },
+    });
+    return { game, told };
+  }
+
+  /** Where a cast from the shore must land to fall `out` from bed `i`'s edge, on the angler's side of it. */
+  function nearBed(game: Game, i: number, out: number): [number, number] {
+    const s = game.lake.snags[i];
+    const a = game.anglerAt();
+    const d = Math.hypot(a.x - s.x, a.y - s.y);
+    return [s.x + ((a.x - s.x) / d) * (s.radius + out), s.y + ((a.y - s.y) / d) * (s.radius + out)];
+  }
+
+  /** A cast thrown to land `out` from bed `i`'s edge. */
+  function castAtBed(game: Game, i = SE, out = SNAG.reach / 2) {
+    const [x, y] = nearBed(game, i, out);
+    const { angle, power } = aimAt(x, y, game.lake, game.wind, game.anglerAt());
+    expect(game.cast(angle, power)).toBe(true);
+  }
+
+  /** Stepped until the lure is no longer in the air. */
+  function land(game: Game) {
+    for (let f = 0; f < 600 && game.lure.phase === 'flying'; f++) game.step(DT);
+  }
+
+  /** A lure snagged on the south-east bed by a cast. */
+  function snaggedGame(seed = 1, json: string | null = CLEAN) {
+    const made = reeded(seed, json);
+    castAtBed(made.game);
+    land(made.game);
+    expect(made.game.lure.phase).toBe('snagged');
+    return made;
+  }
+
+  /** The rope's tension as `lineEnds` works it out (private, as the rope's tests read it). */
+  const tensionOf = (game: Game) => (game as unknown as { lineEnds(): number }).lineEnds();
+
+  /** The bobber put on the water at (x, y), free and sinking, as a drift would leave it. */
+  function bobberAt(game: Game, x: number, y: number) {
+    game.cast(NORTH + 0.5, 0.5);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(DT);
+    expect(game.lure.phase).toBe('sinking');
+    game.lure.bobber[0] = x;
+    game.lure.bobber[1] = y;
+    game.bodies.drop(x, y);
+  }
+
+  describe('a lure that lands in the reeds', () => {
+    it('lands where it was aimed, within the bed’s reach', () => {
+      const { game } = reeded();
+      const [x, y] = nearBed(game, SE, SNAG.reach / 2);
+      const { angle, power } = aimAt(x, y, game.lake, game.wind, game.anglerAt());
+      const f = flight(angle, power, game.lake, game.wind, game.anglerAt()).landing;
+      expect(snagGap(game.lake, f[0], f[1])).toBeLessThanOrEqual(SNAG.reach);
+    });
+
+    it('is snagged there, told, with its body taken, no fish at it, and the bite doing nothing with it', () => {
+      const { game, told } = snaggedGame();
+      expect(told).toEqual([`snagged ${SE}`]);
+      expect(game.lure.snagged).toBe(SE);
+      expect(game.bodies.held).toBe(true);
+      expect(game.bite.phase).toBe('none');
+      expect(game.tugging).toBe(0);
+      expect(snagGap(game.lake, game.lure.bobber[0], game.lure.bobber[1])).toBeLessThanOrEqual(SNAG.reach);
+      expect(checkInvariants(game)).toEqual([]);
+      for (let f = 0; f < 60 * 20; f++) {
+        game.step(DT);
+        if (f % 30 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.bite.phase).toBe('none');
+      expect(told).toEqual([`snagged ${SE}`]);
+    });
+
+    it('is not snagged on a cast that lands clear of every bed', () => {
+      const { game, told } = reeded();
+      game.cast(NORTH, 0.62);
+      land(game);
+      expect(game.lure.phase).toBe('sinking');
+      expect(told).toEqual([]);
+    });
+
+    it('is snagged in the other beds too, and in the reservoir’s', () => {
+      for (const i of [0, 1]) {
+        const { game } = reeded();
+        // bed 0 and 1 are out of reach of a cast: a lure dropped sinking beside them is the same snag
+        bobberAt(game, game.lake.snags[i].x + game.lake.snags[i].radius + SNAG.reach / 2, game.lake.snags[i].y);
+        game.step(DT);
+        expect(game.lure.phase, `bed ${i}`).toBe('snagged');
+        expect(game.lure.snagged).toBe(i);
+      }
+      const { game } = reeded(1, null, RESERVOIR);
+      const s = RESERVOIR.snags[1];
+      bobberAt(game, s.x + s.radius + SNAG.reach / 2, s.y);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.lure.snagged).toBe(1);
+    });
+
+    it('lets go a fish that was coming, as a reel-in does, and the bite is none', () => {
+      const { game, told } = reeded(1, null);
+      const s = game.lake.snags[SE];
+      bobberAt(game, s.x - s.radius - 1.5, s.y);
+      game.bite.stowed(game.fish);
+      game.fish.x[0] = game.lure.bobber[0] - 3;
+      game.fish.y[0] = game.lure.bobber[1];
+      game.fish.depth[0] = game.lure.depth;
+      game.bite.phase = 'coming';
+      game.bite.fish = game.fish.held = 0;
+      // the wind carries it the last of the way
+      game.lure.bobber[0] = s.x - s.radius - SNAG.reach / 2;
+      game.bodies.drop(game.lure.bobber[0], game.lure.bobber[1]);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.bite.phase).toBe('none');
+      expect(game.fish.held).toBe(-1);
+      expect(told).toContain('missed');
+      expect(game.bite.wary[0]).toBeGreaterThan(game.t);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('lets go a fish that was nibbling or biting just the same', () => {
+      for (const phase of ['nibbling', 'biting'] as const) {
+        const { game } = reeded(1, null);
+        const s = game.lake.snags[SE];
+        bobberAt(game, s.x - s.radius - 1.5, s.y);
+        game.bite.stowed(game.fish);
+        game.fish.x[0] = game.lure.bobber[0];
+        game.fish.y[0] = game.lure.bobber[1];
+        game.fish.depth[0] = game.lure.depth;
+        game.bite.phase = phase;
+        game.bite.fish = game.fish.held = 0;
+        game.lure.bobber[0] = s.x - s.radius - SNAG.reach / 2;
+        game.bodies.drop(game.lure.bobber[0], game.lure.bobber[1]);
+        game.step(DT);
+        expect(game.lure.phase, phase).toBe('snagged');
+        expect(game.bite.phase, phase).toBe('none');
+        expect(game.strike(), phase).toBe('none');
+      }
+    });
+
+    it('is snagged by a bobber the wind blows into a bed', () => {
+      const { game, told } = reeded();
+      const s = game.lake.snags[SE];
+      game.setWeather('wind');
+      // upwind of the bed, along the wind's own line, a couple of units clear of its edge
+      const [wx, wy] = WEATHER.wind.direction;
+      const x = s.x - wx * (s.radius + 2.5),
+        y = s.y - wy * (s.radius + 2.5);
+      expect(game.lake.inside(x, y, 1)).toBe(true);
+      bobberAt(game, x, y);
+      for (let f = 0; f < 60 * 90 && game.lure.phase === 'sinking'; f++) {
+        game.step(DT);
+        if (f % 60 === 0) expect(checkInvariants(game), `frame ${f}`).toEqual([]);
+      }
+      expect(game.lure.phase).toBe('snagged');
+      expect(told).toEqual([`snagged ${SE}`]);
+      expect(game.bodies.held).toBe(true);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+  });
+
+  describe('a tug and a give', () => {
+    it('counts the time the reel is held on the snag, and holds nothing else', () => {
+      const { game } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < 30; f++) game.step(DT);
+      expect(game.tugging).toBeCloseTo(0.5, 6);
+      expect(game.lure.phase).toBe('snagged');
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('frees the lure at a give after the tug: sinking about `drop` out from the edge, on the water, told, splashed', () => {
+      const { game, told } = snaggedGame();
+      const splashes = game.splashes.count;
+      game.reel(true);
+      for (let f = 0; f < Math.ceil(SNAG.tug / DT) + 1; f++) game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      game.reel(false);
+      game.step(DT);
+      expect(told).toEqual([`snagged ${SE}`, `freed ${SE}`]);
+      expect(game.lure.phase).toBe('sinking');
+      expect(game.lure.snagged).toBe(-1);
+      expect(game.tugging).toBe(0);
+      const s = game.lake.snags[SE];
+      const gap = Math.hypot(game.lure.bobber[0] - s.x, game.lure.bobber[1] - s.y) - s.radius;
+      expect(gap).toBeGreaterThan(SNAG.drop - 0.1);
+      expect(gap).toBeLessThan(SNAG.drop + 0.5);
+      expect(game.lake.inside(game.lure.bobber[0], game.lure.bobber[1])).toBe(true);
+      expect(game.bodies.held).toBe(false);
+      expect(game.splashes.count).toBe(splashes + 1);
+      expect(checkInvariants(game)).toEqual([]);
+      // and it sinks on, unsnagged, as any lure does
+      for (let f = 0; f < 120; f++) game.step(DT);
+      expect(game.lure.phase).toBe('sinking');
+      expect(game.lure.depth).toBeGreaterThan(0);
+    });
+
+    it('resolves the give at the let-go itself, before any step, so no frame holds a tug with the reel let go', () => {
+      const { game, told } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < Math.ceil(SNAG.tug / DT) + 1; f++) game.step(DT);
+      game.reel(false);
+      expect(told).toEqual([`snagged ${SE}`, `freed ${SE}`]);
+      expect(game.lure.phase).toBe('sinking');
+      expect(game.tugging).toBe(0);
+      expect(checkInvariants(game)).toEqual([]);
+      // and a short tug is forgotten at the let-go too
+      const short = snaggedGame().game;
+      short.reel(true);
+      short.step(DT);
+      short.reel(false);
+      expect(short.tugging).toBe(0);
+      expect(short.lure.phase).toBe('snagged');
+      expect(checkInvariants(short)).toEqual([]);
+    });
+
+    it('does nothing for a tug shorter than the tug, and starts the count again', () => {
+      const { game, told } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < Math.floor(SNAG.tug / DT) - 3; f++) game.step(DT);
+      expect(game.tugging).toBeGreaterThan(0);
+      expect(game.tugging).toBeLessThan(SNAG.tug);
+      game.reel(false);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.tugging).toBe(0);
+      expect(told).toEqual([`snagged ${SE}`]);
+      // a second short tug is not added to the first
+      game.reel(true);
+      for (let f = 0; f < Math.floor(SNAG.tug / DT) - 3; f++) game.step(DT);
+      game.reel(false);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('is not freed by holding the reel for ever: the give is the let go', () => {
+      const { game } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < 60 * 10; f++) game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(game.tugging).toBeGreaterThan(SNAG.tug);
+    });
+
+    it('can be snagged again by the lure that was freed, if it is cast back or drifts in', () => {
+      const { game, told } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < Math.ceil(SNAG.tug / DT) + 1; f++) game.step(DT);
+      game.reel(false);
+      game.step(DT);
+      expect(game.lure.phase).toBe('sinking');
+      // put it back by the edge, as a push of the wind would
+      const s = game.lake.snags[SE];
+      game.lure.bobber[0] = s.x - s.radius - 0.2;
+      game.lure.bobber[1] = s.y;
+      game.bodies.drop(game.lure.bobber[0], game.lure.bobber[1]);
+      game.step(DT);
+      expect(game.lure.phase).toBe('snagged');
+      expect(told.filter((l) => l.startsWith('snagged'))).toHaveLength(2);
+    });
+  });
+
+  describe('while snagged', () => {
+    it('a strike is none, a cast and a reel-in are refused, and nothing changes', () => {
+      const { game, told } = snaggedGame();
+      const looks = () =>
+        JSON.stringify([game.lure.phase, game.lure.snagged, game.lure.bobber, game.bodies.held, game.t]);
+      const before = looks();
+      expect(game.strike()).toBe('none');
+      expect(game.cast(NORTH, 0.5)).toBe(false);
+      expect(game.reelIn()).toBe(false);
+      expect(looks()).toBe(before);
+      expect(game.lure.phase).toBe('snagged');
+      expect(told).toEqual([`snagged ${SE}`]);
+    });
+
+    it('a row reels it in by force, and the boat sets off', () => {
+      const { game } = snaggedGame();
+      expect(game.row(0, -5)).toBe(true);
+      expect(game.lure.phase).toBe('ready');
+      expect(game.lure.snagged).toBe(-1);
+      expect(game.bodies.held).toBe(true);
+      expect(game.tugging).toBe(0);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('the yawn reels it in by force, nothing lost', () => {
+      const { game } = snaggedGame();
+      game.reel(true);
+      game.step(DT);
+      game.setTimeOfDay(1 - 0.5 / CLOCK.daySeconds / 60);
+      game.step(DT);
+      expect(game.place).toBe('yawning');
+      expect(game.lure.phase).toBe('ready');
+      expect(game.lure.snagged).toBe(-1);
+      expect(game.reeling).toBe(false);
+      expect(game.tugging).toBe(0);
+      expect(checkInvariants(game)).toEqual([]);
+    });
+
+    it('a journey and a walk into the cabin reel it in by force', () => {
+      const a = snaggedGame().game;
+      expect(a.travel('reservoir')).toBe(true);
+      expect(a.lure.phase).toBe('ready');
+      expect(a.lure.snagged).toBe(-1);
+      const b = snaggedGame().game;
+      expect(b.enter()).toBe(true);
+      expect(b.lure.phase).toBe('ready');
+      expect(b.lure.snagged).toBe(-1);
+      expect(b.bodies.held).toBe(true);
+      expect(checkInvariants(b)).toEqual([]);
+    });
+
+    it('a cast can be thrown again once it is freed', () => {
+      const { game } = snaggedGame();
+      game.reel(true);
+      for (let f = 0; f < Math.ceil(SNAG.tug / DT) + 1; f++) game.step(DT);
+      game.reel(false);
+      game.step(DT);
+      expect(game.cast(NORTH, 0.5)).toBe(true);
+      expect(game.lure.phase).toBe('flying');
+    });
+  });
+
+  describe('the line’s tension', () => {
+    it('is the snag’s while tugging, and calm otherwise', () => {
+      const { game } = snaggedGame();
+      expect(tensionOf(game)).toBe(0);
+      game.reel(true);
+      game.step(DT);
+      expect(tensionOf(game)).toBe(SNAG.tension);
+      game.reel(false);
+      // the give frees it on the next step, but a short tug that is let go is calm again at once
+      expect(tensionOf(game)).toBe(0);
+    });
+
+    it('draws the rope tauter while tugged than while calm, to the bobber on the surface', () => {
+      const { game } = snaggedGame();
+      for (let f = 0; f < 120; f++) game.step(DT);
+      const calm = game.rope.points.slice();
+      game.reel(true);
+      for (let f = 0; f < 30; f++) game.step(DT);
+      expect(game.lineEnd[0]).toBe(game.lure.bobber[0]);
+      expect(game.lineEnd[1]).toBe(game.lure.bobber[1]);
+      expect(game.lineEnd[2]).toBeGreaterThan(-0.2);
+      expect(Array.from(game.rope.points)).not.toEqual(Array.from(calm));
     });
   });
 });

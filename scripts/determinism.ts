@@ -125,7 +125,10 @@ export function hashGame(game: Game): string {
     eat(splashes.size[i]);
   }
   const { lure } = game;
-  eat(['ready', 'flying', 'sinking', 'lying', 'hooked'].indexOf(lure.phase));
+  eat(['ready', 'flying', 'sinking', 'lying', 'hooked', 'snagged'].indexOf(lure.phase));
+  // the bed of reeds it is caught in, and how long the reel has tugged it (`docs/boat.md`, C4)
+  eat(lure.snagged);
+  eat(game.tugging);
   for (const n of [
     lure.angle,
     lure.power,

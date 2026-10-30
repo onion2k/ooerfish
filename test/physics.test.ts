@@ -3,6 +3,7 @@ import { DRIFT, PHYSICS } from '../src/lake';
 import { HOME, LAKES } from '../src/lakes';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { Bodies, KIND, currentsOf, extent, newWorld, worldFor } from '../src/physics';
+import { posts } from '../src/snags';
 import { seeded } from '../src/random';
 
 const LAKE_LIST = Object.values(LAKES);
@@ -306,5 +307,61 @@ describe('the wind on the bodies (`docs/boat.md`, C3)', () => {
     const y = bodies.y;
     for (let i = 0; i < 60; i++) bodies.step(DT);
     expect(y - bodies.y, 'still being carried').toBeGreaterThan(0.3);
+  });
+});
+
+describe('the posts (`docs/boat.md`, C4)', () => {
+  const DT = 1 / 60;
+
+  it('are the beds, set on each lake’s world, made once and shared', () => {
+    for (const lake of LAKE_LIST) {
+      const world = newWorld(lake);
+      expect(world.bumpers).toBe(posts(lake));
+      expect(world.bumpers).toHaveLength(lake.snags.length);
+    }
+  });
+
+  it('stop a bobber blown at a bed at its edge, and hold it there', () => {
+    for (const lake of LAKE_LIST) {
+      lake.snags.forEach((s, i) => {
+        const bodies = new Bodies(newWorld(lake), lake);
+        bodies.drop(s.x - s.radius - 3, s.y);
+        for (let f = 0; f < 60 * 12; f++) {
+          bodies.blow(KIND.bobber, 4, 0, DT);
+          bodies.step(DT);
+        }
+        const reached = Math.hypot(bodies.x - s.x, bodies.y - s.y);
+        expect(reached, `${lake.id} bed ${i}: kept out`).toBeGreaterThan(s.radius + PHYSICS.radii.bobber - 0.05);
+        expect(reached, `${lake.id} bed ${i}: but brought up against it`).toBeLessThan(
+          s.radius + PHYSICS.radii.bobber + 0.5,
+        );
+        expect(bodies.x, `${lake.id} bed ${i}: not through it`).toBeLessThan(s.x);
+      });
+    }
+  });
+
+  it('stop a boat adrift at the hull’s radius from a bed’s edge', () => {
+    for (const lake of LAKE_LIST) {
+      const s = lake.snags[0];
+      const bodies = new Bodies(newWorld(lake), lake);
+      bodies.putBoat(s.x - s.radius - 6, s.y);
+      bodies.letGoBoat();
+      for (let f = 0; f < 60 * 20; f++) {
+        bodies.blow(KIND.boat, 4, 0, DT);
+        bodies.step(DT);
+      }
+      const reached = Math.hypot(bodies.boatX - s.x, bodies.boatY - s.y);
+      expect(reached, lake.id).toBeGreaterThan(s.radius + PHYSICS.radii.boat - 0.05);
+      expect(reached, lake.id).toBeLessThan(s.radius + PHYSICS.radii.boat + 1);
+      expect(bodies.boatX, lake.id).toBeLessThan(s.x);
+    }
+  });
+
+  it('leave a bobber well clear of them where it was, and asleep', () => {
+    const bodies = new Bodies(newWorld(HOME), HOME);
+    bodies.drop(0, 0);
+    for (let i = 0; i < 300; i++) bodies.step(DT);
+    expect(bodies.asleep).toBe(true);
+    expect(Math.hypot(bodies.x, bodies.y)).toBeLessThan(1e-4);
   });
 });

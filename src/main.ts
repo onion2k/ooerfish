@@ -13,6 +13,7 @@ import { invertInto } from 'artshape-render/geom/transform';
 import { GameRenderer } from 'artshape-render/game/renderer';
 import { NO_PHONE, createApi } from './debug';
 import { cabinGroups, jettyGroups } from './cabin';
+import { snagGroups } from './snagdraw';
 import { CalendarDraw } from './calendardraw';
 import { lampAt, roomGroups, tableBox } from './cabinroom';
 import { MapDraw, mapHit } from './mapdraw';
@@ -61,7 +62,7 @@ import {
   type Weather,
 } from './lake';
 import { bakeLooks, light, looksBaked, nearestTime, paintFor, timesFor, type TimeOfDay } from './look';
-import { anchorWording, nextMode, orbits, rowWording, wording, type Mode, type ModeEvent } from './mode';
+import { anchorWording, nextMode, orbits, rowWording, SNAGGED_HINT, wording, type Mode, type ModeEvent } from './mode';
 import { NightView } from './nightview';
 import { cabinHit, tableHit, waterPoint } from './pick';
 import { ROOM_COLOURS, mix } from './palette';
@@ -174,6 +175,11 @@ async function main() {
       // a fish struck at while it only nibbled has just let go, and that is what is said, not that it was too late
       if (did === 'spooked') hear('too soon, it swam off');
       else if (did === 'twitch') hear('nothing biting yet');
+    },
+    snagged: (i) => log(`snagged ${i}`),
+    freed: (i) => {
+      log(`freed ${i}`);
+      hear('free!');
     },
     slipped: () => log('slipped'),
     landed: (kind, weight, temper) => log(`landed ${temper} ${kind} ${weight.toFixed(2)}`),
@@ -339,6 +345,7 @@ async function main() {
       ...(lake.cabin ? cabinGroups(palette, lake) : []),
       ...(lake.cabin ? roomGroups(ROOM_COLOURS, lake, Object.values(LAKES)) : []),
       ...(lake.jetty ? jettyGroups(palette, lake) : []),
+      ...snagGroups(palette, lake),
     ]);
     caps = season === 'winter' ? rockCaps(lake, cliffLumps(lake)).length : 0;
     // the frost follows the season at once, so a wake into winter on a clean lake hands it over with this dressing
@@ -753,6 +760,7 @@ async function main() {
         : castWords({
             bite: game.bite.phase,
             lure: game.lure.phase,
+            tugging: game.tugging > 0,
             heard: game.t < heard.until ? heard.text : null,
             clean: game.pondClean,
             second: game.bite.second,
@@ -1628,6 +1636,9 @@ async function main() {
   /** Whether the Cast button and its hint are hidden, which they are away from the pond. */
   let hudAway = false;
 
+  /** The hint under the Cast button as it is written now, so a frame writes it only where it has changed. */
+  let hintShown = '';
+
   /** The page in a mode, its button and hint saying so: the camera is the caller's, as `nextMode` says. */
   function showMode(to: Mode) {
     if (to !== 'cast') {
@@ -1639,7 +1650,8 @@ async function main() {
     const words = wording(mode);
     modeButton.textContent = words.button;
     rowButton.textContent = rowWording(mode).button;
-    help.textContent = words.hint;
+    hintShown = words.hint;
+    help.textContent = hintShown;
   }
   /** A mode event: the mode it makes, and the camera put at the shore if it says so, resolving once that is ready. */
   async function setMode(event: ModeEvent) {
@@ -1648,6 +1660,8 @@ async function main() {
     // the boat is rowed or it is not: the Cast and Row buttons are greyed while it is, and the keys are let go with them;
     // a lake with no boat has no row to ask for
     if (game.boat.rowing && event !== 'view' && event !== 'done' && event !== 'look') return;
+    // nor while the lure is snagged: the line is held until it is freed
+    if (game.lure.phase === 'snagged' && event === 'toggle') return;
     if (event === 'row' && !lake.boat) return;
     const step = nextMode(mode, event);
     showMode(step.mode);
@@ -1712,7 +1726,15 @@ async function main() {
     night.show();
     // the mode buttons are greyed while the boat is rowed, and Row for a lake with no boat; written on change only
     const rowing = game.boat.rowing;
-    if (modeButton.disabled !== rowing) modeButton.disabled = rowing;
+    // and Cast is greyed while the lure is snagged, with the hint saying what to do, since the line is held until it is freed
+    const snagged = game.lure.phase === 'snagged';
+    const noCast = rowing || snagged;
+    if (modeButton.disabled !== noCast) modeButton.disabled = noCast;
+    const hint = snagged ? SNAGGED_HINT : wording(mode).hint;
+    if (hint !== hintShown) {
+      hintShown = hint;
+      help.textContent = hint;
+    }
     const noRow = rowing || !lake.boat;
     if (rowButton.disabled !== noRow) rowButton.disabled = noRow;
     showAnchor();
@@ -1882,9 +1904,12 @@ async function main() {
     },
     onScreen: () => {
       const { lure, bite } = game;
-      const bobber = lure.phase === 'sinking' ? toScreen(lure.bobber[0], lure.bobber[1], 0) : null;
+      const bobber =
+        lure.phase === 'sinking' || lure.phase === 'snagged' ? toScreen(lure.bobber[0], lure.bobber[1], 0) : null;
       const line =
-        lure.phase === 'sinking' || lure.phase === 'hooked' ? toScreen(lure.at[0], lure.at[1], lure.at[2]) : null;
+        lure.phase === 'sinking' || lure.phase === 'snagged' || lure.phase === 'hooked'
+          ? toScreen(lure.at[0], lure.at[1], lure.at[2])
+          : null;
       const per = (SWIM.segments.length + 1) * 3;
       const head =
         bite.phase === 'hooked' && bite.fish >= 0 ? fish.joints.subarray(bite.fish * per, bite.fish * per + 3) : null;

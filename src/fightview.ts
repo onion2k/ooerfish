@@ -142,8 +142,9 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
   const { phase } = g.bite;
   const hooked = phase === 'hooked';
   const biting = phase === 'biting';
-  // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel
-  const live = g.lure.phase === 'sinking' || hooked;
+  // the button is there while the lure is in the water or a fish is on: Strike until one is hooked, then Reel, and Tug while the lure is snagged
+  const snagged = g.lure.phase === 'snagged';
+  const live = g.lure.phase === 'sinking' || snagged || hooked;
   into.phase = phase;
   into.zone = g.line.zone;
   into.width = g.line.figures.width;
@@ -164,7 +165,7 @@ export function fightPicture(g: Game, into: FightPicture = blankPicture()): Figh
         ? 'in the zone'
         : 'out of the zone'
     : '';
-  into.button = !live ? '' : hooked ? 'Reel' : 'Strike';
+  into.button = !live ? '' : hooked ? 'Reel' : snagged ? 'Tug' : 'Strike';
   return into;
 }
 
@@ -214,8 +215,8 @@ export class FightBar {
     if (button !== this.was.button) {
       this.was.button = button;
       el.button.hidden = !p.button;
-      el.button.textContent = p.button === 'Reel' ? 'Reel' : 'Strike';
-      el.button.setAttribute('aria-pressed', String(p.button === 'Reel' && p.reeling));
+      el.button.textContent = p.button === 'Reel' || p.button === 'Tug' ? p.button : 'Strike';
+      el.button.setAttribute('aria-pressed', String((p.button === 'Reel' || p.button === 'Tug') && p.reeling));
     }
   }
 }

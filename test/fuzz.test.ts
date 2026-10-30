@@ -192,6 +192,26 @@ describe('the fuzzer', () => {
     expect(done['bobber drifted'], 'a bobber drifted').toBeGreaterThan(0);
   });
 
+  it('reaches the snags: across seeds 1 to 24 a cast is aimed at the reeds, snagged, tugged and freed, a give too short changes nothing, and the refusals are made', () => {
+    const done: Record<string, number> = {},
+      happened: Record<string, number> = {};
+    for (let seed = 1; seed <= 24; seed++) {
+      const r = fuzz(seed, 8000, 'duckpond');
+      expect(r.failure, JSON.stringify(r.failure)).toBe(null);
+      for (const [k, n] of Object.entries(r.done)) done[k] = (done[k] ?? 0) + n;
+      for (const [k, n] of Object.entries(r.happened)) happened[k] = (happened[k] ?? 0) + n;
+    }
+    expect(done['cast at the reeds'], 'casts aimed at the reeds').toBeGreaterThan(0);
+    expect(happened.snagged, 'the lure snagged').toBeGreaterThan(0);
+    expect(happened.freed, 'the lure freed').toBeGreaterThan(0);
+    expect(done['tug and give'], 'a tug and a give').toBeGreaterThan(0);
+    expect(done['tug too short'], 'a tug too short').toBeGreaterThan(0);
+    expect(done['strike while snagged'], 'a strike refused').toBeGreaterThan(0);
+    expect(done['cast while snagged'], 'a cast refused').toBeGreaterThan(0);
+    expect(done['reelIn while snagged'], 'a reel-in refused').toBeGreaterThan(0);
+    expect(done['bite by the reeds'], 'a bite by the reeds').toBeGreaterThan(0);
+  });
+
   it('plays the same way twice from a seed', () => {
     expect(fuzz(2, 600)).toEqual(fuzz(2, 600));
   });

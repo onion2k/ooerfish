@@ -40,3 +40,21 @@ describe('the cast line', () => {
     expect(castWords(state({ bite: 'biting' }))).toBe('BITE! strike now');
   });
 });
+
+describe('the cast line while snagged (`docs/boat.md`, C4)', () => {
+  it('says to hold to tug and let go to free it, and “tugging…” while the reel is held', () => {
+    expect(castWords(state({ lure: 'snagged' }))).toBe('snagged in the reeds: hold to tug, let go to free it');
+    expect(castWords(state({ lure: 'snagged', tugging: true }))).toBe('tugging…');
+    expect(castWords(state({ lure: 'snagged', tugging: false }))).toBe(
+      'snagged in the reeds: hold to tug, let go to free it',
+    );
+  });
+
+  it('keeps a heard line (the free, for one) over the snag’s, as it does over the waiting', () => {
+    expect(castWords(state({ lure: 'snagged', heard: 'missed' }))).toBe('missed');
+  });
+
+  it('does not say it of a lure that is not snagged, whatever tugging says', () => {
+    expect(castWords(state({ lure: 'sinking', tugging: true }))).toBe('waiting for a fish…');
+  });
+});

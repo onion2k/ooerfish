@@ -5,7 +5,8 @@ import { fightFor, gearFor } from '../src/fight';
 import { HOME } from '../src/lakes';
 import { DRUM_RULES, TREASURE_RULES } from '../src/rules';
 import { Game } from '../src/game';
-import { KIND_INDEX, PHOTOS } from '../src/lake';
+import { KIND_INDEX, PHOTOS, PHYSICS, SNAG } from '../src/lake';
+import { DUCK_POND } from '../src/lakes/duckpond';
 import { RESERVOIR } from '../src/lakes/reservoir';
 import { Progress, memoryStore } from '../src/progress';
 import { seeded } from '../src/random';
@@ -794,5 +795,90 @@ describe('the boat', () => {
     (none as { lake: unknown }).lake = { ...HOME, boat: null };
     none.boat.aboard = true;
     expect(checkInvariants(none).join('\n')).toMatch(/the player is aboard a boat the lake does not keep/);
+  });
+});
+
+describe('what must always hold of the snags (`docs/boat.md`, C4)', () => {
+  /** A game with the lure snagged on bed 2, as the game itself would leave it. */
+  function snagged() {
+    const { game } = newGame();
+    game.cast(Math.PI / 2, 0.5);
+    for (let f = 0; f < 600 && game.lure.phase !== 'sinking'; f++) game.step(1 / 60);
+    const s = game.lake.snags[2];
+    game.lure.snag(2, s.x - s.radius - SNAG.reach / 2, s.y);
+    game.bodies.take();
+    game.bite.stowed(game.fish);
+    expect(checkInvariants(game)).toEqual([]);
+    return game;
+  }
+
+  it('holds of a lure the game snagged, tugging or not', () => {
+    const game = snagged();
+    game.reel(true);
+    game.step(1 / 60);
+    expect(game.tugging).toBeGreaterThan(0);
+    expect(checkInvariants(game)).toEqual([]);
+  });
+
+  it('reports a snagged lure whose bobber is off its bed, or off the water', () => {
+    const far = snagged();
+    far.lure.bobber[0] = 0;
+    far.lure.bobber[1] = 0;
+    expect(checkInvariants(far).join('\n')).toMatch(/the snagged lure's bobber is .* from bed 2's edge/);
+    const gone = snagged();
+    gone.lure.bobber[0] = 1000;
+    expect(checkInvariants(gone).join('\n')).toMatch(/the snagged lure is off the water/);
+  });
+
+  it('reports a snagged lure on a bed there is not', () => {
+    const game = snagged();
+    game.lure.snagged = 7;
+    expect(checkInvariants(game).join('\n')).toMatch(/the lure is snagged on bed 7, of 3/);
+  });
+
+  it('reports a snagged lure whose body is free, or whose bite is not none', () => {
+    const free = snagged();
+    free.bodies.drop(free.lure.bobber[0], free.lure.bobber[1]);
+    expect(checkInvariants(free).join('\n')).toMatch(/the bobber's body is free while the lure is snagged/);
+    const biting = snagged();
+    biting.bite.phase = 'coming';
+    biting.bite.fish = biting.fish.held = 0;
+    expect(checkInvariants(biting).join('\n')).toMatch(/the bite is coming with the lure snagged/);
+  });
+
+  it('reports a lure that holds a bed while it is not snagged', () => {
+    const game = snagged();
+    game.lure.phase = 'sinking';
+    expect(checkInvariants(game).join('\n')).toMatch(/the lure is sinking, but holds bed 2/);
+  });
+
+  it('reports a tug the reel is not behind: time tugged unless snagged and reeling', () => {
+    const game = snagged();
+    game.tugging = 0.3;
+    expect(checkInvariants(game).join('\n')).toMatch(/the lure has been tugged 0.3 s, with the reel not held/);
+    game.reeling = true;
+    expect(checkInvariants(game)).toEqual([]);
+    const free = newGame().game;
+    free.tugging = 0.1;
+    expect(checkInvariants(free).join('\n')).toMatch(/the lure has been tugged 0.1 s, with the lure ready/);
+  });
+
+  it('reports a bed that is not on the water, by its radius and half a unit', () => {
+    const lake = { ...DUCK_POND, snags: [{ ...DUCK_POND.snags[0], x: -1000 }, ...DUCK_POND.snags.slice(1)] };
+    const game = new Game(new Progress(memoryStore()), { random: seeded(1), lake });
+    expect(checkInvariants(game).join('\n')).toMatch(/bed 0 is off the water/);
+  });
+
+  it('reports the boat nearer a bed than the hull’s radius, less a hair', () => {
+    const { game } = newGame();
+    const s = game.lake.snags[2];
+    game.boat.aboard = true;
+    game.boat.anchored = true;
+    game.boat.x = s.x - s.radius - PHYSICS.radii.boat + 0.5;
+    game.boat.y = s.y;
+    game.bodies.putBoat(game.boat.x, game.boat.y);
+    expect(checkInvariants(game).join('\n')).toMatch(
+      /the boat is 1.10 from a bed's edge, nearer than the hull's radius/,
+    );
   });
 });

@@ -27,6 +27,7 @@ import {
   FISHING,
   KINDS,
   RELEASE,
+  SNAG,
   MOON,
   WEATHER,
   type Weather,
@@ -47,6 +48,7 @@ import { REQUESTS } from './town/requests';
 import { drawTemper, drumFight, fightFor, gearFor, treasureFight, type Gear, type Temper } from './fight';
 import type { Random } from './random';
 import { Lure } from './lure';
+import { freedPoint, snagNear } from './snags';
 import { Splashes } from './splash';
 import { fadeAt, pastMidnight, type Place } from './night';
 
@@ -101,6 +103,10 @@ export interface GameEvents {
   adrift?(): void;
   /** The boat reached its mooring and the player stepped off: the boat is ashore, and the save says so. */
   ashore?(): void;
+  /** The lure sinking beside bed `i` of reeds was caught in it: it holds until a tug and a give free it (`docs/boat.md`, C4). */
+  snagged?(i: number): void;
+  /** A give after a tug freed the lure from bed `i`: it sinks on from beside the reeds. */
+  freed?(i: number): void;
 }
 
 /** How fast a hooked fish swims to keep to the line, how far it sways off its bearing and how fast, and how far either way of due north its bearing may be. */
@@ -179,6 +185,11 @@ export class Game {
   private readonly keepOut: (x: number, y: number, z: number) => number;
   /** Whether the reel is held, which pushes the zone up the fight's bar. */
   reeling = false;
+  /**
+   * How long the reel has been held on a snagged lure, in seconds: a give (the reel let go) after `SNAG.tug` frees it, a
+   * shorter tug is forgotten (`docs/boat.md`, C4). Nought unless the lure is snagged and the reel is held.
+   */
+  tugging = 0;
   /** How many fish have been landed and stowed this session; the count cured, which the save keeps for each lake, is `progress.entry(lake.id).cured`. */
   bucket = 0;
   /** The fish on the line or landed: what it weighs, the bearing it was hooked on from where it will be landed, and when. */
@@ -257,6 +268,7 @@ export class Game {
   private readonly stand: Stand = { x: 0, y: 0, tipHeight: 0, tipReach: 0 };
   private readonly landingPoint: [number, number] = [0, 0];
   private readonly rowPoint: [number, number] = [0, 0];
+  private readonly freePoint: [number, number] = [0, 0];
 
   constructor(
     readonly progress: Progress,
@@ -396,6 +408,11 @@ export class Game {
       this.drop(landed[0], landed[1], LURE_SPLASH);
       this.bodies.drop(landed[0], landed[1]);
     }
+    // a lure sinking beside the reeds (just landed, drifting or freed) is caught; one already caught is tugged and given
+    if (this.lure.phase === 'sinking') {
+      const bed = snagNear(this.lake, this.lure.bobber[0], this.lure.bobber[1], SNAG.reach);
+      if (bed >= 0) this.snagLure(bed);
+    } else if (this.lure.phase === 'snagged') this.tug(dt);
     this.bite.step(this.t, dt, this.fish, this.lure, this.random, this.timeOfDay, this.drums, this.treasures);
     this.blow(dt);
     this.stepBodies(dt);
@@ -438,6 +455,52 @@ export class Game {
     lure.at[1] = lure.bobber[1];
   }
 
+  /**
+   * The lure caught in bed `i` of reeds (`docs/boat.md`, C4): a fish coming, nibbling or biting lets go as a reel-in makes
+   * it, the lure holds at its bobber on the surface, the bobber's body is taken so the physics leaves it be, and it is told.
+   */
+  private snagLure(i: number) {
+    const { lure, bite } = this;
+    if (bite.phase !== 'none') bite.letGo(this.t, this.fish, lure);
+    lure.snag(i, lure.bobber[0], lure.bobber[1]);
+    this.bodies.take();
+    this.tugging = 0;
+    this.events.snagged?.(i);
+  }
+
+  /**
+   * A step of a snagged lure: the reel held is a tug and counts, and let go after the tug is long enough it is a give
+   * that frees the lure; let go sooner, the tug is forgotten.
+   */
+  private tug(dt: number) {
+    if (this.reeling) this.tugging += dt;
+  }
+
+  /**
+   * The give: the reel let go on a snagged lure. A tug of `SNAG.tug` or more frees it; a shorter one is forgotten. Done
+   * at the let-go itself and not on the next step, so no frame holds a tug with the reel let go, whichever way the reel
+   * was let go.
+   */
+  private give() {
+    if (this.tugging >= SNAG.tug) this.freeLure();
+    this.tugging = 0;
+  }
+
+  /**
+   * The snagged lure freed: it sinks on from `SNAG.drop` out from the bed's edge, where its body is let go, with a splash
+   * of the lure's size, as a landing makes one. Nothing is lost.
+   */
+  private freeLure() {
+    const { lure, freePoint } = this;
+    const bed = lure.snagged;
+    freedPoint(this.lake, bed, lure.bobber[0], lure.bobber[1], freePoint);
+    lure.freed(freePoint[0], freePoint[1], 0);
+    this.bodies.drop(freePoint[0], freePoint[1]);
+    this.drop(freePoint[0], freePoint[1], LURE_SPLASH);
+    this.tugging = 0;
+    this.events.freed?.(bed);
+  }
+
   /** The wind's push on the free bodies for a step: the bobber and the boat adrift, in the wind weather and no other. */
   private blow(dt: number) {
     if (this.weather !== 'wind') return;
@@ -456,7 +519,9 @@ export class Game {
    */
   private lineEnds(): number {
     const { lure, bite, lineEnd } = this;
-    const tension = bite.phase === 'hooked' ? this.line.tension : 0;
+    // the fight's tension with a fish on, and the snag's while the reel is held on a snagged lure (the rod bends, the line warms)
+    const tension =
+      bite.phase === 'hooked' ? this.line.tension : lure.phase === 'snagged' && this.reeling ? SNAG.tension : 0;
     if (lure.phase === 'ready') {
       const t0 = rodTip(this.lake, this.anglerAt());
       lineEnd[0] = t0[0];
@@ -467,7 +532,7 @@ export class Game {
       lineEnd[0] = t0[0] + LINE_DRAW.hang.sway * Math.sin(this.t * LINE_DRAW.hang.rate);
       lineEnd[1] = t0[1];
       lineEnd[2] = t0[2] - LINE_DRAW.hang.drop;
-    } else if (lure.phase === 'sinking') {
+    } else if (lure.phase === 'sinking' || lure.phase === 'snagged') {
       let z =
         this.surface(lure.bobber[0], lure.bobber[1], this.t) +
         LINE_DRAW.bob.height * Math.sin(this.t * LINE_DRAW.bob.rate);
@@ -581,7 +646,7 @@ export class Game {
   enter(): boolean {
     if (this.place !== 'pond' || this.fighting || this.midnightWaits || !this.lake.cabin || this.boat.aboard)
       return false;
-    this.reelIn();
+    this.reelInForce();
     this.reeling = false;
     this.place = 'cabin';
     this.arriving = false;
@@ -608,7 +673,7 @@ export class Game {
       if (into === 'cabin') return this.place === 'cabin' || this.enter();
       return this.place === 'cabin' ? this.out() : true;
     }
-    this.reelIn();
+    this.reelInForce();
     this.reeling = false;
     this.midnightWaits = false;
     this.progress.save.lake = id;
@@ -630,7 +695,7 @@ export class Game {
   /** The yawn begins: the lure is reeled in (a coming or nibbling fish lets go), the reel let go, and the fade starts. */
   private yawn() {
     this.midnightWaits = false;
-    this.reelIn();
+    this.reelInForce();
     this.reeling = false;
     this.place = 'yawning';
     this.fadeElapsed = 0;
@@ -673,6 +738,8 @@ export class Game {
   strike(): Strike {
     // the lure is in, and a strike with a rod in a boat being rowed is no strike
     if (this.boat.rowing) return 'none';
+    // a lure snagged in the reeds is tugged and given, not struck
+    if (this.lure.phase === 'snagged') return 'none';
     const did = this.bite.strike(this.t, this.fish, this.lure);
     if (did !== 'none') this.events.struck?.(did);
     if (did === 'hooked' && this.bite.drum >= 0) this.hookDrum();
@@ -746,7 +813,9 @@ export class Game {
 
   /** The reel held, or let go. */
   reel(on: boolean) {
+    const was = this.reeling;
     this.reeling = on === true;
+    if (was && !this.reeling && this.lure.phase === 'snagged') this.give();
   }
 
   /** True when every fish in the pond is cured and every drum hauled: nothing is left to take the bait or to clean. */
@@ -1066,6 +1135,8 @@ export class Game {
     if (!Number.isFinite(angle) || !Number.isFinite(power)) return false;
     // there is no casting from the cabin or while yawning: the lure was brought in for the night and stays in
     if (this.place !== 'pond') return false;
+    // a lure snagged in the reeds is held fast: it is tugged free, not cast over
+    if (this.lure.phase === 'snagged') return false;
     // a fish on the line, or landed and waiting to be stowed, is seen to first, and the oars are shipped before a rod is cast
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed' || this.boat.rowing) return false;
     this.reelIn();
@@ -1077,12 +1148,48 @@ export class Game {
     return true;
   }
 
-  /** The lure brought back to the rod, ready to cast again. */
-  reelIn() {
+  /**
+   * The lure put snagged in bed `i` of reeds, `SNAG.reach` / 2 out from its edge toward the lake's middle, whatever it was
+   * doing (reeled in by force first): the test API's lever for a picture or a test that wants the snag without a cast.
+   * Refused, and nothing changed, for a bed the lake has not, away from the pond, with a fish hooked or landed, while the
+   * boat is rowed, and where that point is not on the water.
+   */
+  snagAt(i: number): boolean {
+    const s = Number.isInteger(i) ? this.lake.snags[i] : undefined;
+    if (!s || this.place !== 'pond' || this.boat.rowing || this.bite.phase === 'hooked' || this.bite.phase === 'landed')
+      return false;
+    let d = Math.hypot(s.x, s.y);
+    const [ux, uy] = d > 1e-9 ? [-s.x / d, -s.y / d] : [1, 0];
+    d = s.radius + SNAG.reach / 2;
+    const [x, y] = [s.x + ux * d, s.y + uy * d];
+    if (!this.lake.inside(x, y)) return false;
+    this.reelInForce();
+    this.lure.snag(i, x, y);
+    this.bodies.take();
+    this.events.snagged?.(i);
+    return true;
+  }
+
+  /**
+   * The lure brought back to the rod, ready to cast again. Refused, and nothing changed, with a fish hooked or landed and
+   * with the lure snagged in the reeds, which only a tug and a give free (`docs/boat.md`, C4); says whether it was done.
+   */
+  reelIn(): boolean {
+    if (this.bite.phase === 'hooked' || this.bite.phase === 'landed' || this.lure.phase === 'snagged') return false;
+    this.reelInForce();
+    return true;
+  }
+
+  /**
+   * The lure brought in whatever holds it, a snag included: what the yawn, a row, a journey and the cabin do, and nothing
+   * is lost by it. A fish hooked or landed is still the fight's, and the lure stays in its mouth.
+   */
+  private reelInForce() {
     if (this.bite.phase === 'hooked' || this.bite.phase === 'landed') return;
     if (this.bite.phase !== 'none') this.bite.letGo(this.t, this.fish, this.lure);
     this.lure.reelIn();
     this.bodies.take();
+    this.tugging = 0;
   }
 
   /** The save written now. */
@@ -1187,7 +1294,7 @@ export class Game {
   /** The row begun: the lure in, the player aboard, the line from here to (x, y) laid out from now. */
   private setOff(x: number, y: number, home: boolean) {
     const { boat } = this;
-    this.reelIn();
+    this.reelInForce();
     this.reeling = false;
     boat.fromX = boat.x;
     boat.fromY = boat.y;

@@ -415,6 +415,12 @@ export const RESERVOIR: Lake = {
   cabin: null,
   boat: { mooring: MOORING, spot: BOAT_SPOT },
   currents: [{ x: 0, y: 16, heading: Math.PI / 2, length: 24, width: 8, speed: 0.5 }],
+  // two reed beds (`docs/boat.md`, C4), first guesses, in the shallows of the east and west sides, well off the middle
+  // the pace angler casts to and the current down it
+  snags: [
+    { x: 52, y: 0, radius: 1.4, height: 1.6, kind: 'reeds' },
+    { x: -52, y: 0, radius: 1.4, height: 1.6, kind: 'reeds' },
+  ],
   dam: DAM,
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,

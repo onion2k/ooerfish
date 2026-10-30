@@ -38,3 +38,64 @@ describe('the lure in the wind', () => {
     expect(Array.from(lure.wind)).toEqual([0, 0]);
   });
 });
+
+describe('the lure snagged (`docs/boat.md`, C4)', () => {
+  /** A lure thrown and stepped until it sinks, at the point it landed. */
+  function sinking() {
+    const lure = new Lure(HOME);
+    lure.cast(NORTH, 0.5, 0);
+    let t = 0;
+    while (lure.phase !== 'sinking') lure.step((t += 1 / 60), 1 / 60);
+    for (let f = 0; f < 60; f++) lure.step((t += 1 / 60), 1 / 60);
+    return lure;
+  }
+
+  it('is not snagged to begin with', () => {
+    expect(new Lure(HOME).snagged).toBe(-1);
+  });
+
+  it('is caught by `snag` at the bobber’s place, on the surface, with the bed it is in', () => {
+    const lure = sinking();
+    expect(lure.depth).toBeGreaterThan(0);
+    lure.snag(2, 3.5, 4.5);
+    expect(lure.phase).toBe('snagged');
+    expect(lure.snagged).toBe(2);
+    expect([lure.bobber[0], lure.bobber[1]]).toEqual([3.5, 4.5]);
+    expect(Array.from(lure.at)).toEqual([3.5, 4.5, 0]);
+    expect(lure.depth).toBe(0);
+  });
+
+  it('is not on the bed, however near the bed it hangs, while snagged', () => {
+    // sunk in the shallows beside the south-east bed, where the bed is short of the line's depth
+    const lure = new Lure(HOME);
+    const s = HOME.snags[2];
+    lure.freed(s.x - s.radius - 2, s.y, 0);
+    for (let f = 0; f < 600; f++) lure.step(f / 60, 1 / 60);
+    expect(lure.onBed).toBe(true);
+    lure.snag(0, lure.bobber[0], lure.bobber[1]);
+    expect(lure.onBed).toBe(false);
+  });
+
+  it('does not sink on while snagged', () => {
+    const lure = sinking();
+    lure.snag(0, lure.bobber[0], lure.bobber[1]);
+    lure.step(100, 1 / 60);
+    expect(lure.depth).toBe(0);
+    expect(lure.at[2]).toBe(0);
+    expect(lure.phase).toBe('snagged');
+  });
+
+  it('is cleared by a reel-in, and by a fish letting it go, sinking on from the surface', () => {
+    const a = sinking();
+    a.snag(1, a.bobber[0], a.bobber[1]);
+    a.reelIn();
+    expect(a.phase).toBe('ready');
+    expect(a.snagged).toBe(-1);
+    const b = sinking();
+    b.snag(1, b.bobber[0], b.bobber[1]);
+    b.freed(1, 2, 0);
+    expect(b.phase).toBe('sinking');
+    expect(b.snagged).toBe(-1);
+    expect([b.bobber[0], b.bobber[1]]).toEqual([1, 2]);
+  });
+});

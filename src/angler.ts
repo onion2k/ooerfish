@@ -9,6 +9,7 @@
  * crosses a night plays on. It does only what a player could: it calls the game's cast, strike, reel and stow, and reads what the page shows.
  */
 import type { Game } from './game';
+import { SNAG } from './lake';
 import type { Random } from './random';
 
 /** How late the angler sees the fish on the bar, in frames of a sixtieth: a quarter of a second, a player's reaction. */
@@ -21,6 +22,9 @@ const LEAD = 0.15;
  * is not in that water; a player lets the lure sink through the bands again, and so does this hand.
  */
 export const PATIENCE = 12;
+
+/** How long a snagged lure is tugged for before the give: the snag's tug and a quarter of a second more, a player's margin. */
+const TUG = SNAG.tug + 0.25;
 
 /**
  * What a careful hand does on the bar, for the zone at `zone` moving at `speed` and the fish seen at `fishAt`: it holds
@@ -38,6 +42,8 @@ export class Angler {
   private frames = 0;
   /** How long the lure has sunk with no fish at it, in seconds. */
   private waited = 0;
+  /** How long it has held the reel on a snagged lure, in seconds. */
+  private tugged = 0;
 
   constructor(
     private readonly game: Game,
@@ -62,6 +68,15 @@ export class Angler {
       g.step(dt);
       return;
     }
+    // a lure snagged in the reeds is tugged for a while and given, which frees it: the pace angler never casts into a bed,
+    // but it must not stall if a drift takes the lure into one
+    if (g.lure.phase === 'snagged') {
+      g.reel(this.tugged < TUG);
+      this.tugged += dt;
+      g.step(dt);
+      return;
+    }
+    this.tugged = 0;
     const { phase } = g.bite;
     if (phase === 'hooked') this.seen[this.frames++ % this.seen.length] = g.line.fishAt;
     else this.frames = 0;

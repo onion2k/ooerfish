@@ -35,8 +35,11 @@ import {
   awake,
   ROPE,
   BOAT,
+  PHYSICS,
+  SNAG,
 } from './lake';
 import { seatOf } from './boat';
+import { snagGap } from './snags';
 import { weatherOf } from './calendar';
 import { poseFish } from './swim';
 import { REQUESTS } from './town/requests';
@@ -161,6 +164,23 @@ function tallyRules(game: Game, out: string[]) {
     if (!Number.isSafeInteger(tally[key]) || tally[key] < 0)
       out.push(`the tally's ${key} is ${tally[key]}, not a whole number from nought`);
   if (tally.run > tally.best) out.push(`the tally's run, ${tally.run}, is longer than its best, ${tally.best}`);
+}
+
+/**
+ * The reed beds (`docs/boat.md`, C4): every bed is on the water by its radius and half a unit, and the boat's middle is no
+ * nearer a bed's edge than the hull's radius, less a hair, which the post keeps it to (a row keeps further, by the keep-off).
+ */
+function snagRules(game: Game, out: string[]) {
+  const { lake, boat } = game;
+  lake.snags.forEach((s, i) => {
+    if (![s.x, s.y, s.radius, s.height].every(Number.isFinite) || !lake.inside(s.x, s.y, s.radius + 0.5))
+      out.push(`bed ${i} is off the water at ${s.x.toFixed(1)},${s.y.toFixed(1)}`);
+  });
+  if (lake.boat && lake.snags.length > 0) {
+    const gap = snagGap(lake, boat.x, boat.y);
+    if (gap < PHYSICS.radii.boat - 0.05)
+      out.push(`the boat is ${gap.toFixed(2)} from a bed's edge, nearer than the hull's radius`);
+  }
 }
 
 /**
@@ -360,7 +380,7 @@ export function checkInvariants(game: Game): string[] {
 
   const { lure } = game;
   const where = `at ${lure.at[0].toFixed(1)},${lure.at[1].toFixed(1)},${lure.at[2].toFixed(2)}`;
-  if (!['ready', 'flying', 'sinking', 'lying', 'hooked'].includes(lure.phase))
+  if (!['ready', 'flying', 'sinking', 'lying', 'hooked', 'snagged'].includes(lure.phase))
     out.push(`the lure is ${String(lure.phase)}`);
   else if (![...lure.at, lure.depth, lure.angle, lure.power].every(Number.isFinite))
     out.push('the lure is not a number');
@@ -378,8 +398,28 @@ export function checkInvariants(game: Game): string[] {
     if (!inside(lure.bobber[0], lure.bobber[1])) out.push(`the lure is sinking off the water, ${where}`);
     else if (lure.depth < 0 || lure.depth > bedDepth(lure.bobber[0], lure.bobber[1]))
       out.push(`the lure is under the bed, ${where}`);
+  } else if (lure.phase === 'snagged') {
+    // caught in a bed of reeds (`docs/boat.md`, C4): the bed is one the lake has, the bobber is on the water within the
+    // snag's reach of its edge, and the bite is none, the fish having been let go as the lure was caught
+    const bed = lake.snags.length > lure.snagged && lure.snagged >= 0 ? lake.snags[lure.snagged] : undefined;
+    if (!bed) out.push(`the lure is snagged on bed ${lure.snagged}, of ${lake.snags.length}`);
+    else if (!inside(lure.bobber[0], lure.bobber[1])) out.push(`the snagged lure is off the water, ${where}`);
+    else {
+      const gap = Math.hypot(lure.bobber[0] - bed.x, lure.bobber[1] - bed.y) - bed.radius;
+      if (gap > SNAG.reach + 1e-6)
+        out.push(`the snagged lure's bobber is ${gap.toFixed(2)} from bed ${lure.snagged}'s edge, past its reach`);
+    }
+    if (game.bite.phase !== 'none') out.push(`the bite is ${game.bite.phase} with the lure snagged`);
   } else if (lure.phase === 'lying' && inside(lure.at[0], lure.at[1]))
     out.push(`the lure is lying on the water, ${where}`);
+  if (lure.phase !== 'snagged' && lure.snagged !== -1)
+    out.push(`the lure is ${lure.phase}, but holds bed ${lure.snagged}`);
+  // a tug is time spent holding the reel on a snag, and is nought at any other time
+  if (!(game.tugging >= 0)) out.push(`the tugging is ${game.tugging}`);
+  else if (game.tugging > 0 && !(lure.phase === 'snagged' && game.reeling))
+    out.push(
+      `the lure has been tugged ${game.tugging} s, with ${lure.phase === 'snagged' ? 'the reel not held' : `the lure ${lure.phase}`}`,
+    );
 
   // the line's rope: every point a number, the ends where the line is pinned, and none under the ground or the bed
   {
@@ -518,6 +558,7 @@ export function checkInvariants(game: Game): string[] {
   photoRules(game, out);
   tallyRules(game, out);
   boatRules(game, out);
+  snagRules(game, out);
   if (!(game.timeOfDay >= 0 && game.timeOfDay < 1)) out.push(`the time of day is ${game.timeOfDay}`);
   return out;
 }

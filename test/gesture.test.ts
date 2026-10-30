@@ -91,6 +91,30 @@ describe('the screen', () => {
     expect(calls).toEqual(['aim off', 'strike']);
   });
 
+  it('tugs for as long as it is held with the lure snagged, and a tap does not strike', () => {
+    const { calls, state, gesture } = fake('cast');
+    state.lure = 'snagged';
+    gesture.handle(down(100, 100));
+    expect(calls).toEqual(['reel true']);
+    gesture.handle(up(100, 100, 900));
+    expect(calls).toEqual(['reel true', 'reel false']);
+    // a tap is a short hold: it tugs for an instant and gives, and never strikes
+    expect(calls).not.toContain('strike');
+  });
+
+  it('tugs on the space key and the button with the lure snagged, in any mode', () => {
+    const k = fake('look');
+    k.state.lure = 'snagged';
+    k.gesture.handle({ type: 'press', source: 'key', repeat: false });
+    expect(k.calls).toEqual(['reel true']);
+    k.gesture.handle({ type: 'release', source: 'key' });
+    expect(k.calls).toEqual(['reel true', 'reel false']);
+    const b = fake('cast');
+    b.state.lure = 'snagged';
+    b.gesture.handle({ type: 'press', source: 'button', repeat: false });
+    expect(b.calls).toEqual(['reel true']);
+  });
+
   it('drops a pebble at the tapped point in cast mode otherwise, and in look mode even with the lure sinking', () => {
     const a = fake('cast');
     a.gesture.handle(down(200, 200));

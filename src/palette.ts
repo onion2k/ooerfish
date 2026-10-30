@@ -149,6 +149,10 @@ export const PALETTE = {
   curedFin: [1, 0.42, 0.38] as Colour,
   curedGlow: [1, 0.78, 0.42] as Colour,
 
+  /** The reed beds (`docs/boat.md`, C4): a dry green stem and a brown seed head, summer's in every season. */
+  reed: [0.55, 0.62, 0.3] as Colour,
+  reedHead: [0.45, 0.33, 0.2] as Colour,
+
   /** The sky, straight up and at the horizon, at each time of day. */
   nightZenith: [0.01, 0.015, 0.05] as Colour,
   nightHorizon: [0.05, 0.07, 0.17] as Colour,

@@ -31,6 +31,7 @@ import { LAKES } from './lakes';
 import { logbookWords, type LogbookWords } from './town/logbook';
 import type { Photo } from './photo';
 import { bankSpot } from './drumdraw';
+import { posts } from './snags';
 import { shelfSpot } from './treasuredraw';
 import { seeded } from './random';
 import type { SceneryFigures } from './scene';
@@ -111,6 +112,17 @@ export interface DrumState {
   hauled: boolean;
   /** Where it stands on the bank by the cabin once hauled: x, y and z in the world. */
   bank: [number, number, number];
+}
+
+/** A bed of reeds: where it stands, how wide and how high, and the post the physics makes of it. */
+export interface SnagState {
+  x: number;
+  y: number;
+  radius: number;
+  height: number;
+  kind: string;
+  /** The post in the physics world: its top and bounce. */
+  post: { top: number; restitution: number };
 }
 
 /** A junk treasure: where it lies on the bed, whether it is found and kept, and where it stands on the cabin's shelf. */
@@ -201,6 +213,16 @@ export interface GameApi {
   drums(): DrumState[];
   /** Each junk treasure on the bed, where it lies, whether it is found and where it stands on the shelf once it is. */
   treasures(): TreasureState[];
+  /** Each bed of reeds in the lake (`docs/boat.md`, C4): where it stands and its size, and the post the physics keeps the bobber and the boat out of it by. */
+  snags(): SnagState[];
+  /**
+   * The lure put snagged in bed `i`, for a picture or a test: reeled in by force first, then caught `SNAG.reach` / 2 out
+   * from the bed's edge toward the lake's middle with its body taken, as a cast landing there would leave it. False, and
+   * nothing changed, for a bed the lake has not and away from the pond.
+   */
+  snag(i: number): boolean;
+  /** How long the reel has been held on the snagged lure, in seconds; nought when it is not snagged and reeling. */
+  tugging(): number;
   /** Every splash in the pool, live or over. */
   splashes(): Splash[];
   /** What has happened since this was last asked, a line each: "splashed 3.0,-4.0". */
@@ -691,6 +713,19 @@ export function createApi(host: DebugHost): GameApi {
           : [drums.x[i], drums.y[i], -game.lake.bedDepth(drums.x[i], drums.y[i])],
       }));
     },
+    snags() {
+      const bumpers = posts(game.lake);
+      return game.lake.snags.map((s, i) => ({
+        x: s.x,
+        y: s.y,
+        radius: s.radius,
+        height: s.height,
+        kind: s.kind,
+        post: { top: bumpers[i].top, restitution: bumpers[i].restitution },
+      }));
+    },
+    snag: (i) => game.snagAt(i),
+    tugging: () => game.tugging,
     treasures() {
       const { treasures } = game;
       return game.lake.treasures.list.map((t, i) => ({

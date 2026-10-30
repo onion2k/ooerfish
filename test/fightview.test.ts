@@ -111,6 +111,18 @@ describe('fightPicture', () => {
     expect(p.words).toBe('');
   });
 
+  it('reads Tug while the lure is snagged in the reeds, and Strike again once it is freed', () => {
+    const { game } = newGame(1);
+    game.snagAt(0);
+    expect(game.lure.phase).toBe('snagged');
+    expect(fightPicture(game).button).toBe('Tug');
+    game.reel(true);
+    for (let f = 0; f < 60; f++) game.step(DT);
+    game.reel(false);
+    expect(game.lure.phase).toBe('sinking');
+    expect(fightPicture(game).button).toBe('Strike');
+  });
+
   it('is plain data: it survives JSON unchanged, in every phase', () => {
     for (const game of [newGame(1).game, biting(), hooked(), landed()]) {
       const p = fightPicture(game);

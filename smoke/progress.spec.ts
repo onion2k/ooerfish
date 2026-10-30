@@ -3196,3 +3196,54 @@ test.describe('the boat adrift', () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe('the snags', () => {
+  const lure = (page: Page) => page.evaluate(() => window.game!.lure());
+
+  test('three reed beds; snagged, the line, Cast and the button say so; a tug and a give free it; a cast aimed at a bed snags', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const problems = watch(page);
+    await start(page, { seed: 3, paused: true });
+    await play(page, 30, 'half a second at the pond');
+    expect(await page.evaluate(() => window.game!.snags())).toHaveLength(3);
+    await expect(page.locator('#modeButton')).toBeEnabled();
+
+    // put in bed 2: the line, the Cast button and its hint all say so
+    expect(await page.evaluate(() => window.game!.snag(2))).toBe(true);
+    await play(page, 2, 'snagged');
+    expect((await lure(page)).phase).toBe('snagged');
+    await expect(page.locator('#castLine')).toHaveText('snagged in the reeds: hold to tug, let go to free it');
+    await expect(page.locator('#modeButton')).toBeDisabled();
+    await expect(page.locator('#help')).toHaveText('snagged: hold to tug, let go to free it');
+    await expect(page.locator('#reelButton')).toHaveText('Tug');
+
+    // the reel held is a tug
+    await page.evaluate(() => window.game!.reel(true));
+    await play(page, 60, 'a second of tugging');
+    expect(await page.evaluate(() => window.game!.tugging())).toBeGreaterThan(0.8);
+    await expect(page.locator('#castLine')).toHaveText('tugging…');
+
+    // and let go it frees the lure: sinking on, told, Cast open again
+    await page.evaluate(() => window.game!.reel(false));
+    await play(page, 2, 'the give');
+    expect((await lure(page)).phase).toBe('sinking');
+    expect(await page.evaluate(() => window.game!.events())).toContain('freed 2');
+    await expect(page.locator('#castLine')).toHaveText('free!');
+    await expect(page.locator('#modeButton')).toBeEnabled();
+    await expect(page.locator('#help')).not.toHaveText('snagged: hold to tug, let go to free it');
+
+    // a real cast aimed at the south-east bed from the shore snags there
+    await page.evaluate(() => window.game!.reelIn());
+    await play(page, 2, 'reeled in');
+    expect(await page.evaluate(() => window.game!.cast(0.525, 0.58))).toBe(true);
+    await play(page, 240, 'the cast lands in the reeds');
+    const caught = await lure(page);
+    expect(caught.phase).toBe('snagged');
+    expect(await page.evaluate(() => window.game!.events())).toContain('snagged 2');
+
+    expect(await page.evaluate(() => window.game!.invariants())).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});

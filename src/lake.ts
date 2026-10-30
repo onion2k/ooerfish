@@ -822,6 +822,25 @@ export const DRIFT = {
 } as const;
 
 /**
+ * Snags (`docs/boat.md`, C4), first guesses to be tuned by playing. `reach` is how far past a reed bed's edge a sinking
+ * bobber is caught (a bit more than the bobber's own radius, so the post that keeps it out has already touched it);
+ * `tug` is how long the reel must be held on a snag, in seconds, before a give (the reel let go) frees the lure;
+ * `tension` is what the rod bends and the line warms to while tugging, on the fight's scale of nought to one; `drop` is
+ * how far out from the bed's edge a freed lure sinks on from; `notice` is how many times the notice rate a fish has for a
+ * lure within `lureReach` of a bed's edge (the reeds are the better water, at the risk of a snag); and `restitution` is
+ * the physics post's bounce, low because reeds give.
+ */
+export const SNAG = {
+  reach: 0.6,
+  tug: 0.8,
+  tension: 0.8,
+  drop: 0.8,
+  notice: 2.5,
+  lureReach: 4,
+  restitution: 0.1,
+} as const;
+
+/**
  * Where the line ends, in the figures the game and the drawing share: how far the lure hangs from the tip when ready; a
  * landed fish shown off, how far below the tip it hangs, how far it sways and how fast; how far the bobber dips at a
  * bite and twitches at a nibble, and for how long; how far it shakes while the strike's window is open, and how fast;

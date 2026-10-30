@@ -865,6 +865,15 @@ export const DUCK_POND: Lake = {
   // shore's casts land (to 8 east at the furthest) and the pace angler's boat casts do, so a game played from the shore
   // and the pace gate's are as they were, and a cast has to be thrown to it
   currents: [{ x: 11.5, y: 6, heading: -Math.PI / 2, length: 16, width: 5, speed: 0.6 }],
+  // three reed beds in the shallows (`docs/boat.md`, C4), first guesses: by the west bank, in the north-west shallows and
+  // by the south-east bank. Each is on the water by its radius and half a unit, far from the mooring and the jetty on the
+  // east, from the pace angler's casts down the middle and from the south shore's unaimed ones, and from the current, the
+  // drums and the treasures, so only a cast aimed at one, or a drift, meets it
+  snags: [
+    { x: -38, y: 0, radius: 1.4, height: 1.6, kind: 'reeds' },
+    { x: -19, y: 19, radius: 1.4, height: 1.6, kind: 'reeds' },
+    { x: 27, y: -14, radius: 1.4, height: 1.6, kind: 'reeds' },
+  ],
   scenery: { ...DRESSING, ...SCENERY_FIGURES },
   shadowBox: SHADOW_BOX,
 

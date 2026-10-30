@@ -561,6 +561,23 @@ Scene(lake)`, `bankField(kind, lake)`, `shoreField(size, lake)`, `surface(lake)`
   the physics' belts (`currentsOf`), carrying at about six tenths of the figure; nothing is drawn for a current. The
   Anchor button (`#anchorButton`, A, shown only aboard, `anchorWording`) is the third in `#modes`; the fuzzer weighs
   and drops at random; `game.anchor(down)` and `game.boat().anchored` are the API.
+- **The snags** (`docs/boat.md`, C4): a lake's `snags` are reed beds (`Snag` in `src/lakes/lake.ts`: a place, a radius,
+  a height, a kind; the pond's three in the shallows by the west bank, the north-west and the south-east, the
+  Reservoir's two), water the fish may be in (`inside` is unchanged) and the physics' posts (`posts(lake)` in
+  `src/snags.ts`, set on the world), so the bobber and a boat adrift are kept off and `rowPath` keeps the boat's
+  line `BOAT.keepOff` from every bed. A lure sinking within `SNAG.reach` of a bed's edge is snagged there (the lure's
+  `'snagged'` phase and `Lure.snagged`, the bed; the body carried, a coming fish let go, `GameEvents.snagged`): the
+  reel held is a tug (`Game.tugging` counts it, the rope's tension `SNAG.tension` so the rod bends and the line warms)
+  and the let-go after `SNAG.tug` of it frees the lure `SNAG.drop` out from the edge, resolved at the let-go itself
+  (`freedPoint`, a splash, `GameEvents.freed`); sooner, nothing. `strike`, `cast` and the public `reelIn` are refused
+  while snagged (Cast greyed with `SNAGGED_HINT`, the Reel button "Tug", every way of playing's hold a tug through
+  `gesture.ts`), and the yawn, a row, a journey and the cabin reel in by force (`reelInForce`, nothing lost). A lure
+  sinking within `SNAG.lureReach` of a bed is noticed `SNAG.notice` times as fast (`Bite.step`, the draw count
+  unchanged). `src/snagdraw.ts` builds each bed once from a seed of its own into the static set (`snagGroups`, under
+  800 triangles a bed, summer's colour in every season). The angler tugs `SNAG.tug + 0.25`; the fuzzer casts at the
+  reeds, tugs long and short and tries the refusals on about two seeds in five (`reedy`, from a stream of its own, so
+  the other seeds play as they did); `game.snags()`, `snag(i)` and `tugging()` are the API. The figures are `SNAG` in
+  `lake.ts`, first guesses.
 - **The physics** (`docs/boat.md`, C1): `src/physics.ts` is the one door to artshape-physics, and nothing else in `src/`
   imports it. Its floor is the water's surface (the package refuses the bed as terrain), its rock the shore on a grid of
   `PHYSICS.tile`, a world a game (`newWorld(lake)`; `worldFor(lake)` the memoised grid for readers), and `Bodies` the
